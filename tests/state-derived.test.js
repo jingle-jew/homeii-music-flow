@@ -9,6 +9,7 @@ import {
   mobileDynamicThemeMode,
   mobileShowUpNextEnabled,
   normalizeSettingsSource,
+  performanceModeEnabled,
   usesVisualSettings,
 } from "../src/core/state/derived.js";
 
@@ -36,5 +37,18 @@ describe("state derived helpers", () => {
     expect(mobileBackgroundMotionMode({ mobileBackgroundMotionMode: "EXTREME" })).toBe("extreme");
     expect(backgroundMotionEnabled({ mobileBackgroundMotionMode: "off" })).toBe(false);
     expect(backgroundMotionAmount({ mobileBackgroundMotionMode: "strong" })).toBe("1.35");
+  });
+
+  it("forces heavy visuals off in performance mode", () => {
+    const state = {
+      performanceMode: true,
+      mobileDynamicThemeMode: "strong",
+      mobileBackgroundMotionMode: "extreme",
+    };
+
+    expect(performanceModeEnabled(state)).toBe(true);
+    expect(mobileDynamicThemeMode(state)).toBe("off");
+    expect(mobileBackgroundMotionMode(state)).toBe("off");
+    expect(backgroundMotionEnabled(state)).toBe(false);
   });
 });

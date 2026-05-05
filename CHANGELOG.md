@@ -1,5 +1,38 @@
 # Changelog
 
+## 5.2.0 - 2026-05-05
+
+Studio Focus Mode and Control Room release.
+
+Studio experience:
+
+- Rebuilds Studio around a clearer target-first flow: current control target, primary playback controls, and four main areas for Players, Music, Queue, and Actions.
+- Keeps Studio powerful without turning the bottom bar into a wall of buttons: advanced tools now live inside contextual Music Hub and Actions panels.
+- Upgrades the player wall with live player tiles, selected-state feedback, queue count, protocol/status badges, volume control, mute, play/pause, next, and clearer multi-player targeting.
+- Adds multi-player control from Studio for play/pause, next, mute, stop, clear queue, group, ungroup, and visible-player management.
+- Adds group-aware Studio behavior so selected or grouped players are easier to understand as one control target.
+
+Music and queue tools:
+
+- Adds Music Hub access to Studio search, full library browsing, Smart Mix, recent listening, favorites, and scene presets.
+- Upgrades Studio Search with visual result cards and clear Play, Next, Add, Radio, and Like actions.
+- Adds Queue Cockpit for source/target queue inspection, transfer, clone without deleting the source, refresh, and clear queue.
+- Keeps advanced Music Assistant operations feature-detected so missing Direct MA API support hides or disables Pro tools instead of breaking the basic Studio.
+
+Actions and Pro tools:
+
+- Adds Studio access to timers/schedules, Announcement Studio, This Device Sendspin controls, and Pro diagnostics.
+- Redesigns Announcement Studio with a clearer target chip, compact compose area, volume boost control, less-transparent panel treatment, and a calmer send action.
+- Adds a weak-device Performance Mode that disables heavy blur, dynamic theme extraction, background motion, and heavy visual effects for smoother Nest Hub / older tablet use.
+
+Bug fixes and polish:
+
+- Fixes the Studio close-button overlap when opening Studio from compact mode after expanding to full screen.
+- Fixes This Device Sendspin connection from Studio so the local browser player appears as a Studio tile and becomes the active Studio target.
+- Fixes in-card Performance Mode toggling so it can be disabled from the card settings after being enabled.
+- Fixes queue inline action open/close behavior so the action row responds immediately instead of briefly hiding the list.
+- Tightens Studio panel opacity, shared card/button scale, icon alignment, text hierarchy, and RTL/Hebrew readability.
+
 ## 5.1.6 - 2026-05-03
 
 In-card UI settings access fix.

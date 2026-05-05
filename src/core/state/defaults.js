@@ -16,6 +16,8 @@ export function createBaseBrowserState() {
     playerModalOpen: false,
     hasAutoSelectedPlayer: false,
     cardTheme: "auto",
+    performanceMode: false,
+    performanceModeLocalOverride: false,
     modalMode: "players",
     sidePanelToken: 0,
     immersiveNowPlayingOpen: false,
@@ -38,6 +40,7 @@ export function createBaseBrowserState() {
     controlRoomTransferTarget: "",
     controlRoomPanel: "",
     controlRoomVisiblePlayers: [],
+    controlRoomRevealThisDevicePending: false,
     controlRoomRenderedHtml: "",
     controlRoomRenderSignature: "",
   };

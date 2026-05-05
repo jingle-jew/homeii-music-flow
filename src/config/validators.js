@@ -46,6 +46,7 @@ export function validateBaseCardEditorConfig(config) {
   assertValueInList(config.language, "language", ["auto", "he", "en"]);
   assertValueInList(config.theme_mode, "theme_mode", ["auto", "dark", "light"]);
   assertBooleanIfDefined(config.rtl, "rtl");
+  assertBooleanIfDefined(config.performance_mode, "performance_mode");
   assertBooleanIfDefined(config.show_ma_button, "show_ma_button");
   assertBooleanIfDefined(config.show_theme_toggle, "show_theme_toggle");
 }

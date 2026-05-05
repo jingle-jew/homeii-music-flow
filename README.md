@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/r11a/homeii-music-flow"><img alt="version" src="https://img.shields.io/badge/version-5.1.6-gold"></a>
+  <a href="https://github.com/r11a/homeii-music-flow"><img alt="version" src="https://img.shields.io/badge/version-5.2.0-gold"></a>
   <img alt="Home Assistant" src="https://img.shields.io/badge/Home%20Assistant-Dashboard-41BDF5">
   <img alt="Music Assistant" src="https://img.shields.io/badge/Music%20Assistant-required-7C5CFF">
   <img alt="Sendspin" src="https://img.shields.io/badge/Sendspin-browser%20player-18B6FF">
@@ -48,6 +48,17 @@ HOMEii Flow started from my own daily use of Home Assistant and Music Assistant.
 - **Real Music Assistant library flow:** playlists, albums, artists, tracks, radio, favorites, recent listening, and recommendations.
 - **Hebrew and RTL ready:** layout, labels, alignment, and interaction patterns are built for Hebrew as a first-class use case.
 - **Release-ready package:** HACS-ready `dist/` output includes the card, Sendspin files, Embla swipe support, and the brand asset.
+
+## What's New In 5.2.0
+
+- **Studio Focus Mode:** Studio now opens around a clear control target, primary playback controls, and four simple areas: Players, Music, Queue, and Actions.
+- **Richer player wall:** live player tiles include selected-state feedback, queue count, status/protocol badges, volume, mute, play/pause, next, grouping awareness, and visible-player controls.
+- **Music Hub:** Studio now exposes search, full library browsing, Smart Mix, recent listening, favorites, scenes, and visual result cards with `Play`, `Next`, `Add`, `Radio`, and `Like`.
+- **Queue Cockpit:** inspect source/target queues, transfer a queue, clone without deleting the source, refresh, and clear queues.
+- **Actions and Pro tools:** timers/schedules, Announcement Studio, This Device Sendspin controls, and diagnostics are available from contextual Studio panels.
+- **Announcement Studio polish:** clearer target chip, compact compose area, volume boost, calmer send action, and stronger panel opacity.
+- **Weak-device Performance Mode:** disables heavy blur, dynamic color extraction, motion, and expensive effects for Nest Hub and older tablets.
+- **Bug fixes:** fixes Studio close-button overlap from compact/fullscreen mode, This Device not appearing as a Studio tile after connect, Performance Mode not toggling off from in-card settings, and queue inline action flicker.
 
 ## What's New In 5.1.6
 
@@ -130,7 +141,7 @@ If HACS does not add the resource automatically, add:
 3. Add this Dashboard resource:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.1.6
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.2.0
 ```
 
 4. Add the card:
@@ -708,7 +719,7 @@ npm run lint
 npm test
 ```
 
-Current packaged version: `5.1.6`
+Current packaged version: `5.2.0`
 
 ## Release Readiness
 

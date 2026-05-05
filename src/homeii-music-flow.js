@@ -84,6 +84,7 @@
       ma_interface_target: "_self",
       theme_mode: "auto",
       show_theme_toggle: true,
+      performance_mode: false,
       main_opacity: 0.66,
       popup_opacity: 0.92,
       ...config,
@@ -181,6 +182,7 @@
       ma_interface_target: "_self",
       theme_mode: "auto",
       show_theme_toggle: true,
+      performance_mode: false,
       main_opacity: 0.66,
       popup_opacity: 0.92,
     };
@@ -429,7 +431,7 @@
   _versionedAssetUrl(url) {
     const value = String(url || "").trim();
     if (!value || /^data:/i.test(value) || /[?&]v=/.test(value)) return value;
-    const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.1.6";
+    const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.2.0";
     return `${value}${value.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
   }
 
@@ -3679,6 +3681,7 @@
       this._stopLocalSendspinPlayer("shutdown");
       this._state.localSendspinDisconnecting = false;
       this._state.awaitingThisDevicePlayer = false;
+      this._state.controlRoomRevealThisDevicePending = false;
       this._state.localSendspinStatus = "error";
       if (automatic) this._debugLog("warn", "[Homeii Sendspin] automatic local reconnect failed", error);
       else this._toastError(error?.message || this._localText("Local Sendspin connection failed.", "חיבור Sendspin המקומי נכשל."));
@@ -3911,9 +3914,14 @@
           .filter((player) => this._isLocalSendspinPlayer(player) && this._isAvailableThisDevicePlayer(player));
         this._directMaPlayers = normalized;
         this._loadPlayers();
+        const thisDevicePlayer = this._getThisDevicePlayer(this._state.players || []);
+        if (this._state.controlRoomRevealThisDevicePending && thisDevicePlayer?.entity_id) {
+          this._revealControlRoomThisDevicePlayer(thisDevicePlayer.entity_id, { sync: false });
+        }
         if (options.renderMenu && this._state.menuOpen && typeof this._renderMobileMenu === "function") {
           this._renderMobileMenu().catch(() => {});
         }
+        if (this._state.controlRoomOpen) this._syncControlRoomUi({ force: true });
         this._renderPlayerSummary();
         this._syncBrandPlayingState();
         this._syncNowPlayingUI();
@@ -3971,10 +3979,12 @@
     }
     this._rememberThisDevicePlayer("");
     this._state.awaitingThisDevicePlayer = true;
+    this._state.controlRoomRevealThisDevicePending = true;
     this._state.knownBrowserPlayerIds = this._getBrowserPlayers().map((p) => p.entity_id);
     this._startLocalSendspinPlayer().catch((error) => {
       this._state.localSendspinDisconnecting = false;
       this._state.awaitingThisDevicePlayer = false;
+      this._state.controlRoomRevealThisDevicePending = false;
       this._toastError(error?.message || this._localText("Local Sendspin connection failed.", "חיבור Sendspin המקומי נכשל."));
     });
   }
@@ -3991,6 +4001,7 @@
     }
     this._rememberThisDevicePlayer("");
     this._state.awaitingThisDevicePlayer = false;
+    this._state.controlRoomRevealThisDevicePending = false;
     this._state.knownBrowserPlayerIds = [];
     this._directMaPlayers = [];
     this._stopLocalSendspinPlayer("user_request");
@@ -3998,6 +4009,7 @@
     this._state.localSendspinStatus = "disconnected";
     this._refreshDirectMaPlayers({ renderMenu: true }).catch(() => {});
     this._loadPlayers();
+    if (this._state.controlRoomOpen) this._syncControlRoomUi({ force: true });
     if (this._state.menuOpen && typeof this._renderMobileMenu === "function") this._renderMobileMenu().catch(() => {});
     this._toastSuccess(this._t("This device player disconnected"));
   }
@@ -4452,10 +4464,65 @@
     const labels = {
       selection: this._m("connected players", "נגנים מחוברים"),
       visible: this._m("visible tiles", "אריחים מוצגים"),
+      music: this._m("music hub", "מרכז מוזיקה"),
+      actions: this._m("actions", "פעולות"),
       library: this._m("studio search", "חיפוש סטודיו"),
-      transfer: this._m("queue transfer", "העברת תור"),
+      transfer: this._m("queue cockpit", "ניהול תור"),
+      mix: this._m("smart mix", "מיקס חכם"),
+      recent: this._m("recent listening", "האזנות אחרונות"),
+      favorites: this._m("favorite center", "מרכז אהבתי"),
+      scenes: this._m("scene presets", "סצנות"),
+      announce: this._m("announcement studio", "סטודיו כריזה"),
+      pro: this._m("studio pro", "סטודיו Pro"),
     };
     return labels[String(panel || "")] || this._controlRoomLabel();
+  }
+
+  _controlRoomActionTargetIds() {
+    const selectedIds = this._controlRoomSelectedPlayerIds();
+    if (selectedIds.length) return selectedIds;
+    const primaryId = this._controlRoomPrimaryPlayerId();
+    return primaryId ? [primaryId] : [];
+  }
+
+  _controlRoomFocusTarget() {
+    const selectedIds = this._controlRoomSelectedPlayerIds();
+    const selectedPlayers = selectedIds.map((entityId) => this._playerByEntityId(entityId)).filter(Boolean);
+    const primary = this._controlRoomPrimaryPlayer();
+    const players = selectedPlayers.length ? selectedPlayers : (primary ? [primary] : []);
+    const first = players[0] || null;
+    const art = first?.attributes?.entity_picture_local || first?.attributes?.entity_picture || "";
+    if (players.length > 1) {
+      const names = players.map((player) => player.attributes?.friendly_name || player.entity_id).filter(Boolean);
+      return {
+        art,
+        count: players.length,
+        kicker: this._m("Controlling", "שולט עכשיו על"),
+        name: this._controlRoomPlayerCountLabel(players.length),
+        track: names.slice(0, 3).join(" · ") + (names.length > 3 ? "..." : ""),
+      };
+    }
+    const name = first?.attributes?.friendly_name || this._m("Selected player", "נגן נבחר");
+    return {
+      art,
+      count: first ? 1 : 0,
+      kicker: selectedIds.length ? this._m("Controlling", "שולט עכשיו על") : this._m("Primary target", "יעד ראשי"),
+      name,
+      track: first?.attributes?.media_title || first?.attributes?.media_artist || this._playerStateLabel(first) || this._m("Idle", "ממתין"),
+    };
+  }
+
+  _controlRoomContextChipHtml() {
+    const target = this._controlRoomFocusTarget();
+    return `
+      <div class="control-room-context-chip">
+        <span class="control-room-context-art">${target.art ? `<img src="${this._esc(target.art)}" alt="">` : this._iconSvg("speaker")}</span>
+        <span class="control-room-context-copy">
+          <span class="control-room-context-kicker">${this._esc(target.kicker)}</span>
+          <span class="control-room-context-name">${this._esc(target.name)}</span>
+        </span>
+      </div>
+    `;
   }
 
   _tabletStabilityModeEnabled() {
@@ -4481,7 +4548,7 @@
   _controlRoomAllPlayers() {
     this._loadPlayers();
     const players = Array.isArray(this._state.players) ? this._state.players : [];
-    const visible = players.filter((player) => !this._isLikelyBrowserPlayer(player));
+    const visible = players.filter((player) => !this._isLikelyBrowserPlayer(player) || this._isLocalSendspinPlayer(player));
     return visible.length ? visible : players;
   }
 
@@ -4490,10 +4557,35 @@
     const validIds = new Set(players.map((player) => player.entity_id));
     let visibleIds = (Array.isArray(this._state.controlRoomVisiblePlayers) ? this._state.controlRoomVisiblePlayers : [])
       .filter((entityId) => validIds.has(entityId));
+    const thisDevicePlayer = players.find((player) => this._isLocalSendspinPlayer(player) && this._isAvailableThisDevicePlayer(player));
+    if (this._state.controlRoomRevealThisDevicePending && thisDevicePlayer?.entity_id) {
+      if (!visibleIds.length && this._state.controlRoomVisiblePlayers?.length) visibleIds = [thisDevicePlayer.entity_id];
+      else if (!visibleIds.includes(thisDevicePlayer.entity_id)) visibleIds.push(thisDevicePlayer.entity_id);
+      this._state.controlRoomRevealThisDevicePending = false;
+    }
     if (!visibleIds.length) visibleIds = players.map((player) => player.entity_id);
     if (!visibleIds.length && players[0]?.entity_id) visibleIds = [players[0].entity_id];
     this._state.controlRoomVisiblePlayers = visibleIds;
     return visibleIds;
+  }
+
+  _revealControlRoomThisDevicePlayer(entityId = "", options = {}) {
+    const id = String(entityId || "").trim();
+    if (!id) return false;
+    const visible = Array.isArray(this._state.controlRoomVisiblePlayers)
+      ? this._state.controlRoomVisiblePlayers.filter(Boolean)
+      : [];
+    if (visible.length && !visible.includes(id)) this._state.controlRoomVisiblePlayers = [...visible, id];
+    const selected = Array.isArray(this._state.controlRoomSelectedPlayers)
+      ? this._state.controlRoomSelectedPlayers.filter(Boolean)
+      : [];
+    this._state.controlRoomSelectedPlayers = [id, ...selected.filter((value) => value !== id)];
+    this._state.controlRoomRevealThisDevicePending = false;
+    if (options.sync !== false && this._state.controlRoomOpen) {
+      this._syncControlRoomTransferDefaults();
+      this._syncControlRoomUi({ force: true });
+    }
+    return true;
   }
 
   _controlRoomPlayers() {
@@ -4511,11 +4603,68 @@
     );
   }
 
+  _controlRoomGroupKey(player = null) {
+    const attrs = player?.attributes || {};
+    const candidates = [
+      attrs.group_id,
+      attrs.group,
+      attrs.group_leader,
+      attrs.group_parent,
+      attrs.group_master,
+      attrs.group_entity_id,
+      attrs.sync_group,
+      attrs.active_group,
+      attrs.synced_to,
+    ];
+    const key = candidates
+      .map((value) => String(value || "").trim())
+      .find((value) => value && !/^(false|true|none|null|unknown|unavailable)$/i.test(value));
+    return key || "";
+  }
+
+  _controlRoomGroupInfo(player = null) {
+    if (!player?.entity_id || HomeiiPlayersFoundation.isLikelyBrowserPlayer(player)) return { ids: [], count: 0, label: "" };
+    const allPlayers = this._controlRoomAllPlayers();
+    const byId = new Map(allPlayers.map((entry) => [entry?.entity_id, entry]).filter(([entityId]) => !!entityId));
+    let ids = this._playerGroupMemberIds(player);
+    if (ids.length <= 1) {
+      const owner = allPlayers.find((candidate) => {
+        const members = this._playerGroupMemberIds(candidate);
+        return members.length > 1 && members.includes(player.entity_id);
+      });
+      if (owner) ids = this._playerGroupMemberIds(owner);
+    }
+    if (ids.length <= 1) {
+      const key = this._controlRoomGroupKey(player);
+      if (key) {
+        ids = allPlayers
+          .filter((candidate) => this._controlRoomGroupKey(candidate) === key)
+          .map((candidate) => candidate.entity_id);
+      }
+    }
+    ids = [...new Set(ids)]
+      .filter((entityId) => entityId && byId.has(entityId))
+      .filter((entityId) => !HomeiiPlayersFoundation.isLikelyBrowserPlayer(byId.get(entityId)));
+    const names = ids
+      .map((entityId) => byId.get(entityId)?.attributes?.friendly_name || entityId)
+      .filter(Boolean);
+    return {
+      ids,
+      count: ids.length > 1 ? ids.length : 0,
+      label: names.length > 1 ? names.join(" · ") : "",
+    };
+  }
+
   _controlRoomSelectedPlayerIds() {
     const players = this._controlRoomPlayers();
     const validIds = new Set(players.map((player) => player.entity_id));
     let selected = (Array.isArray(this._state.controlRoomSelectedPlayers) ? this._state.controlRoomSelectedPlayers : [])
       .filter((entityId) => validIds.has(entityId));
+    if (!selected.length) {
+      const preferred = this._state.selectedPlayer;
+      if (preferred && validIds.has(preferred)) selected = [preferred];
+      else if (players[0]?.entity_id) selected = [players[0].entity_id];
+    }
     this._state.controlRoomSelectedPlayers = selected;
     return selected;
   }
@@ -4541,18 +4690,29 @@
     (Array.isArray(entityIds) ? entityIds : []).forEach((entityId) => {
       if (entityId && validIds.has(entityId) && !next.includes(entityId)) next.push(entityId);
     });
+    if (!next.length) {
+      const preferred = this._state.selectedPlayer;
+      if (preferred && validIds.has(preferred)) next.push(preferred);
+      else if (players[0]?.entity_id) next.push(players[0].entity_id);
+    }
     this._state.controlRoomSelectedPlayers = next;
     this._syncControlRoomTransferDefaults();
     this._syncControlRoomUi();
   }
 
   _toggleControlRoomPlayerSelection(entityId) {
-    if (!entityId) return;
+    if (!entityId) return "kept";
     const current = this._controlRoomSelectedPlayerIds();
-    const next = current.includes(entityId)
+    const isSelected = current.includes(entityId);
+    if (isSelected && current.length <= 1) {
+      this._setControlRoomSelection(current);
+      return "kept";
+    }
+    const next = isSelected
       ? current.filter((id) => id !== entityId)
       : [...current, entityId];
     this._setControlRoomSelection(next);
+    return isSelected ? "removed" : "added";
   }
 
   _setControlRoomPrimary(entityId, options = {}) {
@@ -4639,23 +4799,30 @@
     }
   }
 
+  _syncControlRoomChrome() {
+    const open = !!this._state.controlRoomOpen && this._controlRoomEnabled();
+    this.$("controlRoomBackdrop")?.classList.toggle("open", open);
+    this.shadowRoot?.querySelector(".card")?.classList.toggle("control-room-open", open);
+  }
+
   _openControlRoom() {
     if (!this._controlRoomEnabled()) return;
     this._state.controlRoomOpen = true;
     this._state.controlRoomPanel = "";
     this._controlRoomSelectedPlayerIds();
     this._syncControlRoomTransferDefaults();
-    this.$("controlRoomBackdrop")?.classList.add("open");
+    this._syncControlRoomChrome();
     this._syncControlRoomUi({ force: true });
+    this._loadControlRoomQueues(this._controlRoomPlayers().map((player) => player.entity_id)).catch(() => {});
     this._toastSuccess(this._m("Studio opened", "סטודיו נפתח"));
   }
 
-  _closeControlRoom() {
+  _closeControlRoom(options = {}) {
     this._state.controlRoomOpen = false;
     this._state.controlRoomPanel = "";
     this._state.controlRoomRestoreAfterMenu = false;
-    this.$("controlRoomBackdrop")?.classList.remove("open");
-    this._toast(this._m("Studio closed", "סטודיו נסגר"));
+    this._syncControlRoomChrome();
+    if (!options.silent) this._toast(this._m("Studio closed", "סטודיו נסגר"));
   }
 
   _isScheduleFormControl(target) {
@@ -4704,7 +4871,7 @@
     if (reopenPage) this._openMobileMenu(reopenPage, { scrollTop: previousMenuScrollTop });
     if (reopenStudio && this._controlRoomEnabled()) {
       this._state.controlRoomOpen = true;
-      this.$("controlRoomBackdrop")?.classList.add("open");
+      this._syncControlRoomChrome();
       this._syncControlRoomUi({ force: true });
     }
   }
@@ -4719,6 +4886,28 @@
     const next = String(panel || "");
     this._state.controlRoomPanel = this._state.controlRoomPanel === next ? "" : next;
     this._syncControlRoomUi();
+    this._primeControlRoomPanelData(this._state.controlRoomPanel);
+  }
+
+  _primeControlRoomPanelData(panel = "") {
+    const activePanel = String(panel || "");
+    if (!activePanel) return;
+    if (activePanel === "transfer") {
+      const ids = [
+        this._state.controlRoomTransferSource,
+        this._state.controlRoomTransferTarget,
+        ...this._controlRoomSelectedPlayerIds(),
+      ].filter(Boolean);
+      this._loadControlRoomQueues(ids).catch(() => {});
+      return;
+    }
+    if (activePanel === "recent") {
+      this._loadControlRoomRecent().catch(() => {});
+      return;
+    }
+    if (activePanel === "favorites") {
+      this._loadControlRoomFavorites().catch(() => {});
+    }
   }
 
   _controlRoomMediaTypeIcon(mediaType = "") {
@@ -4729,6 +4918,439 @@
     if (type === "radio") return "radio";
     if (type === "podcast") return "podcast";
     return "album";
+  }
+
+  _controlRoomMediaTypeLabel(mediaType = "") {
+    const type = String(mediaType || "").toLowerCase();
+    const labels = {
+      track: this._m("Track", "שיר"),
+      album: this._m("Album", "אלבום"),
+      artist: this._m("Artist", "אמן"),
+      playlist: this._m("Playlist", "פלייליסט"),
+      radio: this._m("Radio", "רדיו"),
+      podcast: this._m("Podcast", "פודקאסט"),
+    };
+    return labels[type] || this._m("Media", "מדיה");
+  }
+
+  _controlRoomNormalizeMediaEntry(item = {}, fallbackType = "album", options = {}) {
+    const mediaType = String(item?.media_type || item?.type || item?.media_item?.media_type || fallbackType || "album").toLowerCase();
+    const artists = Array.isArray(item?.artists)
+      ? item.artists.map((artist) => artist?.name).filter(Boolean).join(", ")
+      : "";
+    const uri = item?.uri || item?.media_item?.uri || item?.media_content_id || "";
+    return {
+      uri,
+      media_type: mediaType,
+      name: item?.name || item?.title || item?.media_item?.name || uri || this._controlRoomMediaTypeLabel(mediaType),
+      subtitle: options.subtitle || artists || item?.artist || item?.album?.name || item?.metadata?.description || item?.provider_label || this._controlRoomMediaTypeLabel(mediaType),
+      artist: artists || item?.artist || "",
+      album: item?.album?.name || item?.album || "",
+      image: this._artUrl(item) || item?.image || item?.image_url || item?.media_item?.image || item?.media_image || "",
+      favorite: !!item?.favorite,
+    };
+  }
+
+  _controlRoomEntryDataAttrs(entry = {}) {
+    return [
+      `data-room-library-uri="${this._esc(entry.uri || "")}"`,
+      `data-room-library-type="${this._esc(entry.media_type || "album")}"`,
+      `data-room-library-name="${this._esc(entry.name || "")}"`,
+      `data-room-library-subtitle="${this._esc(entry.subtitle || "")}"`,
+      `data-room-library-image="${this._esc(entry.image || "")}"`,
+    ].join(" ");
+  }
+
+  _controlRoomProtocolLabel(player = null) {
+    const attrs = player?.attributes || {};
+    return String(
+      attrs.mass_player_type
+      || attrs.player_type
+      || attrs.provider
+      || attrs.provider_name
+      || attrs.source
+      || attrs.app_name
+      || "MA"
+    ).replace(/_/g, " ").trim();
+  }
+
+  _controlRoomQueueCount(player = null, snapshot = null) {
+    const attrs = player?.attributes || {};
+    const candidates = [
+      snapshot?.state?.items,
+      attrs.queue_items,
+      attrs.queue_size,
+      attrs.queue_length,
+      attrs.media_playlist_length,
+      attrs.items_in_queue,
+      attrs.active_queue_items,
+    ];
+    const value = candidates.map((item) => Number(item)).find((item) => Number.isFinite(item) && item >= 0);
+    return Number.isFinite(value) ? Math.round(value) : 0;
+  }
+
+  _controlRoomQueueCache(entityId = "") {
+    const cache = this._state.controlRoomQueueSnapshots || {};
+    const entry = cache[String(entityId || "")];
+    return entry?.snapshot || null;
+  }
+
+  async _fetchDirectControlRoomQueueSnapshot(player = null) {
+    const queueId = this._directMaQueueId(player);
+    if (!queueId || !this._hasDirectMAConnection()) return null;
+    let queueState = null;
+    let items = [];
+    try {
+      queueState = await this._callDirectMaCommand("player_queues/get", { queue_id: queueId });
+    } catch (_) {}
+    try {
+      const fullSnapshot = await this._callDirectMaCommand("player_queues/items", { queue_id: queueId, limit: 120, offset: 0 });
+      items = Array.isArray(fullSnapshot?.items)
+        ? fullSnapshot.items
+        : (Array.isArray(fullSnapshot) ? fullSnapshot : []);
+    } catch (_) {}
+    if (!queueState && !items.length) return null;
+    return this._normalizeQueueSnapshot({ queue_state: queueState || {}, items }, player?.entity_id || "");
+  }
+
+  async _fetchControlRoomQueueSnapshot(entityId = "") {
+    const player = this._playerByEntityId(entityId);
+    if (!player) return null;
+    if (entityId === this._state.selectedPlayer) {
+      await this._ensureQueueSnapshot(true);
+      const items = Array.isArray(this._state.queueItems) ? this._state.queueItems : [];
+      if (items.length || this._state.maQueueState) {
+        return {
+          state: this._state.maQueueState || { items: items.length, current_index: 0 },
+          items,
+        };
+      }
+    }
+    let snapshot = null;
+    try { snapshot = await this._fetchMassQueueItemsSnapshot(player); } catch (_) { snapshot = null; }
+    if (!snapshot) {
+      try { snapshot = await this._fetchDirectControlRoomQueueSnapshot(player); } catch (_) { snapshot = null; }
+    }
+    return snapshot;
+  }
+
+  async _loadControlRoomQueues(entityIds = []) {
+    const ids = [...new Set((Array.isArray(entityIds) ? entityIds : []).filter(Boolean))];
+    if (!ids.length) return;
+    this._state.controlRoomQueueLoading = true;
+    this._syncControlRoomUi();
+    const nextCache = { ...(this._state.controlRoomQueueSnapshots || {}) };
+    const results = await Promise.allSettled(ids.map(async (entityId) => {
+      const snapshot = await this._fetchControlRoomQueueSnapshot(entityId);
+      return { entityId, snapshot };
+    }));
+    results.forEach((result) => {
+      if (result.status !== "fulfilled") return;
+      nextCache[result.value.entityId] = {
+        ts: Date.now(),
+        snapshot: result.value.snapshot,
+      };
+    });
+    this._state.controlRoomQueueSnapshots = nextCache;
+    this._state.controlRoomQueueLoading = false;
+    this._syncControlRoomUi({ force: true });
+  }
+
+  _controlRoomQueuePreviewHtml(entityId = "") {
+    const player = this._playerByEntityId(entityId);
+    const snapshot = this._controlRoomQueueCache(entityId);
+    const items = HomeiiMediaQueueFoundation.sortQueueItems(snapshot?.items || []);
+    const currentIndex = Number(snapshot?.state?.current_index);
+    const currentItem = Number.isFinite(currentIndex)
+      ? items.find((item) => Number(item?.sort_index) === currentIndex) || items[0]
+      : items[0];
+    const queueCount = this._controlRoomQueueCount(player, snapshot);
+    const previewItems = (currentItem ? [currentItem, ...items.filter((item) => item !== currentItem)] : items).slice(0, 4);
+    const title = player?.attributes?.friendly_name || entityId || this._m("Player", "נגן");
+    return `
+      <div class="control-room-queue-preview" data-control-room-scroll="queue-${this._esc(entityId)}">
+        <div class="control-room-queue-preview-head">
+          <span class="control-room-queue-player">${this._esc(title)}</span>
+          <span class="control-room-queue-count">${this._esc(queueCount ? `${queueCount}` : this._m("No queue", "אין תור"))}</span>
+        </div>
+        ${previewItems.length ? previewItems.map((item, index) => {
+          const media = item.media_item || {};
+          const art = this._queueItemImageUrl(item, 96) || this._artUrl(media) || "";
+          const itemTitle = media.name || item.name || item.media_title || this._m("Queue item", "פריט בתור");
+          const artist = item.media_artist || (media.artists || []).map((artistEntry) => artistEntry?.name).filter(Boolean).join(", ") || media.album?.name || "";
+          return `
+            <div class="control-room-queue-row ${index === 0 ? "current" : ""}">
+              <span class="control-room-queue-art">${art ? `<img src="${this._esc(art)}" alt="">` : this._iconSvg("music_note")}</span>
+              <span class="control-room-queue-copy">
+                <span class="control-room-queue-title">${this._esc(itemTitle)}</span>
+                <span class="control-room-queue-sub">${this._esc(index === 0 ? this._m("Now playing", "מתנגן עכשיו") : (artist || this._m("Up next", "הבא בתור")))}</span>
+              </span>
+            </div>
+          `;
+        }).join("") : `<div class="control-room-empty subtle">${this._esc(this._state.controlRoomQueueLoading ? this._m("Loading queue...", "טוען תור...") : this._m("Queue is unavailable for this player", "התור לא זמין לנגן הזה"))}</div>`}
+      </div>
+    `;
+  }
+
+  _controlRoomMixPresets() {
+    return [
+      { id: "calm", icon: "moon", label: this._m("Calm", "רגוע"), subtitle: this._m("Soft, relaxed music", "מוזיקה רכה ורגועה"), queries: ["relax chill playlist", "calm music", "acoustic chill"] },
+      { id: "party", icon: "radio", label: this._m("Party", "מסיבה"), subtitle: this._m("Energy and rhythm", "אנרגיה וקצב"), queries: ["party hits playlist", "dance playlist", "upbeat music"] },
+      { id: "morning", icon: "music_note", label: this._m("Morning", "בוקר"), subtitle: this._m("Fresh start", "פתיחה נעימה ליום"), queries: ["morning playlist", "coffee music", "feel good morning"] },
+      { id: "night", icon: "moon", label: this._m("Night", "לילה"), subtitle: this._m("Lower volume mood", "אווירת לילה רגועה"), queries: ["night chill playlist", "sleep music", "quiet jazz"] },
+      { id: "kids", icon: "speaker", label: this._m("Kids", "ילדים"), subtitle: this._m("Family friendly", "ידידותי למשפחה"), queries: ["kids music playlist", "children songs", "family music"] },
+      { id: "israeli", icon: "music_note", label: this._m("Israeli", "ישראלי"), subtitle: this._m("Local favorites", "מוזיקה מקומית"), queries: ["ישראלי עברית פלייליסט", "israeli music hebrew"] },
+      { id: "favorites", icon: "heart_filled", label: this._m("Liked", "אהבתי"), subtitle: this._m("Shuffle favorites", "ערבוב אהובים"), favorite: true },
+      { id: "random", icon: "shuffle", label: this._m("Random", "אקראי"), subtitle: this._m("Library surprise", "הפתעה מהספריה"), random: true },
+    ];
+  }
+
+  async _controlRoomFindMixEntries(presetId = "", customQuery = "") {
+    const preset = this._controlRoomMixPresets().find((item) => item.id === presetId) || null;
+    const query = String(customQuery || "").trim();
+    if (preset?.favorite) {
+      const favorites = this._useMaLikedMode() ? await this._loadMaLikedEntries(true) : this._likedEntries();
+      return favorites.filter((item) => item?.uri).slice(0, 24);
+    }
+    if (preset?.random) {
+      const tracks = await this._fetchLibrary("track", "random", 24, false);
+      return tracks.map((item) => this._controlRoomNormalizeMediaEntry(item, "track")).filter((item) => item.uri);
+    }
+    const queries = query ? [query] : (preset?.queries || ["music playlist"]);
+    const entries = [];
+    for (const currentQuery of queries) {
+      try {
+        const results = await this._search(currentQuery);
+        entries.push(...this._controlRoomSearchEntries(results));
+      } catch (_) {}
+      if (entries.length >= 12) break;
+    }
+    return this._controlRoomUniqueEntries(entries).slice(0, 12);
+  }
+
+  _controlRoomUniqueEntries(entries = []) {
+    const seen = new Set();
+    return (Array.isArray(entries) ? entries : []).filter((entry) => {
+      const key = String(entry?.uri || entry?.name || "").trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  async _loadControlRoomRecent() {
+    this._state.controlRoomRecentLoading = true;
+    this._syncControlRoomUi();
+    const items = [];
+    try {
+      items.push(...(await this._fetchRecentlyPlayed(18)).map((item) => this._controlRoomNormalizeMediaEntry(item, item.media_type || "album")));
+    } catch (_) {}
+    if (this._hasDirectMAConnection()) {
+      try {
+        const inProgress = await this._callDirectMaCommand("music/in_progress_items", { limit: 12 });
+        const rawItems = Array.isArray(inProgress?.items) ? inProgress.items : (Array.isArray(inProgress) ? inProgress : []);
+        items.push(...rawItems.map((item) => this._controlRoomNormalizeMediaEntry(item, item.media_type || "podcast", {
+          subtitle: this._m("Continue listening", "המשך האזנה"),
+        })));
+      } catch (_) {}
+    }
+    this._state.controlRoomRecentItems = this._controlRoomUniqueEntries(items).slice(0, 24);
+    this._state.controlRoomRecentLoading = false;
+    this._syncControlRoomUi({ force: true });
+  }
+
+  async _loadControlRoomFavorites() {
+    this._state.controlRoomFavoritesLoading = true;
+    this._syncControlRoomUi();
+    let items = [];
+    try {
+      items = this._useMaLikedMode() ? await this._loadMaLikedEntries(true) : this._likedEntries();
+    } catch (_) {
+      items = this._likedEntries();
+    }
+    this._state.controlRoomFavoritesItems = this._controlRoomUniqueEntries(
+      items.map((item) => this._controlRoomNormalizeMediaEntry(item, item.media_type || "track", {
+        subtitle: this._m("Favorite", "אהבתי"),
+      }))
+    ).slice(0, 36);
+    this._state.controlRoomFavoritesLoading = false;
+    this._syncControlRoomUi({ force: true });
+  }
+
+  _controlRoomMediaGridHtml(entries = [], options = {}) {
+    const list = Array.isArray(entries) ? entries.filter((entry) => entry?.uri) : [];
+    const empty = options.empty || this._m("No media found.", "לא נמצאה מדיה.");
+    if (!list.length) return `<div class="control-room-empty subtle">${this._esc(empty)}</div>`;
+    return `
+      <div class="control-room-media-grid ${options.large ? "large" : ""}">
+        ${list.map((entry) => {
+          const liked = this._isEntryLiked(entry) || !!entry.favorite;
+          const radioSupported = this._supportsMusicAssistantRadioMode(entry.media_type);
+          const attrs = this._controlRoomEntryDataAttrs(entry);
+          return `
+            <article class="control-room-media-card ${liked ? "liked" : ""}">
+              <button class="control-room-media-main" data-room-library-action="play" ${attrs} title="${this._esc(this._m("Play now", "נגן עכשיו"))}">
+                <span class="control-room-media-art">${entry.image ? `<img src="${this._esc(entry.image)}" alt="">` : this._iconSvg(this._controlRoomMediaTypeIcon(entry.media_type))}</span>
+                <span class="control-room-media-copy">
+                  <span class="control-room-media-kicker">${this._esc(this._controlRoomMediaTypeLabel(entry.media_type))}</span>
+                  <span class="control-room-media-title">${this._esc(entry.name || this._m("Media", "מדיה"))}</span>
+                  <span class="control-room-media-sub">${this._esc(entry.subtitle || entry.media_type || "")}</span>
+                </span>
+              </button>
+              <span class="control-room-media-actions">
+                <button type="button" class="control-room-media-action primary" data-room-library-action="play" ${attrs}>${this._esc(this._m("Play", "נגן"))}</button>
+                <button type="button" class="control-room-media-action" data-room-library-action="next" ${attrs}>${this._esc(this._m("Next", "הבא"))}</button>
+                <button type="button" class="control-room-media-action" data-room-library-action="add" ${attrs}>${this._esc(this._m("Add", "הוסף"))}</button>
+                ${radioSupported ? `<button type="button" class="control-room-media-action" data-room-library-action="radio_mode" ${attrs}>${this._esc(this._m("Radio", "רדיו"))}</button>` : ``}
+                <button type="button" class="control-room-media-action icon ${liked ? "active" : ""}" data-room-library-action="like" ${attrs} title="${this._esc(this._m("Like", "אהבתי"))}">${this._iconSvg(liked ? "heart_filled" : "heart_outline")}</button>
+              </span>
+            </article>
+          `;
+        }).join("")}
+      </div>
+    `;
+  }
+
+  async _prepareControlRoomPlaybackTargets() {
+    const selectedIds = this._controlRoomSelectedPlayerIds();
+    const primaryId = selectedIds[0] || this._controlRoomPrimaryPlayerId();
+    if (!primaryId) return "";
+    const groupMembers = selectedIds.slice(1);
+    if (groupMembers.length) {
+      await this._applySpeakerGroupFor(primaryId, groupMembers);
+    }
+    return primaryId;
+  }
+
+  async _playControlRoomEntries(entries = [], options = {}) {
+    const playable = (Array.isArray(entries) ? entries : []).filter((entry) => entry?.uri);
+    const primaryId = await this._prepareControlRoomPlaybackTargets();
+    if (!primaryId || !playable.length) return false;
+    const first = playable[0];
+    const firstOk = await this._playMediaOnPlayer(primaryId, first.uri, first.media_type || "track", options.shuffle ? "shuffle" : "play", {
+      label: first.name || "",
+      silent: true,
+      radioMode: !!options.radioMode,
+    });
+    if (!firstOk) return false;
+    for (const entry of playable.slice(1, 40)) {
+      await this._playMediaOnPlayer(primaryId, entry.uri, entry.media_type || "track", "add", {
+        label: entry.name || "",
+        silent: true,
+      });
+    }
+    if (!options.silent) {
+      this._toastSuccess(this._m(
+        `Started ${playable.length} items in Studio`,
+        `${playable.length} פריטים הופעלו בסטודיו`
+      ));
+    }
+    setTimeout(() => this._updateNowPlayingState(), 500);
+    return true;
+  }
+
+  async _startControlRoomMix(presetId = "", sourceEl = null) {
+    const customInput = this.$("controlRoomSmartQueryInput");
+    const customQuery = customInput?.value || this._state.controlRoomSmartQuery || "";
+    if (sourceEl) this._pressUiButton(sourceEl);
+    this._toast(this._m("Building Studio mix...", "בונה מיקס סטודיו..."));
+    try {
+      const entries = await this._controlRoomFindMixEntries(presetId, customQuery);
+      if (!entries.length) {
+        this._toastError(this._m("No mix content found", "לא נמצא תוכן למיקס"));
+        return false;
+      }
+      const ok = await this._playControlRoomEntries(entries, { shuffle: presetId === "favorites" || presetId === "random" });
+      if (ok) {
+        this._state.controlRoomPanel = "";
+        this._toastSuccess(this._m("Studio mix started", "מיקס הסטודיו הופעל"));
+      }
+      return ok;
+    } catch (error) {
+      this._toastError(error?.message || this._m("Could not build Studio mix", "לא הצלחתי לבנות מיקס סטודיו"));
+      return false;
+    }
+  }
+
+  async _cloneQueueBetween(sourcePlayerEntityId, targetPlayerEntityId, options = {}) {
+    const sourcePlayer = this._playerByEntityId(sourcePlayerEntityId);
+    if (!sourcePlayer || !targetPlayerEntityId || sourcePlayer.entity_id === targetPlayerEntityId) return false;
+    try {
+      const snapshot = await this._fetchControlRoomQueueSnapshot(sourcePlayer.entity_id);
+      const items = HomeiiMediaQueueFoundation.sortQueueItems(snapshot?.items || []);
+      if (!items.length) throw new Error(this._m("No queue to clone", "אין תור להעתקה"));
+      const currentPos = sourcePlayer.entity_id === this._state.selectedPlayer ? this._getCurrentPosition() : 0;
+      await this._rebuildQueue(targetPlayerEntityId, items, currentPos);
+      if (options.selectTarget !== false) this._selectPlayer(targetPlayerEntityId, true);
+      if (!options.silent) this._toastSuccess(this._m("Queue cloned", "התור הועתק"));
+      this._loadControlRoomQueues([sourcePlayer.entity_id, targetPlayerEntityId]).catch(() => {});
+      return true;
+    } catch (error) {
+      if (!options.silent) this._toastError(error?.message || this._m("Could not clone the queue", "לא הצלחתי להעתיק את התור"));
+      return false;
+    }
+  }
+
+  async _sendControlRoomAnnouncement(sourceEl = null) {
+    const input = this.$("controlRoomAnnouncementText");
+    const volumeInput = this.$("controlRoomAnnouncementVolumeInput");
+    const message = String(input?.value || this._state.controlRoomAnnouncementText || "").trim();
+    if (!message) {
+      this._toastError(this._m("Enter an announcement first", "קודם צריך להזין הודעת כריזה"));
+      return false;
+    }
+    const selectedIds = this._controlRoomSelectedPlayerIds();
+    const targets = selectedIds.length ? selectedIds : [this._controlRoomPrimaryPlayerId()].filter(Boolean);
+    if (!targets.length) {
+      this._toastError(this._m("Select at least one Studio player", "בחר לפחות נגן אחד בסטודיו"));
+      return false;
+    }
+    if (sourceEl) this._pressUiButton(sourceEl);
+    const previousText = this._state.mobileAnnouncementText;
+    const previousTarget = this._state.mobileAnnouncementTarget;
+    const previousVolume = this._state.mobileAnnouncementVolume;
+    this._state.mobileAnnouncementText = message;
+    this._state.mobileAnnouncementTarget = targets.length === this._announcementEligiblePlayers().length ? "all" : targets[0];
+    this._state.mobileAnnouncementVolume = Math.max(20, Math.min(50, Number(volumeInput?.value || this._state.controlRoomAnnouncementVolume || 20) || 20));
+    try {
+      if (targets.length === 1) {
+        await this._sendMobileAnnouncement();
+      } else {
+        const eligibleMap = new Map(this._announcementEligiblePlayers().map((player) => [player.entity_id, player]));
+        const volumeSnapshots = this._prepareAnnouncementVolumes(targets.map((entityId) => eligibleMap.get(entityId)).filter(Boolean));
+        for (const entityId of targets) {
+          this._state.mobileAnnouncementTarget = entityId;
+          await this._sendMobileAnnouncement();
+        }
+        this._scheduleAnnouncementVolumeRestore(volumeSnapshots, this._announcementRestoreDelayMs(message));
+      }
+      return true;
+    } finally {
+      this._state.mobileAnnouncementText = previousText;
+      this._state.mobileAnnouncementTarget = previousTarget;
+      this._state.mobileAnnouncementVolume = previousVolume;
+    }
+  }
+
+  async _applyControlRoomScene(sceneId = "", sourceEl = null) {
+    if (sourceEl) this._pressUiButton(sourceEl);
+    const selectedIds = this._controlRoomSelectedPlayerIds();
+    const primaryId = selectedIds[0] || this._controlRoomPrimaryPlayerId();
+    if (!primaryId) {
+      this._toastError(this._m("Select at least one Studio player", "בחר לפחות נגן אחד בסטודיו"));
+      return false;
+    }
+    const targets = selectedIds.length ? selectedIds : [primaryId];
+    const scene = String(sceneId || "home");
+    if (targets.length > 1) await this._applySpeakerGroupFor(primaryId, targets.slice(1));
+    const volume = scene === "night" ? 0.18 : scene === "party" ? 0.55 : 0.35;
+    await Promise.allSettled(targets.map((entityId) => this._setPlayerVolumeFor(entityId, volume)));
+    if (scene === "home") {
+      this._toastSuccess(this._m("Home scene prepared", "סצנת בית מוכנה"));
+      return true;
+    }
+    const mixId = scene === "party" ? "party" : "night";
+    return this._startControlRoomMix(mixId, sourceEl);
   }
 
   _controlRoomSearchEntries(results = {}) {
@@ -4743,14 +5365,7 @@
     const entries = [];
     groups.forEach(([bucket, mediaType]) => {
       (Array.isArray(results?.[bucket]) ? results[bucket] : []).slice(0, 4).forEach((item) => {
-        const artists = Array.isArray(item?.artists) ? item.artists.map((artist) => artist?.name).filter(Boolean).join(", ") : "";
-        entries.push({
-          uri: item?.uri || "",
-          media_type: item?.media_type || mediaType,
-          name: item?.name || item?.title || "",
-          subtitle: artists || item?.album?.name || item?.metadata?.description || "",
-          image: this._artUrl(item) || item?.image || item?.image_url || item?.media_item?.image || "",
-        });
+        entries.push(this._controlRoomNormalizeMediaEntry(item, mediaType));
       });
     });
     return entries.filter((entry) => entry.uri).slice(0, 14);
@@ -4831,17 +5446,25 @@
     try { recognition.start(); } catch (_) { this._toastError(this._m("Voice input failed", "הכתבה קולית נכשלה")); }
   }
 
-  async _playControlRoomLibraryEntry(entry) {
-    const selectedIds = this._controlRoomSelectedPlayerIds();
-    const primaryId = selectedIds[0] || this._controlRoomPrimaryPlayerId();
-    if (!entry?.uri || !primaryId) return false;
-    const groupMembers = selectedIds.slice(1);
-    if (groupMembers.length) {
-      await this._applySpeakerGroupFor(primaryId, groupMembers);
+  async _playControlRoomLibraryEntry(entry, mode = "play") {
+    const action = String(mode || "play");
+    if (!entry?.uri) return false;
+    if (action === "like") {
+      await this._toggleLikeEntry(entry);
+      return true;
     }
-    return this._playMediaOnPlayer(primaryId, entry.uri, entry.media_type || "album", "play", {
+    const primaryId = await this._prepareControlRoomPlaybackTargets();
+    if (!primaryId) return false;
+    const mediaType = entry.media_type || "album";
+    if (action === "radio_mode" && !this._supportsMusicAssistantRadioMode(mediaType)) {
+      this._toastError(this._m("Radio mode is not available for this media type", "Radio לא זמין לסוג המדיה הזה"));
+      return false;
+    }
+    const enqueue = action === "next" ? "next" : action === "add" ? "add" : action === "shuffle" ? "shuffle" : "play";
+    return this._playMediaOnPlayer(primaryId, entry.uri, mediaType, enqueue, {
       label: entry.name || "",
-      silent: false,
+      silent: action !== "play",
+      radioMode: action === "radio_mode",
     });
   }
 
@@ -4855,21 +5478,29 @@
     const name = player.attributes?.friendly_name || player.entity_id;
     const track = player.attributes?.media_title || this._m("Idle", "ממתין");
     const volume = Math.round((player.attributes?.volume_level || 0) * 100);
-    const groupCount = this._playerGroupCount(player);
+    const groupInfo = this._controlRoomGroupInfo(player);
+    const groupCount = groupInfo.count;
     const stateLabel = this._playerStateLabel(player);
+    const snapshot = this._controlRoomQueueCache(player.entity_id);
+    const queueCount = this._controlRoomQueueCount(player, snapshot);
+    const protocolLabel = this._controlRoomProtocolLabel(player);
+    const muted = this._isMuted(player);
     const tileStyle = art ? `style="--control-room-tile-art:url('${this._esc(art)}')"` : "";
     return `
-      <article class="control-room-tile ${art ? "has-art" : "no-art"} ${isSelected ? "selected" : ""} ${isPrimary ? "primary" : ""} ${playing ? "is-playing" : ""}" data-room-tile="${this._esc(player.entity_id)}" ${tileStyle}>
+      <article class="control-room-tile ${art ? "has-art" : "no-art"} ${isSelected ? "selected" : ""} ${isPrimary ? "primary" : ""} ${playing ? "is-playing" : ""} ${groupCount ? "grouped" : ""}" data-room-tile="${this._esc(player.entity_id)}" ${tileStyle}>
         <div class="control-room-tile-bg"></div>
         <div class="control-room-tile-shade"></div>
-        <button class="control-room-select-fab ${isSelected ? "active" : ""}" data-room-select="${this._esc(player.entity_id)}" title="${this._esc(this._m("Select player", "בחר נגן"))}">
-          ${this._iconSvg(isSelected ? "check" : "grid")}
+        <button class="control-room-select-fab ${isSelected ? "active" : ""} ${isSelected && selectedIds.length > 1 ? "removable" : ""}" data-room-select="${this._esc(player.entity_id)}" title="${this._esc(isSelected && selectedIds.length > 1 ? this._m("Remove from selection", "הסר מהבחירה") : isSelected ? this._m("Selected player", "נגן נבחר") : this._m("Add to selection", "הוסף לבחירה"))}">
+          ${this._iconSvg(isSelected && selectedIds.length > 1 ? "close" : isSelected ? "check" : "grid")}
+          <span class="control-room-select-label">${this._esc(isSelected && selectedIds.length > 1 ? this._m("Remove", "הסר") : isSelected ? this._m("Selected", "נבחר") : this._m("Select", "בחר"))}</span>
         </button>
         <button class="control-room-tile-main" data-room-primary="${this._esc(player.entity_id)}" title="${this._esc(name)}">
           <span class="control-room-tile-copy">
             <span class="control-room-tile-pills">
               ${isPrimary ? `<span class="control-room-primary-pill">${this._esc(this._m("Primary", "ראשי"))}</span>` : ``}
-              ${groupCount ? `<span class="control-room-float-pill">${this._esc(`${groupCount}`)}</span>` : ``}
+              ${groupCount ? `<span class="control-room-float-pill grouped" title="${this._esc(groupInfo.label || this._m("Grouped players", "נגנים בקבוצה"))}">${this._iconSvg("speaker")}${this._esc(this._m(`${groupCount} grouped`, `${groupCount} בקבוצה`))}</span>` : ``}
+              ${queueCount ? `<span class="control-room-float-pill">${this._iconSvg("queue")}${this._esc(`${queueCount}`)}</span>` : ``}
+              ${protocolLabel ? `<span class="control-room-float-pill protocol">${this._esc(protocolLabel)}</span>` : ``}
               ${playing ? `<span class="control-room-float-pill live">${this._esc(this._m("Playing", "מנגן"))}</span>` : ``}
             </span>
             <span class="control-room-tile-track">${this._esc(track)}</span>
@@ -4877,6 +5508,11 @@
             <span class="control-room-tile-state">${this._esc(stateLabel)}</span>
           </span>
         </button>
+        <div class="control-room-tile-actions">
+          <button type="button" data-room-toggle-play="${this._esc(player.entity_id)}" title="${this._esc(this._m("Play / Pause", "נגן / השהה"))}">${this._iconSvg(playing ? "pause" : "play")}</button>
+          <button type="button" data-room-next="${this._esc(player.entity_id)}" title="${this._esc(this._m("Next", "הבא"))}">${this._iconSvg("next")}</button>
+          <button type="button" class="${muted ? "active" : ""}" data-room-mute="${this._esc(player.entity_id)}" title="${this._esc(this._m("Mute", "השתק"))}">${this._iconSvg(muted ? "volume_mute" : this._volumeIconName(player))}</button>
+        </div>
         <label class="control-room-volume-row">
           <input class="control-room-volume" data-room-volume="${this._esc(player.entity_id)}" type="range" min="0" max="100" value="${volume}" style="--vol-pct:${volume}%">
           <span class="control-room-volume-value" data-room-volume-value="${this._esc(player.entity_id)}">${this._esc(String(volume))}%</span>
@@ -4890,26 +5526,17 @@
     const results = Array.isArray(this._state.controlRoomLibraryResults) ? this._state.controlRoomLibraryResults : [];
     const query = String(this._state.controlRoomLibraryQuery || "").trim();
     if (loading) return `<div class="control-room-empty subtle">${this._esc(this._m("Searching library...", "מחפש בספריה..."))}</div>`;
-    if (!query) return `<div class="control-room-empty subtle">${this._esc(this._m("Search and tap a cover to play it on the selected players.", "חפש ולחץ על עטיפה כדי לנגן על הנגנים שנבחרו."))}</div>`;
-    if (!results.length) return `<div class="control-room-empty subtle">${this._esc(this._m("No media found for this search.", "לא נמצאה מדיה לחיפוש הזה."))}</div>`;
-    return `
-      <div class="control-room-media-grid">
-        ${results.map((entry) => `
-          <button class="control-room-media-card" data-room-library-play="1" data-room-library-uri="${this._esc(entry.uri || "")}" data-room-library-type="${this._esc(entry.media_type || "album")}" data-room-library-name="${this._esc(entry.name || "")}" data-room-library-subtitle="${this._esc(entry.subtitle || "")}" data-room-library-image="${this._esc(entry.image || "")}">
-            <span class="control-room-media-art">${entry.image ? `<img src="${this._esc(entry.image)}" alt="">` : this._iconSvg(this._controlRoomMediaTypeIcon(entry.media_type))}</span>
-            <span class="control-room-media-copy">
-              <span class="control-room-media-title">${this._esc(entry.name || this._m("Media", "מדיה"))}</span>
-              <span class="control-room-media-sub">${this._esc(entry.subtitle || entry.media_type || "")}</span>
-            </span>
-          </button>
-        `).join("")}
-      </div>
-    `;
+    if (!query) return `<div class="control-room-empty subtle">${this._esc(this._m("Search and choose Play, Next, Add, Radio, or Like.", "חפש ובחר נגן, הבא, הוסף, רדיו או אהבתי."))}</div>`;
+    return this._controlRoomMediaGridHtml(results, {
+      empty: this._m("No media found for this search.", "לא נמצאה מדיה לחיפוש הזה."),
+      large: true,
+    });
   }
 
   _controlRoomPanelHtml(players = []) {
     const panel = String(this._state.controlRoomPanel || "");
     if (!panel) return ``;
+    const context = this._controlRoomContextChipHtml();
     if (panel === "selection") {
       return `
         <div class="control-room-tray open compact">
@@ -4932,9 +5559,74 @@
         </div>
       `;
     }
+    if (panel === "music") {
+      return `
+        <div class="control-room-tray open wide control-room-hub-panel">
+          <div class="control-room-tray-head">
+            <div class="control-room-tray-title">${this._esc(this._m("Music Hub", "מרכז מוזיקה"))}</div>
+            <div class="control-room-tray-sub">${this._esc(this._m("Choose the source first. Playback will use the current target.", "בחר מקור מוזיקה. הניגון יישלח ליעד הנוכחי."))}</div>
+          </div>
+          ${context}
+          <div class="control-room-hub-grid">
+            <button class="control-room-hub-card primary" data-room-selection-action="browse_library">${this._iconSvg("library_music")}<span>${this._esc(this._m("Library", "ספריה"))}</span><small>${this._esc(this._m("Browse playlists, artists, albums and radio", "דפדוף בפלייליסטים, אמנים, אלבומים ורדיו"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="library">${this._iconSvg("search")}<span>${this._esc(this._m("Search", "חיפוש"))}</span><small>${this._esc(this._m("Search tracks, albums, artists and playlists", "חיפוש שירים, אלבומים, אמנים ופלייליסטים"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="mix">${this._iconSvg("wand")}<span>${this._esc(this._m("FLOW Mix", "מיקס FLOW"))}</span><small>${this._esc(this._m("Mood, style or free text", "מצב רוח, סגנון או חיפוש חופשי"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="recent">${this._iconSvg("history")}<span>${this._esc(this._m("Recent", "אחרונים"))}</span><small>${this._esc(this._m("Continue what was played recently", "המשך ממה שהתנגן לאחרונה"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="favorites">${this._iconSvg("heart_filled")}<span>${this._esc(this._m("Liked", "אהבתי"))}</span><small>${this._esc(this._m("Favorites and liked music", "מועדפים ומוזיקה אהובה"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="scenes">${this._iconSvg("home")}<span>${this._esc(this._m("Scenes", "סצנות"))}</span><small>${this._esc(this._m("Home, party, night presets", "בית, מסיבה, לילה"))}</small></button>
+          </div>
+        </div>
+      `;
+    }
+    if (panel === "actions") {
+      const targetIds = this._controlRoomActionTargetIds();
+      const targetCount = targetIds.length;
+      const actionTarget = this._controlRoomFocusTarget();
+      const actionArt = actionTarget.art || "";
+      const primary = this._controlRoomPrimaryPlayer();
+      const primaryPlaying = primary?.state === "playing";
+      const primaryMuted = primary ? this._isMuted(primary) : false;
+      return `
+        <div class="control-room-tray open wide control-room-hub-panel">
+          <div class="control-room-tray-head">
+            <div class="control-room-tray-title">${this._esc(this._m("Actions", "פעולות"))}</div>
+            <div class="control-room-tray-sub">${this._esc(this._m("Only actions for the current target are shown here.", "כאן מופיעות רק פעולות ליעד השליטה הנוכחי."))}</div>
+          </div>
+          <div class="control-room-action-console">
+            <div class="control-room-action-now">
+              <span class="control-room-action-art">${actionArt ? `<img src="${this._esc(actionArt)}" alt="">` : this._iconSvg("speaker")}</span>
+              <span class="control-room-action-copy">
+                <span class="control-room-action-kicker">${this._esc(actionTarget.kicker)}</span>
+                <span class="control-room-action-name">${this._esc(actionTarget.name)}</span>
+                <span class="control-room-action-track">${this._esc(actionTarget.track)}</span>
+              </span>
+            </div>
+            <div class="control-room-media-controls">
+              <button class="control-room-media-control primary" data-room-selection-action="playpause" ${targetCount ? "" : "disabled"}>${this._iconSvg(primaryPlaying ? "pause" : "play")}<span>${this._esc(primaryPlaying ? this._m("Pause", "השהה") : this._m("Play", "נגן"))}</span></button>
+              <button class="control-room-media-control" data-room-selection-action="next" ${targetCount ? "" : "disabled"}>${this._iconSvg("next")}<span>${this._esc(this._m("Next", "הבא"))}</span></button>
+              <button class="control-room-media-control ${primaryMuted ? "active" : ""}" data-room-selection-action="mute" ${targetCount ? "" : "disabled"}>${this._iconSvg(primaryMuted ? "volume_mute" : (primary ? this._volumeIconName(primary) : "speaker"))}<span>${this._esc(this._m("Mute", "השתק"))}</span></button>
+              <button class="control-room-media-control danger" data-room-selection-action="clear" ${targetCount ? "" : "disabled"}>${this._iconSvg("trash")}<span>${this._esc(this._m("Clear queue", "נקה תור"))}</span></button>
+            </div>
+          </div>
+          <div class="control-room-action-grid management">
+            <button class="control-room-hub-card" data-room-selection-action="selection">${this._iconSvg("grid")}<span>${this._esc(this._m("Target players", "נגני יעד"))}</span><small>${this._esc(this._m("Choose who is controlled", "בחר על מי שולטים"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="visible">${this._iconSvg("grid")}<span>${this._esc(this._m("Visible tiles", "אריחים מוצגים"))}</span><small>${this._esc(this._m("Clean the Studio wall", "סדר את מסך הסטודיו"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="group" ${targetCount > 1 ? "" : "disabled"}>${this._iconSvg("speaker")}<span>${this._esc(this._m("Group", "קבוצה"))}</span><small>${this._esc(this._m("Join selected players", "חבר נגנים נבחרים"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="ungroup" ${targetCount ? "" : "disabled"}>${this._iconSvg("close")}<span>${this._esc(this._m("Ungroup", "נתק"))}</span><small>${this._esc(this._m("Disconnect groups", "נתק קבוצות"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="announce">${this._iconSvg("announcement")}<span>${this._esc(this._m("Announcement", "כריזה"))}</span><small>${this._esc(this._m("Speak to target players", "שלח הודעה לנגנים"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="timers">${this._iconSvg("timer")}<span>${this._esc(this._m("Timers", "טיימרים"))}</span><small>${this._esc(this._m("Sleep timer and scheduled playback", "טיימר שינה ותזמון הפעלה"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="pro">${this._iconSvg("settings")}<span>${this._esc(this._m("Pro tools", "כלי Pro"))}</span><small>${this._esc(this._m("Sendspin and diagnostics", "Sendspin ודיאגנוסטיקה"))}</small></button>
+          </div>
+        </div>
+      `;
+    }
     if (panel === "transfer") {
       const source = this._state.controlRoomTransferSource || "";
       const target = this._state.controlRoomTransferTarget || "";
+      const sourcePlayer = this._playerByEntityId(source);
+      const targetPlayer = this._playerByEntityId(target);
+      const sourceName = sourcePlayer?.attributes?.friendly_name || source || this._m("Choose source", "בחר מקור");
+      const targetName = targetPlayer?.attributes?.friendly_name || target || this._m("Choose target", "בחר יעד");
       const targetPlayers = players.filter((player) => player.entity_id !== source);
       const transferChoiceRows = (role, options, selectedId) => `
         <div class="control-room-transfer-list" data-control-room-scroll="transfer-${this._esc(role)}">
@@ -4957,22 +5649,36 @@
       return `
         <div class="control-room-tray open transfer-panel">
           <div class="control-room-tray-head">
-            <div class="control-room-tray-title">${this._esc(this._m("Transfer queue", "העברת תור"))}</div>
-            <div class="control-room-tray-sub">${this._esc(this._m("Choose a source player and a target player.", "בחר נגן מקור ונגן יעד."))}</div>
+            <div class="control-room-tray-title">${this._esc(this._m("Queue Cockpit", "ניהול תור"))}</div>
+            <div class="control-room-tray-sub">${this._esc(this._m("Transfer, clone, inspect, or clear queues without hiding the Studio.", "העבר, העתק, בדוק או נקה תורים בלי להסתיר את הסטודיו."))}</div>
           </div>
-          <div class="control-room-transfer-board">
-            <div class="control-room-transfer-column">
-              <div class="control-room-transfer-label">${this._esc(this._m("From", "מ־"))}</div>
-              ${transferChoiceRows("source", players, source)}
+          <div class="control-room-queue-layout">
+            <div class="control-room-queue-lanes">
+              <section class="control-room-queue-lane source">
+                <div class="control-room-queue-lane-head">
+                  <span>${this._esc(this._m("From", "מ־"))}</span>
+                  <strong>${this._esc(sourceName)}</strong>
+                </div>
+                ${transferChoiceRows("source", players, source)}
+                <div class="control-room-transfer-label">${this._esc(this._m("Source queue", "תור מקור"))}</div>
+                ${source ? this._controlRoomQueuePreviewHtml(source) : `<div class="control-room-empty subtle">${this._esc(this._m("Choose a source player", "בחר נגן מקור"))}</div>`}
+              </section>
+              <section class="control-room-queue-lane target">
+                <div class="control-room-queue-lane-head">
+                  <span>${this._esc(this._m("To", "אל"))}</span>
+                  <strong>${this._esc(targetName)}</strong>
+                </div>
+                ${transferChoiceRows("target", targetPlayers, target)}
+                <div class="control-room-transfer-label">${this._esc(this._m("Target queue", "תור יעד"))}</div>
+                ${target ? this._controlRoomQueuePreviewHtml(target) : `<div class="control-room-empty subtle">${this._esc(this._m("Choose a target player", "בחר נגן יעד"))}</div>`}
+              </section>
             </div>
-            <span class="control-room-transfer-arrow">${this._iconSvg("next")}</span>
-            <div class="control-room-transfer-column">
-              <div class="control-room-transfer-label">${this._esc(this._m("To", "אל"))}</div>
-              ${transferChoiceRows("target", targetPlayers, target)}
+            <div class="control-room-queue-actions">
+              <button class="control-room-panel-action primary" data-room-transfer ${source && target ? "" : "disabled"}>${this._iconSvg("queue")}<span>${this._esc(this._m("Transfer queue", "העבר תור"))}</span></button>
+              <button class="control-room-panel-action" data-room-clone ${source && target ? "" : "disabled"}>${this._iconSvg("repeat")}<span>${this._esc(this._m("Clone queue", "העתק תור"))}</span></button>
+              <button class="control-room-panel-action" data-room-refresh-queues>${this._iconSvg("sync")}<span>${this._esc(this._m("Refresh", "רענן"))}</span></button>
+              <button class="control-room-panel-action danger" data-room-clear-queue="${this._esc(target || source || "")}" ${source || target ? "" : "disabled"}>${this._iconSvg("trash")}<span>${this._esc(this._m("Clear queue", "נקה תור"))}</span></button>
             </div>
-            <button class="control-room-tray-btn primary control-room-transfer-action" data-room-transfer title="${this._esc(this._m("Transfer queue", "העבר תור"))}" ${source && target ? "" : "disabled"}>
-              ${this._iconSvg("queue")}
-            </button>
           </div>
         </div>
       `;
@@ -4988,6 +5694,135 @@
             </button>
           </label>
           <div class="control-room-library-results" id="controlRoomLibraryResults" data-control-room-scroll="library">${this._controlRoomLibraryResultsHtml()}</div>
+        </div>
+      `;
+    }
+    if (panel === "mix") {
+      return `
+        <div class="control-room-tray open wide">
+          <div class="control-room-tray-head">
+            <div class="control-room-tray-title">${this._esc(this._m("Smart Mix Builder", "בונה מיקס חכם"))}</div>
+            <div class="control-room-tray-sub">${this._esc(this._m("Pick a mood or type your own style. Studio will search Music Assistant and build a queue.", "בחר מצב רוח או כתוב סגנון חופשי. הסטודיו יחפש ב־Music Assistant ויבנה תור."))}</div>
+          </div>
+          <div class="control-room-mix-panel">
+            <label class="control-room-search">
+              ${this._iconSvg("wand")}
+              <input id="controlRoomSmartQueryInput" type="search" placeholder="${this._esc(this._m("Free style: quiet jazz, Greek music, workout...", "סגנון חופשי: ג'אז רגוע, יוונית, אימון..."))}" value="${this._esc(this._state.controlRoomSmartQuery || "")}" autocomplete="off" spellcheck="false">
+              <button type="button" class="control-room-search-mic" data-room-smart-custom title="${this._esc(this._m("Build custom mix", "בנה מיקס חופשי"))}">${this._iconSvg("play")}</button>
+            </label>
+            <div class="control-room-mix-grid">
+              ${this._controlRoomMixPresets().map((preset) => `
+                <button class="control-room-mix-card" data-room-smart-mix="${this._esc(preset.id)}">
+                  <span class="control-room-mix-icon">${this._iconSvg(preset.icon || "music_note")}</span>
+                  <span class="control-room-mix-title">${this._esc(preset.label)}</span>
+                  <span class="control-room-mix-sub">${this._esc(preset.subtitle || "")}</span>
+                </button>
+              `).join("")}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    if (panel === "recent") {
+      const loading = !!this._state.controlRoomRecentLoading;
+      const items = Array.isArray(this._state.controlRoomRecentItems) ? this._state.controlRoomRecentItems : [];
+      return `
+        <div class="control-room-tray open wide">
+          <div class="control-room-tray-head">
+            <div class="control-room-tray-title">${this._esc(this._m("Recent / Continue", "אחרונים / המשך"))}</div>
+            <div class="control-room-tray-sub">${this._esc(this._m("Continue from recent Music Assistant activity.", "המשך מהאזנות אחרונות ב־Music Assistant."))}</div>
+          </div>
+          <div class="control-room-library-results" data-control-room-scroll="recent">
+            ${loading ? `<div class="control-room-empty subtle">${this._esc(this._m("Loading recent items...", "טוען אחרונים..."))}</div>` : this._controlRoomMediaGridHtml(items, { empty: this._m("No recent listening yet.", "אין האזנות אחרונות עדיין."), large: true })}
+          </div>
+        </div>
+      `;
+    }
+    if (panel === "favorites") {
+      const loading = !!this._state.controlRoomFavoritesLoading;
+      const items = Array.isArray(this._state.controlRoomFavoritesItems) ? this._state.controlRoomFavoritesItems : [];
+      return `
+        <div class="control-room-tray open wide">
+          <div class="control-room-tray-head">
+            <div class="control-room-tray-title">${this._esc(this._m("Favorite Center", "מרכז אהבתי"))}</div>
+            <div class="control-room-tray-sub">${this._esc(this._m("Play, queue, radio, or remove favorites directly from Studio.", "נגן, הוסף, הפעל רדיו או נהל אהובים ישירות מהסטודיו."))}</div>
+          </div>
+          <div class="control-room-library-results" data-control-room-scroll="favorites">
+            ${loading ? `<div class="control-room-empty subtle">${this._esc(this._m("Loading favorites...", "טוען אהובים..."))}</div>` : this._controlRoomMediaGridHtml(items, { empty: this._m("No favorites found.", "לא נמצאו אהובים."), large: true })}
+          </div>
+        </div>
+      `;
+    }
+    if (panel === "scenes") {
+      return `
+        <div class="control-room-tray open wide">
+          <div class="control-room-tray-head">
+            <div class="control-room-tray-title">${this._esc(this._m("Scene Presets", "סצנות"))}</div>
+            <div class="control-room-tray-sub">${this._esc(this._m("One tap prepares players, grouping, volume and content.", "לחיצה אחת מכינה נגנים, קבוצה, ווליום ותוכן."))}</div>
+          </div>
+          <div class="control-room-scenes-grid">
+            <button class="control-room-scene-card" data-room-scene="home">${this._iconSvg("home")}<span>${this._esc(this._m("Home", "בית"))}</span><small>${this._esc(this._m("Selected players at comfortable volume", "נגנים נבחרים בווליום נוח"))}</small></button>
+            <button class="control-room-scene-card" data-room-scene="party">${this._iconSvg("radio")}<span>${this._esc(this._m("Party", "מסיבה"))}</span><small>${this._esc(this._m("Group, volume up, energetic mix", "קבוצה, ווליום גבוה ומיקס קצבי"))}</small></button>
+            <button class="control-room-scene-card" data-room-scene="night">${this._iconSvg("moon")}<span>${this._esc(this._m("Night", "לילה"))}</span><small>${this._esc(this._m("Low volume and quiet mix", "ווליום נמוך ומיקס רגוע"))}</small></button>
+          </div>
+        </div>
+      `;
+    }
+    if (panel === "announce") {
+      const volume = Math.max(20, Math.min(50, Number(this._state.controlRoomAnnouncementVolume || 20) || 20));
+      return `
+        <div class="control-room-tray open compact control-room-announcement-tray">
+          <div class="control-room-announce-hero">
+            <span class="control-room-announce-icon">${this._iconSvg("announcement")}</span>
+            <span class="control-room-announce-copy">
+              <span class="control-room-tray-title">${this._esc(this._m("Announcement Studio", "סטודיו כריזה"))}</span>
+              <span class="control-room-tray-sub">${this._esc(this._m("Send a short voice message or announcement URL.", "שלח הודעה קולית קצרה או קישור כריזה."))}</span>
+            </span>
+          </div>
+          ${context}
+          <div class="control-room-announce-panel">
+            <label class="control-room-announce-compose">
+              <span>${this._esc(this._m("Message", "הודעה"))}</span>
+              <textarea id="controlRoomAnnouncementText" class="announcement-textarea" rows="3" placeholder="${this._esc(this._m("Type what should be announced...", "כתוב מה להכריז..."))}">${this._esc(this._state.controlRoomAnnouncementText || "")}</textarea>
+            </label>
+            <div class="control-room-announce-controls">
+              <div class="control-room-announce-volume-card announcement-volume-field">
+                <div class="control-room-announce-volume-head">
+                  <span>${this._esc(this._m("Volume boost", "חיזוק ווליום"))}</span>
+                  <strong class="settings-value">+${this._esc(String(volume))}%</strong>
+                </div>
+                <input id="controlRoomAnnouncementVolumeInput" type="range" min="20" max="50" step="1" value="${this._esc(String(volume))}">
+              </div>
+              <button class="control-room-panel-action primary wide control-room-announce-send" data-room-announce-send>
+                ${this._iconSvg("announcement")}
+                <span>${this._esc(this._m("Send announcement", "שלח כריזה"))}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    if (panel === "pro") {
+      const directReady = this._hasDirectMAConnection();
+      const realtimeReady = this._hasRealtimeDirectMA();
+      const sendspinState = this._localSendspinConnected ? this._m("Connected", "מחובר") : (this._localSendspinConnecting ? this._m("Connecting", "מתחבר") : this._m("Idle", "ממתין"));
+      return `
+        <div class="control-room-tray open compact">
+          <div class="control-room-tray-head">
+            <div class="control-room-tray-title">${this._esc(this._m("Studio Pro", "סטודיו Pro"))}</div>
+            <div class="control-room-tray-sub">${this._esc(this._m("Feature detection and this-device playback tools.", "זיהוי יכולות וכלים לנגן המכשיר הזה."))}</div>
+          </div>
+          <div class="control-room-diagnostics">
+            <div class="control-room-diagnostic-row"><span>Direct API</span><strong>${this._esc(directReady ? this._m("Available", "זמין") : this._m("Missing URL", "חסר URL"))}</strong></div>
+            <div class="control-room-diagnostic-row"><span>Realtime token</span><strong>${this._esc(realtimeReady ? this._m("Ready", "מוכן") : this._m("Optional", "אופציונלי"))}</strong></div>
+            <div class="control-room-diagnostic-row"><span>Sendspin</span><strong>${this._esc(sendspinState)}</strong></div>
+            <div class="control-room-diagnostic-row"><span>Players</span><strong>${this._esc(String(players.length))}</strong></div>
+            <div class="control-room-pro-actions">
+              <button class="control-room-panel-action" data-room-this-device="connect">${this._iconSvg("speaker")}<span>${this._esc(this._m("Connect this device", "חבר מכשיר זה"))}</span></button>
+              <button class="control-room-panel-action danger" data-room-this-device="disconnect">${this._iconSvg("close")}<span>${this._esc(this._m("Disconnect", "נתק"))}</span></button>
+            </div>
+            <div class="control-room-empty subtle">${this._esc(this._m("Player settings and DSP presets stay read-only until Music Assistant exposes a reliable schema for this player.", "הגדרות נגן ו־DSP נשארים בשלב זה כזיהוי יכולות בלבד עד ש־Music Assistant מחזיר schema אמין לנגן."))}</div>
+          </div>
         </div>
       `;
     }
@@ -5049,7 +5884,7 @@
   _controlRoomRenderSignature() {
     const players = this._controlRoomPlayers().map((player) => ({
       id: player.entity_id,
-      groupCount: this._playerGroupCount(player),
+      groupCount: this._controlRoomGroupInfo(player).count,
     }));
     const results = Array.isArray(this._state.controlRoomLibraryResults)
       ? this._state.controlRoomLibraryResults.slice(0, 10).map((entry) => ({
@@ -5059,6 +5894,14 @@
           image: entry?.image || "",
       }))
       : [];
+    const queueCache = this._state.controlRoomQueueSnapshots || {};
+    const queues = Object.fromEntries(Object.entries(queueCache).map(([entityId, entry]) => [
+      entityId,
+      {
+        count: Number(entry?.snapshot?.state?.items || 0) || (Array.isArray(entry?.snapshot?.items) ? entry.snapshot.items.length : 0),
+        current: entry?.snapshot?.state?.current_index ?? "",
+      },
+    ]));
     const viewport = this._controlRoomViewportSize();
     return JSON.stringify({
       open: !!this._state.controlRoomOpen,
@@ -5071,6 +5914,15 @@
       source: this._state.controlRoomTransferSource || "",
       target: this._state.controlRoomTransferTarget || "",
       results,
+      queues,
+      queueLoading: !!this._state.controlRoomQueueLoading,
+      recentLoading: !!this._state.controlRoomRecentLoading,
+      recent: (this._state.controlRoomRecentItems || []).slice(0, 12).map((entry) => entry?.uri || entry?.name || ""),
+      favoritesLoading: !!this._state.controlRoomFavoritesLoading,
+      favorites: (this._state.controlRoomFavoritesItems || []).slice(0, 12).map((entry) => entry?.uri || entry?.name || ""),
+      smartQuery: this._state.controlRoomSmartQuery || "",
+      announcementText: this._state.controlRoomAnnouncementText || "",
+      announcementVolume: this._state.controlRoomAnnouncementVolume || 20,
       players,
     });
   }
@@ -5078,17 +5930,18 @@
   _controlRoomHtml() {
     if (!this._controlRoomEnabled()) return "";
     const players = this._controlRoomPlayers();
-    const selectedIds = this._controlRoomSelectedPlayerIds();
     const primary = this._controlRoomPrimaryPlayer();
     const primaryArt = primary?.attributes?.entity_picture_local || primary?.attributes?.entity_picture || "";
     const roomStyleVars = this._controlRoomGridStyle(players.length);
     const sceneStyle = `style="${primaryArt ? `--control-room-scene-art:url('${this._esc(primaryArt)}');` : ""}${roomStyleVars}"`;
-    const primaryName = primary?.attributes?.friendly_name || this._m("Selected player", "נגן נבחר");
-    const primaryTrack = primary?.attributes?.media_title || this._m("Idle", "ממתין");
+    const focusTarget = this._controlRoomFocusTarget();
+    const focusArt = focusTarget.art || primaryArt;
+    const targetIds = this._controlRoomActionTargetIds();
     const primaryPlaying = primary?.state === "playing";
     const primaryMuted = primary ? this._isMuted(primary) : false;
-    const visiblePlayerIds = this._controlRoomVisiblePlayerIds();
     const panelOpen = !!this._state.controlRoomPanel;
+    const musicPanelActive = ["music", "mix", "library", "recent", "favorites", "scenes"].includes(this._state.controlRoomPanel);
+    const actionsPanelActive = ["actions", "selection", "visible", "announce", "pro"].includes(this._state.controlRoomPanel);
     return `
       <div class="control-room-scene ${primaryArt ? "has-art" : ""} ${panelOpen ? "panel-open" : ""}" ${sceneStyle}>
         <div class="control-room-scene-bg"></div>
@@ -5100,59 +5953,48 @@
             </div>
           </div>
           ${this._controlRoomPanelHtml(players)}
-          <div class="control-room-dock">
-            <div class="control-room-now-pill">
-              <span class="control-room-now-art">${primaryArt ? `<img src="${this._esc(primaryArt)}" alt="">` : this._iconSvg("music")}</span>
-              <span class="control-room-now-copy">
-                <span class="control-room-now-kicker">${this._esc(this._m("Selected player", "נגן נבחר"))}</span>
-                <span class="control-room-now-name">${this._esc(primaryName)}</span>
-                <span class="control-room-now-track">${this._esc(primaryTrack)}</span>
-              </span>
-            </div>
-            <div class="control-room-dock-section player">
-              <button class="control-room-dock-btn" data-room-selection-action="player_playpause" title="${this._esc(this._m("Play / Pause", "נגן / השהה"))}">
-                ${this._iconSvg(primaryPlaying ? "pause" : "play")}
-                <span class="control-room-dock-label">${this._esc(primaryPlaying ? this._m("Pause", "השהה") : this._m("Play", "נגן"))}</span>
-              </button>
-              <button class="control-room-dock-btn" data-room-selection-action="player_next" title="${this._esc(this._m("Next", "הבא"))}">
-                ${this._iconSvg("next")}
-                <span class="control-room-dock-label">${this._esc(this._m("Next", "הבא"))}</span>
-              </button>
-              <button class="control-room-dock-btn ${primaryMuted ? "active" : ""}" data-room-selection-action="player_mute" title="${this._esc(this._m("Mute", "השתק"))}">
-                ${this._iconSvg(primary ? this._volumeIconName(primary) : "speaker")}
-                <span class="control-room-dock-label">${this._esc(this._m("Mute", "השתק"))}</span>
-              </button>
+          <div class="control-room-dock focus-mode">
+            <div class="control-room-player-console">
+              <div class="control-room-now-pill focus-target">
+                <span class="control-room-now-art">${focusArt ? `<img src="${this._esc(focusArt)}" alt="">` : this._iconSvg("speaker")}</span>
+                <span class="control-room-now-copy">
+                  <span class="control-room-now-kicker">${this._esc(focusTarget.kicker)}</span>
+                  <span class="control-room-now-name">${this._esc(focusTarget.name)}</span>
+                  <span class="control-room-now-track">${this._esc(focusTarget.track)}</span>
+                </span>
+              </div>
+              <div class="control-room-dock-section player primary-actions">
+                <button class="control-room-dock-btn" data-room-selection-action="player_playpause" title="${this._esc(this._m("Play / Pause", "נגן / השהה"))}">
+                  ${this._iconSvg(primaryPlaying ? "pause" : "play")}
+                  <span class="control-room-dock-label">${this._esc(primaryPlaying ? this._m("Pause", "השהה") : this._m("Play", "נגן"))}</span>
+                </button>
+                <button class="control-room-dock-btn" data-room-selection-action="player_next" title="${this._esc(this._m("Next", "הבא"))}">
+                  ${this._iconSvg("next")}
+                  <span class="control-room-dock-label">${this._esc(this._m("Next", "הבא"))}</span>
+                </button>
+                <button class="control-room-dock-btn ${primaryMuted ? "active" : ""}" data-room-selection-action="player_mute" title="${this._esc(this._m("Mute", "השתק"))}">
+                  ${this._iconSvg(primary ? this._volumeIconName(primary) : "speaker")}
+                  <span class="control-room-dock-label">${this._esc(this._m("Mute", "השתק"))}</span>
+                </button>
+              </div>
             </div>
             <span class="control-room-dock-divider" aria-hidden="true"></span>
-            <div class="control-room-dock-section room">
+            <div class="control-room-dock-section room focus-nav">
               <button class="control-room-selection-pill ${this._state.controlRoomPanel === "selection" ? "active" : ""}" data-room-selection-action="selection" title="${this._esc(this._m("Connected players", "נגנים מחוברים"))}">
-                <span class="control-room-selection-count">${this._esc(String(selectedIds.length))}</span>
-                <span class="control-room-dock-label">${this._esc(this._m("Selected", "נבחרו"))}</span>
+                <span class="control-room-selection-count">${this._esc(String(targetIds.length))}</span>
+                <span class="control-room-dock-label">${this._esc(this._m("Players", "נגנים"))}</span>
               </button>
-              <button class="control-room-dock-btn ${this._state.controlRoomPanel === "visible" ? "active" : ""}" data-room-selection-action="visible" title="${this._esc(this._m("Visible tiles", "אריחים מוצגים"))}">
-                ${this._iconSvg("grid")}
-                <span class="control-room-dock-label">${this._esc(this._m("View", "תצוגה"))}</span>
-                <span class="control-room-badge-count">${this._esc(String(visiblePlayerIds.length))}</span>
-              </button>
-              <button class="control-room-dock-btn library-pill" data-room-selection-action="browse_library" title="${this._esc(this._m("Media library", "ספריית מדיה"))}">
-                ${this._iconSvg("library_music")}
-                <span class="control-room-dock-label">${this._esc(this._m("Media", "מדיה"))}</span>
-              </button>
-              <button class="control-room-dock-btn ${this._state.controlRoomPanel === "library" ? "active" : ""}" data-room-selection-action="library" title="${this._esc(this._m("Search library", "חיפוש בספריה"))}">
-                ${this._iconSvg("search")}
-                <span class="control-room-dock-label">${this._esc(this._m("Search", "חיפוש"))}</span>
+              <button class="control-room-dock-btn ${musicPanelActive ? "active" : ""}" data-room-selection-action="music" title="${this._esc(this._m("Music Hub", "מרכז מוזיקה"))}">
+                ${this._iconSvg("wand")}
+                <span class="control-room-dock-label">${this._esc(this._m("Music", "מוזיקה"))}</span>
               </button>
               <button class="control-room-dock-btn ${this._state.controlRoomPanel === "transfer" ? "active" : ""}" data-room-selection-action="transfer" title="${this._esc(this._m("Transfer queue", "העבר תור"))}">
                 ${this._iconSvg("queue")}
                 <span class="control-room-dock-label">${this._esc(this._m("Queue", "תור"))}</span>
               </button>
-              <button class="control-room-dock-btn" data-room-selection-action="group" title="${this._esc(this._m("Group selected", "חבר קבוצה"))}">
-                ${this._iconSvg("speaker")}
-                <span class="control-room-dock-label">${this._esc(this._m("Group", "קבוצה"))}</span>
-              </button>
-              <button class="control-room-dock-btn" data-room-selection-action="ungroup" title="${this._esc(this._m("Ungroup", "נתק קבוצה"))}">
-                ${this._iconSvg("close")}
-                <span class="control-room-dock-label">${this._esc(this._m("Ungroup", "נתק"))}</span>
+              <button class="control-room-dock-btn ${actionsPanelActive ? "active" : ""}" data-room-selection-action="actions" title="${this._esc(this._m("Actions", "פעולות"))}">
+                ${this._iconSvg("settings")}
+                <span class="control-room-dock-label">${this._esc(this._m("Actions", "פעולות"))}</span>
               </button>
             </div>
           </div>
@@ -5189,24 +6031,48 @@
       const isSelected = selectedIds.includes(entityId);
       const isPrimary = primaryId === entityId;
       const volume = Math.round((player.attributes?.volume_level || 0) * 100);
+      const groupInfo = this._controlRoomGroupInfo(player);
       tile.classList.toggle("has-art", !!art);
       tile.classList.toggle("no-art", !art);
       tile.classList.toggle("is-playing", playing);
       tile.classList.toggle("selected", isSelected);
       tile.classList.toggle("primary", isPrimary);
+      tile.classList.toggle("grouped", !!groupInfo.count);
+      const selectFab = tile.querySelector("[data-room-select]");
+      if (selectFab) {
+        const removable = isSelected && selectedIds.length > 1;
+        selectFab.classList.toggle("active", isSelected);
+        selectFab.classList.toggle("removable", removable);
+        selectFab.title = removable
+          ? this._m("Remove from selection", "הסר מהבחירה")
+          : isSelected ? this._m("Selected player", "נגן נבחר") : this._m("Add to selection", "הוסף לבחירה");
+        setHtml(selectFab, `${this._iconSvg(removable ? "close" : isSelected ? "check" : "grid")}<span class="control-room-select-label">${this._esc(removable ? this._m("Remove", "הסר") : isSelected ? this._m("Selected", "נבחר") : this._m("Select", "בחר"))}</span>`);
+      }
       if (art) tile.style.setProperty("--control-room-tile-art", cssUrl(art));
       else tile.style.removeProperty("--control-room-tile-art");
       const pills = tile.querySelector(".control-room-tile-pills");
-      const groupCount = this._playerGroupCount(player);
+      const groupCount = groupInfo.count;
+      const snapshot = this._controlRoomQueueCache(entityId);
+      const queueCount = this._controlRoomQueueCount(player, snapshot);
+      const protocolLabel = this._controlRoomProtocolLabel(player);
       const pillsHtml = [
         isPrimary ? `<span class="control-room-primary-pill">${this._esc(this._m("Primary", "ראשי"))}</span>` : ``,
-        groupCount ? `<span class="control-room-float-pill">${this._esc(String(groupCount))}</span>` : ``,
+        groupCount ? `<span class="control-room-float-pill grouped" title="${this._esc(groupInfo.label || this._m("Grouped players", "נגנים בקבוצה"))}">${this._iconSvg("speaker")}${this._esc(this._m(`${groupCount} grouped`, `${groupCount} בקבוצה`))}</span>` : ``,
+        queueCount ? `<span class="control-room-float-pill">${this._iconSvg("queue")}${this._esc(String(queueCount))}</span>` : ``,
+        protocolLabel ? `<span class="control-room-float-pill protocol">${this._esc(protocolLabel)}</span>` : ``,
         playing ? `<span class="control-room-float-pill live">${this._esc(this._m("Playing", "מנגן"))}</span>` : ``,
       ].filter(Boolean).join("");
       setHtml(pills, pillsHtml);
       setText(tile.querySelector(".control-room-tile-track"), player.attributes?.media_title || this._m("Idle", "ממתין"));
       setText(tile.querySelector(".control-room-tile-name"), player.attributes?.friendly_name || player.entity_id);
       setText(tile.querySelector(".control-room-tile-state"), this._playerStateLabel(player));
+      setHtml(tile.querySelector("[data-room-toggle-play]"), this._iconSvg(playing ? "pause" : "play"));
+      const tileMute = tile.querySelector("[data-room-mute]");
+      if (tileMute) {
+        const muted = this._isMuted(player);
+        tileMute.classList.toggle("active", muted);
+        setHtml(tileMute, this._iconSvg(muted ? "volume_mute" : this._volumeIconName(player)));
+      }
       const input = tile.querySelector(".control-room-volume");
       if (input && this.shadowRoot.activeElement !== input && String(input.value) !== String(volume)) {
         input.value = String(volume);
@@ -5221,31 +6087,48 @@
       if (primaryArt) scene.style.setProperty("--control-room-scene-art", cssUrl(primaryArt));
       else scene.style.removeProperty("--control-room-scene-art");
     }
-    setHtml(host.querySelector(".control-room-now-art"), primaryArt ? `<img src="${this._esc(primaryArt)}" alt="">` : this._iconSvg("music"));
-    setText(host.querySelector(".control-room-now-name"), primary?.attributes?.friendly_name || this._m("Selected player", "נגן נבחר"));
-    setText(host.querySelector(".control-room-now-track"), primary?.attributes?.media_title || this._m("Idle", "ממתין"));
+    const focusTarget = this._controlRoomFocusTarget();
+    const focusArt = focusTarget.art || primaryArt;
+    setHtml(host.querySelector(".control-room-now-art"), focusArt ? `<img src="${this._esc(focusArt)}" alt="">` : this._iconSvg("speaker"));
+    setText(host.querySelector(".control-room-now-kicker"), focusTarget.kicker);
+    setText(host.querySelector(".control-room-now-name"), focusTarget.name);
+    setText(host.querySelector(".control-room-now-track"), focusTarget.track);
     const playPauseBtn = host.querySelector('[data-room-selection-action="player_playpause"]');
-    if (playPauseBtn) setHtml(playPauseBtn, this._iconSvg(primary?.state === "playing" ? "pause" : "play"));
+    if (playPauseBtn) {
+      const primaryPlaying = primary?.state === "playing";
+      setHtml(playPauseBtn, `${this._iconSvg(primaryPlaying ? "pause" : "play")}<span class="control-room-dock-label">${this._esc(primaryPlaying ? this._m("Pause", "השהה") : this._m("Play", "נגן"))}</span>`);
+    }
+    const actionPlayPauseBtn = host.querySelector('.control-room-action-console [data-room-selection-action="playpause"]');
+    if (actionPlayPauseBtn) {
+      const primaryPlaying = primary?.state === "playing";
+      setHtml(actionPlayPauseBtn, `${this._iconSvg(primaryPlaying ? "pause" : "play")}<span>${this._esc(primaryPlaying ? this._m("Pause", "השהה") : this._m("Play", "נגן"))}</span>`);
+    }
     const muteBtn = host.querySelector('[data-room-selection-action="player_mute"]');
     if (muteBtn) {
       const muted = primary ? this._isMuted(primary) : false;
       muteBtn.classList.toggle("active", muted);
-      setHtml(muteBtn, this._iconSvg(primary ? this._volumeIconName(primary) : "speaker"));
+      setHtml(muteBtn, `${this._iconSvg(primary ? this._volumeIconName(primary) : "speaker")}<span class="control-room-dock-label">${this._esc(this._m("Mute", "השתק"))}</span>`);
+    }
+    const actionMuteBtn = host.querySelector('.control-room-action-console [data-room-selection-action="mute"]');
+    if (actionMuteBtn) {
+      const muted = primary ? this._isMuted(primary) : false;
+      actionMuteBtn.classList.toggle("active", muted);
+      setHtml(actionMuteBtn, `${this._iconSvg(muted ? "volume_mute" : (primary ? this._volumeIconName(primary) : "speaker"))}<span>${this._esc(this._m("Mute", "השתק"))}</span>`);
     }
   }
 
   _syncControlRoomUi(options = {}) {
+    this._syncControlRoomChrome();
     if (!this._controlRoomEnabled()) return;
     const host = this.$("controlRoomBody");
-    const backdrop = this.$("controlRoomBackdrop");
-    if (backdrop) backdrop.classList.toggle("open", !!this._state.controlRoomOpen);
     if (!host) return;
     const force = !!options.force;
     if (!this._state.controlRoomOpen && !force) return;
     const activeEl = this.shadowRoot?.activeElement;
-    const restoreLibraryInput = activeEl?.id === "controlRoomLibraryInput";
-    const selectionStart = restoreLibraryInput ? activeEl.selectionStart : null;
-    const selectionEnd = restoreLibraryInput ? activeEl.selectionEnd : null;
+    const restorableInputIds = new Set(["controlRoomLibraryInput", "controlRoomSmartQueryInput", "controlRoomAnnouncementText"]);
+    const activeControlRoomInputId = restorableInputIds.has(activeEl?.id) ? activeEl.id : "";
+    const selectionStart = activeControlRoomInputId ? activeEl.selectionStart : null;
+    const selectionEnd = activeControlRoomInputId ? activeEl.selectionEnd : null;
     const nextSignature = this._controlRoomRenderSignature();
     const needsRender = force
       || this._state.controlRoomRenderSignature !== nextSignature
@@ -5282,11 +6165,16 @@
     const input = this.$("controlRoomLibraryInput");
     if (input) {
       input.value = this._state.controlRoomLibraryQuery || "";
-      if (restoreLibraryInput) {
-        input.focus({ preventScroll: true });
-        if (typeof selectionStart === "number" && typeof selectionEnd === "number") {
-          try { input.setSelectionRange(selectionStart, selectionEnd); } catch (_) {}
-        }
+    }
+    const smartInput = this.$("controlRoomSmartQueryInput");
+    if (smartInput) smartInput.value = this._state.controlRoomSmartQuery || "";
+    const announceInput = this.$("controlRoomAnnouncementText");
+    if (announceInput) announceInput.value = this._state.controlRoomAnnouncementText || "";
+    if (activeControlRoomInputId) {
+      const targetInput = this.$(activeControlRoomInputId);
+      targetInput?.focus?.({ preventScroll: true });
+      if (targetInput && typeof selectionStart === "number" && typeof selectionEnd === "number") {
+        try { targetInput.setSelectionRange(selectionStart, selectionEnd); } catch (_) {}
       }
     }
   }
@@ -8257,6 +9145,7 @@
         this._state.knownBrowserPlayerIds = [];
         this._state.selectedPlayer = newcomer.entity_id;
         this._state.hasAutoSelectedPlayer = true;
+        this._revealControlRoomThisDevicePlayer(newcomer.entity_id, { sync: false });
       }
     }
     const selectedPlayer = this._playerByEntityId(this._state.selectedPlayer);
@@ -9685,9 +10574,9 @@ function ensureHaEditorComponents() {
   } catch (_) {}
 }
 
-const HOMEII_CARD_VERSION = "5.1.6";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v5160";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v5160";
+const HOMEII_CARD_VERSION = "5.2.0";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v520";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v520";
 
 const HomeiiEditorLocale = Object.freeze({
   isHebrewLanguageTag(value) {
@@ -9759,6 +10648,7 @@ const HomeiiConfigValidators = Object.freeze({
     HomeiiConfigValidators.assertValueInList(config.language, "language", ["auto", "he", "en"]);
     HomeiiConfigValidators.assertValueInList(config.theme_mode, "theme_mode", ["auto", "dark", "light", "custom"]);
     HomeiiConfigValidators.assertBooleanIfDefined(config.rtl, "rtl");
+    HomeiiConfigValidators.assertBooleanIfDefined(config.performance_mode, "performance_mode");
     HomeiiConfigValidators.assertBooleanIfDefined(config.show_ma_button, "show_ma_button");
     HomeiiConfigValidators.assertBooleanIfDefined(config.show_theme_toggle, "show_theme_toggle");
   },
@@ -9822,6 +10712,8 @@ const HomeiiStateFoundation = Object.freeze({
       playerModalOpen: false,
       hasAutoSelectedPlayer: false,
       cardTheme: "auto",
+      performanceMode: false,
+      performanceModeLocalOverride: false,
       modalMode: "players",
       sidePanelToken: 0,
       immersiveNowPlayingOpen: false,
@@ -9844,6 +10736,7 @@ const HomeiiStateFoundation = Object.freeze({
       controlRoomTransferTarget: "",
       controlRoomPanel: "",
       controlRoomVisiblePlayers: [],
+      controlRoomRevealThisDevicePending: false,
       controlRoomRenderedHtml: "",
       controlRoomRenderSignature: "",
     };
@@ -9863,11 +10756,16 @@ const HomeiiStateFoundation = Object.freeze({
   mobileShowUpNextEnabled(state) {
     return state?.mobileShowUpNext === true;
   },
+  performanceModeEnabled(state) {
+    return state?.performanceMode === true;
+  },
   mobileDynamicThemeMode(state) {
+    if (HomeiiStateFoundation.performanceModeEnabled(state)) return "off";
     const mode = String(state?.mobileDynamicThemeMode || "auto").toLowerCase();
     return ["off", "auto", "strong"].includes(mode) ? mode : "auto";
   },
   mobileBackgroundMotionMode(state) {
+    if (HomeiiStateFoundation.performanceModeEnabled(state)) return "off";
     const mode = String(state?.mobileBackgroundMotionMode || "subtle").toLowerCase();
     return ["off", "subtle", "strong", "extreme"].includes(mode) ? mode : "subtle";
   },
@@ -9977,6 +10875,7 @@ const HomeiiMobileSettingsFoundation = Object.freeze({
     return {
       lang: String(config.language || "auto"),
       cardTheme: String(config.theme_mode || "auto"),
+      performanceMode: config.performance_mode === true,
       mobileCustomColor: String(config.mobile_custom_color || "#f5a623"),
       mobileDynamicThemeMode: HomeiiMobileSettingsFoundation.normalizeEnum(config.mobile_dynamic_theme_mode, ["off", "auto", "strong"], "auto"),
       mobileBackgroundMotionMode: HomeiiMobileSettingsFoundation.normalizeEnum(config.mobile_background_motion_mode, ["off", "subtle", "strong", "extreme"], "subtle"),
@@ -11523,6 +12422,7 @@ function getBaseCardConfigForm() {
                 { value: "light", label: he ? "בהיר" : "Light" },
                 { value: "custom", label: he ? "אישי" : "Custom" },
               ] } } },
+              { name: "performance_mode", selector: { boolean: {} } },
               { name: "rtl", selector: { boolean: {} } },
               { name: "main_opacity", selector: { number: { min: 0.3, max: 1, step: 0.02, mode: "box" } } },
               { name: "popup_opacity", selector: { number: { min: 0.4, max: 1, step: 0.02, mode: "box" } } },
@@ -11570,6 +12470,7 @@ function getBaseCardConfigForm() {
       height: he ? "גובה הכרטיס" : "Card height",
       language: he ? "שפה" : "Language",
       theme_mode: he ? "ערכת נושא" : "Theme mode",
+      performance_mode: he ? "מצב ביצועים למכשירים חלשים" : "Performance mode for weak devices",
       night_mode: he ? "מצב לילה" : "Night mode",
       night_mode_auto_start: he ? "שעת התחלה ללילה" : "Night start time",
       night_mode_auto_end: he ? "שעת סיום ללילה" : "Night end time",
@@ -11585,6 +12486,7 @@ function getBaseCardConfigForm() {
       ma_interface_url: he ? "נתיב לפתיחת ממשק Music Assistant." : "Path used when opening the Music Assistant interface.",
       cache_ttl: he ? "משך הקאש במילישניות עבור קריאות נתונים מסוימות." : "Cache duration in milliseconds for selected data requests.",
       height: he ? "גובה הכרטיס בפיקסלים." : "Card height in pixels.",
+      performance_mode: he ? "מכבה טשטושים, אנימציות, רקעים דינמיים וצללים כבדים. מומלץ ל־Nest Hub וטאבלטים חלשים." : "Disables blur, animations, dynamic backgrounds, and heavy shadows. Recommended for Nest Hub and weaker tablets.",
       main_opacity: he ? "שקיפות הרקע הראשי של הכרטיס." : "Opacity for the main card background.",
       popup_opacity: he ? "שקיפות חלונות וקופצים." : "Opacity for popups and overlays.",
     })[schema.name],
@@ -11617,6 +12519,7 @@ function getMobileEditorTexts() {
       popup_opacity: he ? "שקיפות חלונות" : "Popup opacity",
       language: he ? "שפה" : "Language",
       theme_mode: he ? "ערכת נושא" : "Theme mode",
+      performance_mode: he ? "מצב ביצועים למכשירים חלשים" : "Performance mode for weak devices",
       night_mode: he ? "מצב לילה" : "Night mode",
       night_mode_auto_start: he ? "שעת התחלה ללילה" : "Night start time",
       night_mode_auto_end: he ? "שעת סיום ללילה" : "Night end time",
@@ -11668,6 +12571,7 @@ function getMobileEditorTexts() {
       mobile_show_up_next: he ? "מציג או מסתיר את שורת השיר הבא במסך הניגון." : "Show or hide the inline next-track row in Now Playing.",
       mobile_dynamic_theme_mode: he ? "מחלץ צבעים מעטיפת האלבום ומחיל אותם על הממשק." : "Extract colors from the current artwork and apply them to the interface.",
       mobile_background_motion_mode: he ? "שולט אם רקע הכרטיס נע בעדינות, ובאיזו עוצמה." : "Control whether the card background moves gently, and how strong the motion feels.",
+      performance_mode: he ? "מכבה אפקטים כבדים כדי שהכרטיס ירוץ חלק יותר על Nest Hub, טאבלטים ישנים ומסכים חלשים." : "Turns off heavy visuals so the card runs smoother on Nest Hub, older tablets, and weaker displays.",
       mobile_font_scale: he ? "סקייל כללי לכל הפונטים בממשק. 1 הוא ברירת המחדל." : "Global scale for every interface font. 1 is the default size.",
       mobile_compact_mode: he ? "מציג נגן אריח עצמאי וקומפקטי עם עטיפה, פקדי בסיס, ווליום וכפתור הרחבה." : "Shows a standalone compact player tile with artwork, basic controls, volume and an expand action.",
       mobile_swipe_mode: he ? "קובע האם סוויפ על עטיפת האלבום יעביר שיר או ידפדף עטיפות." : "Choose whether artwork swipe changes track or browses covers.",
@@ -11863,6 +12767,7 @@ function getMobileCardConfigForm() {
               { name: "main_opacity", selector: { number: { min: 0.3, max: 1, step: 0.02, mode: "slider" } } },
               { name: "popup_opacity", selector: { number: { min: 0.4, max: 1, step: 0.02, mode: "slider" } } },
               { name: "mobile_custom_color", selector: { text: { type: "color" } } },
+              { name: "performance_mode", selector: { boolean: {} } },
               { name: "mobile_dynamic_theme_mode", selector: { select: { mode: "dropdown", options: t.options.mobile_dynamic_theme_mode } } },
               { name: "mobile_background_motion_mode", selector: { select: { mode: "dropdown", options: t.options.mobile_background_motion_mode } } },
               { name: "mobile_custom_text_tone", selector: { select: { mode: "dropdown", options: t.options.mobile_custom_text_tone } } },
@@ -12301,6 +13206,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.mobileSchedulesTab = "timers";
     this._state.mobileScheduleControlActiveUntil = 0;
     this._state.localSendspinDisconnecting = false;
+    this._state.controlRoomRevealThisDevicePending = false;
     this._state.mobileLyricsSyncEnabled = true;
     this._state.mobileLyricsSyncOffsetMs = 0;
     this._state.mobileLyricsFontScale = 1;
@@ -12317,6 +13223,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.controlRoomRestoreAfterMenu = false;
     this._state.controlRoomRenderedHtml = "";
     this._state.controlRoomRenderSignature = "";
+    this._state.controlRoomQueueSnapshots = {};
+    this._state.controlRoomQueueLoading = false;
+    this._state.controlRoomRecentItems = [];
+    this._state.controlRoomRecentLoading = false;
+    this._state.controlRoomFavoritesItems = [];
+    this._state.controlRoomFavoritesLoading = false;
+    this._state.controlRoomSmartQuery = "";
+    this._state.controlRoomAnnouncementText = "";
+    this._state.controlRoomAnnouncementVolume = 20;
     this._state.mobileCompactExpanded = false;
     this._state.mobileFooterSearchEnabled = false;
     this._state.mobileStudioShortcutEnabled = true;
@@ -12370,6 +13285,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._boundMobileMenuChange = this._handleMobileMenuChange.bind(this);
     this._boundMobileMediaInput = this._handleMobileMediaInput.bind(this);
     try { this._state.mobileCustomColor = localStorage.getItem("homeii_music_flow_mobile_custom_color") || "#f5a623"; } catch (_) {}
+    try {
+      const storedPerformanceMode = localStorage.getItem("homeii_music_flow_mobile_performance_mode");
+      if (storedPerformanceMode !== null) {
+        this._state.performanceMode = JSON.parse(storedPerformanceMode);
+        this._state.performanceModeLocalOverride = true;
+      }
+    } catch (_) {}
     try { this._state.mobileDynamicThemeMode = localStorage.getItem("homeii_music_flow_mobile_dynamic_theme_mode") || "auto"; } catch (_) {}
     try { this._state.mobileBackgroundMotionMode = localStorage.getItem("homeii_music_flow_mobile_background_motion_mode") || "subtle"; } catch (_) {}
     try { this._state.mobileCustomTextTone = localStorage.getItem("homeii_music_flow_mobile_custom_text") || "light"; } catch (_) {}
@@ -12479,6 +13401,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       favorite_button_entity: "",
       allow_local_likes: false,
       use_mass_queue_send_command: false,
+      performance_mode: false,
       mobile_custom_color: "#f5a623",
       mobile_dynamic_theme_mode: "auto",
       mobile_background_motion_mode: "subtle",
@@ -12563,6 +13486,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         popup_opacity: he ? "שקיפות חלונות" : "Popup opacity",
         language: he ? "שפה" : "Language",
         theme_mode: he ? "ערכת נושא" : "Theme mode",
+        performance_mode: he ? "מצב ביצועים למכשירים חלשים" : "Performance mode for weak devices",
         night_mode: he ? "מצב לילה" : "Night mode",
         night_mode_auto_start: he ? "שעת התחלה ללילה" : "Night start time",
         night_mode_auto_end: he ? "שעת סיום ללילה" : "Night end time",
@@ -12606,6 +13530,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         night_mode_auto_start: he ? "פורמט מומלץ: HH:MM כמו 22:00." : "Recommended format: HH:MM such as 22:00.",
         night_mode_auto_end: he ? "פורמט מומלץ: HH:MM כמו 06:00. אפשר לחצות חצות." : "Recommended format: HH:MM such as 06:00. Crossing midnight is supported.",
         night_mode_days: he ? "בחר באילו ימים חלון מצב הלילה יהיה פעיל במצב Auto." : "Choose which days the Auto night-mode window applies to.",
+        performance_mode: he ? "מכבה אפקטים כבדים כדי שהכרטיס ירוץ חלק יותר על Nest Hub, טאבלטים ישנים ומסכים חלשים." : "Turns off heavy visuals so the card runs smoother on Nest Hub, older tablets, and weaker displays.",
         mobile_main_bar_items: he ? "בחר אילו כפתורים יופיעו בסרגל הראשי." : "Choose which actions appear in the main bar.",
         mobile_quick_actions: he ? "בחר אילו אייקונים יופיעו בשורת הפעולות המהירות." : "Choose which icons appear in the quick action row.",
         mobile_library_tabs: he ? "בחר אילו טאבים יהיו זמינים במסך הספרייה." : "Choose which tabs are available in the library screen.",
@@ -12736,6 +13661,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             { name: "main_opacity", selector: { number: { min: 0.3, max: 1, step: 0.02, mode: "box" } } },
             { name: "popup_opacity", selector: { number: { min: 0.4, max: 1, step: 0.02, mode: "box" } } },
             { name: "mobile_custom_color", selector: { text: { type: "color" } } },
+            { name: "performance_mode", selector: { boolean: {} } },
             { name: "mobile_dynamic_theme_mode", selector: { select: { mode: "dropdown", options: t.options.mobile_dynamic_theme_mode } } },
             { name: "mobile_background_motion_mode", selector: { select: { mode: "dropdown", options: t.options.mobile_background_motion_mode } } },
             { name: "mobile_custom_text_tone", selector: { select: { mode: "dropdown", options: t.options.mobile_custom_text_tone } } },
@@ -12871,6 +13797,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     return HomeiiStateFoundation.usesVisualSettings(this._config);
   }
 
+  _performanceModeEnabled() {
+    return HomeiiStateFoundation.performanceModeEnabled(this._state);
+  }
+
   _mobileCompactModeEnabled() {
     return HomeiiStateFoundation.mobileCompactModeEnabled(this._state);
   }
@@ -12880,18 +13810,22 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
 
   _mobileDynamicThemeMode() {
+    if (this._performanceModeEnabled()) return "off";
     return HomeiiStateFoundation.mobileDynamicThemeMode(this._state);
   }
 
   _mobileBackgroundMotionMode() {
+    if (this._performanceModeEnabled()) return "off";
     return HomeiiStateFoundation.mobileBackgroundMotionMode(this._state);
   }
 
   _backgroundMotionEnabled() {
+    if (this._performanceModeEnabled()) return false;
     return HomeiiStateFoundation.backgroundMotionEnabled(this._state);
   }
 
   _backgroundMotionAmount() {
+    if (this._performanceModeEnabled()) return "0";
     return HomeiiStateFoundation.backgroundMotionAmount(this._state);
   }
 
@@ -12904,6 +13838,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const previousExpanded = !!this._state.mobileCompactExpanded;
     this._state.mobileCompactTransition = nextExpanded ? "expand" : previousExpanded ? "collapse" : "";
     this._state.mobileCompactExpanded = nextExpanded;
+    if (!nextExpanded && this._state.controlRoomOpen) {
+      this._state.controlRoomOpen = false;
+      this._state.controlRoomPanel = "";
+      this._state.controlRoomRestoreAfterMenu = false;
+      this._syncControlRoomChrome();
+    }
     this._build();
     this._init();
     clearTimeout(this._compactTransitionTimer);
@@ -12934,6 +13874,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       if (!this._state.mobileCompactMode) this._state.mobileCompactExpanded = false;
     } else if (String(cfg.announcement_tts_entity || "").trim() && !String(this._state.mobileAnnouncementTtsEntity || "").trim()) {
       this._state.mobileAnnouncementTtsEntity = String(cfg.announcement_tts_entity || "").trim();
+    }
+    if (!this._usesVisualSettings() && !this._state.performanceModeLocalOverride) {
+      this._state.performanceMode = cfg.performance_mode === true;
     }
   }
 
@@ -14225,9 +15168,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _persistMobileAppearance() {
     this._scheduleSystemMobileStatePersist();
     if (this._usesVisualSettings()) return;
+    const storedDynamicThemeMode = ["off", "auto", "strong"].includes(String(this._state.mobileDynamicThemeMode || "auto").toLowerCase())
+      ? String(this._state.mobileDynamicThemeMode || "auto").toLowerCase()
+      : "auto";
+    const storedBackgroundMotionMode = ["off", "subtle", "strong", "extreme"].includes(String(this._state.mobileBackgroundMotionMode || "subtle").toLowerCase())
+      ? String(this._state.mobileBackgroundMotionMode || "subtle").toLowerCase()
+      : "subtle";
     try { localStorage.setItem("homeii_music_flow_mobile_custom_color", this._state.mobileCustomColor || "#f5a623"); } catch (_) {}
-    try { localStorage.setItem("homeii_music_flow_mobile_dynamic_theme_mode", this._mobileDynamicThemeMode()); } catch (_) {}
-    try { localStorage.setItem("homeii_music_flow_mobile_background_motion_mode", this._mobileBackgroundMotionMode()); } catch (_) {}
+    try { localStorage.setItem("homeii_music_flow_mobile_performance_mode", JSON.stringify(!!this._state.performanceMode)); } catch (_) {}
+    try { localStorage.setItem("homeii_music_flow_mobile_dynamic_theme_mode", storedDynamicThemeMode); } catch (_) {}
+    try { localStorage.setItem("homeii_music_flow_mobile_background_motion_mode", storedBackgroundMotionMode); } catch (_) {}
     try { localStorage.setItem("homeii_music_flow_mobile_custom_text", this._state.mobileCustomTextTone || "light"); } catch (_) {}
     try { localStorage.setItem("homeii_music_flow_mobile_font_scale", String(this._state.mobileFontScale || 1)); } catch (_) {}
     try { localStorage.setItem("homeii_music_flow_mobile_night_mode", this._mobileNightMode()); } catch (_) {}
@@ -14686,6 +15636,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._setLocalSendspinDesired(false);
       this._rememberThisDevicePlayer("");
       this._state.awaitingThisDevicePlayer = false;
+      this._state.controlRoomRevealThisDevicePending = false;
       this._state.knownBrowserPlayerIds = [];
       this._directMaPlayers = [];
       this._stopLocalSendspinPlayer("stop_all");
@@ -15344,6 +16295,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const theme = this._effectiveTheme();
     const visualTheme = this._visualTheme();
     const layoutMode = this._layoutModeConfig();
+    const performanceMode = this._performanceModeEnabled();
     const compactMode = this._mobileCompactModeEnabled();
     const compactTileMode = this._isCompactTileMode();
     const nightMode = this._mobileNightMode();
@@ -24165,7 +25117,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   transition:none!important;
 }
 .menu-body.sheet-queue .queue-row{
-  transition:min-height .18s ease, border-color .16s ease, background-color .16s ease, box-shadow .16s ease!important;
+  transition:border-color .08s ease, background-color .08s ease, box-shadow .08s ease!important;
 }
 .menu-body.sheet-queue .queue-row.expanded{
   min-height:112px!important;
@@ -24174,7 +25126,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   min-height:124px!important;
 }
 .menu-body.sheet-queue .queue-inline-actions{
-  transition:max-height .18s ease, opacity .16s ease, transform .18s ease, padding .18s ease, border-color .18s ease, background-color .18s ease!important;
+  transition:none!important;
 }
 .theme-light .queue-row.expanded .queue-inline-actions{
   border-color:rgba(147,161,183,.18);
@@ -24300,8 +25252,701 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   .control-room-picker-list,.control-room-library-results{max-height:calc(100dvh - 320px);}
 }
 
+.control-room-tile-actions{position:relative;z-index:2;display:flex;align-items:center;gap:6px;align-self:end;justify-self:end;margin-top:-44px;margin-inline-end:2px;}
+.control-room-tile-actions button{width:34px;height:34px;border-radius:13px;border:1px solid rgba(255,255,255,.14);background:rgba(12,15,22,.42);color:#fff;display:grid;place-items:center;box-shadow:0 10px 24px rgba(0,0,0,.18);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);cursor:pointer;}
+.control-room-tile-actions button.active{background:rgba(var(--dynamic-accent-rgb,245 166 35) / .26);border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .36);}
+.control-room-tile-actions .ui-ic{width:17px;height:17px;}
+.control-room-float-pill .ui-ic{width:13px;height:13px;margin-inline-end:4px;}
+.control-room-float-pill.protocol{text-transform:uppercase;letter-spacing:.02em;}
+.theme-light .control-room-tile-actions button{background:rgba(255,255,255,.76);border-color:rgba(28,42,68,.1);color:#1b2740;}
+.control-room-dock{justify-content:flex-start;overflow-x:auto;overflow-y:visible;scrollbar-width:none;}
+.control-room-dock::-webkit-scrollbar{display:none;}
+.card.layout-tablet .control-room-dock{justify-content:flex-start!important;overflow-x:auto!important;overflow-y:visible!important;flex-wrap:nowrap!important;}
+.card.layout-tablet .control-room-dock-section{flex:0 0 auto;}
+.control-room-dock-btn.danger,.control-room-panel-action.danger{background:rgba(222,72,72,.16)!important;border-color:rgba(255,105,105,.24)!important;color:#ffb6b6!important;}
+.control-room-dock-section.selected{background:rgba(var(--dynamic-accent-rgb,245 166 35) / .07);}
+.control-room-panel-action{min-height:52px;border-radius:18px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.07);color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:0 16px;font-size:calc(13px * var(--v2-font-scale));font-weight:900;cursor:pointer;touch-action:manipulation;}
+.control-room-panel-action.primary{background:linear-gradient(135deg, rgba(var(--dynamic-accent-rgb,245 166 35) / .38), rgba(128,88,210,.46));border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .34);box-shadow:0 16px 36px rgba(var(--dynamic-accent-rgb,245 166 35) / .16);}
+.control-room-panel-action.wide{width:100%;}
+.control-room-panel-action:disabled{opacity:.45;cursor:not-allowed;}
+.theme-light .control-room-panel-action{background:rgba(255,255,255,.78);border-color:rgba(28,42,68,.1);color:#17253a;}
+.control-room-queue-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;}
+.control-room-queue-preview{display:grid;gap:8px;margin-top:10px;padding:10px;border-radius:20px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.09);max-height:190px;overflow:auto;}
+.control-room-queue-preview-head{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.control-room-queue-player{font-size:calc(12px * var(--v2-font-scale));font-weight:900;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.control-room-queue-count{min-width:30px;height:24px;border-radius:999px;display:inline-grid;place-items:center;padding:0 8px;background:rgba(var(--dynamic-accent-rgb,245 166 35) / .18);font-weight:900;color:#fff;}
+.control-room-queue-row{display:grid;grid-template-columns:36px minmax(0,1fr);align-items:center;gap:9px;min-height:42px;padding:5px;border-radius:14px;background:rgba(255,255,255,.045);}
+.control-room-queue-row.current{background:rgba(var(--dynamic-accent-rgb,245 166 35) / .14);}
+.control-room-queue-art{width:36px;height:36px;border-radius:11px;overflow:hidden;display:grid;place-items:center;background:rgba(255,255,255,.08);color:#fff;}
+.control-room-queue-art img{width:100%;height:100%;object-fit:cover;display:block;}
+.control-room-queue-copy{min-width:0;display:grid;gap:2px;}
+.control-room-queue-title,.control-room-queue-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.control-room-queue-title{font-size:calc(12px * var(--v2-font-scale));font-weight:850;color:#fff;}
+.control-room-queue-sub{font-size:calc(10px * var(--v2-font-scale));color:rgba(255,255,255,.62);}
+.theme-light .control-room-queue-preview,.theme-light .control-room-queue-row{background:rgba(255,255,255,.72);border-color:rgba(28,42,68,.08);}
+.theme-light .control-room-queue-player,.theme-light .control-room-queue-title{color:#17253a;}
+.theme-light .control-room-queue-sub{color:#71829a;}
+.control-room-media-grid.large{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));}
+.control-room-media-card{display:grid;grid-template-rows:minmax(0,1fr) auto;gap:10px;min-height:236px;}
+.control-room-media-card.liked{border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .28);}
+.control-room-media-main{display:grid;gap:10px;padding:0;background:none;border:0;color:inherit;text-align:inherit;cursor:pointer;min-width:0;}
+.control-room-media-kicker{font-size:calc(10px * var(--v2-font-scale));font-weight:900;color:rgba(var(--dynamic-accent-rgb,245 166 35) / .9);text-transform:uppercase;}
+.control-room-media-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.control-room-media-action{height:32px;min-width:52px;padding:0 10px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.075);color:#fff;font-size:calc(10px * var(--v2-font-scale));font-weight:900;cursor:pointer;}
+.control-room-media-action.primary{background:rgba(var(--dynamic-accent-rgb,245 166 35) / .24);border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .32);}
+.control-room-media-action.icon{min-width:32px;width:32px;padding:0;display:grid;place-items:center;}
+.control-room-media-action.icon .ui-ic{width:15px;height:15px;}
+.control-room-media-action.active{color:var(--ma-accent);}
+.theme-light .control-room-media-action{background:rgba(245,248,252,.94);border-color:rgba(28,42,68,.08);color:#1b2740;}
+.control-room-mix-panel,.control-room-announce-panel,.control-room-diagnostics{display:grid;gap:14px;min-width:0;}
+.control-room-mix-grid,.control-room-scenes-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;}
+.control-room-mix-card,.control-room-scene-card{min-height:122px;border-radius:24px;border:1px solid rgba(255,255,255,.1);background:linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.035));color:#fff;display:grid;align-content:center;justify-items:center;gap:7px;padding:14px;text-align:center;box-shadow:0 16px 34px rgba(0,0,0,.16);cursor:pointer;}
+.control-room-mix-card:hover,.control-room-scene-card:hover{border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .32);background:rgba(var(--dynamic-accent-rgb,245 166 35) / .12);}
+.control-room-mix-icon{width:46px;height:46px;border-radius:17px;display:grid;place-items:center;background:rgba(var(--dynamic-accent-rgb,245 166 35) / .18);color:var(--ma-accent);}
+.control-room-mix-title,.control-room-scene-card span{font-size:calc(16px * var(--v2-font-scale));font-weight:950;}
+.control-room-mix-sub,.control-room-scene-card small{font-size:calc(11px * var(--v2-font-scale));font-weight:700;color:rgba(255,255,255,.62);}
+.control-room-scene-card .ui-ic{width:30px;height:30px;color:var(--ma-accent);}
+.theme-light .control-room-mix-card,.theme-light .control-room-scene-card{background:rgba(255,255,255,.76);border-color:rgba(28,42,68,.08);color:#17253a;}
+.theme-light .control-room-mix-sub,.theme-light .control-room-scene-card small{color:#71829a;}
+.control-room-diagnostic-row{min-height:44px;border-radius:16px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 14px;color:#fff;}
+.control-room-diagnostic-row span{font-size:calc(12px * var(--v2-font-scale));color:rgba(255,255,255,.64);font-weight:800;}
+.control-room-diagnostic-row strong{font-size:calc(12px * var(--v2-font-scale));font-weight:950;color:#fff;}
+.control-room-pro-actions{display:flex;gap:10px;flex-wrap:wrap;}
+.theme-light .control-room-diagnostic-row{background:rgba(255,255,255,.72);color:#17253a;}
+.theme-light .control-room-diagnostic-row span{color:#71829a;}
+.theme-light .control-room-diagnostic-row strong{color:#17253a;}
+
+.control-room-dock.focus-mode{gap:12px;max-width:min(1180px, calc(100% - 24px));justify-content:center;overflow:visible;padding:10px 14px calc(12px + env(safe-area-inset-bottom, 0px));}
+.control-room-dock.focus-mode .control-room-now-pill{min-width:min(360px, 38vw);max-width:420px;background:linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.035));}
+.control-room-dock.focus-mode .control-room-dock-section{background:rgba(255,255,255,.045);}
+.control-room-dock.focus-mode .focus-nav{padding:7px;gap:8px;}
+.control-room-dock.focus-mode .primary-actions{padding:7px;gap:8px;}
+.control-room-dock.focus-mode .control-room-dock-btn,.control-room-dock.focus-mode .control-room-selection-pill{min-width:76px;height:56px;border-radius:18px;}
+.control-room-dock.focus-mode .control-room-selection-pill{background:rgba(var(--dynamic-accent-rgb,245 166 35) / .22);border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .28);}
+.control-room-context-chip{display:inline-flex;align-items:center;gap:10px;justify-self:start;max-width:100%;padding:8px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.065);color:#fff;box-shadow:0 12px 24px rgba(0,0,0,.12);}
+.control-room-context-art{width:34px;height:34px;border-radius:12px;display:grid;place-items:center;overflow:hidden;background:rgba(255,255,255,.08);flex:none;}
+.control-room-context-art img{width:100%;height:100%;object-fit:cover;display:block;}
+.control-room-context-art .ui-ic{width:16px;height:16px;}
+.control-room-context-copy{display:grid;gap:1px;min-width:0;}
+.control-room-context-kicker{font-size:calc(10px * var(--v2-font-scale));font-weight:850;color:rgba(255,255,255,.58);white-space:nowrap;}
+.control-room-context-name{font-size:calc(13px * var(--v2-font-scale));font-weight:950;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.control-room-hub-panel{grid-template-rows:auto auto minmax(0,1fr);}
+.control-room-hub-grid,.control-room-action-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:12px;min-height:0;overflow:auto;padding-inline-end:2px;scrollbar-width:thin;}
+.control-room-action-grid{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));}
+.control-room-hub-card{min-height:118px;padding:16px;border-radius:24px;border:1px solid rgba(255,255,255,.1);background:linear-gradient(145deg, rgba(255,255,255,.085), rgba(255,255,255,.035));color:#fff;display:grid;align-content:center;justify-items:start;gap:7px;text-align:start;box-shadow:0 16px 34px rgba(0,0,0,.14);cursor:pointer;touch-action:manipulation;}
+.control-room-hub-card.primary{background:linear-gradient(145deg, rgba(var(--dynamic-accent-rgb,245 166 35) / .28), rgba(128,88,210,.24));border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .32);}
+.control-room-hub-card.danger{background:rgba(222,72,72,.13);border-color:rgba(255,105,105,.22);color:#ffb6b6;}
+.control-room-hub-card:disabled{opacity:.44;cursor:not-allowed;}
+.control-room-hub-card .ui-ic{width:28px;height:28px;color:var(--ma-accent);}
+.control-room-hub-card span{font-size:calc(16px * var(--v2-font-scale));font-weight:950;line-height:1.05;}
+.control-room-hub-card small{font-size:calc(11px * var(--v2-font-scale));font-weight:750;color:rgba(255,255,255,.62);line-height:1.25;}
+.control-room-announcement-tray{width:min(780px, calc(100% - 44px));grid-template-rows:auto auto auto;gap:14px;}
+.control-room-announce-hero{display:flex;align-items:center;gap:14px;min-width:0;padding:6px 4px 0;}
+.control-room-announce-icon{width:54px;height:54px;border-radius:20px;display:grid;place-items:center;flex:none;background:linear-gradient(145deg, rgba(var(--dynamic-accent-rgb,245 166 35) / .24), rgba(128,88,210,.24));border:1px solid rgba(var(--dynamic-accent-rgb,245 166 35) / .22);color:#fff;}
+.control-room-announce-icon .ui-ic{width:25px;height:25px;}
+.control-room-announce-copy{display:grid;gap:4px;min-width:0;}
+.control-room-announce-panel{display:grid;gap:14px;}
+.control-room-announce-compose{display:grid;gap:8px;font-size:calc(12px * var(--v2-font-scale));font-weight:900;color:rgba(255,255,255,.7);}
+.control-room-announce-compose .announcement-textarea{width:100%;min-height:122px;resize:vertical;border-radius:22px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.075);color:#fff;padding:16px 18px;font:inherit;font-weight:700;outline:none;box-sizing:border-box;}
+.control-room-announce-compose .announcement-textarea:focus{border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .38);box-shadow:0 0 0 3px rgba(var(--dynamic-accent-rgb,245 166 35) / .12);}
+.control-room-announce-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(180px, .42fr);gap:12px;align-items:stretch;}
+.control-room-announce-volume-card{display:grid;align-content:center;gap:12px;min-height:82px;padding:14px 16px;border-radius:22px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.055);}
+.control-room-announce-volume-head{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:calc(12px * var(--v2-font-scale));font-weight:900;color:rgba(255,255,255,.7);}
+.control-room-announce-volume-head strong{font-size:calc(16px * var(--v2-font-scale));font-weight:950;color:#fff;}
+.control-room-announce-send{min-height:82px;border-radius:22px;font-size:calc(14px * var(--v2-font-scale));}
+.control-room-tile-actions{opacity:0;pointer-events:none;transform:translateY(4px);transition:opacity .16s ease,transform .16s ease;}
+.control-room-tile:hover .control-room-tile-actions,.control-room-tile.selected .control-room-tile-actions,.control-room-tile.is-playing .control-room-tile-actions{opacity:1;pointer-events:auto;transform:translateY(0);}
+.theme-light .control-room-context-chip,.theme-light .control-room-hub-card,.theme-light .control-room-announce-volume-card{background:rgba(255,255,255,.76);border-color:rgba(28,42,68,.08);color:#17253a;}
+.theme-light .control-room-context-kicker,.theme-light .control-room-hub-card small,.theme-light .control-room-announce-compose,.theme-light .control-room-announce-volume-head{color:#71829a;}
+.theme-light .control-room-context-name,.theme-light .control-room-announce-volume-head strong{color:#17253a;}
+.theme-light .control-room-announce-compose .announcement-textarea{background:rgba(245,248,252,.94);border-color:rgba(28,42,68,.1);color:#17253a;}
+@media (max-width: 980px){
+  .control-room-dock.focus-mode{justify-content:flex-start;overflow-x:auto;overflow-y:visible;max-width:calc(100% - 12px);}
+  .control-room-dock.focus-mode .control-room-now-pill{display:flex!important;min-width:230px;max-width:280px;}
+  .control-room-announce-controls{grid-template-columns:minmax(0,1fr);}
+  .control-room-hub-grid,.control-room-action-grid{grid-template-columns:repeat(auto-fit,minmax(142px,1fr));}
+}
+@media (max-height: 620px){
+  .control-room-dock.focus-mode .control-room-now-pill{display:none!important;}
+  .control-room-hub-card{min-height:96px;}
+  .control-room-announcement-tray{max-height:calc(100dvh - 116px);}
+  .control-room-announce-compose .announcement-textarea{min-height:86px;}
+}
+
+.control-room-scene{
+  --cr-panel-bg:rgba(17,19,25,.965);
+  --cr-panel-bg-soft:rgba(255,255,255,.065);
+  --cr-panel-bg-raised:linear-gradient(145deg, rgba(255,255,255,.105), rgba(255,255,255,.045));
+  --cr-border:rgba(255,255,255,.13);
+  --cr-border-strong:rgba(255,255,255,.18);
+  --cr-text:#fff;
+  --cr-muted:rgba(255,255,255,.64);
+  --cr-faint:rgba(255,255,255,.46);
+  --cr-radius:24px;
+  --cr-icon-box:48px;
+  --cr-icon-size:22px;
+  --cr-action-height:56px;
+}
+.theme-light .control-room-scene{
+  --cr-panel-bg:rgba(250,252,255,.975);
+  --cr-panel-bg-soft:rgba(255,255,255,.78);
+  --cr-panel-bg-raised:linear-gradient(145deg, rgba(255,255,255,.96), rgba(241,246,252,.88));
+  --cr-border:rgba(27,41,66,.1);
+  --cr-border-strong:rgba(27,41,66,.15);
+  --cr-text:#17253a;
+  --cr-muted:#71829a;
+  --cr-faint:#8a98aa;
+}
+.control-room-scene.panel-open .control-room-tray,
+.control-room-tray{
+  background:var(--cr-panel-bg)!important;
+  border-color:var(--cr-border-strong)!important;
+  box-shadow:0 28px 80px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.08)!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  padding:22px!important;
+  gap:16px!important;
+}
+.control-room-tray.wide{width:min(1120px, calc(100% - 64px))!important;}
+.control-room-tray.compact{width:min(780px, calc(100% - 64px))!important;}
+.control-room-tray-title{font-size:calc(18px * var(--v2-font-scale))!important;font-weight:950!important;line-height:1.08!important;color:var(--cr-text)!important;}
+.control-room-tray-sub{font-size:calc(12px * var(--v2-font-scale))!important;font-weight:750!important;line-height:1.35!important;color:var(--cr-muted)!important;max-width:720px;}
+.control-room-context-chip{background:var(--cr-panel-bg-soft)!important;border-color:var(--cr-border)!important;color:var(--cr-text)!important;padding:9px 13px!important;}
+.control-room-context-art{width:38px!important;height:38px!important;border-radius:14px!important;background:rgba(255,255,255,.09)!important;}
+.control-room-context-art .ui-ic{width:18px!important;height:18px!important;}
+.control-room-context-kicker{font-size:calc(10px * var(--v2-font-scale))!important;color:var(--cr-muted)!important;}
+.control-room-context-name{font-size:calc(14px * var(--v2-font-scale))!important;color:var(--cr-text)!important;}
+.control-room-hub-grid,.control-room-action-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))!important;gap:14px!important;align-content:start;}
+.control-room-hub-card,
+.control-room-mix-card,
+.control-room-scene-card{
+  min-height:112px!important;
+  border-radius:var(--cr-radius)!important;
+  border-color:var(--cr-border)!important;
+  background:var(--cr-panel-bg-raised)!important;
+  color:var(--cr-text)!important;
+  box-shadow:0 18px 38px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.08)!important;
+  display:grid!important;
+  grid-template-columns:var(--cr-icon-box) minmax(0,1fr)!important;
+  grid-template-rows:auto auto!important;
+  align-content:center!important;
+  align-items:center!important;
+  justify-items:start!important;
+  column-gap:14px!important;
+  row-gap:4px!important;
+  text-align:start!important;
+  padding:16px!important;
+}
+.control-room-hub-card.primary,
+.control-room-panel-action.primary{background:linear-gradient(145deg, rgba(var(--dynamic-accent-rgb,245 166 35) / .3), rgba(128,88,210,.28))!important;border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .34)!important;}
+.control-room-hub-card.danger{background:rgba(222,72,72,.15)!important;border-color:rgba(255,105,105,.24)!important;color:#ffb6b6!important;}
+.control-room-hub-card > .ui-ic,
+.control-room-mix-icon,
+.control-room-scene-card > .ui-ic{
+  grid-row:1 / span 2!important;
+  width:var(--cr-icon-box)!important;
+  height:var(--cr-icon-box)!important;
+  border-radius:17px!important;
+  display:grid!important;
+  place-items:center!important;
+  background:rgba(var(--dynamic-accent-rgb,245 166 35) / .16)!important;
+  color:var(--ma-accent)!important;
+}
+.control-room-hub-card > .ui-ic,
+.control-room-scene-card > .ui-ic{padding:12px!important;box-sizing:border-box;}
+.control-room-hub-card > .ui-ic *,
+.control-room-scene-card > .ui-ic *{vector-effect:non-scaling-stroke;}
+.control-room-mix-icon .ui-ic{width:var(--cr-icon-size)!important;height:var(--cr-icon-size)!important;}
+.control-room-hub-card span:not(.ui-ic),
+.control-room-mix-title,
+.control-room-scene-card span:not(.ui-ic){
+  font-size:calc(15px * var(--v2-font-scale))!important;
+  font-weight:950!important;
+  line-height:1.1!important;
+  color:var(--cr-text)!important;
+  white-space:normal!important;
+}
+.control-room-hub-card small,
+.control-room-mix-sub,
+.control-room-scene-card small{
+  font-size:calc(11px * var(--v2-font-scale))!important;
+  font-weight:760!important;
+  line-height:1.28!important;
+  color:var(--cr-muted)!important;
+}
+.control-room-picker-row,
+.control-room-transfer-choice,
+.control-room-media-card,
+.control-room-queue-preview,
+.control-room-diagnostic-row,
+.control-room-announce-volume-card,
+.control-room-announce-compose .announcement-textarea,
+.control-room-search{
+  background:var(--cr-panel-bg-soft)!important;
+  border-color:var(--cr-border)!important;
+  color:var(--cr-text)!important;
+}
+.control-room-picker-row,.control-room-transfer-choice{min-height:68px!important;border-radius:22px!important;padding:9px 12px!important;}
+.control-room-picker-art,.control-room-transfer-art{width:48px!important;height:48px!important;border-radius:16px!important;}
+.control-room-picker-art .ui-ic,.control-room-transfer-art .ui-ic{width:20px!important;height:20px!important;}
+.control-room-picker-title,.control-room-transfer-title,.control-room-media-title,.control-room-queue-title{font-size:calc(13px * var(--v2-font-scale))!important;font-weight:920!important;color:var(--cr-text)!important;}
+.control-room-picker-sub,.control-room-transfer-sub,.control-room-media-sub,.control-room-queue-sub{font-size:calc(11px * var(--v2-font-scale))!important;font-weight:720!important;color:var(--cr-muted)!important;}
+.control-room-panel-action,
+.control-room-media-action{
+  min-height:var(--cr-action-height)!important;
+  border-radius:18px!important;
+  border-color:var(--cr-border)!important;
+  background:var(--cr-panel-bg-soft)!important;
+  color:var(--cr-text)!important;
+  font-size:calc(12px * var(--v2-font-scale))!important;
+  font-weight:900!important;
+}
+.control-room-panel-action .ui-ic{width:19px!important;height:19px!important;}
+.control-room-media-action{height:36px!important;min-height:36px!important;min-width:58px!important;border-radius:13px!important;}
+.control-room-dock.focus-mode{background:rgba(12,15,21,.92)!important;border-color:var(--cr-border)!important;box-shadow:0 24px 60px rgba(0,0,0,.34)!important;}
+.control-room-dock.focus-mode .control-room-now-pill,
+.control-room-dock.focus-mode .control-room-dock-section{background:rgba(255,255,255,.07)!important;border-color:var(--cr-border)!important;}
+.control-room-dock.focus-mode .control-room-dock-btn,
+.control-room-dock.focus-mode .control-room-selection-pill{height:58px!important;min-width:78px!important;border-radius:18px!important;background:rgba(255,255,255,.075)!important;border-color:var(--cr-border)!important;}
+.control-room-dock.focus-mode .control-room-dock-btn.active,
+.control-room-dock.focus-mode .control-room-selection-pill.active{background:rgba(var(--dynamic-accent-rgb,245 166 35) / .26)!important;border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .34)!important;}
+.control-room-dock-btn .ui-ic{width:20px!important;height:20px!important;}
+.control-room-dock-label{font-size:calc(10px * var(--v2-font-scale))!important;font-weight:900!important;}
+.control-room-announcement-tray{width:min(760px, calc(100% - 64px))!important;}
+.control-room-announce-icon{width:50px!important;height:50px!important;border-radius:17px!important;}
+.control-room-announce-icon .ui-ic{width:22px!important;height:22px!important;}
+.control-room-announce-compose .announcement-textarea{min-height:112px!important;color:var(--cr-text)!important;font-size:calc(13px * var(--v2-font-scale))!important;}
+.control-room-announce-send{min-height:78px!important;}
+.theme-light .control-room-dock.focus-mode{background:rgba(250,252,255,.96)!important;}
+@media (max-width:980px){
+  .control-room-tray.wide,.control-room-tray.compact,.control-room-announcement-tray{width:calc(100% - 24px)!important;padding:16px!important;}
+  .control-room-hub-grid,.control-room-action-grid{grid-template-columns:repeat(auto-fit,minmax(158px,1fr))!important;gap:10px!important;}
+  .control-room-hub-card,.control-room-mix-card,.control-room-scene-card{min-height:100px!important;grid-template-columns:42px minmax(0,1fr)!important;padding:13px!important;column-gap:11px!important;}
+  .control-room-hub-card > .ui-ic,.control-room-mix-icon,.control-room-scene-card > .ui-ic{width:42px!important;height:42px!important;border-radius:15px!important;}
+}
+
+.control-room-player-console{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:min(620px, 52vw);
+  max-width:min(720px, 58vw);
+  padding:8px;
+  border-radius:28px;
+  border:1px solid var(--cr-border)!important;
+  background:linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.045))!important;
+  box-shadow:0 18px 44px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.08);
+  min-height:78px;
+}
+.control-room-dock.focus-mode .control-room-player-console .control-room-now-pill,
+.control-room-dock.focus-mode .control-room-player-console .control-room-dock-section{
+  background:transparent!important;
+  border-color:transparent!important;
+  box-shadow:none!important;
+}
+.control-room-player-console .control-room-now-pill{
+  flex:1 1 260px;
+  min-width:220px!important;
+  max-width:none!important;
+  padding:4px 8px!important;
+}
+.control-room-player-console .control-room-now-art{width:54px!important;height:54px!important;border-radius:18px!important;}
+.control-room-player-console .control-room-now-name{font-size:calc(15px * var(--v2-font-scale))!important;font-weight:950!important;}
+.control-room-player-console .control-room-now-track{font-size:calc(12px * var(--v2-font-scale))!important;}
+.control-room-player-console .primary-actions{
+  flex:0 0 auto;
+  padding:0!important;
+  gap:8px!important;
+}
+.control-room-player-console .primary-actions .control-room-dock-btn{min-width:72px!important;}
+.theme-light .control-room-player-console{background:linear-gradient(145deg, rgba(255,255,255,.96), rgba(241,246,252,.84))!important;}
+
+.control-room-tray.transfer-panel{
+  width:min(1240px, calc(100% - 64px))!important;
+  max-height:min(76vh, 740px)!important;
+  grid-template-rows:auto minmax(0,1fr)!important;
+}
+.control-room-queue-layout{
+  display:grid;
+  grid-template-rows:minmax(0, 1fr) minmax(132px, .56fr) auto;
+  gap:14px;
+  min-height:0;
+  overflow:hidden;
+}
+.control-room-transfer-board.control-room-transfer-selectors{
+  grid-template-columns:minmax(0,1fr) 52px minmax(0,1fr)!important;
+  align-items:stretch!important;
+  gap:14px!important;
+  min-height:0;
+}
+.control-room-transfer-selectors .control-room-transfer-column{
+  grid-template-rows:auto minmax(0,1fr)!important;
+  min-height:0!important;
+}
+.control-room-tray.transfer-panel .control-room-transfer-list{
+  max-height:270px!important;
+  height:100%;
+}
+.control-room-queue-preview-board{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px;
+  min-height:0;
+}
+.control-room-queue-preview-column{
+  display:grid;
+  grid-template-rows:auto minmax(0,1fr);
+  gap:8px;
+  min-width:0;
+  min-height:0;
+}
+.control-room-tray.transfer-panel .control-room-queue-preview{
+  margin-top:0!important;
+  max-height:none!important;
+  min-height:132px;
+  height:100%;
+  overflow:auto;
+}
+.control-room-queue-preview-column .control-room-empty{height:100%;display:grid;place-items:center;}
+.control-room-tray.transfer-panel .control-room-queue-actions{justify-content:flex-end;padding-top:2px;}
+
+.control-room-tile.grouped{
+  border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .36)!important;
+  box-shadow:0 20px 46px rgba(0,0,0,.24), 0 0 0 1px rgba(var(--dynamic-accent-rgb,245 166 35) / .11) inset!important;
+}
+.control-room-tile.grouped::after{
+  content:"";
+  position:absolute;
+  inset:auto 18px 12px 18px;
+  height:3px;
+  border-radius:999px;
+  background:linear-gradient(90deg, transparent, rgba(var(--dynamic-accent-rgb,245 166 35) / .7), transparent);
+  pointer-events:none;
+}
+.control-room-float-pill.grouped{
+  gap:4px;
+  background:rgba(var(--dynamic-accent-rgb,245 166 35) / .22)!important;
+  border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .32)!important;
+  color:#fff!important;
+}
+.control-room-float-pill.grouped .ui-ic{width:12px!important;height:12px!important;}
+.control-room-tile .control-room-select-fab{
+  width:auto!important;
+  min-width:86px!important;
+  height:42px!important;
+  padding:0 11px!important;
+  grid-template-columns:auto auto;
+  gap:6px;
+  border-radius:999px!important;
+  z-index:6!important;
+  background:rgba(9,12,18,.48)!important;
+  border-color:rgba(255,255,255,.16)!important;
+}
+.control-room-tile .control-room-select-fab.active{
+  background:rgba(var(--dynamic-accent-rgb,245 166 35) / .28)!important;
+  border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .42)!important;
+}
+.control-room-tile .control-room-select-fab.removable{
+  background:rgba(222,72,72,.2)!important;
+  border-color:rgba(255,105,105,.32)!important;
+  color:#ffd1d1!important;
+}
+.control-room-select-label{
+  font-size:calc(10px * var(--v2-font-scale));
+  font-weight:950;
+  line-height:1;
+  white-space:nowrap;
+}
+.control-room-tile.grouped .control-room-tile-copy{
+  box-shadow:0 0 0 1px rgba(var(--dynamic-accent-rgb,245 166 35) / .14),0 14px 30px rgba(0,0,0,.24)!important;
+}
+.control-room-tile.grouped .control-room-float-pill.grouped{
+  font-size:calc(10px * var(--v2-font-scale))!important;
+  padding-inline:9px!important;
+}
+.theme-light .control-room-tile .control-room-select-fab{background:rgba(255,255,255,.78)!important;border-color:rgba(27,41,66,.1)!important;color:#17253a!important;}
+.theme-light .control-room-tile .control-room-select-fab.removable{background:rgba(255,235,235,.9)!important;border-color:rgba(210,62,62,.22)!important;color:#b94a4a!important;}
+
+@media (max-width:980px){
+  .control-room-player-console{
+    min-width:min(540px, 72vw);
+    max-width:none;
+    flex:0 0 auto;
+  }
+  .control-room-tray.transfer-panel{
+    width:calc(100% - 24px)!important;
+    max-height:calc(100dvh - 190px)!important;
+  }
+  .control-room-queue-layout{
+    grid-template-rows:auto auto auto;
+    overflow:auto;
+  }
+  .control-room-transfer-board.control-room-transfer-selectors,
+  .control-room-queue-preview-board{
+    grid-template-columns:minmax(0,1fr)!important;
+  }
+  .control-room-transfer-selectors .control-room-transfer-arrow{display:none!important;}
+  .control-room-tray.transfer-panel .control-room-transfer-list{max-height:190px!important;}
+  .control-room-tray.transfer-panel .control-room-queue-preview{max-height:180px!important;height:auto;}
+}
+@media (max-width:720px){
+  .control-room-tile .control-room-select-fab{min-width:76px!important;height:38px!important;padding-inline:9px!important;}
+  .control-room-select-label{font-size:9px!important;}
+  .control-room-player-console{
+    min-width:calc(100vw - 34px);
+    flex-wrap:wrap;
+    justify-content:space-between;
+  }
+  .control-room-player-console .control-room-now-pill{flex:1 1 100%;min-width:0!important;}
+  .control-room-player-console .primary-actions{width:100%;justify-content:space-between;}
+  .control-room-player-console .primary-actions .control-room-dock-btn{flex:1 1 0;min-width:0!important;}
+}
+
+.control-room-action-console{
+  display:grid;
+  grid-template-columns:minmax(260px,.95fr) minmax(0,1.35fr);
+  align-items:center;
+  gap:16px;
+  min-height:118px;
+  padding:16px;
+  border-radius:28px;
+  border:1px solid var(--cr-border-strong)!important;
+  background:linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.04))!important;
+  box-shadow:0 22px 54px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.08);
+}
+.control-room-action-now{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  min-width:0;
+}
+.control-room-action-art{
+  width:72px;
+  height:72px;
+  border-radius:22px;
+  overflow:hidden;
+  display:grid;
+  place-items:center;
+  flex:none;
+  background:rgba(255,255,255,.08);
+  border:1px solid var(--cr-border);
+}
+.control-room-action-art img{width:100%;height:100%;object-fit:cover;display:block;}
+.control-room-action-art .ui-ic{width:30px;height:30px;color:var(--ma-accent);}
+.control-room-action-copy{display:grid;gap:4px;min-width:0;}
+.control-room-action-kicker{font-size:calc(11px * var(--v2-font-scale));font-weight:900;color:var(--cr-muted);}
+.control-room-action-name{font-size:calc(18px * var(--v2-font-scale));font-weight:950;line-height:1.05;color:var(--cr-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.control-room-action-track{font-size:calc(12px * var(--v2-font-scale));font-weight:760;color:var(--cr-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.control-room-media-controls{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+  padding:8px;
+  border-radius:24px;
+  background:rgba(7,9,14,.28);
+  border:1px solid rgba(255,255,255,.08);
+}
+.control-room-media-control{
+  min-height:72px;
+  border-radius:20px;
+  border:1px solid var(--cr-border)!important;
+  background:rgba(255,255,255,.07)!important;
+  color:var(--cr-text)!important;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  font-size:calc(12px * var(--v2-font-scale));
+  font-weight:950;
+  cursor:pointer;
+  touch-action:manipulation;
+}
+.control-room-media-control .ui-ic{width:22px;height:22px;}
+.control-room-media-control.primary,.control-room-media-control.active{
+  background:rgba(var(--dynamic-accent-rgb,245 166 35) / .24)!important;
+  border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .36)!important;
+  box-shadow:0 16px 32px rgba(var(--dynamic-accent-rgb,245 166 35) / .12);
+}
+.control-room-media-control.danger{
+  background:rgba(222,72,72,.16)!important;
+  border-color:rgba(255,105,105,.26)!important;
+  color:#ffc2c2!important;
+}
+.control-room-media-control:disabled{opacity:.42;cursor:not-allowed;}
+.control-room-action-grid.management{
+  grid-template-columns:repeat(auto-fit,minmax(210px,1fr))!important;
+}
+.control-room-action-grid.management .control-room-hub-card{min-height:100px!important;}
+
+.control-room-tray.transfer-panel{
+  width:min(1120px, calc(100% - 90px))!important;
+  max-height:min(72vh, 690px)!important;
+}
+.control-room-tray.transfer-panel .control-room-tray-head{
+  max-width:760px;
+}
+.control-room-tray.transfer-panel .control-room-queue-layout{
+  grid-template-rows:minmax(0,1fr) auto!important;
+  gap:16px!important;
+  overflow:hidden!important;
+}
+.control-room-queue-lanes{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:16px;
+  min-height:0;
+}
+.control-room-queue-lane{
+  display:grid;
+  grid-template-rows:auto minmax(120px,.45fr) auto minmax(132px,.55fr);
+  gap:10px;
+  min-width:0;
+  min-height:0;
+  padding:14px;
+  border-radius:26px;
+  border:1px solid var(--cr-border)!important;
+  background:linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.035))!important;
+  box-shadow:0 18px 42px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.control-room-queue-lane-head{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:14px;
+  min-width:0;
+  padding-inline:2px;
+}
+.control-room-queue-lane-head span{
+  font-size:calc(11px * var(--v2-font-scale));
+  font-weight:950;
+  color:var(--cr-muted);
+}
+.control-room-queue-lane-head strong{
+  font-size:calc(15px * var(--v2-font-scale));
+  font-weight:950;
+  color:var(--cr-text);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.control-room-tray.transfer-panel .control-room-transfer-label{
+  padding:0 2px!important;
+  color:var(--cr-muted)!important;
+}
+.control-room-tray.transfer-panel .control-room-transfer-list{
+  max-height:none!important;
+  height:auto!important;
+  min-height:0!important;
+  overflow:auto!important;
+  padding:2px 4px 2px 0!important;
+}
+.control-room-tray.transfer-panel .control-room-transfer-choice{
+  min-height:56px!important;
+  border-radius:18px!important;
+  padding:7px 10px!important;
+  grid-template-columns:42px minmax(0,1fr) 24px!important;
+}
+.control-room-tray.transfer-panel .control-room-transfer-art{
+  width:42px!important;
+  height:42px!important;
+  border-radius:14px!important;
+}
+.control-room-tray.transfer-panel .control-room-queue-preview{
+  margin-top:0!important;
+  min-height:0!important;
+  height:100%!important;
+  max-height:none!important;
+  padding:12px!important;
+  border-radius:22px!important;
+}
+.control-room-tray.transfer-panel .control-room-queue-row{
+  min-height:46px!important;
+  border-radius:15px!important;
+}
+.control-room-tray.transfer-panel .control-room-queue-actions{
+  justify-content:center!important;
+  gap:12px!important;
+  padding:2px 2px 0!important;
+}
+.control-room-tray.transfer-panel .control-room-panel-action{
+  min-width:150px;
+}
+
+@media (max-width:1100px){
+  .control-room-action-console{grid-template-columns:minmax(0,1fr);align-items:stretch;}
+  .control-room-media-controls{grid-template-columns:repeat(4,minmax(88px,1fr));}
+}
+@media (max-width:980px){
+  .control-room-tray.transfer-panel{
+    width:calc(100% - 24px)!important;
+    max-height:calc(100dvh - 190px)!important;
+  }
+  .control-room-queue-lanes{grid-template-columns:minmax(0,1fr);}
+  .control-room-queue-lane{grid-template-rows:auto minmax(110px,180px) auto minmax(118px,170px);}
+  .control-room-media-controls{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media (max-width:640px){
+  .control-room-action-console{padding:12px;border-radius:24px;}
+  .control-room-action-art{width:58px;height:58px;border-radius:18px;}
+  .control-room-action-name{font-size:calc(15px * var(--v2-font-scale));}
+  .control-room-media-control{min-height:62px;border-radius:17px;}
+  .control-room-tray.transfer-panel .control-room-panel-action{min-width:0;flex:1 1 calc(50% - 8px);}
+}
+
+.card.performance-lite,
+.card.performance-lite * ,
+.card.performance-lite *::before,
+.card.performance-lite *::after{
+  animation:none!important;
+  transition:none!important;
+  scroll-behavior:auto!important;
+  will-change:auto!important;
+}
+.card.performance-lite{
+  box-shadow:none!important;
+}
+.card.performance-lite .bg{
+  filter:none!important;
+  transform:none!important;
+  opacity:.72!important;
+}
+.card.performance-lite .shade{
+  filter:none!important;
+}
+.card.performance-lite .glow,
+.card.performance-lite .hero-aura,
+.card.performance-lite .art-aura,
+.card.performance-lite .compact-cover-echo,
+.card.performance-lite .brand-light{
+  display:none!important;
+}
+.card.performance-lite .menu-sheet,
+.card.performance-lite .queue-action-sheet,
+.card.performance-lite .history-drawer,
+.card.performance-lite .control-room-backdrop,
+.card.performance-lite .control-room-tray,
+.card.performance-lite .control-room-dock,
+.card.performance-lite .control-room-tile,
+.card.performance-lite .player-menu-card,
+.card.performance-lite .group-player-card,
+.card.performance-lite .settings-group,
+.card.performance-lite .menu-item,
+.card.performance-lite .menu-list-item,
+.card.performance-lite .queue-row,
+.card.performance-lite .notice{
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  box-shadow:none!important;
+}
+.card.performance-lite .queue-eq span,
+.card.performance-lite .eq-icon span{
+  animation:none!important;
+  transform:none!important;
+}
+
 </style>
-      <div class="card ${rtl ? "rtl" : ""} theme-${visualTheme} layout-${layoutMode}${compactTileMode ? " compact-mode compact-collapsed" : compactMode ? " compact-expanded" : ""}${hasHomeShortcutFab ? " has-home-shortcut" : ""}${hasTopSettingsFab ? " has-top-settings" : ""}${compactTransitionClass}${nightActive ? " night-mode" : ""}${showNightRow ? " night-mode-enabled" : ""}${tabletAutoFit ? " tablet-auto-fit" : ""}${tabletDenseUi ? " tablet-fit-dense" : ""}${showNightRow ? " tablet-fit-night" : ""}${showUpNextInline ? " tablet-fit-up-next" : ""}${this._tabletStabilityModeEnabled() ? " tablet-stable" : ""}${this._state.controlRoomOpen ? " control-room-open" : ""}">
+      <div class="card ${rtl ? "rtl" : ""} theme-${visualTheme} layout-${layoutMode}${performanceMode ? " performance-lite" : ""}${compactTileMode ? " compact-mode compact-collapsed" : compactMode ? " compact-expanded" : ""}${hasHomeShortcutFab ? " has-home-shortcut" : ""}${hasTopSettingsFab ? " has-top-settings" : ""}${compactTransitionClass}${nightActive ? " night-mode" : ""}${showNightRow ? " night-mode-enabled" : ""}${tabletAutoFit ? " tablet-auto-fit" : ""}${tabletDenseUi ? " tablet-fit-dense" : ""}${showNightRow ? " tablet-fit-night" : ""}${showUpNextInline ? " tablet-fit-up-next" : ""}${this._tabletStabilityModeEnabled() ? " tablet-stable" : ""}${this._state.controlRoomOpen ? " control-room-open" : ""}">
         <div class="bg" id="mobileBg"></div><div class="shade"></div><div class="glow"></div>
         ${compactCollapseFabHtml}
         ${topSettingsFabHtml}
@@ -24506,12 +26151,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         e.stopPropagation();
         this._pressUiButton(selectBtn);
         const entityId = selectBtn.dataset.roomSelect;
-        const wasSelected = this._controlRoomSelectedPlayerIds().includes(entityId);
-        this._toggleControlRoomPlayerSelection(entityId);
+        const result = this._toggleControlRoomPlayerSelection(entityId);
         const name = this._controlRoomPlayerName(entityId);
-        this._toastSuccess(wasSelected
-          ? this._m(`${name} removed from studio selection`, `${name} הוסר מבחירת הסטודיו`)
-          : this._m(`${name} added to studio selection`, `${name} נוסף לבחירת הסטודיו`));
+        if (result === "kept") {
+          this._toast(this._m("At least one player must stay selected", "נגן אחד חייב להישאר נבחר"));
+        } else {
+          this._toastSuccess(result === "removed"
+            ? this._m(`${name} removed from studio selection`, `${name} הוסר מבחירת הסטודיו`)
+            : this._m(`${name} added to studio selection`, `${name} נוסף לבחירת הסטודיו`));
+        }
         return;
       }
       const primaryBtn = e.target.closest("[data-room-primary]");
@@ -24620,6 +26268,77 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         setTimeout(() => this._updateNowPlayingState(), 300);
         return;
       }
+      const cloneBtn = e.target.closest("[data-room-clone]");
+      if (cloneBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        this._pressUiButton(cloneBtn);
+        const ok = await this._cloneQueueBetween(this._state.controlRoomTransferSource, this._state.controlRoomTransferTarget, { silent: true });
+        if (ok) this._toastSuccess(this._m("Queue cloned", "התור הועתק"));
+        else this._toastError(this._m("Could not clone the queue", "לא הצלחתי להעתיק את התור"));
+        setTimeout(() => this._updateNowPlayingState(), 300);
+        return;
+      }
+      const refreshQueuesBtn = e.target.closest("[data-room-refresh-queues]");
+      if (refreshQueuesBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        this._pressUiButton(refreshQueuesBtn);
+        await this._loadControlRoomQueues([
+          this._state.controlRoomTransferSource,
+          this._state.controlRoomTransferTarget,
+          ...this._controlRoomSelectedPlayerIds(),
+        ].filter(Boolean));
+        this._toastSuccess(this._m("Queues refreshed", "התורים רועננו"));
+        return;
+      }
+      const clearQueueBtn = e.target.closest("[data-room-clear-queue]");
+      if (clearQueueBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        this._pressUiButton(clearQueueBtn);
+        const entityId = clearQueueBtn.dataset.roomClearQueue || "";
+        if (!entityId) return;
+        await this._clearQueueForPlayer(entityId);
+        await this._loadControlRoomQueues([entityId]);
+        this._toastSuccess(this._m("Queue cleared", "התור נוקה"));
+        return;
+      }
+      const libraryActionBtn = e.target.closest("[data-room-library-action]");
+      if (libraryActionBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        this._pressUiButton(libraryActionBtn);
+        const action = libraryActionBtn.dataset.roomLibraryAction || "play";
+        const entry = {
+          uri: libraryActionBtn.dataset.roomLibraryUri || "",
+          media_type: libraryActionBtn.dataset.roomLibraryType || "album",
+          name: libraryActionBtn.dataset.roomLibraryName || "",
+          subtitle: libraryActionBtn.dataset.roomLibrarySubtitle || "",
+          image: libraryActionBtn.dataset.roomLibraryImage || "",
+        };
+        if (!entry?.uri) return;
+        const played = await this._playControlRoomLibraryEntry(entry, action);
+        if (played) {
+          if (action !== "like") this._state.controlRoomPanel = "";
+          if (action === "like") {
+            if (this._state.controlRoomPanel === "favorites") this._loadControlRoomFavorites().catch(() => {});
+            else this._syncControlRoomUi({ force: true });
+          }
+          const messages = {
+            play: this._m(`Started ${entry.name || "media"} in Studio`, `${entry.name || "מדיה"} הופעל בסטודיו`),
+            next: this._m("Will play next in Studio", "ינוגן הבא בסטודיו"),
+            add: this._m("Added to Studio queue", "נוסף לתור הסטודיו"),
+            radio_mode: this._m("Radio mode started", "Radio הופעל"),
+            like: this._m("Favorite updated", "אהבתי עודכן"),
+          };
+          this._toastSuccess(messages[action] || messages.play);
+          setTimeout(() => this._updateNowPlayingState(), 350);
+        } else {
+          this._toastError(this._m("Studio media action failed", "פעולת המדיה בסטודיו נכשלה"));
+        }
+        return;
+      }
       const libraryPlayBtn = e.target.closest("[data-room-library-play]");
       if (libraryPlayBtn) {
         e.preventDefault();
@@ -24643,6 +26362,45 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         }
         return;
       }
+      const smartMixBtn = e.target.closest("[data-room-smart-mix]");
+      if (smartMixBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        await this._startControlRoomMix(smartMixBtn.dataset.roomSmartMix || "", smartMixBtn);
+        return;
+      }
+      const smartCustomBtn = e.target.closest("[data-room-smart-custom]");
+      if (smartCustomBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        await this._startControlRoomMix("custom", smartCustomBtn);
+        return;
+      }
+      const sceneBtn = e.target.closest("[data-room-scene]");
+      if (sceneBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        await this._applyControlRoomScene(sceneBtn.dataset.roomScene || "home", sceneBtn);
+        return;
+      }
+      const announceBtn = e.target.closest("[data-room-announce-send]");
+      if (announceBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        await this._sendControlRoomAnnouncement(announceBtn);
+        return;
+      }
+      const thisDeviceBtn = e.target.closest("[data-room-this-device]");
+      if (thisDeviceBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        this._pressUiButton(thisDeviceBtn);
+        const action = thisDeviceBtn.dataset.roomThisDevice;
+        if (action === "disconnect") this._disconnectThisDevicePlayer();
+        else this._connectThisDevicePlayer();
+        this._syncControlRoomUi({ force: true });
+        return;
+      }
       const libraryMicBtn = e.target.closest("[data-room-library-mic]");
       if (libraryMicBtn) {
         e.preventDefault();
@@ -24657,11 +26415,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         e.stopPropagation();
         this._pressUiButton(selectionToggleBtn);
         const entityId = selectionToggleBtn.dataset.roomSelectionToggle;
-        const wasSelected = this._controlRoomSelectedPlayerIds().includes(entityId);
-        this._toggleControlRoomPlayerSelection(entityId);
-        this._toastSuccess(wasSelected
-          ? this._m(`${this._controlRoomPlayerName(entityId)} removed from selection`, `${this._controlRoomPlayerName(entityId)} הוסר מהבחירה`)
-          : this._m(`${this._controlRoomPlayerName(entityId)} selected`, `${this._controlRoomPlayerName(entityId)} נבחר`));
+        const result = this._toggleControlRoomPlayerSelection(entityId);
+        if (result === "kept") {
+          this._toast(this._m("At least one player must stay selected", "נגן אחד חייב להישאר נבחר"));
+        } else {
+          this._toastSuccess(result === "removed"
+            ? this._m(`${this._controlRoomPlayerName(entityId)} removed from selection`, `${this._controlRoomPlayerName(entityId)} הוסר מהבחירה`)
+            : this._m(`${this._controlRoomPlayerName(entityId)} selected`, `${this._controlRoomPlayerName(entityId)} נבחר`));
+        }
         return;
       }
       const visibleToggleBtn = e.target.closest("[data-room-visible-toggle]");
@@ -24682,14 +26443,20 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         e.preventDefault();
         e.stopPropagation();
         const action = dockBtn.dataset.roomSelectionAction;
-        const selectedIds = this._controlRoomSelectedPlayerIds();
+        const selectedIds = this._controlRoomActionTargetIds();
         if (action === "browse_library") {
           this._pressUiButton(dockBtn);
           this._toast(this._m("Opening Studio library", "פותח את ספריית הסטודיו"));
           this._openControlRoomLibrary("library_playlists");
           return;
         }
-        if (action === "library" || action === "transfer" || action === "selection" || action === "visible") {
+        if (action === "timers") {
+          this._pressUiButton(dockBtn);
+          this._toast(this._m("Opening timers", "פותח טיימרים"));
+          this._openControlRoomLibrary("sleep_timer");
+          return;
+        }
+        if (["music", "actions", "library", "transfer", "selection", "visible", "mix", "recent", "favorites", "scenes", "announce", "pro"].includes(action)) {
           this._pressUiButton(dockBtn);
           const wasOpen = this._state.controlRoomPanel === action;
           this._toggleControlRoomPanel(action);
@@ -24741,6 +26508,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           }
           return;
         }
+        if (action === "player_stop") {
+          if (!primaryId) return;
+          this._pressUiButton(dockBtn);
+          try {
+            await this._stopPlayer(primaryId);
+            this._toastSuccess(this._m(`${this._controlRoomPlayerName(primaryId)} stopped`, `${this._controlRoomPlayerName(primaryId)} נעצר`));
+            setTimeout(() => this._updateNowPlayingState(), 250);
+          } catch (error) {
+            this._toastError(error?.message || this._m("Stop command failed", "פקודת העצירה נכשלה"));
+          }
+          return;
+        }
         if (!selectedIds.length) {
           this._toastError(this._m("Select at least one Studio player", "בחר לפחות נגן אחד בסטודיו"));
           return;
@@ -24762,6 +26541,27 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             `Next sent to ${this._controlRoomPlayerCountLabel(selectedIds.length)}`,
             `פקודת הבא נשלחה אל ${this._controlRoomPlayerCountLabel(selectedIds.length)}`
           ));
+          setTimeout(() => this._updateNowPlayingState(), 250);
+          return;
+        }
+        if (action === "mute") {
+          this._pressUiButton(dockBtn);
+          await Promise.allSettled(selectedIds.map((entityId) => this._toggleMuteFor(entityId)));
+          this._toastSuccess(this._m(
+            `Mute sent to ${this._controlRoomPlayerCountLabel(selectedIds.length)}`,
+            `פקודת השתק נשלחה אל ${this._controlRoomPlayerCountLabel(selectedIds.length)}`
+          ));
+          setTimeout(() => this._updateNowPlayingState(), 250);
+          return;
+        }
+        if (action === "clear") {
+          this._pressUiButton(dockBtn);
+          await Promise.allSettled(selectedIds.map((entityId) => this._clearQueueForPlayer(entityId)));
+          this._toastSuccess(this._m(
+            `Queues cleared for ${this._controlRoomPlayerCountLabel(selectedIds.length)}`,
+            `התורים נוקו עבור ${this._controlRoomPlayerCountLabel(selectedIds.length)}`
+          ));
+          this._loadControlRoomQueues(selectedIds).catch(() => {});
           setTimeout(() => this._updateNowPlayingState(), 250);
           return;
         }
@@ -24795,6 +26595,24 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         if (label) label.textContent = `${pct}%`;
         clearTimeout(this._controlRoomVolumeTimer);
         this._controlRoomVolumeTimer = setTimeout(() => this._setPlayerVolumeFor(volumeInput.dataset.roomVolume, pct / 100), 90);
+        return;
+      }
+      const smartInput = e.target.closest?.("#controlRoomSmartQueryInput");
+      if (smartInput) {
+        this._state.controlRoomSmartQuery = smartInput.value || "";
+        return;
+      }
+      const announceText = e.target.closest?.("#controlRoomAnnouncementText");
+      if (announceText) {
+        this._state.controlRoomAnnouncementText = announceText.value || "";
+        return;
+      }
+      const announceVolume = e.target.closest?.("#controlRoomAnnouncementVolumeInput");
+      if (announceVolume) {
+        const pct = Math.max(20, Math.min(50, Number(announceVolume.value || 20)));
+        this._state.controlRoomAnnouncementVolume = pct;
+        const label = announceVolume.closest(".announcement-volume-field")?.querySelector(".settings-value");
+        if (label) label.textContent = `+${pct}%`;
         return;
       }
       const sourceSelect = e.target.closest?.("#controlRoomTransferSource");
@@ -26956,6 +28774,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _settingsMenuHtml() {
     this._loadPlayers();
     const theme = this._state.cardTheme === "light" || this._state.cardTheme === "custom" ? this._state.cardTheme : "dark";
+    const performanceMode = this._performanceModeEnabled();
     const dynamicThemeMode = this._mobileDynamicThemeMode();
     const backgroundMotionMode = this._mobileBackgroundMotionMode();
     const fontScale = Number(this._state.mobileFontScale || 1).toFixed(2);
@@ -27012,6 +28831,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             ${this._settingsPill(this._m("Light", "בהיר"), "light", theme, "data-setting-theme")}
             ${this._settingsPill(this._m("Custom", "אישי"), "custom", theme, "data-setting-theme")}
           </div>
+          <div class="settings-label">${this._m("Performance mode", "מצב ביצועים")}</div>
+          <div class="settings-pills">
+            ${this._settingsPill(this._m("Enabled", "פעיל"), "on", performanceMode ? "on" : "off", "data-setting-performance-mode")}
+            ${this._settingsPill(this._m("Disabled", "כבוי"), "off", performanceMode ? "on" : "off", "data-setting-performance-mode")}
+          </div>
+          <div class="settings-hint">${this._m("For weaker displays: turns off heavy blur, animations, dynamic theme extraction, and background motion.", "למסכים חלשים: מכבה טשטושים כבדים, אנימציות, חילוץ צבעים מהעטיפה ותנועת רקע.")}</div>
           <div class="settings-label">${this._m("Dynamic theme", "ערכת נושא דינמית")}</div>
           <div class="settings-pills">
             ${this._settingsPill(this._m("Off", "כבוי"), "off", dynamicThemeMode, "data-setting-dynamic-theme")}
@@ -28084,6 +29909,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       </div>`;
   }
 
+  _setQueueInlineActionsExpanded(key = "") {
+    const nextKey = String(key || "");
+    this._state.expandedQueueItemId = nextKey;
+    const body = this.$("mobileMenuBody");
+    if (!body) return;
+    body.querySelectorAll(".queue-row[data-queue-item-id]").forEach((row) => {
+      const expanded = nextKey && String(row.dataset.queueItemId || "") === nextKey;
+      row.classList.toggle("expanded", !!expanded);
+      row.querySelector("[data-queue-menu]")?.setAttribute("aria-expanded", expanded ? "true" : "false");
+    });
+  }
+
   async _renderMobileMenu() {
     const body = this.$("mobileMenuBody");
     const title = this.$("mobileMenuTitle");
@@ -28634,6 +30471,21 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._reopenSettingsMenuPreservingScroll();
       return;
     }
+    const performanceModeBtn = e.target.closest("[data-setting-performance-mode]");
+    if (performanceModeBtn?.dataset.settingPerformanceMode) {
+      this._flashInteraction(performanceModeBtn);
+      this._state.performanceMode = performanceModeBtn.dataset.settingPerformanceMode === "on";
+      this._state.performanceModeLocalOverride = true;
+      if (this._state.performanceMode) {
+        this._state.mobileDynamicThemePalette = null;
+        this._state.mobileDynamicThemeArtwork = "";
+      }
+      this._persistMobileAppearance();
+      this._applyDynamicThemeStyles();
+      this._applyBackgroundMotionStyles();
+      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      return;
+    }
     const backgroundMotionBtn = e.target.closest("[data-setting-background-motion]");
     if (backgroundMotionBtn?.dataset.settingBackgroundMotion) {
       this._flashInteraction(backgroundMotionBtn);
@@ -28869,8 +30721,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       e.preventDefault();
       e.stopPropagation();
       const key = String(queueMenuBtn.dataset.queueMenu || "");
-      this._state.expandedQueueItemId = this._state.expandedQueueItemId === key ? "" : key;
-      await this._renderMobileMenu();
+      this._setQueueInlineActionsExpanded(this._state.expandedQueueItemId === key ? "" : key);
       return;
     }
     const transferBtn = e.target.closest("[data-menu-transfer]");

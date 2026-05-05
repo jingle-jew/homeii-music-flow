@@ -17,6 +17,7 @@ describe("mobile settings foundation", () => {
     const state = normalizeVisualMobileState({
       language: "he",
       theme_mode: "light",
+      performance_mode: true,
       mobile_dynamic_theme_mode: "STRONG",
       mobile_background_motion_mode: "wild",
       mobile_custom_text_tone: "dark",
@@ -52,6 +53,7 @@ describe("mobile settings foundation", () => {
 
     expect(state.lang).toBe("he");
     expect(state.cardTheme).toBe("light");
+    expect(state.performanceMode).toBe(true);
     expect(state.mobileDynamicThemeMode).toBe("strong");
     expect(state.mobileBackgroundMotionMode).toBe("subtle");
     expect(state.mobileCustomTextTone).toBe("dark");

@@ -98,6 +98,7 @@ export function normalizeVisualMobileState(config = {}, {
   return {
     lang: String(config.language || "auto"),
     cardTheme: String(config.theme_mode || "auto"),
+    performanceMode: config.performance_mode === true,
     mobileCustomColor: String(config.mobile_custom_color || "#f5a623"),
     mobileDynamicThemeMode: normalizeEnum(config.mobile_dynamic_theme_mode, MOBILE_DYNAMIC_THEME_MODES, "auto"),
     mobileBackgroundMotionMode: normalizeEnum(config.mobile_background_motion_mode, MOBILE_BACKGROUND_MOTION_MODES, "subtle"),

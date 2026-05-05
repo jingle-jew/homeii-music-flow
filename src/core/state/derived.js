@@ -17,12 +17,18 @@ export function mobileShowUpNextEnabled(state) {
   return state?.mobileShowUpNext === true;
 }
 
+export function performanceModeEnabled(state) {
+  return state?.performanceMode === true;
+}
+
 export function mobileDynamicThemeMode(state) {
+  if (performanceModeEnabled(state)) return "off";
   const mode = String(state?.mobileDynamicThemeMode || "auto").toLowerCase();
   return ["off", "auto", "strong"].includes(mode) ? mode : "auto";
 }
 
 export function mobileBackgroundMotionMode(state) {
+  if (performanceModeEnabled(state)) return "off";
   const mode = String(state?.mobileBackgroundMotionMode || "subtle").toLowerCase();
   return ["off", "subtle", "strong", "extreme"].includes(mode) ? mode : "subtle";
 }

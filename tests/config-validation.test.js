@@ -19,6 +19,7 @@ describe("config validators", () => {
         language: "he",
         theme_mode: "dark",
         rtl: true,
+        performance_mode: true,
         show_ma_button: false,
         show_theme_toggle: true,
       })
@@ -31,6 +32,12 @@ describe("config validators", () => {
         language: "de",
       })
     ).toThrow("language must be one of: auto, he, en");
+
+    expect(() =>
+      validateBaseCardEditorConfig({
+        performance_mode: "on",
+      })
+    ).toThrow("performance_mode must be a boolean");
   });
 
   it("accepts a valid mobile-only config", () => {

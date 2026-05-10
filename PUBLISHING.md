@@ -23,13 +23,13 @@
   - the HACS My Home Assistant button
   - the HACS download/install button
 
-## 2. Create the 5.4.0 release
+## 2. Create the 5.4.1 release
 
-- Create a Git tag named `v5.4.0`.
+- Create a Git tag named `v5.4.1`.
 - Create a GitHub release from that tag.
-- Title the release `5.4.0`.
-- Use the `5.4.0` section from `CHANGELOG.md` as the release notes.
-- If you attach a release artifact, zip the contents of `dist/`; do not publish only a single JS file while the local Sendspin player and Embla swipe support are enabled.
+- Title the release `5.4.1`.
+- Use the `5.4.1` section from `CHANGELOG.md` as the release notes.
+- Do not attach a custom release zip asset for HACS. Keep the complete installable runtime in `dist/` and let HACS use the normal repository release/tag contents.
 
 ## 3. Verify repository files after publishing
 
@@ -79,7 +79,7 @@ to:
 
 Then load:
 
-`/local/community/homeii-music-flow/homeii-music-flow.js?v=5.4.0`
+`/local/community/homeii-music-flow/homeii-music-flow.js?v=5.4.1`
 
 ## 7. Final pre-release smoke test
 

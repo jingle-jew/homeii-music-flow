@@ -1,5 +1,14 @@
 # Changelog
 
+## 5.4.1 - 2026-05-10
+
+Distribution hotfix for the withdrawn 5.4.0 release.
+
+- Republishes the 5.4.0 card fixes as `5.4.1` without adding a custom release zip asset, so HACS can use the normal repository release/tag contents and the complete `dist/` package.
+- Keeps the runtime logic unchanged from 5.4.0; this release is intentionally limited to packaging/versioning.
+- Bumps runtime/editor tags to `5.4.1` so Home Assistant browsers do not reuse cached `5.4.0` resources.
+- Updates README and publishing instructions to avoid custom zip assets for HACS releases.
+
 ## 5.4.0 - 2026-05-10
 
 Community fix cycle for tablet library artwork, local browser playback, search, queue ergonomics, player controls, and visual polish.

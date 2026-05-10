@@ -26,7 +26,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/r11a/homeii-music-flow"><img alt="version" src="https://img.shields.io/badge/version-5.3.0-gold"></a>
+  <a href="https://github.com/r11a/homeii-music-flow"><img alt="version" src="https://img.shields.io/badge/version-5.4.0-gold"></a>
   <img alt="Home Assistant" src="https://img.shields.io/badge/Home%20Assistant-Dashboard-41BDF5">
   <img alt="Music Assistant" src="https://img.shields.io/badge/Music%20Assistant-required-7C5CFF">
   <img alt="Sendspin" src="https://img.shields.io/badge/Sendspin-browser%20player-18B6FF">
@@ -52,6 +52,20 @@ HOMEii Flow started from my own daily use of Home Assistant and Music Assistant.
 - **Real Music Assistant library flow:** playlists, albums, artists, tracks, radio, favorites, recent listening, and recommendations.
 - **Hebrew and RTL ready:** layout, labels, alignment, and interaction patterns are built for Hebrew as a first-class use case.
 - **Release-ready package:** HACS-ready `dist/` output includes the card, Sendspin files, Embla swipe support, and the brand asset.
+
+## What's New In 5.4.0
+
+- **Local Sendspin fixed:** `This device` loads from the packaged `sendspin-js/index.js` runtime again, fixing the missing bundle/core import errors seen after 5.3.0.
+- **Player controls fixed:** volume percentages now update from player cards, mute drops to `0%`, and unmute restores the previous volume when available.
+- **Default language changed:** new card configs now default to English instead of automatic language detection, while explicit YAML and saved UI choices still win.
+- **Unified Players screen:** queue count, transfer queue, grouping, stop-all, and device playback now live in one cleaner Players hub with smaller action tabs and back navigation.
+- **Queue is faster to manage:** rows are numbered, the header shows only icon plus count, and moving a track now uses an immediate position selector instead of repeated up/down taps.
+- **Library covers fixed on tablet/mobile:** built-in Music Assistant playlist covers now use the same hydrated artwork loader as desktop, so MA built-in playlist artwork no longer disappears.
+- **Search stays broad but feels faster:** direct Music Assistant search is preserved for provider results such as Spotify, with cached/library previews shown while the full search finishes.
+- **Premium opened screens:** modals and mobile sheets now use subtle dynamic artwork blur, improved light-mode readability, cleaner logo placement, and refined media cards/buttons.
+- **Quick Mix polish:** smoother transition into the selected mix and the source list is promoted into the recommendations drawer.
+- **Studio is calmer:** noisy Studio toasts are suppressed, while non-Studio Quick Mix feedback remains centered.
+- **Active Player Helper docs:** the README now explains how to publish the selected HOMEii Flow player into an `input_text` helper for automations and templates.
 
 ## What's New In 5.3.0
 
@@ -158,7 +172,7 @@ If HACS does not add the resource automatically, add:
 3. Add this Dashboard resource:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.3.0
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.4.0
 ```
 
 4. Add the card:
@@ -826,7 +840,7 @@ npm run lint
 npm test
 ```
 
-Current packaged version: `5.3.0`
+Current packaged version: `5.4.0`
 
 ## Release Readiness
 

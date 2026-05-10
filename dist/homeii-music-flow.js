@@ -31,6 +31,8 @@
     this._ctxMenuOpenedAt = 0;
     this._lastVolumeByPlayer = new Map();
     this._softMutedPlayers = new Set();
+    this._optimisticVolumeByPlayer = new Map();
+    this._optimisticMuteByPlayer = new Map();
     this._localSendspinPlayer = null;
     this._localSendspinSocket = null;
     this._localSendspinModule = null;
@@ -78,7 +80,7 @@
     const nextConfig = {
       height: 850,
       rtl: true,
-      language: "auto",
+      language: "en",
       cache_ttl: 300000,
       active_player_helper_entity: "",
       show_ma_button: true,
@@ -100,9 +102,9 @@
     this._homeiiBrandLogoCandidates = null;
 
     try {
-      this._state.lang = localStorage.getItem("homeii_music_flow_lang") || this._config.language || "auto";
+      this._state.lang = localStorage.getItem("homeii_music_flow_lang") || this._config.language || "en";
     } catch (_) {
-      this._state.lang = this._config.language || "auto";
+      this._state.lang = this._config.language || "en";
     }
 
     try {
@@ -147,6 +149,10 @@
       selectedPlayer.attributes?.media_title,
       selectedPlayer.attributes?.media_artist,
       selectedPlayer.attributes?.media_album_name,
+      selectedPlayer.attributes?.entity_picture_local,
+      selectedPlayer.attributes?.entity_picture,
+      selectedPlayer.attributes?.media_image_url,
+      selectedPlayer.attributes?.media_image,
       selectedPlayer.attributes?.media_position,
       selectedPlayer.attributes?.media_position_updated_at,
     ].map((value) => String(value ?? "")).join("||") : "";
@@ -180,7 +186,7 @@
       active_player_helper_entity: "",
       height: 850,
       rtl: true,
-      language: "auto",
+      language: "en",
       show_ma_button: true,
       ma_interface_url: "/music-assistant",
       ma_interface_target: "_self",
@@ -522,7 +528,7 @@
       shuffle: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5h3v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4 7h5l7 10h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M16 19h3v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4 17h5l2-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M13 10l3-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>`,
       repeat: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10l-2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M17 17H7l2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M17 7l2 2-2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7 17l-2-2 2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>`,
       repeat_one: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10l-2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M17 17H7l2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M17 7l2 2-2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7 17l-2-2 2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path fill="currentColor" d="M11.2 9.8h1.5v4.9h-1.5z"></path><path fill="currentColor" d="M10.4 10.7l1.8-1.3v1.7z"></path></svg>`,
-      speaker: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M14 4.5 9.5 8H6.8A1.8 1.8 0 0 0 5 9.8v4.4A1.8 1.8 0 0 0 6.8 16h2.7l4.5 3.5c.6.4 1.4 0 1.4-.8V5.3c0-.8-.8-1.2-1.4-.8Z"></path><path d="M17.5 9.2a4 4 0 0 1 0 5.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M19.6 6.8a7 7 0 0 1 0 10.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
+      speaker: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2M10 4.5A1.5 1.5 0 1 1 10 7.5 1.5 1.5 0 0 1 10 4.5M10 19a4 4 0 1 1 0-8 4 4 0 0 1 0 8M10 13a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"></path></svg>`,
       volume_mute: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M14 4.5 9.5 8H6.8A1.8 1.8 0 0 0 5 9.8v4.4A1.8 1.8 0 0 0 6.8 16h2.7l4.5 3.5c.6.4 1.4 0 1.4-.8V5.3c0-.8-.8-1.2-1.4-.8Z"></path><path d="m18 9 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="m22 9-4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
       volume_low: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M14 4.5 9.5 8H6.8A1.8 1.8 0 0 0 5 9.8v4.4A1.8 1.8 0 0 0 6.8 16h2.7l4.5 3.5c.6.4 1.4 0 1.4-.8V5.3c0-.8-.8-1.2-1.4-.8Z"></path><path d="M18 10.2a2.6 2.6 0 0 1 0 3.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
       volume_high: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M14 4.5 9.5 8H6.8A1.8 1.8 0 0 0 5 9.8v4.4A1.8 1.8 0 0 0 6.8 16h2.7l4.5 3.5c.6.4 1.4 0 1.4-.8V5.3c0-.8-.8-1.2-1.4-.8Z"></path><path d="M17.5 9.2a4 4 0 0 1 0 5.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M19.6 6.8a7 7 0 0 1 0 10.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
@@ -561,6 +567,7 @@
       down: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="m7.5 12.5 4.5 4.5 4.5-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>`,
       trash: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M9 7V5.8A1.8 1.8 0 0 1 10.8 4h2.4A1.8 1.8 0 0 1 15 5.8V7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M8 7.5v9.2A2.3 2.3 0 0 0 10.3 19h3.4A2.3 2.3 0 0 0 16 16.7V7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M10.5 10.5v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M13.5 10.5v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
       plus: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.5v13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path><path d="M5.5 12h13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path></svg>`,
+      minus: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 12h13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path></svg>`,
       check: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12.5 4 4L18 8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>`,
       close: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="m17 7-10 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
     };
@@ -570,7 +577,7 @@
   _versionedAssetUrl(url) {
     const value = String(url || "").trim();
     if (!value || /^data:/i.test(value) || /[?&]v=/.test(value)) return value;
-    const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.3.0";
+    const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.4.0";
     return `${value}${value.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
   }
 
@@ -2041,6 +2048,13 @@
           gap:8px;
           pointer-events:none;
         }
+        .toast-wrap.center-toast {
+          inset:0;
+          bottom:auto;
+          align-items:center;
+          justify-content:center;
+          padding:18px;
+        }
         .toast {
           padding:10px 14px;
           border-radius:12px;
@@ -2050,6 +2064,15 @@
           font-size:12px;
           backdrop-filter:blur(12px);
           -webkit-backdrop-filter:blur(12px);
+        }
+        .toast.centered {
+          max-width:min(420px, calc(100% - 48px));
+          padding:14px 18px;
+          border-radius:18px;
+          font-size:14px;
+          font-weight:850;
+          text-align:center;
+          box-shadow:0 22px 54px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.12);
         }
         .modal-backdrop {
           position:absolute;
@@ -2804,6 +2827,31 @@
 .card.layout-tablet .queue-list{max-width:920px;margin-inline:auto;}
 .card.layout-tablet .queue-row{min-height:88px!important;}
 .card.layout-tablet .active-player-chip .bars,.card.layout-tablet .active-player-card .bars{display:none!important;}
+.menu-backdrop{overflow:hidden;isolation:isolate;}
+.menu-backdrop::before{content:"";position:absolute;inset:-42px;background:var(--menu-dynamic-art, var(--dynamic-art-url, none)) center/cover no-repeat;filter:blur(42px) saturate(1.12) brightness(.86);transform:scale(1.12);opacity:0;pointer-events:none;z-index:0;transition:opacity .22s ease;}
+.menu-backdrop.has-menu-art::before{opacity:.58;}
+.menu-backdrop::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,7,12,.46),rgba(8,10,16,.72));pointer-events:none;z-index:0;}
+.theme-light .menu-backdrop::after{background:linear-gradient(180deg,rgba(238,243,250,.34),rgba(222,229,240,.68));}
+.menu-backdrop>.menu-sheet{position:relative;z-index:1;isolation:isolate;}
+.menu-sheet::before{content:"";position:absolute;inset:-24px;background:var(--menu-dynamic-art, var(--dynamic-art-url, none)) center/cover no-repeat;filter:blur(30px) saturate(1.08);transform:scale(1.08);opacity:0;pointer-events:none;z-index:0;}
+.menu-backdrop.has-menu-art .menu-sheet::before{opacity:.22;}
+.menu-sheet::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,22,31,.82),rgba(12,14,22,.94));pointer-events:none;z-index:0;}
+.theme-light .menu-sheet::after{background:linear-gradient(180deg,rgba(255,255,255,.86),rgba(245,248,253,.94));}
+.menu-sheet>*,.menu-head,.menu-body{position:relative;z-index:1;}
+.card.dynamic-theme .modal{position:relative;overflow:hidden;isolation:isolate;}
+.card.dynamic-theme .modal::before{content:"";position:absolute;inset:-24px;background:var(--dynamic-art-url, none) center/cover no-repeat;filter:blur(34px) saturate(1.08);transform:scale(1.08);opacity:.22;pointer-events:none;z-index:0;}
+.card.dynamic-theme .modal::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,22,31,.8),rgba(12,14,22,.92));pointer-events:none;z-index:0;}
+.theme-light.card.dynamic-theme .modal::after{background:linear-gradient(180deg,rgba(255,255,255,.84),rgba(245,248,253,.94));}
+.card.dynamic-theme .modal>*{position:relative;z-index:1;}
+.group-player-card.checked,.group-player-row.checked{border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .42)!important;background:linear-gradient(180deg,rgba(var(--dynamic-accent-rgb,245 166 35) / .13),rgba(255,255,255,.06))!important;}
+.group-player-title-row{gap:8px;}
+.group-player-toggle,.group-item-toggle{width:28px;height:28px;border-radius:999px;display:inline-grid;place-items:center;flex:0 0 auto;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:var(--ma-text-1);box-shadow:inset 0 1px 0 rgba(255,255,255,.12);}
+.group-player-toggle.checked,.group-item-toggle.checked{border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .42);background:rgba(var(--dynamic-accent-rgb,245 166 35) / .18);color:var(--ma-accent);}
+.theme-light .group-player-toggle,.theme-light .group-item-toggle{border-color:rgba(26,39,61,.14);background:rgba(255,255,255,.74);color:#263247;}
+.group-player-toggle .ui-ic,.group-item-toggle .ui-ic{width:15px;height:15px;}
+.group-player-check,.group-item input[type="checkbox"]{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;}
+.group-item .group-name{display:flex;align-items:center;gap:10px;min-width:0;}
+.group-item .group-name .group-item-toggle{margin-inline-start:auto;}
 
 </style>
 
@@ -2984,6 +3032,7 @@
     });
 
     this.$("content").addEventListener("click", this._boundContentClick);
+    this.$("content").addEventListener("change", (e) => this._handleQueueMoveAutoChange(e));
     this.$("content").addEventListener("contextmenu", this._boundContentContext);
     this.$("groupList").addEventListener("change", (e) => this._handleGroupChange(e));
     this.$("applyGroupBtn").addEventListener("click", () => this._applySpeakerGroup());
@@ -4516,6 +4565,7 @@
         title: item.title || item.name || this._m("Recommended track", "המלצה"),
       }));
     const recommendations = [];
+    pushUnique(this._state.quickMixRecommendationItems || [], recommendations);
     pushUnique(queueItems, recommendations);
     pushUnique(this._historyRecommendationPlaylistItems(5), recommendations);
     pushUnique(recentItems, recommendations);
@@ -7566,17 +7616,23 @@
       : this.shadowRoot.querySelector(".card");
     if (!mount) return;
     const liked = this._isEntryLiked(entry);
+    const queueCount = Math.max(1, this._getNowPlayingQueueItems().length || (this._state.queueItems || []).length || Number(this._state.maQueueState?.items || 1));
+    const currentPosition = Math.max(1, Math.min(queueCount, this._queueDisplayPositionForEntry(entry, Math.round(Number(entry.sort_index || 0)) + 1 || 1)));
     const menu = document.createElement("div");
     menu.className = "ctx-menu queue-ctx-menu";
     menu.innerHTML = `
-      <div class="ctx-item" data-queue-popup="up"><span class="ctx-ico">${this._iconSvg("previous")}</span><span>${this._esc(this._m("Up", "למעלה"))}</span></div>
+      <div class="queue-move-control ctx-move-control">
+        <label>
+          <span>${this._esc(this._m("Move to position", "העבר למיקום"))}</span>
+          ${this._queueMoveSelectHtml(queueCount, currentPosition, entry)}
+        </label>
+      </div>
       <div class="ctx-item" data-queue-popup="next"><span class="ctx-ico">${this._iconSvg("next")}</span><span>${this._esc(this._m("Move to next", "העבר לבא בתור"))}</span></div>
-      <div class="ctx-item" data-queue-popup="down"><span class="ctx-ico">${this._iconSvg("repeat")}</span><span>${this._esc(this._m("Down", "למטה"))}</span></div>
       <div class="ctx-item" data-queue-popup="like"><span class="ctx-ico">${this._iconSvg(liked ? "heart_filled" : "heart_outline")}</span><span>${this._esc(this._m("Like", "אהבתי"))}</span></div>
       <div class="ctx-item" data-queue-popup="remove"><span class="ctx-ico">${this._iconSvg("menu")}</span><span>${this._esc(this._m("Remove", "הסר"))}</span></div>
       <div class="ctx-item" data-queue-popup="close"><span class="ctx-ico">×</span><span>${this._esc(this._m("Close", "סגור"))}</span></div>`;
     menu.addEventListener("click", (e) => e.stopPropagation());
-    menu.querySelectorAll(".ctx-item").forEach((item) => item.addEventListener("click", async (e) => {
+    menu.querySelectorAll("[data-queue-popup]").forEach((item) => item.addEventListener("click", async (e) => {
       e.stopPropagation();
       const action = item.dataset.queuePopup;
       if (action === "close") {
@@ -7587,10 +7643,15 @@
         this._toggleLikeEntry(entry, item);
         if (this._state.menuOpen && this._state.menuPage === "queue") await this._renderMobileMenu();
       } else {
-        await this._handleQueueAction(action, entry.queue_item_id, entry.uri || "", entry.sort_index || "");
+        const targetPosition = action === "move_to" ? this._queueMoveTargetFromElement(item) : null;
+        if (action === "move_to" && !targetPosition) return;
+        await this._handleQueueAction(action, entry.queue_item_id, entry.uri || "", entry.sort_index || "", targetPosition);
       }
       this._dismissCtx();
     }));
+    menu.addEventListener("change", async (e) => {
+      if (await this._handleQueueMoveAutoChange(e)) this._dismissCtx();
+    });
     mount.appendChild(menu);
     this._ctxMenu = menu;
     this._ctxMenuOpenedAt = Date.now();
@@ -8273,6 +8334,61 @@
       }));
   }
 
+  _queueVisibleItemsForMove(items = []) {
+    const allItems = Array.isArray(items) ? items.filter(Boolean) : [];
+    const currentIndex = HomeiiMediaQueueFoundation.normalizeFiniteNumber(this._state.maQueueState?.current_index);
+    if (!Number.isFinite(currentIndex)) return allItems;
+    const visibleItems = allItems.filter((item) => Number(item?.sort_index ?? -1) >= currentIndex);
+    return visibleItems.length ? visibleItems : allItems;
+  }
+
+  _queueFirstMovableIndex(items = []) {
+    const allItems = Array.isArray(items) ? items : [];
+    const currentIndex = HomeiiMediaQueueFoundation.normalizeFiniteNumber(this._state.maQueueState?.current_index);
+    if (!Number.isFinite(currentIndex)) return 0;
+    const currentArrayIndex = allItems.findIndex((item) => Number(item?.sort_index) === currentIndex);
+    return Math.max(0, currentArrayIndex + 1);
+  }
+
+  _queueMoveGlobalIndexForDisplayPosition(items = [], targetPosition = 1) {
+    const allItems = Array.isArray(items) ? items.filter(Boolean) : [];
+    if (!allItems.length) return -1;
+    const visibleItems = this._queueVisibleItemsForMove(allItems);
+    const displayIndex = Math.max(0, Math.min(visibleItems.length - 1, Math.round(Number(targetPosition)) - 1 || 0));
+    const targetItem = visibleItems[displayIndex] || null;
+    if (!targetItem) return -1;
+    const targetKey = this._getQueueItemKey(targetItem);
+    const targetStableId = this._getQueueItemStableId(targetItem);
+    const targetUri = this._getQueueItemUri(targetItem);
+    const targetSortIndex = HomeiiMediaQueueFoundation.normalizeFiniteNumber(targetItem?.sort_index);
+    const targetGlobalIndex = allItems.findIndex((item) =>
+      item === targetItem
+      || (targetKey && this._getQueueItemKey(item) === targetKey)
+      || (targetStableId && this._getQueueItemStableId(item) === targetStableId)
+      || (targetUri && this._mediaRefsEquivalent(this._getQueueItemUri(item), targetUri, item?.media_item?.media_type || item?.media_type || "track"))
+      || (Number.isFinite(targetSortIndex) && Number(item?.sort_index) === targetSortIndex)
+    );
+    if (targetGlobalIndex < 0) return -1;
+    return Math.max(this._queueFirstMovableIndex(allItems), targetGlobalIndex);
+  }
+
+  _queueDisplayPositionForEntry(entry = {}, fallbackPosition = 1) {
+    const visibleItems = this._getNowPlayingQueueItems();
+    const entryKey = this._getQueueItemKey(entry) || String(entry?.queue_item_id || entry?.queueItemId || entry?.key || "").trim();
+    const entryStableId = this._getQueueItemStableId(entry);
+    const entryUri = this._getQueueItemUri(entry) || String(entry?.uri || entry?.media_item?.uri || "").trim();
+    const entrySortIndex = HomeiiMediaQueueFoundation.normalizeFiniteNumber(entry?.sort_index);
+    const index = visibleItems.findIndex((item) =>
+      (entryKey && this._getQueueItemKey(item) === entryKey)
+      || (entryStableId && this._getQueueItemStableId(item) === entryStableId)
+      || (entryUri && this._mediaRefsEquivalent(this._getQueueItemUri(item), entryUri, item?.media_item?.media_type || item?.media_type || "track"))
+      || (Number.isFinite(entrySortIndex) && Number(item?.sort_index) === entrySortIndex)
+    );
+    if (index >= 0) return index + 1;
+    const fallback = Math.round(Number(fallbackPosition || entry?.position));
+    return Math.max(1, fallback || 1);
+  }
+
   _resolveQueueActionTarget(items = [], queueItemId = "", fallbackUri = "", sortIndex = "") {
     const allItems = Array.isArray(items) ? items : [];
     const rawKey = String(queueItemId || "").trim();
@@ -8403,11 +8519,15 @@
     if (queueActionBtn) {
       e.stopPropagation();
       const queueRow = queueActionBtn.closest("[data-queue-item-id]");
+      const action = queueActionBtn.dataset.queueAction;
+      const targetPosition = action === "move_to" ? this._queueMoveTargetFromElement(queueActionBtn) : null;
+      if (action === "move_to" && !targetPosition) return;
       await this._handleQueueAction(
-        queueActionBtn.dataset.queueAction,
+        action,
         queueActionBtn.dataset.queueItemId || queueRow?.dataset.queueItemId || "",
         queueRow?.dataset.uri || "",
         queueRow?.dataset.sortIndex || "",
+        targetPosition,
       );
       return;
     }
@@ -8454,11 +8574,15 @@
       e.preventDefault();
       e.stopPropagation();
       const queueRow = queueActionBtn.closest("[data-queue-item-id]");
+      const action = queueActionBtn.dataset.queueAction;
+      const targetPosition = action === "move_to" ? this._queueMoveTargetFromElement(queueActionBtn) : null;
+      if (action === "move_to" && !targetPosition) return;
       await this._handleQueueAction(
-        queueActionBtn.dataset.queueAction,
+        action,
         queueActionBtn.dataset.queueItemId || queueRow?.dataset.queueItemId || "",
         queueRow?.dataset.uri || "",
         queueRow?.dataset.sortIndex || "",
+        targetPosition,
       );
       return;
     }
@@ -8742,7 +8866,7 @@
     ).trim();
   }
 
-  async _callDirectMaQueueAction(action, queueId, queueItemIdOrIndex) {
+  async _callDirectMaQueueAction(action, queueId, queueItemIdOrIndex, explicitPosShift = null) {
     if (!queueId || queueItemIdOrIndex === "" || queueItemIdOrIndex === null || queueItemIdOrIndex === undefined || !this._hasDirectMAConnection()) return false;
     if (action === "remove") {
       await this._callDirectMaCommand("player_queues/delete_item", {
@@ -8756,6 +8880,18 @@
       down: 1,
       next: 0,
     };
+    if (action === "move_to") {
+      const posShift = Math.round(Number(explicitPosShift));
+      if (!Number.isFinite(posShift)) return false;
+      if (posShift === 0) return true;
+      if (typeof queueItemIdOrIndex !== "string" || !queueItemIdOrIndex.trim()) return false;
+      await this._callDirectMaCommand("player_queues/move_item", {
+        queue_id: queueId,
+        queue_item_id: queueItemIdOrIndex,
+        pos_shift: posShift,
+      });
+      return true;
+    }
     if (!(action in posShiftByAction) || typeof queueItemIdOrIndex !== "string" || !queueItemIdOrIndex.trim()) return false;
     await this._callDirectMaCommand("player_queues/move_item", {
       queue_id: queueId,
@@ -9325,24 +9461,227 @@
     return true;
   }
 
+  _searchItemProviderMapping(item = {}) {
+    const mappings = []
+      .concat(Array.isArray(item?.provider_mappings) ? item.provider_mappings : [])
+      .concat(Array.isArray(item?.media_item?.provider_mappings) ? item.media_item.provider_mappings : []);
+    return mappings.find((mapping) => mapping?.uri || mapping?.item_id || mapping?.provider_instance || mapping?.provider_domain || mapping?.provider)
+      || {};
+  }
+
+  _searchItemUri(item = {}, fallbackType = "track") {
+    const directUri = String(item?.uri || item?.media_item?.uri || item?.media_id || "").trim();
+    if (directUri) return directUri;
+    const mapping = this._searchItemProviderMapping(item);
+    const mappingUri = String(mapping?.uri || mapping?.media_item?.uri || "").trim();
+    if (mappingUri) return mappingUri;
+    const itemId = String(item?.item_id || item?.id || mapping?.item_id || mapping?.provider_item_id || "").trim();
+    const provider = String(
+      item?.provider
+      || item?.provider_domain
+      || item?.provider_instance
+      || item?.provider_id
+      || mapping?.provider_domain
+      || mapping?.provider_instance
+      || mapping?.provider
+      || mapping?.provider_id
+      || ""
+    ).trim();
+    const mediaType = String(item?.media_type || item?.type || item?.media_item?.media_type || fallbackType || "track").toLowerCase();
+    return provider && itemId ? `${provider}://${mediaType}/${itemId}` : "";
+  }
+
+  _normalizeSearchItem(item = {}, fallbackType = "track") {
+    if (!item || typeof item !== "object") return item;
+    const mapping = this._searchItemProviderMapping(item);
+    const mediaType = String(item.media_type || item.type || item.media_item?.media_type || fallbackType || "track").toLowerCase();
+    const uri = this._searchItemUri(item, mediaType);
+    const provider = String(
+      item.provider
+      || item.provider_instance
+      || item.provider_domain
+      || item.provider_id
+      || mapping.provider_instance
+      || mapping.provider_domain
+      || mapping.provider
+      || mapping.provider_id
+      || ""
+    ).trim();
+    return {
+      ...item,
+      media_type: mediaType,
+      uri: uri || item.uri || "",
+      provider: item.provider || provider,
+      provider_instance: item.provider_instance || mapping.provider_instance || "",
+      provider_domain: item.provider_domain || mapping.provider_domain || "",
+      provider_id: item.provider_id || mapping.provider_id || "",
+    };
+  }
+
   _normalizeSearchResponse(raw) {
     const out = { radio: [], podcasts: [], albums: [], artists: [], tracks: [], playlists: [] };
     if (!raw) return out;
-    const src = raw.response ?? raw;
     const readGroup = (value) => Array.isArray(value) ? value : (value?.items && Array.isArray(value.items) ? value.items : []);
-    out.radio = readGroup(src.radio || src.radios);
-    out.podcasts = readGroup(src.podcast || src.podcasts);
-    out.albums = readGroup(src.album || src.albums);
-    out.artists = readGroup(src.artist || src.artists);
-    out.tracks = readGroup(src.track || src.tracks);
-    out.playlists = readGroup(src.playlist || src.playlists);
+    const groupForItem = (item = {}) => {
+      const type = String(item?.media_type || item?.type || item?.item_type || item?.media_item?.media_type || "").toLowerCase();
+      if (type === "radio") return "radio";
+      if (type === "podcast") return "podcasts";
+      if (type === "album") return "albums";
+      if (type === "artist") return "artists";
+      if (type === "track") return "tracks";
+      if (type === "playlist") return "playlists";
+      return "";
+    };
+    const addFlatItems = (items = []) => {
+      (Array.isArray(items) ? items : []).forEach((item) => {
+        const group = groupForItem(item);
+        if (group) out[group].push(this._normalizeSearchItem(item, group === "podcasts" ? "podcast" : group.replace(/s$/, "")));
+      });
+    };
+    const addGroupedItems = (source = {}) => {
+      out.radio.push(...readGroup(source.radio || source.radios).map((item) => this._normalizeSearchItem(item, "radio")));
+      out.podcasts.push(...readGroup(source.podcast || source.podcasts).map((item) => this._normalizeSearchItem(item, "podcast")));
+      out.albums.push(...readGroup(source.album || source.albums).map((item) => this._normalizeSearchItem(item, "album")));
+      out.artists.push(...readGroup(source.artist || source.artists).map((item) => this._normalizeSearchItem(item, "artist")));
+      out.tracks.push(...readGroup(source.track || source.tracks).map((item) => this._normalizeSearchItem(item, "track")));
+      out.playlists.push(...readGroup(source.playlist || source.playlists).map((item) => this._normalizeSearchItem(item, "playlist")));
+    };
+    const src = raw.response ?? raw.result ?? raw;
+    const sources = [src];
+    if (src?.response) sources.push(src.response);
+    if (src?.result) sources.push(src.result);
+    if (src && typeof src === "object" && !Array.isArray(src)) {
+      Object.values(src).forEach((value) => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return;
+        const nested = value.response ?? value.result ?? value;
+        if (nested && typeof nested === "object") sources.push(nested);
+      });
+    }
+    sources.forEach((source) => {
+      addGroupedItems(source);
+      addFlatItems(Array.isArray(source) ? source : []);
+      addFlatItems(source?.items);
+      addFlatItems(source?.results);
+    });
     return out;
+  }
+
+  _emptySearchResults() {
+    return { radio: [], podcasts: [], albums: [], artists: [], tracks: [], playlists: [] };
+  }
+
+  _hasSearchResults(results = {}) {
+    return Object.values(results || {}).some((arr) => Array.isArray(arr) && arr.length);
+  }
+
+  _mergeSearchResults(...sets) {
+    const out = this._emptySearchResults();
+    const groups = ["radio", "podcasts", "albums", "artists", "tracks", "playlists"];
+    const seen = new Set();
+    sets.forEach((results) => {
+      groups.forEach((group) => {
+        const items = Array.isArray(results?.[group]) ? results[group] : [];
+        items.forEach((item) => {
+          const uri = String(item?.uri || item?.media_item?.uri || "").trim();
+          const name = String(item?.name || item?.title || item?.media_item?.name || "").trim().toLowerCase();
+          const provider = String(item?.provider || item?.provider_id || item?.provider_domain || item?.media_item?.provider || "").trim().toLowerCase();
+          const key = `${group}:${uri || `${provider}:${name}`}`;
+          if (!key || seen.has(key)) return;
+          seen.add(key);
+          out[group].push(item);
+        });
+      });
+    });
+    return out;
+  }
+
+  _withTimeout(promise, ms = 3500, message = "Operation timed out") {
+    let timer = null;
+    const timeoutPromise = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), ms);
+    });
+    return Promise.race([Promise.resolve(promise), timeoutPromise]).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
+  }
+
+  _cachedLibrarySearchResults(query = "", limit = 8) {
+    const q = String(query || "").trim().toLowerCase();
+    const out = this._emptySearchResults();
+    if (!q || !this._cache?.library) return out;
+    const typeMap = {
+      radio: "radio",
+      podcast: "podcasts",
+      album: "albums",
+      artist: "artists",
+      track: "tracks",
+      playlist: "playlists",
+    };
+    const seen = new Set();
+    const scoreItem = (item, mediaType) => {
+      const title = String(item?.name || item?.title || item?.media_item?.name || "").toLowerCase();
+      const artist = String(this._artistName?.(item) || item?.artist || item?.artist_str || "").toLowerCase();
+      const album = String(item?.album?.name || item?.media_item?.album?.name || "").toLowerCase();
+      const haystack = [title, artist, album, item?.metadata?.description, item?.description].filter(Boolean).join(" ").toLowerCase();
+      if (!haystack.includes(q)) return 0;
+      let score = 1;
+      if (title.startsWith(q)) score += 6;
+      if (title === q) score += 4;
+      if (artist.startsWith(q)) score += 3;
+      if (mediaType === "track") score += 1;
+      return score;
+    };
+    for (const [key, cached] of this._cache.library.entries()) {
+      const mediaType = String(key || "").split(":")[0];
+      const group = typeMap[mediaType];
+      if (!group || !Array.isArray(cached?.items)) continue;
+      cached.items.forEach((item) => {
+        const uri = String(item?.uri || item?.media_item?.uri || "").trim();
+        const stableKey = `${group}:${uri || item?.item_id || item?.name || ""}`;
+        if (!stableKey || seen.has(stableKey)) return;
+        const score = scoreItem(item, mediaType);
+        if (!score) return;
+        seen.add(stableKey);
+        out[group].push({ ...item, media_type: item?.media_type || mediaType, _homeiiSearchScore: score });
+      });
+    }
+    Object.keys(out).forEach((group) => {
+      out[group] = out[group]
+        .sort((a, b) => (Number(b._homeiiSearchScore || 0) - Number(a._homeiiSearchScore || 0)))
+        .slice(0, limit)
+        .map(({ _homeiiSearchScore, ...item }) => item);
+    });
+    return out;
+  }
+
+  async _searchPreviewResults(query = "", limit = 8) {
+    const q = String(query || "").trim();
+    const cached = this._cachedLibrarySearchResults(q, limit);
+    if (this._hasSearchResults(cached)) return cached;
+    if (!q) return this._emptySearchResults();
+    const previewLimit = Math.max(4, Math.min(20, Number(limit || 8) || 8));
+    const [radioRes, podcastRes, albumRes, artistRes, trackRes, playlistRes] = await Promise.allSettled([
+      this._fetchLibrary("radio", "sort_name", previewLimit, false, q),
+      this._fetchLibrary("podcast", "sort_name", previewLimit, false, q),
+      this._fetchLibrary("album", "sort_name", previewLimit, false, q),
+      this._fetchLibrary("artist", "sort_name", previewLimit, false, q),
+      this._fetchLibrary("track", "sort_name", previewLimit, false, q),
+      this._fetchLibrary("playlist", "sort_name", previewLimit, false, q),
+    ]);
+    return {
+      radio: radioRes.status === "fulfilled" ? radioRes.value : [],
+      podcasts: podcastRes.status === "fulfilled" ? podcastRes.value : [],
+      albums: albumRes.status === "fulfilled" ? albumRes.value : [],
+      artists: artistRes.status === "fulfilled" ? artistRes.value : [],
+      tracks: trackRes.status === "fulfilled" ? trackRes.value : [],
+      playlists: playlistRes.status === "fulfilled" ? playlistRes.value : [],
+    };
   }
 
   async _search(query) {
     const q = String(query || "").trim();
-    if (!q) return { radio: [], podcasts: [], albums: [], artists: [], tracks: [], playlists: [] };
-    let globalResults = { radio: [], podcasts: [], albums: [], artists: [], tracks: [], playlists: [] };
+    if (!q) return this._emptySearchResults();
+    let globalResults = this._emptySearchResults();
     try {
       const raw = await this._callService("search", { query: q, limit: 25 });
       globalResults = this._normalizeSearchResponse(raw);
@@ -9352,8 +9691,13 @@
         globalResults = this._normalizeSearchResponse(raw2);
       } catch (_) {}
     }
-    const hasGlobal = Object.values(globalResults).some((arr) => arr.length);
-    if (hasGlobal) return globalResults;
+    if (!this._hasSearchResults(globalResults)) {
+      try {
+        const raw3 = await this._callService("search", { name: q, limit: 25 });
+        globalResults = this._normalizeSearchResponse(raw3);
+      } catch (_) {}
+    }
+    if (this._hasSearchResults(globalResults)) return globalResults;
     const [radioRes, podcastRes, albumRes, artistRes, trackRes, playlistRes] = await Promise.allSettled([
       this._fetchLibrary("radio", "sort_name", 50, false, q),
       this._fetchLibrary("podcast", "sort_name", 50, false, q),
@@ -9643,6 +9987,7 @@
       const pinnedSet = new Set(pinnedPrefs);
       entities = entities.filter((entity) => pinnedSet.has(entity.entity_id) || this._isLocalSendspinPlayer(entity));
     }
+    entities = entities.map((entity) => this._applyOptimisticPlayerVolumeState(entity));
     this._state.players = entities;
     if (!entities.length) {
       if (sel) sel.innerHTML = `<option value="">${this._esc(this._t("No players found"))}</option>`;
@@ -10002,6 +10347,77 @@
     this._hass.callService("media_player", "volume_set", { entity_id: player.entity_id, volume_level: normalized });
   }
 
+  _applyOptimisticPlayerVolumeState(player = null) {
+    const entityId = String(player?.entity_id || "").trim();
+    if (!entityId) return player;
+    const now = Date.now();
+    const volumeState = this._optimisticVolumeByPlayer.get(entityId);
+    const muteState = this._optimisticMuteByPlayer.get(entityId);
+    const patch = {};
+    if (volumeState && now - Number(volumeState.ts || 0) < 5000) {
+      patch.volume_level = volumeState.level;
+    } else if (volumeState) {
+      this._optimisticVolumeByPlayer.delete(entityId);
+    }
+    if (muteState && now - Number(muteState.ts || 0) < 5000) {
+      patch.is_volume_muted = !!muteState.muted;
+    } else if (muteState) {
+      this._optimisticMuteByPlayer.delete(entityId);
+    }
+    if (!Object.keys(patch).length) return player;
+    return {
+      ...player,
+      attributes: {
+        ...(player.attributes || {}),
+        ...patch,
+      },
+    };
+  }
+
+  _setPlayerVolumeOptimistic(entityId, level, muted = null) {
+    const normalized = Math.max(0, Math.min(1, Number(level) || 0));
+    const playerId = String(entityId || "").trim();
+    if (!playerId) return;
+    const now = Date.now();
+    this._optimisticVolumeByPlayer.set(playerId, { level: normalized, ts: now });
+    if (muted !== null) this._optimisticMuteByPlayer.set(playerId, { muted: !!muted, ts: now });
+    if (muted === true) this._softMutedPlayers.add(playerId);
+    if (muted === false) this._softMutedPlayers.delete(playerId);
+    const updatePlayer = (player) => {
+      if (!player || player.entity_id !== playerId) return player;
+      return this._applyOptimisticPlayerVolumeState(player);
+    };
+    this._state.players = (this._state.players || []).map(updatePlayer);
+    this._directMaPlayers = (this._directMaPlayers || []).map(updatePlayer);
+    this._syncPlayerVolumeControls(playerId, Math.round(normalized * 100), { muted });
+  }
+
+  _syncPlayerVolumeControls(entityId, pct, options = {}) {
+    const playerId = String(entityId || "").trim();
+    if (!playerId) return;
+    const value = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)));
+    const muted = options.muted !== undefined ? !!options.muted : value === 0;
+    const icon = muted || value === 0 ? "volume_mute" : value < 40 ? "volume_low" : "volume_high";
+    this.shadowRoot?.querySelectorAll("[data-player-volume]")?.forEach((input) => {
+      if (input.dataset.playerVolume !== playerId) return;
+      if (String(input.value) !== String(value)) input.value = String(value);
+      input.style.setProperty("--vol-pct", `${value}%`);
+      const row = input.closest(".player-volume-row");
+      const valueEl = row?.querySelector(".player-mini-value");
+      if (valueEl) valueEl.textContent = `${value}%`;
+      const muteBtn = row?.querySelector("[data-player-mute]");
+      if (muteBtn) {
+        muteBtn.classList.toggle("active", muted);
+        this._setButtonIcon(muteBtn, icon);
+      }
+    });
+    this.shadowRoot?.querySelectorAll("[data-player-mute]")?.forEach((button) => {
+      if (button.dataset.playerMute !== playerId) return;
+      button.classList.toggle("active", muted);
+      this._setButtonIcon(button, icon);
+    });
+  }
+
   _isMuted(player) {
     if (!player) return false;
     return !!player.attributes?.is_volume_muted || this._softMutedPlayers.has(player.entity_id);
@@ -10357,7 +10773,7 @@
     if (badge) badge.textContent = String(players.length);
     list.innerHTML = players.length ? players.map((p) => {
       const checked = (this._state.pendingGroupSelections || []).includes(p.entity_id);
-      return `<label class="group-item ${checked ? "checked" : ""}"><span class="group-meta"><span class="group-name">${this._esc(p.attributes.friendly_name || p.entity_id)}</span><span class="group-sub"></span></span><input type="checkbox" data-group-player="${this._esc(p.entity_id)}" ${checked ? "checked" : ""}></label>`;
+      return `<label class="group-item ${checked ? "checked" : ""}"><span class="group-meta"><span class="group-name">${this._esc(p.attributes.friendly_name || p.entity_id)}<span class="group-item-toggle ${checked ? "checked" : ""}" aria-hidden="true">${this._iconSvg(checked ? "minus" : "plus")}</span></span><span class="group-sub"></span></span><input type="checkbox" data-group-player="${this._esc(p.entity_id)}" ${checked ? "checked" : ""}></label>`;
     }).join("") : `<div class="state-box" style="min-height:80px;padding:8px 0;">${this._esc(this._t("No extra MA players"))}</div>`;
     this.$("groupModal").classList.add("open");
   }
@@ -10371,7 +10787,13 @@
     const next = new Set(this._state.pendingGroupSelections || []);
     if (checkbox.checked) next.add(entityId); else next.delete(entityId);
     this._state.pendingGroupSelections = Array.from(next);
-    checkbox.closest(".group-item")?.classList.toggle("checked", checkbox.checked);
+    const groupItem = checkbox.closest(".group-item");
+    groupItem?.classList.toggle("checked", checkbox.checked);
+    const toggle = groupItem?.querySelector(".group-item-toggle");
+    if (toggle) {
+      toggle.classList.toggle("checked", checkbox.checked);
+      toggle.innerHTML = this._iconSvg(checkbox.checked ? "minus" : "plus");
+    }
   }
 
   async _applySpeakerGroupFor(entityId, groupMembers = []) {
@@ -10455,6 +10877,7 @@
     this.shadowRoot.querySelector(".card")?.appendChild(panel);
     panel.querySelector("#queueClose").addEventListener("click", () => this._hideQueue());
     panel.addEventListener("click", this._boundQueuePanelClick);
+    panel.addEventListener("change", (e) => this._handleQueueMoveAutoChange(e));
     await this._renderQueueItems();
   }
 
@@ -10518,7 +10941,7 @@
     this.shadowRoot.getElementById("queuePanel")?.remove();
   }
 
-  _queueItemsAfterLocalAction(action, queueItemId, items = this._state.queueItems || []) {
+  _queueItemsAfterLocalAction(action, queueItemId, items = this._state.queueItems || [], targetPosition = null) {
     const allItems = [...(Array.isArray(items) ? items : [])];
     const targetKey = String(queueItemId || "").trim();
     const idx = allItems.findIndex((i) =>
@@ -10527,14 +10950,12 @@
       || this._getQueueItemUri(i) === targetKey
     );
     if (idx === -1) return null;
-    const currentIndex = Number(this._state.maQueueState?.current_index ?? 0);
     const reordered = [...allItems];
     if (action === "remove") {
       reordered.splice(idx, 1);
       return this._queueItemsWithSequentialSortIndexes(reordered);
     }
-    const currentArrayIndex = reordered.findIndex((item) => Number(item?.sort_index) === currentIndex);
-    const firstMovableIdx = Math.max(0, currentArrayIndex + 1);
+    const firstMovableIdx = this._queueFirstMovableIndex(reordered);
     if (action === "up") {
       if (idx > firstMovableIdx) {
         [reordered[idx - 1], reordered[idx]] = [reordered[idx], reordered[idx - 1]];
@@ -10559,10 +10980,21 @@
       }
       return null;
     }
+    if (action === "move_to") {
+      const item = reordered[idx];
+      const requestedPosition = Math.round(Number(targetPosition));
+      if (!item || !Number.isFinite(requestedPosition)) return null;
+      const targetIdx = this._queueMoveGlobalIndexForDisplayPosition(reordered, requestedPosition);
+      if (targetIdx < 0) return null;
+      if (idx === targetIdx) return reordered;
+      reordered.splice(idx, 1);
+      reordered.splice(Math.max(firstMovableIdx, Math.min(reordered.length, targetIdx)), 0, item);
+      return this._queueItemsWithSequentialSortIndexes(reordered);
+    }
     return null;
   }
 
-  async _handleQueueAction(action, queueItemId, fallbackUri = "", sortIndex = "") {
+  async _handleQueueAction(action, queueItemId, fallbackUri = "", sortIndex = "", targetPosition = null) {
     const player = this._getSelectedPlayer();
     if (!player || !queueItemId || this._state.queueActionPending) return;
 
@@ -10574,7 +11006,10 @@
 
     try {
       this._setQueueBusy(true);
-      const optimisticItems = this._queueItemsAfterLocalAction(action, targetKey, allItems);
+      const numericTargetPosition = Math.round(Number(targetPosition));
+      const moveToIndex = action === "move_to" && Number.isFinite(numericTargetPosition) ? this._queueMoveGlobalIndexForDisplayPosition(allItems, numericTargetPosition) : null;
+      const posShift = action === "move_to" && Number.isFinite(moveToIndex) && moveToIndex >= 0 ? moveToIndex - idx : null;
+      const optimisticItems = this._queueItemsAfterLocalAction(action, targetKey, allItems, numericTargetPosition);
       const queueId = this._queueIdForPlayer(player);
       const massQueueServiceByAction = {
         up: "move_queue_item_up",
@@ -10593,16 +11028,17 @@
         queueItemId,
         serviceQueueItemId,
         sortIndex: numericSortIndex,
+        targetPosition: Number.isFinite(numericTargetPosition) ? numericTargetPosition : "",
         title: targetItem ? this._queueItemPrimaryTitle(targetItem) : "",
       });
 
       let acted = false;
       try {
-        acted = await this._callDirectMaQueueAction(action, queueId, directTarget);
+        acted = await this._callDirectMaQueueAction(action, queueId, directTarget, posShift);
       } catch (error) {
         this._debugLog("warn", "[Homeii Queue] direct action failed", error);
       }
-      if (!acted && serviceQueueItemId) {
+      if (!acted && serviceQueueItemId && massQueueServiceByAction[action]) {
         acted = await this._callMassQueueService(massQueueServiceByAction[action], serviceQueueItemId);
       }
       if (!acted && optimisticItems && this._config?.queue_rebuild_fallback === true) {
@@ -10879,7 +11315,8 @@
     return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
-  _toast(message, variant = "info") {
+  _toast(message, variant = "info", options = {}) {
+    if (this._state?.controlRoomOpen && options?.allowStudio !== true) return;
     const wrap = this.$("toastWrap");
     if (!wrap) return;
     const text = String(message ?? "").trim();
@@ -10896,21 +11333,26 @@
     }
     const activeToasts = Array.from(wrap.querySelectorAll(".toast"));
     while (activeToasts.length >= 3) activeToasts.shift()?.remove();
-    wrap.classList.toggle("studio-toast", !!this._state.controlRoomOpen);
+    const centered = options?.position === "center";
+    wrap.classList.toggle("studio-toast", !!this._state.controlRoomOpen && !centered);
+    if (centered) wrap.classList.add("center-toast");
     const el = document.createElement("div");
-    el.className = `toast ${safeVariant}`;
+    el.className = `toast ${safeVariant}${centered ? " centered" : ""}`;
     const icon = safeVariant === "success" ? "✓" : safeVariant === "error" ? "×" : "i";
     el.innerHTML = `<span class="toast-icon">${icon}</span><span class="toast-text">${this._esc(text)}</span>`;
     wrap.appendChild(el);
-    setTimeout(() => el.remove(), 3300);
+    setTimeout(() => {
+      el.remove();
+      if (centered && !wrap.querySelector(".toast.centered")) wrap.classList.remove("center-toast");
+    }, Number(options?.duration || 3300));
   }
 
-  _toastSuccess(message) {
-    this._toast(message, "success");
+  _toastSuccess(message, options = {}) {
+    this._toast(message, "success", options);
   }
 
-  _toastError(message) {
-    this._toast(message, "error");
+  _toastError(message, options = {}) {
+    this._toast(message, "error", options);
   }
 
   _showSurprisePopup(item = {}) {
@@ -10974,9 +11416,18 @@
     this._toastSuccess(message);
   }
 
-  _hydrateImages() {
-    const root = this.$("content");
+  _hydrateImages(rootOverride = null) {
+    const root = rootOverride || this.$("content");
     if (!root) return;
+    if (rootOverride) {
+      root.querySelectorAll("[data-img]").forEach((el) => {
+        const url = el.dataset.img;
+        const placeholder = el.dataset.placeholder || "music_note";
+        delete el.dataset.img;
+        this._loadImgInto(url, el, placeholder);
+      });
+      return;
+    }
     if (this._imgObserver && this._imgObserverRoot !== root) {
       this._imgObserver.disconnect();
       this._imgObserver = null;
@@ -11000,7 +11451,8 @@
   }
 
   async _loadImgInto(url, el, fallback = "💿") {
-    const fallbackIcon = ["artist", "radio", "podcast", "music_note"].includes(String(fallback || "")) ? fallback : (fallback === "🎤" ? "artist" : fallback === "📻" ? "radio" : "music_note");
+    const supportedFallbacks = ["artist", "radio", "podcast", "music_note", "album", "playlist", "tracks", "speaker", "repeat"];
+    const fallbackIcon = supportedFallbacks.includes(String(fallback || "")) ? fallback : (fallback === "🎤" ? "artist" : fallback === "📻" ? "radio" : "music_note");
     if (!url || !el?.isConnected) {
       if (el?.isConnected) el.innerHTML = `<div class="media-placeholder">${this._artPlaceholderHtml(fallbackIcon)}</div>`;
       return;
@@ -11108,9 +11560,9 @@ function ensureHaEditorComponents() {
   } catch (_) {}
 }
 
-const HOMEII_CARD_VERSION = "5.3.0";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v530";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v530";
+const HOMEII_CARD_VERSION = "5.4.0";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v540";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v540";
 
 const HomeiiEditorLocale = Object.freeze({
   isHebrewLanguageTag(value) {
@@ -11240,7 +11692,7 @@ const HomeiiStateFoundation = Object.freeze({
       queueMutationPendingUntil: 0,
       queueMutationExpectedSignature: "",
       maQueueState: null,
-      lang: "auto",
+      lang: "en",
       pendingGroupSelections: [],
       nowPlayingUri: "",
       renderToken: 0,
@@ -11260,6 +11712,9 @@ const HomeiiStateFoundation = Object.freeze({
       emptyQuickShelfItems: [],
       emptyQuickShelfMode: "default",
       forceRadioHero: false,
+      quickMixPendingUntil: 0,
+      quickMixPendingEntry: null,
+      quickMixRecommendationItems: [],
       likedSelectionMode: false,
       likedSelectedUris: [],
       controlRoomOpen: false,
@@ -11411,7 +11866,7 @@ const HomeiiMobileSettingsFoundation = Object.freeze({
     defaultAnnouncementPresets = [],
   } = {}) {
     return {
-      lang: String(config.language || "auto"),
+      lang: String(config.language || "en"),
       cardTheme: String(config.theme_mode || "auto"),
       performanceMode: config.performance_mode === true,
       mobileCustomColor: String(config.mobile_custom_color || "#f5a623"),
@@ -12753,10 +13208,18 @@ const HomeiiMediaPresentationFoundation = Object.freeze({
   artUrl(item = null, maUrl = "") {
     return HomeiiMediaPresentationFoundation.imageUrl(item?.image_url, 300, { maUrl })
       || HomeiiMediaPresentationFoundation.imageUrl(item?.image, 300, { maUrl })
+      || HomeiiMediaPresentationFoundation.imageUrl(item?.thumbnail, 300, { maUrl })
+      || HomeiiMediaPresentationFoundation.imageUrl(item?.thumb, 300, { maUrl })
+      || HomeiiMediaPresentationFoundation.imageUrl(item?.cover, 300, { maUrl })
+      || HomeiiMediaPresentationFoundation.imageUrl(item?.media_image, 300, { maUrl })
+      || HomeiiMediaPresentationFoundation.imageUrl(item?.media_item?.image_url, 300, { maUrl })
+      || HomeiiMediaPresentationFoundation.imageUrl(item?.media_item?.image, 300, { maUrl })
+      || HomeiiMediaPresentationFoundation.imageUrl(item?.media_item?.metadata?.images, 300, { maUrl })
       || HomeiiMediaPresentationFoundation.imageUrl(item?.album?.image_url, 300, { maUrl })
       || HomeiiMediaPresentationFoundation.imageUrl(item?.album?.image, 300, { maUrl })
       || HomeiiMediaPresentationFoundation.imageUrl(item?.metadata?.images, 300, { maUrl })
       || HomeiiMediaPresentationFoundation.imageUrl(item?.album?.metadata?.images, 300, { maUrl })
+      || HomeiiMediaPresentationFoundation.imageUrl(item, 300, { maUrl })
       || null;
   },
   artistName(item = null) {
@@ -14551,8 +15014,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const card = this.shadowRoot?.querySelector(".card");
     const accent = this._activeAccentColor();
     const palette = this._dynamicThemePalette();
+    const artworkUrl = String(this._state.mobileDynamicThemeArtworkUrl || "").trim();
+    const artworkCssUrl = artworkUrl ? `url(${JSON.stringify(artworkUrl)})` : "";
     host.style?.setProperty("--accent-color", accent);
     host.style?.setProperty("--ma-accent", accent);
+    if (artworkCssUrl) {
+      host.style?.setProperty("--dynamic-art-url", artworkCssUrl);
+      card?.style?.setProperty("--dynamic-art-url", artworkCssUrl);
+    } else {
+      host.style?.removeProperty("--dynamic-art-url");
+      card?.style?.removeProperty("--dynamic-art-url");
+    }
     if (card) {
       card.style?.setProperty("--accent-color", accent);
       card.style?.setProperty("--ma-accent", accent);
@@ -14702,15 +15174,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (mode === "off" || !normalizedArt) {
       this._mobileDynamicThemeToken += 1;
       this._state.mobileDynamicThemeArtwork = "";
+      this._state.mobileDynamicThemeArtworkUrl = "";
       this._state.mobileDynamicThemePalette = null;
       this._applyDynamicThemeStyles();
       return;
     }
     if (this._state.mobileDynamicThemeArtwork === artworkKey) {
+      this._state.mobileDynamicThemeArtworkUrl = normalizedArt;
       this._applyDynamicThemeStyles();
       return;
     }
     this._state.mobileDynamicThemeArtwork = artworkKey;
+    this._state.mobileDynamicThemeArtworkUrl = normalizedArt;
     const token = ++this._mobileDynamicThemeToken;
     const palette = await this._extractDynamicThemePalette(normalizedArt);
     if (token !== this._mobileDynamicThemeToken) return;
@@ -15345,6 +15820,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const currentQueueItem = this._state.maQueueState?.current_item || null;
     const currentMedia = currentQueueItem?.media_item || {};
     const player = this._getSelectedPlayer();
+    const image = this._currentArtworkUrl(player, currentQueueItem, 420);
     const uri = String(
       this._getQueueItemUri(currentQueueItem)
       || currentMedia?.uri
@@ -15369,6 +15845,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         uri,
         media_type: normalizedType,
         name: title || this._m("Quick mix", "מיקס מהיר"),
+        image,
       };
     }
     const query = [title, artist].filter(Boolean).join(" ").trim();
@@ -15402,8 +15879,34 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           uri: String(best.uri || "").trim(),
           media_type: String(best.media_type || "track").toLowerCase(),
           name: best.name || title || this._m("Quick mix", "מיקס מהיר"),
+          image: this._artUrl(best) || image,
         }
       : null;
+  }
+
+  _rememberQuickMixRecommendationSeed(limit = 10) {
+    const currentItem = this._state.maQueueState?.current_item || null;
+    const currentKey = currentItem ? this._getQueueItemKey(currentItem) : "";
+    const queueItems = this._getNowPlayingQueueItems();
+    const ordered = [
+      currentItem,
+      ...queueItems.filter((item) => this._getQueueItemKey(item) !== currentKey),
+    ].filter(Boolean);
+    const seen = new Set();
+    this._state.quickMixRecommendationItems = ordered.map((item) => {
+      const media = item.media_item || {};
+      const uri = String(media.uri || this._getQueueItemUri(item) || "").trim();
+      if (!uri || seen.has(uri)) return null;
+      seen.add(uri);
+      return {
+        uri,
+        media_type: media.media_type || item.media_type || "track",
+        title: media.name || item.name || this._m("Recommended track", "המלצה"),
+        artist: media.artists?.map((artist) => artist?.name).filter(Boolean).join(", ") || item.media_artist || media.album?.name || "",
+        album: media.album?.name || item.album || "",
+        image: this._queueItemImageUrl(item, 120) || this._artUrl(media) || "",
+      };
+    }).filter(Boolean).slice(0, limit);
   }
 
   async _startQuickMix() {
@@ -15413,17 +15916,26 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         this._toastError(this._m("Could not build Quick Mix from the current song", "לא הצלחתי לבנות Quick Mix מהשיר הנוכחי"));
         return;
       }
+      this._rememberQuickMixRecommendationSeed();
+      this._state.quickMixPendingUntil = Date.now() + 6500;
+      this._state.quickMixPendingEntry = entry;
+      this._syncNowPlayingUI();
       const ok = await this._playMedia(entry.uri, entry.media_type || "track", "play", {
         label: entry.name || this._m("Quick mix", "מיקס מהיר"),
         radioMode: true,
         silent: true,
       });
       if (ok) {
-        this._toastSuccess(this._m("Quick mix started", "המיקס המהיר הופעל"));
+        this._toastSuccess(this._m("Quick mix started", "המיקס המהיר הופעל"), { position: "center", duration: 5000 });
+        this._syncRecentHistoryUi();
         return;
       }
+      this._state.quickMixPendingUntil = 0;
+      this._state.quickMixPendingEntry = null;
       this._toastError(this._m("Could not start Quick Mix", "לא ניתן להפעיל Quick Mix"));
     } catch (error) {
+      this._state.quickMixPendingUntil = 0;
+      this._state.quickMixPendingEntry = null;
       this._toastError(error?.message || this._m("Could not start Quick Mix", "לא ניתן להפעיל Quick Mix"));
     }
   }
@@ -16268,13 +16780,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _setPlayerVolumeFor(entityId, level) {
     const normalized = Math.max(0, Math.min(1, Number(level) || 0));
     if (!entityId) return;
+    this._setPlayerVolumeOptimistic(entityId, normalized, normalized <= 0 ? true : false);
     if (this._isDirectMaPlayer(entityId)) {
-      this._callDirectMaPlayerCommand(entityId, "players/cmd/volume_set", { volume_level: Math.round(normalized * 100) })
+      return this._callDirectMaPlayerCommand(entityId, "players/cmd/volume_set", { volume_level: Math.round(normalized * 100) })
         .then(() => this._refreshDirectMaPlayers().catch(() => {}))
         .catch(() => {});
-      return;
     }
-    this._hass.callService("media_player", "volume_set", { entity_id: entityId, volume_level: normalized });
+    return this._hass.callService("media_player", "volume_set", { entity_id: entityId, volume_level: normalized });
   }
 
   async _setPlayerVolumeForAnnouncement(entityId, level) {
@@ -16311,23 +16823,28 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (!entityId) return;
     const player = (this._state.players || []).find((p) => p.entity_id === entityId) || this._hass?.states?.[entityId];
     if (!player) return;
-    const currentlyMuted = this._isMuted(player);
-    if (this._isDirectMaPlayer(player)) {
-      try {
-        await this._callDirectMaPlayerCommand(player, "players/cmd/volume_mute", { muted: !currentlyMuted });
-      } catch (_) {}
-      if (!currentlyMuted) this._softMutedPlayers.add(entityId);
-      else this._softMutedPlayers.delete(entityId);
-      this._refreshDirectMaPlayers().catch(() => {});
-      setTimeout(() => this._renderMobileMenu(), 120);
-      return;
+    const currentVolume = Math.max(0, Math.min(1, Number(player.attributes?.volume_level ?? 0) || 0));
+    const currentlyMuted = this._isMuted(player) || currentVolume <= 0;
+    const callMuteFlag = (muted) => {
+      if (this._isDirectMaPlayer(player)) {
+        this._callDirectMaPlayerCommand(player, "players/cmd/volume_mute", { muted }).catch(() => {});
+        return;
+      }
+      const mutePromise = this._hass?.callService?.("media_player", "volume_mute", { entity_id: entityId, is_volume_muted: muted });
+      if (mutePromise?.catch) mutePromise.catch(() => {});
+    };
+    if (!currentlyMuted && currentVolume > 0) this._lastVolumeByPlayer.set(entityId, currentVolume);
+    if (!currentlyMuted) {
+      this._setPlayerVolumeOptimistic(entityId, 0, true);
+      await this._setPlayerVolumeFor(entityId, 0);
+      callMuteFlag(true);
+    } else {
+      const restoreVolume = currentVolume > 0 ? currentVolume : this._lastVolumeByPlayer.get(entityId) ?? 0.35;
+      this._setPlayerVolumeOptimistic(entityId, restoreVolume, false);
+      await this._setPlayerVolumeFor(entityId, restoreVolume);
+      callMuteFlag(false);
     }
-    try {
-      await this._hass.callService("media_player", "volume_mute", { entity_id: entityId, is_volume_muted: !currentlyMuted });
-    } catch (_) {}
-    if (!currentlyMuted) this._softMutedPlayers.add(entityId);
-    else this._softMutedPlayers.delete(entityId);
-    setTimeout(() => this._renderMobileMenu(), 120);
+    if (this._isDirectMaPlayer(player)) this._refreshDirectMaPlayers().catch(() => {});
   }
 
   async _toggleGroupMuteFor(entityId) {
@@ -16759,17 +17276,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       queueMicrotask(() => this._initMobileArtCarousel());
     }
     const currentQueueItem = this._state.maQueueState?.current_item || null;
-    const playingArt = this._queueItemImageUrl(currentQueueItem, 420)
-      || currentQueueItem?.media_image
-      || currentQueueItem?.image
-      || currentQueueItem?.image_url
-      || currentQueueItem?.media_item?.image
-      || currentQueueItem?.media_item?.image_url
-      || currentQueueItem?.media_item?.album?.image
-      || currentQueueItem?.media_item?.album?.image_url
-      || player?.attributes?.entity_picture_local
-      || player?.attributes?.entity_picture
-      || "";
+    const playingArt = this._currentArtworkUrl(player, currentQueueItem, 420);
     const previewArt = this._queueItemImageUrl(stack.current, 420)
       || stack.current?.media_image
       || stack.current?.image
@@ -16940,8 +17447,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         <button class="volume-btn" id="btnMute">${this._iconSvg("volume_high")}</button>
       </div>`;
     const footerHtml = `<div class="footer-nav">${mainBarButtons.join("")}</div>`;
-    const hasTopSettingsFab = false;
-    const topSettingsFabHtml = ``;
+    const hasTopSettingsFab = !compactTileMode && !this._usesVisualSettings();
+    const topSettingsFabHtml = hasTopSettingsFab
+      ? `<button class="top-settings-fab ${rtl ? "ltr" : "rtl"}" id="topSettingsFab" title="${this._m("Settings", "הגדרות")}">${this._iconSvg("settings")}</button>`
+      : ``;
     const compactCollapseFabHtml = compactMode && !compactTileMode
       ? `<button class="compact-collapse-fab ${rtl ? "rtl" : "ltr"}" id="compactCollapseBtn" title="${this._m("Collapse compact player", "חזרה למצב קומפקטי")}">${this._iconSvg("close")}</button>`
       : ``;
@@ -20544,6 +21053,60 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           cursor:pointer;
           text-align:center;
         }
+        .queue-action-item.compact {
+          min-height:46px;
+          border-radius:15px;
+          background:rgba(255,255,255,.07);
+          border:1px solid rgba(255,255,255,.12);
+        }
+        .queue-move-control {
+          display:grid;
+          grid-template-columns:minmax(0,1fr) auto;
+          gap:8px;
+          align-items:end;
+          padding:8px;
+          border-radius:18px;
+          background:rgba(255,255,255,.055);
+          border:1px solid rgba(255,255,255,.1);
+        }
+        .queue-move-control label,
+        .queue-inline-move {
+          min-width:0;
+          display:grid;
+          gap:5px;
+          color:rgba(255,255,255,.72);
+          font-size:10px;
+          font-weight:850;
+        }
+        .queue-move-control input,
+        .queue-inline-move input {
+          width:100%;
+          min-width:0;
+          height:38px;
+          border-radius:13px;
+          border:1px solid rgba(255,255,255,.14);
+          background:rgba(255,255,255,.08);
+          color:inherit;
+          text-align:center;
+          font:inherit;
+          font-size:14px;
+          font-weight:900;
+          outline:none;
+        }
+        .theme-light .queue-move-control {
+          background:rgba(31,38,51,.045);
+          border-color:rgba(147,161,183,.2);
+        }
+        .theme-light .queue-move-control label,
+        .theme-light .queue-inline-move {
+          color:#5b687c;
+        }
+        .theme-light .queue-move-control input,
+        .theme-light .queue-inline-move input {
+          background:rgba(255,255,255,.88);
+          border-color:rgba(147,161,183,.24);
+          color:#172033;
+        }
         .queue-action-item:hover {
           background:rgba(255,255,255,.06);
           transform:translateY(-1px);
@@ -20840,12 +21403,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         }
         .card.layout-tablet .player-premium-head {
           display:grid;
-          grid-template-columns:58px minmax(0,1fr);
+          grid-template-columns:64px minmax(0,1fr);
           gap:14px;
           align-items:center;
         }
         .card.layout-tablet.rtl .player-premium-head {
-          grid-template-columns:minmax(0,1fr) 58px;
+          grid-template-columns:minmax(0,1fr) 64px;
         }
         .card.layout-tablet .player-premium-art {
           width:58px;
@@ -21622,6 +22185,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           min-width:0;
         }
         .menu-title-brand {
+          position:absolute;
+          left:18px;
+          right:auto;
+          top:50%;
+          transform:translateY(-50%);
           width:92px;
           max-width:34vw;
           display:inline-grid;
@@ -21629,6 +22197,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           color:rgba(255,255,255,.62);
           opacity:.94;
           flex:0 0 auto;
+          pointer-events:none;
+        }
+        .menu-head:has(#mobileMenuBackBtn:not([hidden])) .menu-title-brand {
+          left:72px;
+          width:78px;
         }
         .theme-light .menu-title-brand {
           color:rgba(31,38,51,.42);
@@ -22858,12 +23431,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           height:100%;
         }
         .library-player-focus {
-          display:flex;
+          display:grid;
+          grid-template-columns:44px minmax(0,1fr) auto auto;
           align-items:center;
-          justify-content:center;
+          justify-content:stretch;
           gap:10px;
           width:100%;
-          min-height:54px;
+          min-height:62px;
           padding:10px 14px;
           border:none;
           border-radius:20px;
@@ -22871,16 +23445,95 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           border:1px solid rgba(255,255,255,.12);
           color:inherit;
           font:inherit;
-          font-weight:900;
-          font-size:16px;
+          text-align:start;
           cursor:pointer;
+        }
+        .library-player-art {
+          width:44px;
+          height:44px;
+          border-radius:15px;
+          display:grid;
+          place-items:center;
+          overflow:hidden;
+          background:rgba(255,255,255,.08);
+          border:1px solid rgba(255,255,255,.12);
+        }
+        .library-player-art img {
+          width:100%;
+          height:100%;
+          object-fit:cover;
+          display:block;
+        }
+        .library-player-art .ui-ic {
+          width:20px;
+          height:20px;
+          opacity:.72;
+        }
+        .library-player-copy {
+          min-width:0;
+          display:grid;
+          gap:3px;
+        }
+        .library-player-name {
+          font-size:15px;
+          font-weight:750;
+          overflow:hidden;
+          white-space:nowrap;
+          text-overflow:ellipsis;
+        }
+        .library-player-state {
+          width:max-content;
+          max-width:100%;
+          padding:3px 9px;
+          border-radius:999px;
+          font-size:11px;
+          font-weight:850;
+          color:#58d68d;
+          background:rgba(54,183,113,.14);
+          border:1px solid rgba(88,214,141,.25);
+        }
+        .library-player-focus.is-playing .library-player-state {
+          color:#ff6f6f;
+          background:rgba(221,62,62,.16);
+          border-color:rgba(255,111,111,.28);
         }
         .theme-light .library-player-focus {
           background:rgba(255,255,255,.72);
           border-color:rgba(147,161,183,.2);
         }
-        .library-player-focus .eq-icon { display:none; }
-        .library-player-focus.is-playing .eq-icon { display:inline-flex; }
+        .theme-light .library-player-art {
+          background:rgba(255,255,255,.9);
+          border-color:rgba(147,161,183,.2);
+        }
+        .theme-light .library-player-name { color:#172033; }
+        .theme-light .library-player-state {
+          color:#138a54;
+          background:rgba(46,178,112,.13);
+          border-color:rgba(34,154,96,.22);
+        }
+        .theme-light .library-player-focus.is-playing .library-player-state {
+          color:#c83e43;
+          background:rgba(216,72,78,.13);
+          border-color:rgba(196,59,65,.22);
+        }
+        .library-player-focus .eq-icon {
+          display:inline-flex;
+          color:rgba(255,255,255,.42);
+        }
+        .library-player-focus:not(.is-playing) .eq-icon span {
+          animation:none;
+          height:5px;
+          background:currentColor;
+        }
+        .library-player-focus.is-playing .eq-icon {
+          color:var(--ma-accent);
+        }
+        .theme-light .library-player-focus .eq-icon {
+          color:rgba(23,32,51,.34);
+        }
+        .theme-light .library-player-focus.is-playing .eq-icon {
+          color:var(--ma-accent);
+        }
         .library-body {
           display:grid;
           gap:14px;
@@ -23358,6 +24011,25 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           align-items:center;
           gap:8px;
         }
+        .queue-page-count {
+          margin-inline-start:auto;
+          display:inline-flex;
+          align-items:center;
+          gap:7px;
+          min-height:42px;
+          padding:0 12px;
+          border-radius:14px;
+          background:rgba(255,255,255,.065);
+          border:1px solid rgba(255,255,255,.11);
+          color:rgba(255,255,255,.78);
+          font-size:11px;
+          font-weight:850;
+        }
+        .queue-page-count strong {
+          color:var(--ma-accent);
+          font-size:14px;
+          font-weight:950;
+        }
         .queue-head-transfer-btn {
           min-width:132px;
           height:42px;
@@ -23391,6 +24063,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           background:rgba(255,255,255,.78);
           border-color:rgba(147,161,183,.2);
         }
+        .theme-light .queue-page-count {
+          background:rgba(255,255,255,.82);
+          border-color:rgba(147,161,183,.2);
+          color:#4c5b70;
+        }
         .queue-row {
           display:grid;
           grid-template-columns:18px 46px minmax(0,1fr) auto;
@@ -23416,14 +24093,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           column-gap:14px;
         }
         .queue-row.expanded {
-          min-height:112px;
+          min-height:138px;
           row-gap:8px;
           padding-bottom:10px;
           background:color-mix(in srgb, var(--ma-soft) 88%, transparent);
           box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--ma-accent) 22%, transparent);
         }
         .card.layout-tablet .queue-row.expanded {
-          min-height:124px;
+          min-height:146px;
         }
         .queue-row .menu-thumb { grid-area:thumb; }
         .queue-row .menu-thumb {
@@ -23478,7 +24155,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           direction:ltr;
         }
         .queue-row.expanded .queue-inline-actions {
-          max-height:52px;
+          max-height:76px;
           opacity:1;
           transform:translateY(0);
           pointer-events:auto;
@@ -23525,8 +24202,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           letter-spacing:0;
         }
         .queue-inline-actions .chip-btn.move-action {
-          flex:0 0 50px;
-          width:50px;
+          flex:0 0 58px;
+          width:58px;
+        }
+        .queue-inline-move {
+          flex:0 0 74px;
+        }
+        .queue-inline-move input {
+          height:34px;
+          border-radius:12px;
         }
         .queue-inline-actions .chip-btn.icon-only {
           padding:0;
@@ -23814,9 +24498,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         }
         .player-premium-art {
           position:relative;
-          width:58px;
-          height:58px;
-          border-radius:18px;
+          width:66px;
+          height:66px;
+          border-radius:20px;
           overflow:hidden;
           display:grid;
           place-items:center;
@@ -23839,18 +24523,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           color:rgba(255,255,255,.54);
         }
         .card.layout-tablet .player-premium-art {
-          width:52px;
-          height:52px;
-          border-radius:16px;
+          width:60px;
+          height:60px;
+          border-radius:18px;
         }
         .player-premium-name {
-          font-size:18px;
-          font-weight:950;
+          font-size:20px;
+          font-weight:650;
           line-height:1.15;
           color:inherit;
         }
         .card.layout-tablet .player-premium-name {
-          font-size:17px;
+          font-size:19px;
         }
         .player-premium-meta {
           display:flex;
@@ -23866,6 +24550,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           overflow:hidden;
           text-overflow:ellipsis;
           white-space:nowrap;
+          color:rgba(255,255,255,.72);
         }
         .card.layout-tablet .player-premium-track {
           font-size:12px;
@@ -23879,6 +24564,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           background:color-mix(in srgb, var(--ma-accent) 12%, rgba(255,255,255,.08));
           color:var(--ma-accent);
           border:1px solid color-mix(in srgb, var(--ma-accent) 22%, rgba(255,255,255,.12));
+          width:max-content;
+          max-width:100%;
+        }
+        .player-premium-state.idle {
+          color:#58d68d;
+          background:rgba(54,183,113,.14);
+          border-color:rgba(88,214,141,.28);
+        }
+        .player-premium-state.playing {
+          color:#ff6f6f;
+          background:rgba(221,62,62,.16);
+          border-color:rgba(255,111,111,.3);
         }
         .player-premium-state .eq-icon { margin:0; width:14px; height:12px; }
         .player-premium-side {
@@ -23920,6 +24617,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .theme-light .player-premium-active {
           background:color-mix(in srgb, var(--ma-accent) 12%, rgba(255,255,255,.86));
           border-color:color-mix(in srgb, var(--ma-accent) 18%, rgba(147,161,183,.18));
+        }
+        .theme-light .player-premium-state.idle {
+          color:#138a54;
+          background:rgba(46,178,112,.13);
+          border-color:rgba(34,154,96,.24);
+        }
+        .theme-light .player-premium-state.playing {
+          color:#c83e43;
+          background:rgba(216,72,78,.13);
+          border-color:rgba(196,59,65,.24);
         }
         .theme-light .player-premium-kicker {
           color:rgba(55,68,85,.52);
@@ -25063,7 +25770,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 .card.layout-tablet.rtl .hero-title,.card.layout-tablet.rtl .menu-title,.card.layout-tablet.rtl .player-premium-name,.card.layout-tablet.rtl .player-premium-kicker,.card.layout-tablet.rtl .settings-label,.card.layout-tablet.rtl .menu-item-title{font-family:'Rubik','Heebo','Outfit','Segoe UI',system-ui,sans-serif!important;}
 .card.layout-tablet.rtl .players-premium-grid{direction:ltr!important;}
 .card.layout-tablet.rtl .player-menu-card{direction:ltr!important;text-align:start!important;}
-.card.layout-tablet.rtl .player-premium-head{grid-template-columns:58px minmax(0,1fr)!important;}
+.card.layout-tablet.rtl .player-premium-head{grid-template-columns:64px minmax(0,1fr)!important;}
 .card.layout-tablet.rtl .player-premium-copy{direction:rtl;text-align:right;}
 .card.layout-tablet.rtl .player-volume-row{grid-template-columns:40px minmax(0,1fr) 46px!important;}
 .card.layout-tablet.rtl .player-mini-value{text-align:end!important;}
@@ -26697,6 +27404,575 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   transform:none!important;
 }
 
+.menu-sheet,
+.queue-action-sheet,
+.history-drawer{
+  background:
+    radial-gradient(circle at 16% 4%, rgba(var(--dynamic-accent-rgb,245 166 35) / .22), transparent 34%),
+    radial-gradient(circle at 86% 18%, rgba(96,165,250,.12), transparent 34%),
+    linear-gradient(180deg, rgba(25,28,36,.92), rgba(11,14,20,.94))!important;
+  border-color:rgba(255,255,255,.13)!important;
+}
+.menu-list-item,
+.queue-row,
+.media-entry.grid,
+.player-menu-card,
+.settings-group{
+  box-shadow:0 18px 42px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.055);
+}
+.media-entry.grid,
+.queue-row,
+.menu-list-item{
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.092), rgba(255,255,255,.045)),
+    radial-gradient(circle at 14% 12%, rgba(var(--dynamic-accent-rgb,245 166 35) / .10), transparent 38%)!important;
+  border:1px solid rgba(255,255,255,.12)!important;
+}
+.queue-more-btn,
+.media-more-btn{
+  background:rgba(255,255,255,.075)!important;
+  border:1px solid rgba(255,255,255,.14)!important;
+  color:rgba(255,255,255,.82)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+}
+.queue-more-btn .ui-ic,
+.media-more-btn .ui-ic{
+  width:18px!important;
+  height:18px!important;
+}
+.theme-light .menu-sheet,
+.theme-light .queue-action-sheet,
+.theme-light .history-drawer{
+  background:
+    radial-gradient(circle at 16% 4%, rgba(var(--dynamic-accent-rgb,245 166 35) / .18), transparent 34%),
+    radial-gradient(circle at 86% 18%, rgba(59,130,246,.10), transparent 34%),
+    linear-gradient(180deg, rgba(250,252,255,.97), rgba(238,243,249,.96))!important;
+  color:#172033!important;
+  border-color:rgba(123,139,164,.24)!important;
+  box-shadow:0 24px 58px rgba(86,104,132,.18)!important;
+}
+.theme-light .menu-body,
+.theme-light .library-shell,
+.theme-light .media-home-shell,
+.theme-light .media-results,
+.theme-light .settings-group,
+.theme-light .queue-list{
+  color:#172033!important;
+}
+.theme-light .menu-item,
+.theme-light .menu-list-item,
+.theme-light .queue-row,
+.theme-light .media-entry.grid,
+.theme-light .settings-group,
+.theme-light .notice{
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.92), rgba(242,246,251,.82)),
+    radial-gradient(circle at 12% 12%, rgba(var(--dynamic-accent-rgb,245 166 35) / .11), transparent 42%)!important;
+  border:1px solid rgba(123,139,164,.20)!important;
+  color:#172033!important;
+  box-shadow:0 14px 34px rgba(86,104,132,.12), inset 0 1px 0 rgba(255,255,255,.65)!important;
+}
+.theme-light .menu-item-title,
+.theme-light .queue-title,
+.theme-light .media-section-title,
+.theme-light .settings-label,
+.theme-light .history-drawer-title,
+.theme-light .player-premium-name{
+  color:#172033!important;
+}
+.theme-light .menu-item-sub,
+.theme-light .queue-sub,
+.theme-light .player-premium-track,
+.theme-light .settings-hint{
+  color:#536176!important;
+}
+.theme-light .queue-more-btn,
+.theme-light .media-more-btn{
+  background:rgba(255,255,255,.88)!important;
+  border-color:rgba(123,139,164,.24)!important;
+  color:#4b586b!important;
+}
+.theme-light .media-sort-select,
+.theme-light .settings-select,
+.theme-light .settings-text-input,
+.theme-light .announcement-textarea,
+.theme-light .media-search-shell{
+  background:rgba(255,255,255,.9)!important;
+  color:#172033!important;
+  border-color:rgba(123,139,164,.24)!important;
+}
+.theme-light .media-sort-select option,
+.theme-light .settings-select option{
+  background:#ffffff;
+  color:#172033;
+}
+.library-shell{
+  grid-template-rows:minmax(0,1fr) auto!important;
+}
+.library-toolbar{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:12px!important;
+  flex-wrap:wrap;
+  margin:0 0 10px!important;
+}
+.library-toolbar-actions{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  min-width:0;
+  flex:1 1 320px;
+  flex-wrap:wrap;
+}
+.library-toolbar .library-player-focus{
+  flex:0 1 max-content;
+  width:auto!important;
+  max-width:min(100%, 360px);
+  justify-self:end;
+}
+.card.layout-tablet .library-toolbar{
+  flex-wrap:nowrap;
+  width:min(100%, 940px);
+  margin-inline:auto!important;
+}
+.card.layout-tablet .library-toolbar-actions{
+  flex:0 1 auto;
+}
+.card.layout-tablet .library-toolbar .media-layout-toggle{
+  background:transparent!important;
+  border:none!important;
+  box-shadow:none!important;
+  padding:0!important;
+  gap:8px!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+.card.layout-tablet .library-toolbar .media-layout-btn{
+  width:44px;
+  min-width:44px;
+  height:44px;
+  min-height:44px;
+  border-radius:999px!important;
+  background:rgba(255,255,255,.09);
+  border:1px solid rgba(255,255,255,.12);
+}
+.card.layout-tablet .library-toolbar .library-player-focus{
+  max-width:min(44%, 360px);
+  min-height:52px;
+  padding:7px 11px;
+  border-radius:999px;
+  grid-template-columns:38px minmax(104px, 1fr) auto auto;
+}
+.card.layout-tablet .library-toolbar .library-player-art{
+  width:38px;
+  height:38px;
+  border-radius:999px;
+}
+.library-player-state{
+  color:rgba(255,255,255,.62)!important;
+  background:transparent!important;
+  border:none!important;
+  padding:0!important;
+  font-size:11px;
+  font-weight:780;
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+}
+.library-player-focus.is-playing .library-player-state{
+  color:rgba(255,255,255,.76)!important;
+}
+.player-premium-title-row{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  min-width:0;
+}
+.player-premium-title-row .player-premium-name{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.player-premium-bars{
+  flex:0 0 auto;
+  width:18px!important;
+  height:15px!important;
+  color:var(--ma-accent);
+}
+.player-premium-state{
+  display:none!important;
+}
+.players-action-hub{
+  width:min(100%, 760px);
+  margin:0 auto 14px;
+  display:grid;
+  grid-template-columns:repeat(5, minmax(0,1fr));
+  gap:8px;
+}
+.players-action-chip{
+  min-width:0;
+  min-height:58px;
+  border-radius:18px;
+  border:1px solid rgba(255,255,255,.12);
+  background:linear-gradient(180deg, rgba(255,255,255,.095), rgba(255,255,255,.045));
+  color:inherit;
+  display:grid;
+  place-items:center;
+  gap:4px;
+  padding:8px 6px;
+  font:inherit;
+  font-size:11px;
+  font-weight:900;
+  cursor:pointer;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+}
+.players-action-chip .ui-ic{
+  width:19px;
+  height:19px;
+}
+.players-action-chip strong{
+  color:var(--ma-accent);
+  font-size:12px;
+  line-height:1;
+}
+.players-action-chip.danger{
+  color:#ffb4b4;
+  border-color:rgba(255,105,105,.22);
+  background:rgba(255,72,72,.11);
+}
+.card.layout-mobile .players-action-hub{
+  grid-template-columns:repeat(3, minmax(0,1fr));
+}
+.this-device-strip{
+  width:min(100%, 520px)!important;
+  margin:0 auto 12px!important;
+  padding:0!important;
+  background:transparent!important;
+  border:none!important;
+  box-shadow:none!important;
+}
+.this-device-toggle{
+  width:100%!important;
+  justify-content:center!important;
+  min-height:46px!important;
+  gap:9px!important;
+  padding:0 16px!important;
+  border-radius:999px!important;
+  border:1px solid rgba(160,170,185,.38)!important;
+  background:rgba(255,255,255,.045)!important;
+  color:inherit!important;
+  box-shadow:none!important;
+}
+.this-device-dot{
+  width:9px;
+  height:9px;
+  border-radius:999px;
+  background:#9ca3af;
+  box-shadow:0 0 0 4px rgba(156,163,175,.14);
+}
+.this-device-toggle.active .this-device-dot{
+  background:#36d67a;
+  box-shadow:0 0 0 4px rgba(54,214,122,.16);
+}
+.this-device-toggle-label{
+  font-weight:930;
+  white-space:nowrap;
+}
+.this-device-toggle-status{
+  color:rgba(255,255,255,.58);
+  font-size:11px;
+  font-weight:850;
+  white-space:nowrap;
+}
+.queue-page-head-title{
+  flex:1 1 auto;
+}
+.queue-head-transfer-btn{
+  margin-inline-start:auto;
+}
+.queue-page-count{
+  margin-inline-start:0!important;
+  min-width:54px;
+  justify-content:center;
+}
+.queue-page-count .ui-ic{
+  width:17px;
+  height:17px;
+}
+.queue-move-select{
+  width:100%;
+  min-width:72px;
+  height:36px;
+  border-radius:13px;
+  border:1px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.08);
+  color:inherit;
+  font:inherit;
+  font-size:13px;
+  font-weight:900;
+  text-align:center;
+  outline:none;
+  padding:0 10px;
+}
+.queue-move-select option{
+  color:#111827;
+  background:#fff;
+}
+.queue-inline-move select{
+  height:34px;
+  border-radius:12px;
+}
+.queue-move-control{
+  grid-template-columns:minmax(0,1fr)!important;
+}
+.theme-light .menu-sheet,
+.theme-light .queue-action-sheet,
+.theme-light .history-drawer{
+  background:
+    radial-gradient(circle at 14% 0%, rgba(var(--dynamic-accent-rgb,245 166 35) / .10), transparent 28%),
+    linear-gradient(180deg, rgba(255,255,255,.995), rgba(241,245,249,.985))!important;
+  color:#0f172a!important;
+  text-shadow:none!important;
+}
+.theme-light .menu-sheet *,
+.theme-light .queue-action-sheet *,
+.theme-light .history-drawer *{
+  text-shadow:none!important;
+}
+.theme-light .menu-sheet button,
+.theme-light .menu-sheet select,
+.theme-light .menu-sheet input,
+.theme-light .queue-action-sheet button,
+.theme-light .queue-action-sheet select,
+.theme-light .queue-action-sheet input{
+  color:#0f172a;
+}
+.theme-light .menu-item-title,
+.theme-light .queue-title,
+.theme-light .media-section-title,
+.theme-light .player-premium-name,
+.theme-light .library-player-name,
+.theme-light .settings-label{
+  color:#0f172a!important;
+}
+.theme-light .menu-item-sub,
+.theme-light .queue-sub,
+.theme-light .player-premium-track,
+.theme-light .library-player-state,
+.theme-light .settings-hint,
+.theme-light .this-device-toggle-status{
+  color:#475569!important;
+}
+.theme-light .menu-thumb,
+.theme-light .library-player-art,
+.theme-light .player-premium-art{
+  background:#f8fafc!important;
+  border-color:rgba(100,116,139,.22)!important;
+  color:#334155!important;
+}
+.theme-light .media-layout-toggle,
+.theme-light .library-nav{
+  background:rgba(255,255,255,.92)!important;
+  border-color:rgba(100,116,139,.22)!important;
+  box-shadow:0 12px 26px rgba(71,85,105,.10)!important;
+}
+.theme-light .card.layout-tablet .library-toolbar .media-layout-toggle{
+  background:transparent!important;
+  border:none!important;
+  box-shadow:none!important;
+}
+.theme-light .media-layout-btn:not(.active),
+.theme-light .library-nav-btn:not(.active),
+.theme-light .players-action-chip{
+  color:#334155!important;
+  background:rgba(255,255,255,.94)!important;
+  border:1px solid rgba(100,116,139,.20)!important;
+}
+.theme-light .library-player-focus,
+.theme-light .player-menu-card,
+.theme-light .group-player-card,
+.theme-light .menu-list-item,
+.theme-light .queue-row,
+.theme-light .settings-group,
+.theme-light .notice{
+  background:linear-gradient(145deg, rgba(255,255,255,.98), rgba(248,250,252,.92))!important;
+  border-color:rgba(100,116,139,.22)!important;
+  color:#0f172a!important;
+  box-shadow:0 14px 32px rgba(71,85,105,.11), inset 0 1px 0 rgba(255,255,255,.78)!important;
+}
+.theme-light .players-action-chip.danger{
+  color:#b4232b!important;
+  border-color:rgba(180,35,43,.20)!important;
+  background:rgba(255,241,242,.96)!important;
+}
+.theme-light .this-device-toggle{
+  border-color:rgba(100,116,139,.30)!important;
+  background:rgba(255,255,255,.94)!important;
+}
+.theme-light .queue-move-select{
+  background:#fff!important;
+  color:#0f172a!important;
+  border-color:rgba(100,116,139,.24)!important;
+}
+.player-premium-bars{
+  display:inline-flex!important;
+  align-items:flex-end!important;
+  justify-content:center!important;
+  gap:3px!important;
+}
+.player-premium-bars.is-active{
+  color:var(--ma-accent)!important;
+}
+.player-premium-bars.is-static{
+  color:rgba(190,198,210,.58)!important;
+}
+.player-premium-bars.is-static span{
+  animation:none!important;
+  transform:none!important;
+  opacity:.82!important;
+  background:currentColor!important;
+}
+.player-premium-bars.is-static span:nth-child(1){height:6px!important;}
+.player-premium-bars.is-static span:nth-child(2){height:11px!important;}
+.player-premium-bars.is-static span:nth-child(3){height:8px!important;}
+.theme-light .player-premium-bars.is-static{
+  color:rgba(100,116,139,.58)!important;
+}
+.players-action-hub{
+  width:min(100%, 620px)!important;
+  grid-template-columns:repeat(4, minmax(0,1fr))!important;
+  gap:7px!important;
+}
+.players-action-chip{
+  min-height:46px!important;
+  border-radius:999px!important;
+  padding:6px 8px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:6px!important;
+  font-size:10px!important;
+}
+.players-action-chip .ui-ic{
+  width:17px!important;
+  height:17px!important;
+}
+.card.layout-mobile .players-action-hub{
+  grid-template-columns:repeat(2, minmax(0,1fr))!important;
+}
+.this-device-strip{
+  width:max-content!important;
+  max-width:100%!important;
+  margin:0 auto 12px!important;
+}
+.this-device-toggle{
+  width:auto!important;
+  min-height:30px!important;
+  padding:0 12px!important;
+  gap:7px!important;
+  font-size:11px!important;
+}
+.this-device-dot{
+  width:8px!important;
+  height:8px!important;
+}
+.queue-page-head{
+  justify-content:space-between!important;
+}
+.queue-head-transfer-btn{
+  margin-inline-start:0!important;
+}
+.card.layout-tablet .queue-row{
+  grid-template-columns:34px 44px minmax(0,1fr) 56px!important;
+  grid-template-areas:
+    "idx actions meta thumb"
+    "inline inline inline inline"!important;
+}
+.card.layout-tablet .queue-index{
+  display:grid!important;
+  place-items:center!important;
+  width:28px!important;
+  height:28px!important;
+  border-radius:999px!important;
+  background:rgba(255,255,255,.08)!important;
+  color:color-mix(in srgb, var(--ma-accent) 72%, white 28%)!important;
+  font-size:12px!important;
+  font-weight:950!important;
+}
+.theme-light.card.layout-tablet .menu-sheet,
+.theme-light.card.layout-tablet .queue-action-sheet,
+.theme-light.card.layout-tablet .history-drawer{
+  background:#f8fafc!important;
+  color:#0f172a!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+}
+.theme-light.card.layout-tablet .menu-body,
+.theme-light.card.layout-tablet .library-shell,
+.theme-light.card.layout-tablet .media-home-shell,
+.theme-light.card.layout-tablet .media-results,
+.theme-light.card.layout-tablet .queue-list{
+  background:transparent!important;
+  color:#0f172a!important;
+}
+.theme-light.card.layout-tablet .menu-sheet *,
+.theme-light.card.layout-tablet .queue-action-sheet *,
+.theme-light.card.layout-tablet .history-drawer *{
+  text-shadow:none!important;
+  letter-spacing:0!important;
+}
+.theme-light.card.layout-tablet .menu-list-item,
+.theme-light.card.layout-tablet .media-entry,
+.theme-light.card.layout-tablet .media-entry.grid,
+.theme-light.card.layout-tablet .media-entry.list,
+.theme-light.card.layout-tablet .queue-row,
+.theme-light.card.layout-tablet .player-menu-card,
+.theme-light.card.layout-tablet .group-player-card,
+.theme-light.card.layout-tablet .settings-group,
+.theme-light.card.layout-tablet .notice{
+  background:#ffffff!important;
+  border-color:rgba(15,23,42,.14)!important;
+  color:#0f172a!important;
+  box-shadow:0 10px 24px rgba(15,23,42,.08)!important;
+}
+.theme-light.card.layout-tablet .menu-item-title,
+.theme-light.card.layout-tablet .media-entry-title,
+.theme-light.card.layout-tablet .media-section-title,
+.theme-light.card.layout-tablet .queue-title,
+.theme-light.card.layout-tablet .player-premium-name,
+.theme-light.card.layout-tablet .settings-label{
+  color:#0f172a!important;
+  font-family:'Rubik','Heebo','Segoe UI',system-ui,sans-serif!important;
+}
+.theme-light.card.layout-tablet .menu-item-sub,
+.theme-light.card.layout-tablet .media-entry-sub,
+.theme-light.card.layout-tablet .queue-sub,
+.theme-light.card.layout-tablet .player-premium-track,
+.theme-light.card.layout-tablet .settings-hint{
+  color:#475569!important;
+}
+.theme-light.card.layout-tablet .media-search-shell,
+.theme-light.card.layout-tablet .media-sort-select,
+.theme-light.card.layout-tablet .queue-move-select,
+.theme-light.card.layout-tablet .this-device-toggle{
+  background:#ffffff!important;
+  color:#0f172a!important;
+  border-color:rgba(15,23,42,.18)!important;
+}
+.theme-light.card.layout-tablet .media-layout-btn:not(.active),
+.theme-light.card.layout-tablet .library-nav-btn:not(.active),
+.theme-light.card.layout-tablet .players-action-chip{
+  background:#ffffff!important;
+  color:#334155!important;
+  border-color:rgba(15,23,42,.14)!important;
+}
+.theme-light.card.layout-tablet .queue-index{
+  background:#f1f5f9!important;
+  color:#0f172a!important;
+}
+
 </style>
       <div class="card ${rtl ? "rtl" : ""} theme-${visualTheme} layout-${layoutMode}${performanceMode ? " performance-lite" : ""}${compactTileMode ? " compact-mode compact-collapsed" : compactMode ? " compact-expanded" : ""}${hasHomeShortcutFab ? " has-home-shortcut" : ""}${hasTopSettingsFab ? " has-top-settings" : ""}${compactTransitionClass}${nightActive ? " night-mode" : ""}${showNightRow ? " night-mode-enabled" : ""}${tabletAutoFit ? " tablet-auto-fit" : ""}${tabletDenseUi ? " tablet-fit-dense" : ""}${showNightRow ? " tablet-fit-night" : ""}${showUpNextInline ? " tablet-fit-up-next" : ""}${this._tabletStabilityModeEnabled() ? " tablet-stable" : ""}${this._state.controlRoomOpen ? " control-room-open" : ""}">
         <div class="bg" id="mobileBg"></div><div class="shade"></div><div class="glow"></div>
@@ -26839,6 +28115,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this.$("homeShortcutFab")?.addEventListener("click", (e) => {
       if (!this._pressUiButton(e.currentTarget)) return;
       this._goHomeAssistantDashboard();
+    });
+    this.$("topSettingsFab")?.addEventListener("click", (e) => {
+      if (!this._pressUiButton(e.currentTarget)) return;
+      this._openMobileMenu("settings");
     });
     this.$("historyToggleFab")?.addEventListener("click", (e) => {
       if (!this._pressUiButton(e.currentTarget)) return;
@@ -27532,12 +28812,19 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       } else if (action === "like") {
         await this._toggleLikeEntry(entry, btn);
       } else {
-        await this._handleQueueAction(action, entry.queue_item_id, entry.uri || "", entry.sort_index || "");
+        const targetPosition = action === "move_to" ? this._queueMoveTargetFromElement(btn) : null;
+        if (action === "move_to" && !targetPosition) return;
+        await this._handleQueueAction(action, entry.queue_item_id, entry.uri || "", entry.sort_index || "", targetPosition);
       }
       this._closeMobileQueueActionMenu();
       if (this._state.menuOpen && (actionContext === "media" || action === "like" || String(this._state.menuPage || "").startsWith("library_"))) {
         await this._renderMobileMenu();
       }
+    });
+    this.$("mobileQueueActionSheet")?.addEventListener("change", async (e) => {
+      if (!(await this._handleQueueMoveAutoChange(e))) return;
+      this._closeMobileQueueActionMenu();
+      if (this._state.menuOpen && this._state.menuPage === "queue") await this._renderMobileMenu();
     });
     this.$("maConfirmCloseBtn")?.addEventListener("click", () => this._closeMaConfirm());
     this.$("maConfirmCancelBtn")?.addEventListener("click", () => this._closeMaConfirm());
@@ -27637,12 +28924,67 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._setMobileRandomFabVisible(true);
   }
 
+  _queueMoveSelectHtml(queueCount = 1, currentPosition = 1, entry = {}) {
+    const total = Math.max(1, Math.round(Number(queueCount)) || 1);
+    const current = Math.max(1, Math.min(total, Math.round(Number(currentPosition ?? entry?.position)) || 1));
+    const queueItemId = String(entry?.queue_item_id || entry?.queueItemId || entry?.key || "").trim();
+    const uri = String(entry?.uri || entry?.media_item?.uri || "").trim();
+    const sortIndex = String(entry?.sort_index ?? "").trim();
+    const options = Array.from({ length: total }, (_, index) => index + 1)
+      .map((pos) => `<option value="${this._esc(String(pos))}" ${pos === current ? "selected" : ""}>${this._esc(String(pos))}</option>`)
+      .join("");
+    return `
+      <select class="queue-move-select" data-queue-move-target data-queue-move-auto
+        data-current-position="${this._esc(String(current))}"
+        data-queue-item-id="${this._esc(queueItemId)}"
+        data-queue-uri="${this._esc(uri)}"
+        data-queue-sort-index="${this._esc(sortIndex)}"
+        aria-label="${this._esc(this._m("Move to position", "העבר למיקום"))}">
+        ${options}
+      </select>
+    `;
+  }
+
+  _queueMoveTargetFromElement(sourceEl = null) {
+    const container = sourceEl?.closest?.(".queue-inline-actions, .queue-action-sheet, .queue-ctx-menu");
+    const input = container?.querySelector?.("[data-queue-move-target]");
+    const value = Math.round(Number(input?.value));
+    const total = Math.max(1, this._getNowPlayingQueueItems().length || (this._state.queueItems || []).length || Number(this._state.maQueueState?.items || 1));
+    if (!Number.isFinite(value) || value < 1) {
+      this._toastError(this._m("Choose a queue position", "בחר מיקום בתור"));
+      input?.focus?.();
+      return null;
+    }
+    return Math.max(1, Math.min(total, value));
+  }
+
+  async _handleQueueMoveAutoChange(e) {
+    const select = e.target?.closest?.("[data-queue-move-auto]");
+    if (!select) return false;
+    e.preventDefault?.();
+    e.stopPropagation?.();
+    const targetPosition = this._queueMoveTargetFromElement(select);
+    if (!targetPosition) return true;
+    const currentPosition = Math.round(Number(select.dataset.currentPosition || 0));
+    if (targetPosition === currentPosition) return true;
+    const queueRow = select.closest?.("[data-queue-item-id]");
+    const queueItemId = select.dataset.queueItemId || queueRow?.dataset.queueItemId || "";
+    const fallbackUri = select.dataset.queueUri || queueRow?.dataset.uri || "";
+    const sortIndex = select.dataset.queueSortIndex || queueRow?.dataset.sortIndex || "";
+    this._state.expandedQueueItemId = "";
+    this._setQueueInlineActionsExpanded("");
+    await this._handleQueueAction("move_to", queueItemId, fallbackUri, sortIndex, targetPosition);
+    return true;
+  }
+
   _openMobileQueueActionMenu(entry = {}) {
     this._state.mobileActionContext = "queue";
     this._state.mobileQueueActionEntry = entry;
     const host = this.$("mobileQueueActionSheet");
     const liked = this._isEntryLiked(entry);
     const currentInfo = this._currentTrackInfo();
+    const queueCount = Math.max(1, this._getNowPlayingQueueItems().length || (this._state.queueItems || []).length || Number(this._state.maQueueState?.items || 1));
+    const currentPosition = Math.max(1, Math.min(queueCount, this._queueDisplayPositionForEntry(entry, Math.round(Number(entry.sort_index || 0)) + 1 || 1)));
     if (host) {
       host.innerHTML = `
         <div class="queue-action-header">
@@ -27650,8 +28992,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           <div class="queue-action-player">${this._esc(this._selectedPlayerName())}</div>
           <div class="queue-action-title">${this._esc(entry.name || currentInfo.title || this._m("Queue actions", "פעולות תור"))}</div>
         </div>
-        <button class="queue-action-item" data-queue-popup="up">${this._iconSvg("up")}<span>${this._esc(this._m("Move up", "הזז למעלה"))}</span></button>
-        <button class="queue-action-item" data-queue-popup="down">${this._iconSvg("down")}<span>${this._esc(this._m("Move down", "הזז למטה"))}</span></button>
+        <div class="queue-move-control">
+          <label>
+            <span>${this._esc(this._m("Move to position", "העבר למיקום"))}</span>
+            ${this._queueMoveSelectHtml(queueCount, currentPosition, entry)}
+          </label>
+        </div>
         <button class="queue-action-item" data-queue-popup="next">${this._iconSvg("next")}<span>${this._esc(this._m("Play next", "נגן הבא"))}</span></button>
         <button class="queue-action-item" data-queue-popup="remove">${this._iconSvg("trash")}<span>${this._esc(this._m("Remove", "הסר"))}</span></button>
         <button class="queue-action-item" data-queue-popup="like">${this._iconSvg(liked ? "heart_filled" : "heart_outline")}<span>${this._esc(this._m("Like", "סמן אהבתי"))}</span></button>
@@ -27977,6 +29323,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.mobileArtRenderKey = "";
     this._mobileDynamicThemeToken += 1;
     this._state.mobileDynamicThemeArtwork = "";
+    this._state.mobileDynamicThemeArtworkUrl = "";
     this._state.mobileDynamicThemePalette = null;
     this._applyDynamicThemeStyles();
     this._syncSourceBadgesUi(null, null);
@@ -28245,6 +29592,42 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const forceRadioHero = !!this._state.forceRadioHero;
     const likelyRadioPlayback = this._isLikelyRadioPlayback(player, currentQueueItem, currentMedia);
     const hasPlayableMedia = !!(player.attributes.media_title || player.attributes.media_content_id || currentQueueItem?.name || currentMedia?.name);
+    const quickMixPending = Number(this._state.quickMixPendingUntil || 0) > Date.now() ? this._state.quickMixPendingEntry : null;
+    if (hasPlayableMedia && this._state.quickMixPendingUntil) {
+      this._state.quickMixPendingUntil = 0;
+      this._state.quickMixPendingEntry = null;
+    }
+    if (!hasPlayableMedia && quickMixPending) {
+      const pendingTitle = quickMixPending.name || this._m("Quick mix", "מיקס מהיר");
+      const pendingArt = this._normalizeArtworkUrl(quickMixPending.image || this._currentArtworkUrl(player, currentQueueItem, 420), {
+        size: 420,
+        cacheKey: `quick-mix:${quickMixPending.uri || pendingTitle}`,
+      });
+      this.$("mobileArtActions")?.removeAttribute("hidden");
+      this._setMobileRandomFabVisible(true);
+      this._setMobileRandomFabDisabled(true);
+      if (renderCompactTile({
+        title: pendingTitle,
+        subtitle: this._m("Starting Quick Mix...", "מפעיל מיקס מהיר..."),
+        art: pendingArt,
+        icon: "radio",
+        duration: 0,
+        position: 0,
+        upNextItem: null,
+        sourceQueueItem: currentQueueItem,
+      })) {
+        syncMobileVolumeControls();
+        return;
+      }
+      if (this.$("npTitle")) this.$("npTitle").textContent = pendingTitle;
+      if (this.$("npSub")) this.$("npSub").textContent = this._m("Starting Quick Mix...", "מפעיל מיקס מהיר...");
+      if (this.$("npArt")) this.$("npArt").innerHTML = pendingArt ? `<img src="${this._esc(pendingArt)}" alt="">` : this._artPlaceholderHtml("radio");
+      if (this.$("progressFill")) this.$("progressFill").style.width = "0%";
+      this._syncDynamicThemeArtwork(pendingArt || "").catch(() => {});
+      syncMobileVolumeControls();
+      this._syncControlRoomUi();
+      return;
+    }
     if (!hasPlayableMedia) {
       this._state.forceRadioHero = false;
       this._syncSourceBadgesUi(null, null);
@@ -29410,13 +30793,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     return `
       <div class="action-grid">
         ${this._navMenuItem("simple_wizard", this._iconSvg("wand"), "FLOW", this._m("A guided music wizard", "אשף מוזיקה ברור ומהיר"), "simple")}
-        ${this._navMenuItem("queue", this._iconSvg("queue"), this._m("Queue", "תור"), this._m("See what plays next", "בדוק מה מתנגן הבא"), "queue")}
-        ${this._navMenuItem("players", this._iconSvg("speaker"), this._m("Players", "נגנים"), this._m("Choose target and volume", "בחר יעד ושלוט בווליום"), "players")}
+        ${this._navMenuItem("players", this._iconSvg("speaker"), this._m("Players", "נגנים"), this._m("Players, queue and groups", "נגנים, תור וקבוצות"), "players")}
         ${this._navMenuItem("library_liked", this._iconSvg("heart_filled"), this._m("Liked", "אהבתי"), this._m("Open saved songs", "פתח שירים שמורים"), "liked")}
         ${this._navMenuItem("sleep_timer", this._iconSvg("timer"), this._m("Schedules", "תזמונים"), this._m("Sleep timer and morning playback", "טיימר שינה ותזמון הפעלה"), "announcement")}
         ${this._navMenuItem("announcements", this._iconSvg("announcement"), this._m("Announcements", "כריזה"), this._m("Send a voice message", "שלח כריזה קולית"), "announcement")}
-        ${this._navMenuItem("group", this._iconSvg("speaker"), this._m("Group Speakers", "קבוצת נגנים"), this._m("Create a room group", "צור קבוצת חדרים"), "group")}
-        ${this._navMenuItem("stop_all", this._iconSvg("stop"), this._m("Stop all players", "עצור את כל הנגנים"), this._m("Stop and clear playback", "עצור ונקה את הניגון"), "stop")}
       </div>
     `;
   }
@@ -29436,27 +30816,50 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       || "";
   }
 
+  _playersActionHubHtml() {
+    const queueCount = this._getNowPlayingQueueItems().length || Number(this._state.maQueueState?.items || 0) || 0;
+    return `
+      <div class="players-action-hub">
+        <button class="players-action-chip" data-menu-nav="queue" title="${this._esc(this._m("Queue", "תור"))}">
+          ${this._iconSvg("queue")}
+          <span>${this._esc(this._m("Queue", "תור"))}</span>
+          ${queueCount ? `<strong>${this._esc(String(queueCount))}</strong>` : ``}
+        </button>
+        <button class="players-action-chip" data-menu-nav="transfer" title="${this._esc(this._m("Transfer queue", "העבר תור"))}">
+          ${this._iconSvg("repeat")}
+          <span>${this._esc(this._m("Transfer queue", "העבר תור"))}</span>
+        </button>
+        <button class="players-action-chip" data-menu-nav="group" title="${this._esc(this._m("Group Speakers", "קבוצת נגנים"))}">
+          ${this._iconSvg("speaker")}
+          <span>${this._esc(this._m("Group", "קבוצה"))}</span>
+        </button>
+        <button class="players-action-chip danger" data-menu-nav="stop_all" title="${this._esc(this._m("Stop all players", "עצור את כל הנגנים"))}">
+          ${this._iconSvg("stop")}
+          <span>${this._esc(this._m("Stop all", "עצור הכל"))}</span>
+        </button>
+      </div>
+    `;
+  }
+
   _playerRowHtml(p, attrs = "", active = false, options = {}) {
     const art = this._playerArtworkUrl(p, 180);
-    const playing = p.state === "playing";
+    const activePlayback = p?.state === "playing";
     const showControls = !!options.controls;
     const vol = Math.round((p.attributes?.volume_level || 0) * 100);
     const friendlyName = p.attributes?.friendly_name || p.entity_id;
-    const track = p.attributes?.media_title || this._m("Nothing is playing", "לא מנגן כעת");
-    const stateLabel = active ? this._m("Selected player", "נגן נבחר") : this._playerStateLabel(p);
-    const stateIcon = playing ? `<span class="eq-icon"><span></span><span></span><span></span></span>` : "";
+    const track = p.attributes?.media_title || p.attributes?.media_artist || "";
+    const activityIcon = `<span class="player-premium-bars eq-icon ${activePlayback ? "is-active" : "is-static"}" aria-label="${this._esc(activePlayback ? this._m("Playing", "מנגן") : this._m("Idle", "פנוי"))}"><span></span><span></span><span></span></span>`;
     const body = `
-      <button class="player-premium-head ${active ? "active" : ""} ${playing ? "is-playing" : ""}" ${attrs}>
+      <button class="player-premium-head ${active ? "active" : ""} ${activePlayback ? "is-playing" : ""}" ${attrs}>
         <span class="player-premium-art">
           ${art ? `<img src="${this._esc(art)}" alt="">` : this._iconSvg("speaker")}
         </span>
         <span class="player-premium-copy">
-          <span class="player-premium-kicker">${this._esc(stateLabel)}</span>
-          <span class="player-premium-name">${this._esc(friendlyName)}</span>
-          <span class="player-premium-meta">
-            <span class="player-premium-track">${this._esc(track)}</span>
-            <span class="player-premium-state">${stateIcon}${this._esc(this._playerStateLabel(p))}</span>
+          <span class="player-premium-title-row">
+            <span class="player-premium-name">${this._esc(friendlyName)}</span>
+            ${activityIcon}
           </span>
+          ${track ? `<span class="player-premium-track">${this._esc(track)}</span>` : ``}
         </span>
       </button>
     `;
@@ -29503,15 +30906,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           : disconnectedThisDevice
             ? this._m("Disconnected", "מנותק")
             : this._m("Enable", "הפעל");
-    const thisDeviceActionName = connectedThisDevice
+    const thisDeviceActionName = (connectedThisDevice || startingThisDevice || desiredThisDevice || connectingThisDevice || waitingThisDevice)
       ? "disconnect_this_device"
-      : (disconnectingThisDevice || startingThisDevice ? "" : "connect_this_device");
+      : "connect_this_device";
+    const thisDeviceLabel = this._m("Player on this device", "נגן במכשיר זה");
+    const thisDeviceTitle = `${thisDeviceLabel} · ${thisDeviceAction}`;
     const thisDeviceToggleHtml = `
       <div class="this-device-strip ${connectedThisDevice ? "connected" : ""} ${startingThisDevice ? "connecting" : ""} ${disconnectingThisDevice ? "disconnecting" : ""}">
-        <span class="this-device-title">${this._esc(this._m("Player on this device", "נגן במכשיר זה"))}</span>
-        <button class="this-device-toggle ${connectedThisDevice || startingThisDevice ? "active" : ""}" ${thisDeviceActionName ? `data-menu-action="${this._esc(thisDeviceActionName)}"` : "disabled"} aria-pressed="${connectedThisDevice || startingThisDevice ? "true" : "false"}">
-          <span>${this._esc(thisDeviceAction)}</span>
-          <span class="this-device-toggle-knob">${disconnectingThisDevice ? this._iconSvg("close") : connectedThisDevice ? this._iconSvg("check") : this._iconSvg("speaker")}</span>
+        <button class="this-device-toggle ${connectedThisDevice || startingThisDevice ? "active" : ""}" data-menu-action="${this._esc(thisDeviceActionName)}" aria-pressed="${connectedThisDevice || startingThisDevice ? "true" : "false"}" title="${this._esc(thisDeviceTitle)}" aria-label="${this._esc(thisDeviceTitle)}">
+          <span class="this-device-dot" aria-hidden="true"></span>
+          <span class="this-device-toggle-label">${this._esc(thisDeviceLabel)}</span>
         </button>
       </div>
     `;
@@ -29535,9 +30939,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       .map((p) => this._playerRowHtml(p, `data-menu-player="${this._esc(p.entity_id)}"`, p.entity_id === selected, { controls: true }))
       .join("");
     return `
+      ${options.activeOnly ? "" : this._playersActionHubHtml()}
       ${options.activeOnly ? "" : thisDeviceHtml}
       ${!players.length && !options.activeOnly ? `<div class="notice open">${this._m("No players found yet", "עדיין לא נמצאו נגנים")}</div>` : ""}
-      ${otherPlayersHtml ? `<div class="media-section-title">${this._esc(this._t("Other players"))}</div><div class="players-premium-grid">${otherPlayersHtml}</div>` : ""}
+      ${otherPlayersHtml ? `<div class="players-premium-grid">${otherPlayersHtml}</div>` : ""}
       ${browserPlayersHtml ? `<div class="media-section-title">${this._esc(this._t("Browser Players"))}</div><div class="players-premium-grid">${browserPlayersHtml}</div>` : ""}
     `;
   }
@@ -29797,18 +31202,28 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     `;
   }
 
-  _libraryShellHtml(content, currentTab) {
+  _libraryPlayerFocusHtml() {
     const player = this._getSelectedPlayer();
     const playerName = player?.attributes?.friendly_name || this._m("Choose Player", "בחר נגן");
     const isPlaying = player?.state === "playing";
     const groupCount = this._playerGroupCount(player);
+    const art = this._playerArtworkUrl(player, 120);
+    return `
+      <button class="library-player-focus ${isPlaying ? "is-playing" : ""}" data-menu-nav="players">
+        <span class="library-player-art">${art ? `<img src="${this._esc(art)}" alt="">` : this._iconSvg("speaker")}</span>
+        <span class="library-player-copy">
+          <span class="library-player-name">${this._esc(playerName)}</span>
+          <span class="library-player-state">${this._esc(isPlaying ? (player?.attributes?.media_title || this._m("Playing", "מנגן")) : this._m("Ready", "מוכן"))}</span>
+        </span>
+        ${groupCount ? `<span class="player-group-badge library-focus-badge">${this._esc(groupCount)}</span>` : ``}
+        <span class="eq-icon" aria-hidden="true"><span></span><span></span><span></span></span>
+      </button>
+    `;
+  }
+
+  _libraryShellHtml(content, currentTab) {
     return `
       <div class="library-shell">
-        <button class="library-player-focus ${isPlaying ? "is-playing" : ""}" data-menu-nav="players">
-          <span>${this._esc(playerName)}</span>
-          ${groupCount ? `<span class="player-group-badge library-focus-badge">${this._esc(groupCount)}</span>` : ``}
-          <span class="eq-icon" aria-hidden="true"><span></span><span></span><span></span></span>
-        </button>
         <div class="library-body">${content}</div>
         ${this._libraryNavHtml(currentTab)}
       </div>
@@ -30122,13 +31537,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const sort = this._state.mobileLibrarySort || "name_asc";
     const isSearch = this._state.menuPage === "library_search";
     return `
-      <div class="media-toolbar">
-        <div class="media-toolbar-left">
+      <div class="media-toolbar library-toolbar">
+        <div class="library-toolbar-actions">
           <select class="media-sort-select" id="mobileLibrarySortSelect" aria-label="${this._esc(this._m("Sort", "מיון"))}">
             ${this._mobileSortOptions().map((opt) => `<option value="${this._esc(opt.value)}" ${opt.value === sort ? "selected" : ""}>${this._esc(opt.label)}</option>`).join("")}
           </select>
-        </div>
-        <div class="media-toolbar-right">
           <div class="media-layout-toggle" role="tablist" aria-label="${this._esc(this._m("Media layout", "תצוגת מדיה"))}">
             ${!isSearch ? `<button class="media-layout-btn subtle-heart ${this._state.menuPage === "library_liked" ? "active" : ""}" data-menu-nav="library_liked" title="${this._esc(this._m("Liked", "אהבתי"))}">${this._iconSvg("heart_filled")}</button>` : ``}
             ${!isSearch ? `<button class="media-layout-btn" data-media-surprise="1" title="${this._esc(this._m("Surprise me", "תפתיע אותי"))}">${this._iconSvg("wand")}</button>` : ``}
@@ -30136,6 +31549,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             <button class="media-layout-btn ${layout === "list" ? "active" : ""}" data-media-layout="list" title="${this._esc(this._m("List", "רשימה"))}">${this._iconSvg("list")}</button>
           </div>
         </div>
+        ${this._libraryPlayerFocusHtml()}
       </div>
     `;
   }
@@ -30146,6 +31560,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const iconMap = { track: "tracks", radio: "radio", album: "album", artist: "artist", podcast: "podcast", playlist: "playlist" };
     return `<div class="media-items-list layout-${this._esc(layout)}">${items.map((item) => {
       const art = this._artUrl(item);
+      const fallbackIcon = iconMap[mediaType] || "repeat";
+      const thumbHtml = art
+        ? `<span class="menu-thumb" data-img="${this._esc(art)}" data-placeholder="${this._esc(fallbackIcon)}">${this._iconSvg(fallbackIcon)}</span>`
+        : `<span class="menu-thumb">${this._iconSvg(fallbackIcon)}</span>`;
       const artistName = this._artistName(item) || "";
       const sub = mediaType === "artist"
         ? this._m("Artist", "אמן")
@@ -30155,7 +31573,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       return `
         <div class="menu-list-item media-entry ${this._esc(layout)}">
           <button class="media-entry-main" data-media-uri="${this._esc(item.uri || "")}" data-media-type="${this._esc(mediaType)}">
-            <span class="menu-thumb">${art ? `<img src="${this._esc(art)}" alt="">` : this._iconSvg(iconMap[mediaType] || "repeat")}</span>
+            ${thumbHtml}
             <span style="min-width:0;flex:1;">
               <span class="menu-item-title">${this._esc(item.name || "")}</span>
               <span class="menu-item-sub">${this._esc(sub || "—")}</span>
@@ -30302,17 +31720,35 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       resultsHost.innerHTML = "";
       return;
     }
-    resultsHost.innerHTML = `<div class="notice open">${this._m("Searching...", "מחפש...")}</div>`;
+    const cachedResults = this._cachedLibrarySearchResults(query, 10);
+    let hasInterimResults = this._hasSearchResults(cachedResults);
+    resultsHost.innerHTML = hasInterimResults
+      ? this._mediaSearchSectionsHtml(cachedResults)
+      : `<div class="notice open">${this._m("Searching...", "מחפש...")}</div>`;
+    if (hasInterimResults) this._hydrateImages(body);
+    if (!hasInterimResults) {
+      this._withTimeout(this._searchPreviewResults(query, 8), 1800, "Preview search timed out")
+        .then((previewResults) => {
+          if (!isCurrentSearch() || !this._hasSearchResults(previewResults)) return;
+          hasInterimResults = true;
+          resultsHost.innerHTML = this._mediaSearchSectionsHtml(previewResults);
+          this._hydrateImages(body);
+        })
+        .catch(() => {});
+    }
     let results;
     try {
       results = await this._search(query);
     } catch (_) {
       if (!isCurrentSearch()) return;
+      if (hasInterimResults) return;
       resultsHost.innerHTML = `<div class="notice open">${this._m("Search failed", "החיפוש נכשל")}</div>`;
       return;
     }
     if (!isCurrentSearch()) return;
+    if (!this._hasSearchResults(results) && hasInterimResults) return;
     resultsHost.innerHTML = this._mediaSearchSectionsHtml(results);
+    this._hydrateImages(body);
   }
 
   _announcementsMenuHtml() {
@@ -30621,19 +32057,22 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         const playerGroupCount = this._playerGroupCount(p);
         const vol = Math.round((p.attributes?.volume_level || 0) * 100);
         const art = this._playerArtworkUrl(p, 180);
-        const playing = p.state === "playing";
+        const activePlayback = p?.state === "playing";
+        const track = p.attributes?.media_title || p.attributes?.media_artist || "";
         return `
-          <div class="group-player-card">
-            <label class="group-player-row player-premium-head">
+          <div class="group-player-card ${checked ? "checked" : ""}">
+            <label class="group-player-row player-premium-head ${checked ? "checked" : ""}">
               <span class="player-premium-art">
                 ${art ? `<img src="${this._esc(art)}" alt="">` : this._iconSvg("speaker")}
                 ${playerGroupCount ? `<span class="player-group-badge">${this._esc(playerGroupCount)}</span>` : ``}
               </span>
               <span class="player-premium-copy">
-                <span class="player-premium-name">${this._esc(p.attributes?.friendly_name || p.entity_id)}</span>
-                <span class="player-premium-meta">
-                  ${playing ? `<span class="player-premium-state"><span class="eq-icon" aria-hidden="true"><span></span><span></span><span></span></span><span>${this._esc(this._m("Playing", "מנגן"))}</span></span>` : ``}
+                <span class="player-premium-title-row group-player-title-row">
+                  <span class="player-premium-name">${this._esc(p.attributes?.friendly_name || p.entity_id)}</span>
+                  <span class="group-player-toggle ${checked ? "checked" : ""}" aria-hidden="true">${this._iconSvg(checked ? "minus" : "plus")}</span>
+                  <span class="player-premium-bars eq-icon ${activePlayback ? "is-active" : "is-static"}" aria-label="${this._esc(activePlayback ? this._m("Playing", "מנגן") : this._m("Idle", "פנוי"))}"><span></span><span></span><span></span></span>
                 </span>
+                ${track ? `<span class="player-premium-track">${this._esc(track)}</span>` : ``}
               </span>
               <input class="group-player-check" type="checkbox" data-menu-group-player="${this._esc(p.entity_id)}" ${checked ? "checked" : ""}>
             </label>
@@ -30655,19 +32094,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _queueMenuHtml() {
     const queueItems = this._getNowPlayingQueueItems();
     if (!queueItems.length) return `<div class="notice open">${this._m("Queue is empty", "התור ריק")}</div>`;
-    const activelyPlaying = this._getSelectedPlayer()?.state === "playing";
-    return `<div class="queue-list">${queueItems.map((item) => {
+    return `<div class="queue-list">${queueItems.map((item, index) => {
       const key = this._getQueueItemKey(item);
       const img = this._queueItemImageUrl(item, 120);
       const artist = item.media_item?.artists?.map((a) => a.name).join(", ") || "";
       const current = this._isQueueItemCurrent(item);
       const media = item.media_item || {};
       const expanded = String(this._state.expandedQueueItemId || "") === String(key || "");
-      const queueLead = current && activelyPlaying
-        ? `<span class="queue-eq" aria-hidden="true"><span></span><span></span><span></span></span>`
-        : (current ? "▶" : this._esc(item.sort_index ?? ""));
+      const displayPosition = index + 1;
+      const queueLead = this._esc(String(displayPosition));
       return `
-        <div class="queue-row ${current ? "active" : ""} ${expanded ? "expanded" : ""}" data-queue-item-id="${this._esc(key)}" data-uri="${this._esc(item.media_item?.uri || "")}" data-type="track" data-sort-index="${this._esc(item.sort_index ?? "")}">
+        <div class="queue-row ${current ? "active" : ""} ${expanded ? "expanded" : ""}" data-queue-item-id="${this._esc(key)}" data-uri="${this._esc(item.media_item?.uri || "")}" data-type="track" data-sort-index="${this._esc(item.sort_index ?? "")}" data-queue-position="${this._esc(String(displayPosition))}">
           <div class="queue-index">${queueLead}</div>
           <div class="menu-thumb">${img ? `<img src="${this._esc(img)}" alt="">` : this._iconSvg("music_note")}</div>
           <div class="queue-meta">
@@ -30675,21 +32112,25 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             <div class="queue-sub">${this._esc(artist)}</div>
           </div>
           <div class="queue-actions">
-            <button class="chip-btn queue-more-btn" data-queue-menu="${this._esc(key)}" data-queue-uri="${this._esc(media.uri || "")}" data-queue-sort-index="${this._esc(item.sort_index ?? "")}" data-queue-name="${this._esc(media.name || item.name || "")}" data-queue-artist="${this._esc(artist)}" data-queue-album="${this._esc(media.album?.name || "")}" data-queue-image="${this._esc(img || media.image || media.album?.image || "")}" title="${this._esc(this._m("Actions", "פעולות"))}" aria-expanded="${expanded ? "true" : "false"}">${this._iconSvg("more")}</button>
+            <button class="chip-btn queue-more-btn" data-queue-menu="${this._esc(key)}" data-queue-uri="${this._esc(media.uri || "")}" data-queue-sort-index="${this._esc(item.sort_index ?? "")}" data-queue-position="${this._esc(String(displayPosition))}" data-queue-name="${this._esc(media.name || item.name || "")}" data-queue-artist="${this._esc(artist)}" data-queue-album="${this._esc(media.album?.name || "")}" data-queue-image="${this._esc(img || media.image || media.album?.image || "")}" title="${this._esc(this._m("Actions", "פעולות"))}" aria-expanded="${expanded ? "true" : "false"}">${this._iconSvg("more")}</button>
           </div>
-          ${this._renderQueueInlineActions(key)}
+          ${this._renderQueueInlineActions(item, displayPosition, queueItems.length)}
         </div>
       `;
     }).join("")}</div>`;
   }
 
-  _renderQueueInlineActions(key) {
+  _renderQueueInlineActions(item, displayPosition = null, queueCountOverride = null) {
+    const key = this._getQueueItemKey(item);
+    const queueCount = Math.max(1, Math.round(Number(queueCountOverride)) || this._getNowPlayingQueueItems().length || (this._state.queueItems || []).length || Number(this._state.maQueueState?.items || 1));
+    const currentPosition = Math.max(1, Math.min(queueCount, Math.round(Number(displayPosition)) || this._queueDisplayPositionForEntry(item, Math.round(Number(item?.sort_index || 0)) + 1 || 1)));
     return `
       <div class="queue-inline-actions">
         <button class="chip-btn primary text-action" data-queue-action="next" data-queue-item-id="${this._esc(key)}"><span>${this._esc(this._m("Play next", "נגן הבא"))}</span></button>
         <button class="chip-btn secondary text-action" data-queue-action="play" data-queue-item-id="${this._esc(key)}" title="${this._esc(this._m("Play now", "נגן עכשיו"))}"><span>${this._esc(this._m("Play now", "נגן עכשיו"))}</span></button>
-        <button class="chip-btn icon-only move-action" data-queue-action="up" data-queue-item-id="${this._esc(key)}" title="${this._esc(this._m("Move up", "הזז למעלה"))}">${this._iconSvg("up")}</button>
-        <button class="chip-btn icon-only move-action" data-queue-action="down" data-queue-item-id="${this._esc(key)}" title="${this._esc(this._m("Move down", "הזז למטה"))}">${this._iconSvg("down")}</button>
+        <label class="queue-inline-move">
+          ${this._queueMoveSelectHtml(queueCount, currentPosition, { ...item, key, position: currentPosition })}
+        </label>
         <button class="chip-btn warn icon-only" data-queue-action="remove" data-queue-item-id="${this._esc(key)}" title="${this._esc(this._m("Remove", "הסר"))}">${this._iconSvg("trash")}</button>
       </div>`;
   }
@@ -30727,18 +32168,28 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       if (!isCurrentRender()) return false;
       body.dataset.menuPage = page;
       if (scrollSnapshot) this._restoreMobileMenuScrollSnapshot(scrollSnapshot, page);
+      this._hydrateImages(body);
       return true;
     };
-    const closeOnlyPages = new Set(["main", "settings", "players", "players_active", "queue", "transfer", "group", "announcements", "sleep_timer"]);
-    const isRootPage = closeOnlyPages.has(page) || page.startsWith("library_");
-    back.hidden = isRootPage;
+    const hasBackTarget = Array.isArray(this._state.menuStack) && this._state.menuStack.length > 0;
+    back.hidden = !hasBackTarget;
     aux.hidden = true;
-    close.hidden = !isRootPage;
+    close.hidden = false;
     body.classList.toggle("library-mode", page.startsWith("library_"));
     body.classList.toggle("search-mode", page === "library_search");
     this.$("mobileMenu")?.classList.toggle("search-open", page === "library_search");
     const menu = this.$("mobileMenu");
     const sheet = menu?.querySelector(".menu-sheet");
+    const menuArt = this._currentArtworkUrl(this._getSelectedPlayer(), this._state.maQueueState?.current_item || null, 720);
+    if (menu) {
+      if (menuArt) {
+        menu.style.setProperty("--menu-dynamic-art", `url(${JSON.stringify(menuArt)})`);
+        menu.classList.add("has-menu-art");
+      } else {
+        menu.style.removeProperty("--menu-dynamic-art");
+        menu.classList.remove("has-menu-art");
+      }
+    }
     const sheetClasses = [
       "sheet-actions",
       "sheet-simple",
@@ -30911,11 +32362,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const queueCount = this._getNowPlayingQueueItems().length;
       body.innerHTML = `
         <div class="queue-page-head">
-          <div class="queue-page-head-title">${this._esc(this._m("Queue", "תור"))}</div>
+          <div class="queue-page-count">
+            ${this._iconSvg("queue")}
+            <strong>${this._esc(String(queueCount))}</strong>
+          </div>
           <button class="queue-head-transfer-btn" data-menu-nav="transfer" title="${this._esc(this._m("Transfer queue", "העבר תור"))}">
             ${this._iconSvg("repeat")}
             <span class="queue-head-transfer-label">${this._esc(this._m("Transfer queue", "העברת התור"))}</span>
-            <span class="queue-head-transfer-count">${this._esc(String(queueCount))}</span>
           </button>
         </div>
         ${this._queueMenuHtml()}
@@ -30954,6 +32407,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const scheduleFormControl = e.target.closest?.(".sheet-schedules input, .sheet-schedules select, .sheet-schedules textarea");
     if (scheduleFormControl && this._isScheduleFormControl(scheduleFormControl)) {
       this._markScheduleFormControlActive(scheduleFormControl);
+      e.stopPropagation();
+      return;
+    }
+    if (e.target.closest?.("[data-queue-move-target]")) {
       e.stopPropagation();
       return;
     }
@@ -31081,7 +32538,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         await this._renderMobileMenu();
         return;
       }
-      await this._handleQueueAction(action, queueItemId, queueRow?.dataset.uri || "", queueRow?.dataset.sortIndex || "");
+      const targetPosition = action === "move_to" ? this._queueMoveTargetFromElement(queueAction) : null;
+      if (action === "move_to" && !targetPosition) return;
+      await this._handleQueueAction(action, queueItemId, queueRow?.dataset.uri || "", queueRow?.dataset.sortIndex || "", targetPosition);
       return;
     }
     const scheduleTabBtn = e.target.closest("[data-schedule-tab]");
@@ -31264,6 +32723,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       if (this._state.performanceMode) {
         this._state.mobileDynamicThemePalette = null;
         this._state.mobileDynamicThemeArtwork = "";
+        this._state.mobileDynamicThemeArtworkUrl = "";
       }
       this._persistMobileAppearance();
       this._applyDynamicThemeStyles();
@@ -31527,9 +32987,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
   }
 
-  _handleMobileMenuChange(e) {
+  async _handleMobileMenuChange(e) {
     if (this._isScheduleFormControl(e.target)) this._markScheduleFormControlActive(e.target);
     if (e.type === "input" && e.target?.matches?.('input[type="checkbox"]')) return;
+    if (e.target?.matches?.("[data-queue-move-auto]")) {
+      await this._handleQueueMoveAutoChange(e);
+      return;
+    }
+    if (e.target?.matches?.("[data-queue-move-target]")) return;
     this._rememberMobileMenuScroll();
     if (e.target?.id === "simpleWizardQueryInput") {
       const state = this._state.simpleWizard && typeof this._state.simpleWizard === "object"
@@ -31622,6 +33087,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const next = new Set(this._state.pendingGroupSelections || []);
       if (checkbox.checked) next.add(entityId); else next.delete(entityId);
       this._state.pendingGroupSelections = Array.from(next);
+      const playerCard = checkbox.closest(".group-player-card");
+      playerCard?.classList.toggle("checked", checkbox.checked);
+      playerCard?.querySelector(".group-player-row")?.classList.toggle("checked", checkbox.checked);
+      const toggle = playerCard?.querySelector(".group-player-toggle");
+      if (toggle) {
+        toggle.classList.toggle("checked", checkbox.checked);
+        toggle.innerHTML = this._iconSvg(checkbox.checked ? "minus" : "plus");
+      }
       return;
     }
     if (e.target?.id === "mobileCustomColorPicker") {

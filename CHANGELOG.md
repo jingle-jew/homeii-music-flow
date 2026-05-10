@@ -1,5 +1,75 @@
 # Changelog
 
+## 5.4.0 - 2026-05-10
+
+Community fix cycle for tablet library artwork, local browser playback, search, queue ergonomics, player controls, and visual polish.
+
+Player and local browser playback:
+
+- Sets the default interface language to English instead of automatic language detection, while preserving explicit YAML and saved in-card language choices.
+- Restores the local Sendspin browser player loader to the packaged `dist/sendspin-js/index.js` runtime instead of the broken dynamic bundle path.
+- Fixes `This device` / Sendspin player startup errors after HACS/manual installs, including the invalid `./core/core.js` and missing `sendspin-js.bundle.js` paths.
+- Makes the `This device` control behave as a smaller toggle in the Players screen, with clear connected/disconnected visual state.
+- Improves local player connect/disconnect handling so repeated taps do not leave the UI in a half-connected state.
+- Adds optimistic player volume state so sliders and percentages update immediately while Music Assistant/Home Assistant catches up.
+- Fixes player-card volume controls so changing the slider updates the shown percentage.
+- Fixes player-card mute so muting drops the visible volume to `0%`, and unmuting restores the previous volume when possible.
+- Keeps mute/volume behavior aligned for normal Home Assistant media players and direct Music Assistant players.
+- Updates the player icon to the regular speaker-style icon instead of the mute-looking speaker icon.
+- Replaces the player-card red/green text badges with active/static equalizer bars; idle players now show a static gray bar instead of active animation.
+
+Players, grouping, and actions:
+
+- Reworks the mobile/tablet Players screen into one unified action hub for queue count, transfer queue, grouping, and stop-all controls.
+- Removes the separate `Active players` button and the extra `Additional players` heading from the Players screen.
+- Makes action tabs/cards smaller, calmer, and closer to the rest of the HOMEii Flow interface.
+- Keeps a back path from player action screens to the Players screen.
+- Moves group join controls into plus/minus buttons beside the player name instead of a separate checkbox row.
+- Adds dynamic artwork-blur backgrounds to opened sheets and modals for a more premium visual feel.
+
+Queue:
+
+- Numbers the queue rows by visible position.
+- Changes the queue header to show only a queue icon plus item count, with transfer queue staying in its own action.
+- Removes extra queue/location wording that made the queue action row feel crowded.
+- Replaces one-step move up/down controls with a direct position selector.
+- Applies queue move-to-position immediately after selecting a number, without a separate Apply button.
+- Closes the queue action row after a successful move so the interaction feels immediate.
+- Preserves safer queue move behavior around the currently playing item and Music Assistant queue indexes.
+
+Library, search, and artwork:
+
+- Fixes tablet/mobile library artwork for built-in Music Assistant playlists by using the same lazy artwork hydration path as desktop.
+- Keeps Music Assistant built-in playlist covers visible in grid/list layouts instead of falling back to generic icons.
+- Improves nested Music Assistant artwork handling, including image objects, provider paths, metadata images, cover fields, artwork fields, and album metadata.
+- Adds library/search image hydration after mobile library and search result rendering.
+- Keeps the direct Music Assistant global search flow that can return provider results outside the local library.
+- Adds a cached/library preview layer so mobile search can show useful results faster while the full Music Assistant search continues.
+- Falls back through multiple Music Assistant search payload shapes and then local library search, improving compatibility across MA versions and providers.
+- Keeps search results grouped by radio, playlists, albums, artists, tracks, and podcasts.
+
+Quick Mix and recommendations:
+
+- Smooths the Quick Mix transition so the UI no longer pauses on an empty-looking wand/choice screen before the selected mix appears.
+- Remembers the list used to create a Quick Mix and places it first in the recommendations drawer.
+- Keeps Quick Mix feedback centered when used outside Studio, while Studio suppresses noisy toast messages.
+
+Visual polish and layout:
+
+- Improves Android/tablet light mode readability across library, sheets, menus, text, and controls.
+- Moves opened-screen logo/header treatment away from the center so it balances with the close/back controls.
+- Updates library opened screens to combine title, actions, and current-player focus more cleanly.
+- Makes library action controls circular icon buttons without the heavy container treatment on larger tablet layouts.
+- Adds a compact player-focus bubble in the library toolbar with artwork, player name, state, group count, and equalizer state.
+- Refines media list/grid cards, more-action buttons, spacing, opacity, and text hierarchy for a more premium feel.
+- Removes the visual-editor settings gear from the in-card UI/settings mode path.
+- Bumps the runtime/editor tags to `5.4.0` so Home Assistant reloads the refreshed editor and card bundle instead of cached `5.3.0` assets.
+
+Documentation:
+
+- Adds Active Player Helper documentation to the README, including setup steps and automation/template examples.
+- Updates the packaged version, cache-busting example, and release checklist from `5.3.0` to `5.4.0`.
+
 ## 5.3.0 - 2026-05-07
 
 Studio Evolution and community stability release.

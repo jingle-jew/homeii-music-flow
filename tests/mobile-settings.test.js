@@ -42,6 +42,7 @@ describe("mobile settings foundation", () => {
       mobile_main_bar_items: ["theme", "settings"],
       mobile_announcement_presets: ["One", "Two", "Three", "Four"],
       announcement_tts_entity: "tts.living_room",
+      announcement_tts_language: "en-GB",
       pinned_player_entities: ["media_player.kitchen", " media_player.kitchen ", "media_player.office"],
     }, {
       normalizeClockTime: (value, fallback) => String(value || fallback),
@@ -78,10 +79,13 @@ describe("mobile settings foundation", () => {
     expect(state.mobileMainBarItems).toEqual(["theme", "settings"]);
     expect(state.mobileAnnouncementPresets).toEqual(["One", "Two", "Three"]);
     expect(state.mobileAnnouncementTtsEntity).toBe("tts.living_room");
+    expect(state.mobileAnnouncementTtsLanguage).toBe("en-GB");
     expect(state.pinnedPlayerEntities).toEqual(["media_player.kitchen", "media_player.office"]);
   });
 
   it("normalizes main bar and library tab selections", () => {
+    expect(normalizeVisualMobileState({}).lang).toBe("en");
+
     expect(normalizeMobileMainBarItems(["settings", "players", "theme"], {
       usesVisualSettings: true,
       hidePlayers: true,

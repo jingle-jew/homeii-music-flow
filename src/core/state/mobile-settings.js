@@ -96,7 +96,7 @@ export function normalizeVisualMobileState(config = {}, {
   defaultAnnouncementPresets = [],
 } = {}) {
   return {
-    lang: String(config.language || "auto"),
+    lang: String(config.language || "en"),
     cardTheme: String(config.theme_mode || "auto"),
     performanceMode: config.performance_mode === true,
     mobileCustomColor: String(config.mobile_custom_color || "#f5a623"),
@@ -130,6 +130,7 @@ export function normalizeVisualMobileState(config = {}, {
       ? config.mobile_announcement_presets.slice(0, 3)
       : normalizeStringArray(defaultAnnouncementPresets).slice(0, 3),
     mobileAnnouncementTtsEntity: String(config.announcement_tts_entity || ""),
+    mobileAnnouncementTtsLanguage: String(config.announcement_tts_language || "auto"),
     pinnedPlayerEntities: normalizePinnedPlayerEntities(config),
   };
 }

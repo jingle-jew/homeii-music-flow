@@ -10,6 +10,7 @@ import {
   groupAverageVolume,
   groupedPlayerIds,
   isLikelyBrowserPlayer,
+  isMusicAssistantPlayer,
   isStaticGroupPlayer,
   mobileNavigableActivePlayers,
   playerByEntityId,
@@ -67,6 +68,23 @@ describe("players foundation", () => {
     expect(isLikelyBrowserPlayer(browserPlayer)).toBe(true);
     expect(isLikelyBrowserPlayer(livingRoom)).toBe(false);
     expect(getBrowserPlayers([livingRoom, browserPlayer])).toEqual([browserPlayer]);
+  });
+
+  it("detects Music Assistant players from HA state attributes", () => {
+    expect(isMusicAssistantPlayer({
+      entity_id: "media_player.ma_living_room",
+      attributes: { app_id: "music_assistant" },
+    })).toBe(true);
+    expect(isMusicAssistantPlayer({
+      entity_id: "media_player.ma_kitchen",
+      attributes: { mass_player_type: "player" },
+    })).toBe(true);
+    expect(isMusicAssistantPlayer(browserPlayer)).toBe(true);
+    expect(isMusicAssistantPlayer(livingRoom)).toBe(false);
+    expect(isMusicAssistantPlayer({
+      entity_id: "light.fake_media",
+      attributes: { app_id: "music_assistant" },
+    })).toBe(false);
   });
 
   it("resolves this-device and pinned players safely", () => {

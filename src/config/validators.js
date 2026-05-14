@@ -81,6 +81,7 @@ export function validateMobileCardEditorConfig(config) {
   assertStringIfDefined(config.mobile_radio_browser_country, "mobile_radio_browser_country");
   assertStringArrayIfDefined(config.mobile_announcement_presets, "mobile_announcement_presets");
   assertStringIfDefined(config.announcement_tts_entity, "announcement_tts_entity");
+  assertStringIfDefined(config.announcement_tts_language, "announcement_tts_language");
   assertBooleanIfDefined(config.mobile_compact_mode, "mobile_compact_mode");
   assertBooleanIfDefined(config.mobile_show_up_next, "mobile_show_up_next");
   assertStringIfDefined(config.pinned_player_entity, "pinned_player_entity");

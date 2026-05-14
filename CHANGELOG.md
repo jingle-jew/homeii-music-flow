@@ -1,5 +1,19 @@
 # Changelog
 
+## 5.4.2 - 2026-05-14
+
+Released update from 5.4.1.
+
+- Removes the duplicate top settings gear and moves the tablet home shortcut to the upper corner opposite the side rail.
+- Improves main-player artwork refresh by preferring live player artwork when the current queue item is stale.
+- Adds announcement TTS language selection while keeping Auto mode on the Home Assistant Cloud default voice.
+- Restyles the Players action tabs into a clean icon-only strip and moves `Player on this device` into the same row.
+- Splits the red disconnect-all action into a separate labeled button and uses a dedicated speaker-group icon for grouping.
+- Limits the pinned-player selectors to Music Assistant players, hiding browser/local Sendspin players to reduce setup confusion.
+- Fully disables the Home shortcut while Studio is open and adds a short close-tap guard so closing Studio cannot also trigger Home navigation.
+- Uses announcement preset defaults that match the selected interface language instead of always falling back to Hebrew.
+- Removes the extra current-path helper row from the visual editor body.
+
 ## 5.4.1 - 2026-05-10
 
 Distribution hotfix for the withdrawn 5.4.0 release.

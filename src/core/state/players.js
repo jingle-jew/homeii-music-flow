@@ -42,6 +42,23 @@ export function isLikelyBrowserPlayer(player = null) {
     || haystack.includes("this device");
 }
 
+export function isMusicAssistantPlayer(player = null) {
+  if (!player?.entity_id?.startsWith("media_player.")) return false;
+  const attrs = player.attributes || {};
+  const identity = [
+    attrs.app_id,
+    attrs.integration,
+    attrs.platform,
+    attrs.provider,
+    attrs.provider_name,
+  ].filter(Boolean).join(" ").toLowerCase();
+  return identity.includes("music_assistant")
+    || identity.includes("music assistant")
+    || !!attrs.mass_player_type
+    || !!attrs.mass_player_id
+    || !!attrs.active_queue;
+}
+
 export function getBrowserPlayers(players = []) {
   return (Array.isArray(players) ? players : []).filter((player) => isLikelyBrowserPlayer(player));
 }

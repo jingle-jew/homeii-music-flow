@@ -1,4 +1,12 @@
-﻿class HomeiiBaseMusicCard extends HTMLElement {
+﻿import {
+  LANGUAGE_OPTIONS as HOMEII_LANGUAGE_OPTIONS,
+  detectLanguage as homeiiDetectLanguage,
+  isRtlLanguage as homeiiIsRtlLanguage,
+  translate as homeiiTranslate,
+  translateText as homeiiTranslateText,
+} from "./localization/index.js";
+
+class HomeiiBaseMusicCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
@@ -19,6 +27,8 @@
     this._controlRoomVolumeTimer = null;
     this._seekTimer = null;
     this._resizeTimer = null;
+    this._resizeObserver = null;
+    this._visualViewportResizeListening = false;
 
     this._ws = null;
     this._wsPending = new Map();
@@ -68,6 +78,16 @@
     this._resizeListening = false;
     this._lastViewportWidth = typeof window !== "undefined" ? window.innerWidth : 0;
     this._lastViewportHeight = typeof window !== "undefined" ? window.innerHeight : 0;
+    this._lastCardWidth = 0;
+    this._lastCardHeight = 0;
+    this._renderedLayoutMode = "";
+    this._layoutRecoveryTimer = null;
+    this._layoutRecoveryFrame = null;
+    this._screensaverVisibilityObserver = null;
+    this._screensaverVisibilityKnown = false;
+    this._screensaverVisible = true;
+    this._screensaverPageEntryPending = false;
+    this._screensaverPageEntryReason = "";
     this._compactTransitionTimer = null;
     this._mobileMenuRenderToken = 0;
     this._updateNowPlayingInFlight = false;
@@ -78,7 +98,6 @@
 
   setConfig(config) {
     const nextConfig = {
-      height: 850,
       rtl: true,
       language: "en",
       cache_ttl: 300000,
@@ -121,10 +140,238 @@
     this._maUrl = String(this._config.ma_url || "").trim().replace(/\/$/, "");
     this._maToken = this._config.ma_token || "";
     this._resolvedConfigEntryId = String(this._config.config_entry_id || "").trim();
+    this._resetMeasuredLayoutState();
+    this._closeTransientEditorLayoutState();
+    this._scheduleLayoutRecovery("config");
   }
 
   _getConfigValidator() {
     return HomeiiConfigValidators.validateBaseCardEditorConfig;
+  }
+
+  _getCardWidth(fallback = 0) {
+    const card = this.shadowRoot?.querySelector(".card") || null;
+    const widths = [
+      this.getBoundingClientRect?.().width,
+      this.offsetWidth,
+      card?.getBoundingClientRect?.().width,
+      card?.offsetWidth,
+    ]
+      .map((value) => Number(value || 0))
+      .filter((value) => Number.isFinite(value) && value > 0);
+    if (widths.length) return Math.max(...widths);
+    const fallbackWidth = Number(fallback || 0);
+    return Number.isFinite(fallbackWidth) && fallbackWidth > 0 ? fallbackWidth : 0;
+  }
+
+  _getCardHeight(fallback = 0) {
+    const card = this.shadowRoot?.querySelector(".card") || null;
+    const heights = [
+      this.getBoundingClientRect?.().height,
+      this.offsetHeight,
+      card?.getBoundingClientRect?.().height,
+      card?.offsetHeight,
+    ]
+      .map((value) => Number(value || 0))
+      .filter((value) => Number.isFinite(value) && value > 0);
+    if (heights.length) return Math.max(...heights);
+    const fallbackHeight = Number(fallback || 0);
+    return Number.isFinite(fallbackHeight) && fallbackHeight > 0 ? fallbackHeight : 0;
+  }
+
+  _getViewportHeight(fallback = 0) {
+    const fallbackHeight = Number(fallback || 0);
+    const visualHeight = typeof window !== "undefined" ? Number(window.visualViewport?.height || 0) : 0;
+    const innerHeight = typeof window !== "undefined" ? Number(window.innerHeight || 0) : 0;
+    const height = visualHeight > 0 ? visualHeight : innerHeight;
+    if (Number.isFinite(height) && height > 0) return height;
+    return Number.isFinite(fallbackHeight) && fallbackHeight > 0 ? fallbackHeight : 0;
+  }
+
+  _configuredCardHeightFallback(defaultHeight = 760) {
+    const configuredHeight = Number(this._config?.height);
+    if (Number.isFinite(configuredHeight) && configuredHeight > 0) {
+      return Math.max(280, Math.min(1800, configuredHeight));
+    }
+    const fallbackHeight = Number(defaultHeight || 0);
+    return Number.isFinite(fallbackHeight) && fallbackHeight > 0 ? fallbackHeight : 0;
+  }
+
+  _getAllocatedCardHeight(fallback = 0) {
+    const fallbackHeight = Number(fallback || 0);
+    const viewportHeight = this._getViewportHeight(fallbackHeight);
+    const hostRect = this.getBoundingClientRect?.() || null;
+    const top = Number(hostRect?.top || 0);
+    const viewportSafety = viewportHeight >= 900 ? 28 : viewportHeight >= 700 ? 20 : 12;
+    const viewportAvailable = viewportHeight > 0
+      ? Math.max(0, viewportHeight - Math.max(0, top) - viewportSafety)
+      : 0;
+    const viewportLimit = viewportAvailable > 240 ? viewportAvailable : viewportHeight;
+    const parentHeights = [
+      this.parentElement?.getBoundingClientRect?.().height,
+      this.parentElement?.parentElement?.getBoundingClientRect?.().height,
+    ]
+      .map((value) => Number(value || 0))
+      .filter((value) => Number.isFinite(value) && value > 240);
+    const boundedParentHeights = parentHeights.filter((value) => !viewportLimit || value <= viewportLimit + 4);
+    const parentHeight = boundedParentHeights.length ? Math.max(...boundedParentHeights) : 0;
+    if (viewportLimit > 0) {
+      const shouldFillViewport = parentHeight <= 0 || viewportLimit > parentHeight + 96;
+      const targetHeight = shouldFillViewport ? viewportLimit : Math.min(parentHeight, viewportLimit);
+      return Math.round(Math.max(Math.min(280, viewportLimit), targetHeight));
+    }
+    if (parentHeight > 0) return Math.round(Math.max(280, parentHeight));
+    return Number.isFinite(fallbackHeight) && fallbackHeight > 0 ? Math.round(fallbackHeight) : 0;
+  }
+
+  _startResizeTracking() {
+    if (typeof window !== "undefined" && !this._resizeListening) {
+      window.addEventListener("resize", this._boundWindowResize);
+      this._resizeListening = true;
+    }
+    if (typeof window !== "undefined" && window.visualViewport && !this._visualViewportResizeListening) {
+      window.visualViewport.addEventListener("resize", this._boundWindowResize);
+      this._visualViewportResizeListening = true;
+    }
+    if (this._resizeObserver || typeof ResizeObserver === "undefined") return;
+    this._resizeObserver = new ResizeObserver(() => this._boundWindowResize());
+    this._resizeObserver.observe(this);
+    if (this.parentElement) this._resizeObserver.observe(this.parentElement);
+    if (this.parentElement?.parentElement) this._resizeObserver.observe(this.parentElement.parentElement);
+  }
+
+  _stopResizeTracking() {
+    if (typeof window !== "undefined" && this._resizeListening) {
+      window.removeEventListener("resize", this._boundWindowResize);
+      this._resizeListening = false;
+    }
+    if (typeof window !== "undefined" && window.visualViewport && this._visualViewportResizeListening) {
+      window.visualViewport.removeEventListener("resize", this._boundWindowResize);
+      this._visualViewportResizeListening = false;
+    }
+    if (this._resizeObserver) {
+      this._resizeObserver.disconnect();
+      this._resizeObserver = null;
+    }
+  }
+
+  _resetMeasuredLayoutState() {
+    this._lastCardWidth = 0;
+    this._lastCardHeight = 0;
+    this._renderedLayoutMode = "";
+  }
+
+  _closeTransientEditorLayoutState() {
+    if (this._state?.screensaverOpen) this._state.screensaverOpen = false;
+    const overlay = this.shadowRoot?.querySelector?.("#screensaverBackdrop");
+    overlay?.classList?.remove("open");
+    overlay?.setAttribute?.("aria-hidden", "true");
+    this.shadowRoot?.querySelector?.(".card")?.classList?.remove("screensaver-active");
+    clearInterval(this._screensaverClockTimer);
+    this._screensaverClockTimer = null;
+  }
+
+  _scheduleLayoutRecovery(reason = "layout") {
+    clearTimeout(this._layoutRecoveryTimer);
+    if (this._layoutRecoveryFrame && typeof cancelAnimationFrame === "function") {
+      cancelAnimationFrame(this._layoutRecoveryFrame);
+      this._layoutRecoveryFrame = null;
+    }
+    const run = (attempt = 0) => {
+      this._layoutRecoveryFrame = null;
+      if (!this.isConnected || !this._built) return;
+      this._recoverLayoutAfterHostChange(reason, attempt);
+      if (attempt < 3) {
+        const delay = attempt === 0 ? 80 : attempt === 1 ? 220 : 520;
+        this._layoutRecoveryTimer = setTimeout(() => run(attempt + 1), delay);
+      }
+    };
+    if (typeof requestAnimationFrame === "function") {
+      this._layoutRecoveryFrame = requestAnimationFrame(() => run(0));
+    } else {
+      this._layoutRecoveryTimer = setTimeout(() => run(0), 0);
+    }
+  }
+
+  _recoverLayoutAfterHostChange(reason = "layout", attempt = 0) {
+    const viewportWidth = typeof window !== "undefined" ? Number(window.innerWidth || 0) : 0;
+    const viewportHeight = this._getViewportHeight(760);
+    const width = this._getCardWidth(viewportWidth);
+    const height = this._getAllocatedCardHeight(viewportHeight);
+    if (width <= 0 || height <= 0) return;
+    const layoutMode = this._layoutModeConfig({ width });
+    const profile = this._layoutProfileConfig(layoutMode, { width, height });
+    const card = this.shadowRoot?.querySelector?.(".card");
+    const renderedLayoutMode = this._renderedLayoutMode
+      || (card?.classList?.contains("layout-tablet") ? "tablet" : card?.classList?.contains("layout-mobile") ? "mobile" : "");
+    const expectedClasses = [`layout-${layoutMode}`, ...(Array.isArray(profile?.classes) ? profile.classes : [])];
+    const profileMismatch = !!card && expectedClasses.some((className) => !card.classList.contains(className));
+    const widthDelta = Math.abs(width - Number(this._lastCardWidth || 0));
+    const heightDelta = Math.abs(height - Number(this._lastCardHeight || 0));
+    const layoutStale = !!renderedLayoutMode && renderedLayoutMode !== layoutMode;
+    const screensaverStale = !!this._state?.screensaverOpen || !!this.shadowRoot?.querySelector?.("#screensaverBackdrop.open");
+    const shouldRebuild = attempt === 0 || layoutStale || profileMismatch || widthDelta > 80 || heightDelta > 80 || screensaverStale;
+
+    this._lastCardWidth = Math.round(width);
+    this._lastCardHeight = Math.round(height);
+    this._lastViewportWidth = viewportWidth;
+    this._lastViewportHeight = viewportHeight;
+    this._renderedLayoutMode = layoutMode;
+
+    if (!shouldRebuild) return;
+    this._closeTransientEditorLayoutState();
+    const reopenPage = this._state?.menuOpen ? (this._state.menuPage || "settings") : "";
+    const reopenStudio = !!this._state?.controlRoomOpen;
+    if (typeof this._rebuildMobileUi === "function") {
+      this._rebuildMobileUi({ force: true, reopenPage, reopenStudio });
+      return;
+    }
+    this._build();
+    if (typeof this._init === "function") this._init();
+  }
+
+  _layoutProfileConfig(layoutMode = this._layoutModeConfig?.() || "mobile", options = {}) {
+    const viewportWidth = typeof window !== "undefined" ? Number(window.innerWidth || 0) : 0;
+    const viewportHeight = this._getViewportHeight(this._configuredCardHeightFallback(0));
+    const optionWidth = Number(options?.width || 0);
+    const optionHeight = Number(options?.height || 0);
+    const width = optionWidth > 0 ? optionWidth : this._getCardWidth(this._lastCardWidth || viewportWidth);
+    const height = optionHeight > 0
+      ? optionHeight
+      : this._getAllocatedCardHeight(this._lastCardHeight || this._configuredCardHeightFallback(viewportHeight) || viewportHeight);
+    return HomeiiResponsiveFoundation.resolveLayoutProfile({
+      width,
+      height,
+      layoutMode,
+    });
+  }
+
+  _layoutProfileClassNames(profile = null) {
+    return (Array.isArray(profile?.classes) ? profile.classes : [])
+      .map((className) => String(className || "").trim())
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  _layoutProfileStyleVars(profile = null) {
+    const width = Math.max(0, Math.round(Number(profile?.width || 0)));
+    const height = Math.max(0, Math.round(Number(profile?.height || 0)));
+    const aspect = String(profile?.aspect || "");
+    const mobileArtBudget = Math.max(120, Math.round(height * (aspect === "wide" ? 0.32 : 0.34)));
+    const mobileShortArtBudget = Math.max(112, Math.round(height * 0.28));
+    const mobileTightArtBudget = Math.max(104, Math.round(height * 0.25));
+    const tabletArtBudget = Math.max(220, Math.round(height * 0.5));
+    const tabletDenseArtBudget = Math.max(180, Math.round(height * 0.42));
+    return [
+      `--flow-measured-width:${width}px`,
+      `--flow-measured-height:${height}px`,
+      `--flow-available-height:${height}px`,
+      `--flow-mobile-art-budget:${mobileArtBudget}px`,
+      `--flow-mobile-short-art-budget:${mobileShortArtBudget}px`,
+      `--flow-mobile-tight-art-budget:${mobileTightArtBudget}px`,
+      `--flow-tablet-art-budget:${tabletArtBudget}px`,
+      `--flow-tablet-dense-art-budget:${tabletDenseArtBudget}px`,
+    ].join(";") + ";";
   }
 
   set hass(hass) {
@@ -135,6 +382,7 @@
       this._built = true;
       this._build();
       this._init();
+      this._scheduleLayoutRecovery("initial-build");
       return;
     }
 
@@ -168,13 +416,19 @@
     }
     this._lastSelectedPlaybackSignature = selectedPlaybackSignature;
     this._syncActivePlayerHelper(selectedPlayer);
+    if (this._state?.screensaverOpen) {
+      this._syncScreensaverUi();
+      this._syncAmbientLightForCurrentMedia("screensaver");
+      return;
+    }
     this._renderPlayerSummary();
     this._syncBrandPlayingState();
     this._syncNowPlayingUI();
   }
 
   getCardSize() {
-    const height = Math.max(420, Math.min(1800, Number(this._config?.height || 850) || 850));
+    const fallbackHeight = this._configuredCardHeightFallback(this._getViewportHeight(760) || 760);
+    const height = this._getAllocatedCardHeight(fallbackHeight) || fallbackHeight;
     return Math.max(4, Math.ceil(height / 50));
   }
 
@@ -184,7 +438,6 @@
       ma_url: "",
       ma_token: "",
       active_player_helper_entity: "",
-      height: 850,
       rtl: true,
       language: "en",
       show_ma_button: true,
@@ -213,10 +466,28 @@
     }
   }
 
+  _language() {
+    return homeiiDetectLanguage({
+      configLanguage: this._state?.lang || this._config?.language || "en",
+      hass: this._hass,
+    });
+  }
+
   _isHebrew() {
-    if (this._state.lang === "he") return true;
-    if (this._state.lang === "en") return false;
-    return !!this._config.rtl;
+    return homeiiIsRtlLanguage(this._language());
+  }
+
+  _i18n(key, params = {}, fallback = "") {
+    return homeiiTranslate(this._language(), key, params, fallback);
+  }
+
+  _m(en, he, params = {}) {
+    return homeiiTranslateText(
+      this._language(),
+      en,
+      params,
+      this._isHebrew() ? he : en,
+    );
   }
 
   _effectiveTheme() {
@@ -286,17 +557,28 @@
     }
   }
 
+  _artworkCacheToken(cacheKey = "") {
+    const key = String(cacheKey || "").trim();
+    if (!key) return "";
+    let hash = 2166136261;
+    for (let index = 0; index < key.length; index += 1) {
+      hash ^= key.charCodeAt(index);
+      hash = Math.imul(hash, 16777619) >>> 0;
+    }
+    return `${hash.toString(36)}-${key.length.toString(36)}`;
+  }
+
   _cacheBustedArtworkUrl(url = "", cacheKey = "") {
     const raw = String(url || "").trim();
-    const key = String(cacheKey || "").trim();
-    if (!raw || !key || /^(data:|blob:)/i.test(raw)) return raw;
+    const token = this._artworkCacheToken(cacheKey);
+    if (!raw || !token || /^(data:|blob:)/i.test(raw)) return raw;
     try {
       const parsed = new URL(raw, this._currentWindowOrigin() || undefined);
-      parsed.searchParams.set("_homeii_art", key.slice(0, 96));
+      parsed.searchParams.set("_homeii_art", token);
       return parsed.toString();
     } catch (_) {
       const separator = raw.includes("?") ? "&" : "?";
-      return `${raw}${separator}_homeii_art=${encodeURIComponent(key.slice(0, 96))}`;
+      return `${raw}${separator}_homeii_art=${encodeURIComponent(token)}`;
     }
   }
 
@@ -343,10 +625,18 @@
       player?.attributes?.media_title,
       player?.attributes?.media_artist,
       player?.attributes?.media_album_name,
+      player?.attributes?.entity_picture_local,
+      player?.attributes?.entity_picture,
+      player?.attributes?.media_image_url,
+      player?.attributes?.media_image,
       this._getQueueItemStableId?.(queueItem),
       this._getQueueItemUri?.(queueItem),
       media?.name,
+      media?.image_url,
+      media?.image,
       media?.album?.name,
+      media?.album?.image_url,
+      media?.album?.image,
     ].map((value) => String(value || "").trim()).filter(Boolean).join("|");
   }
 
@@ -386,144 +676,8 @@
     `;
   }
 
-  _t(text) {
-    if (!this._isHebrew()) return text;
-    const map = {
-      Home: "בית",
-      "Now Playing": "מתנגן עכשיו",
-      Radio: "רדיו",
-      Podcasts: "פודקאסטים",
-      Albums: "אלבומים",
-      Artists: "אמנים",
-      Tracks: "שירים",
-      Playlists: "פלייליסטים",
-      "Nothing playing": "לא מתנגן",
-      "Open queue": "פתח תור",
-      Shuffle: "ערבוב",
-      Previous: "הקודם",
-      "Play / Pause": "נגן / השהה",
-      Next: "הבא",
-      Repeat: "חזרה",
-      Seek: "קפיצה",
-      "Playing on": "מתנגן על",
-      "Loading players...": "טוען נגנים...",
-      Mute: "השתק",
-      "Search everything...": "חפש בכל מקום...",
-      Clear: "נקה",
-      Connecting: "מתחבר",
-      Connected: "מחובר",
-      "Connecting...": "מתחבר...",
-      "Loading...": "טוען...",
-      "No content found": "לא נמצא תוכן",
-      "Favorite Radio": "תחנות מועדפות",
-      "Recently Added": "נוספו לאחרונה",
-      Discover: "גלה",
-      "All Albums": "כל האלבומים",
-      "All Artists": "כל האמנים",
-      "All Tracks": "כל השירים",
-      "All Podcasts": "כל הפודקאסטים",
-      "Radio Stations": "תחנות רדיו",
-      Queue: "תור ניגון",
-      "Play all": "נגן הכל",
-      "Shuffle all": "ערבב הכל",
-      Search: "חיפוש",
-      "No results": "אין תוצאות",
-      "Loading library...": "טוען ספרייה...",
-      "Loading queue...": "טוען תור...",
-      "Queue is empty": "התור ריק",
-      "Playback started": "הניגון התחיל",
-      "Select a player first": "בחר נגן קודם",
-      "Try again": "נסה שוב",
-      "Recently Played": "נוגן לאחרונה",
-      "Play now": "נגן עכשיו",
-      "Shuffle play": "נגן בערבוב",
-      "Play next": "נגן הבא",
-      "Add to queue": "הוסף לתור",
-      "No players found": "לא נמצאו נגנים",
-      "Fallback mode": "מצב בסיסי",
-      "Up Next": "הבא בתור",
-      "No active media": "אין מדיה פעילה",
-      Unknown: "לא ידוע",
-      items: "פריטים",
-      "Open full queue": "פתח תור מלא",
-      "Search in queue": "חיפוש בעמודת התור",
-      "Search queue and library...": "חפש בתור ובספרייה...",
-      "Clear search": "נקה חיפוש",
-      "Queue results": "תוצאות בעמודת התור",
-      "Back to queue": "חזרה לתור",
-      "Group Speakers": "חיבור רמקולים",
-      "Apply Group": "חבר קבוצה",
-      Ungroup: "נתק קבוצה",
-      "No extra MA players": "אין נגני MA נוספים",
-      "Group updated": "הקבוצה עודכנה",
-      "Group cleared": "הקבוצה פורקה",
-      Language: "שפה",
-      Back: "חזרה",
-      "Open Music Assistant": "פתח Music Assistant",
-      "Open Music Assistant?": "מעבר ל-Music Assistant",
-      "Open the full Music Assistant interface?": "האם לפתוח את הממשק המלא של Music Assistant?",
-      Continue: "מעבר",
-      Cancel: "ביטול",
-      "Selected Player": "נגן נבחר",
-      Idle: "פנוי",
-      Playing: "מנגן",
-      Paused: "מושהה",
-      "Choose Player": "בחר נגן",
-      "This Device": "המכשיר הזה",
-      "Browser Players": "נגני דפדפן",
-      "Connect This Device": "חבר את המכשיר הזה",
-      "Open Music Assistant on this device to activate the browser player": "פתח את Music Assistant במכשיר הזה כדי להפעיל את נגן הדפדפן",
-      "Connects directly from this card using Sendspin": "מתחבר ישירות מתוך הכרטיס דרך Sendspin",
-      "Waiting for this device player...": "ממתין לנגן של המכשיר הזה...",
-      "Reconnects when you return to this dashboard": "יתחבר מחדש כשתחזור לדשבורד הזה",
-      "Disconnect This Device": "נתק את המכשיר הזה",
-      "Stops this browser player": "עוצר את נגן הדפדפן הזה",
-      "This device player disconnected": "נגן המכשיר נותק",
-      "Remember as this device": "שייך למכשיר הזה",
-      "This device player connected": "נגן המכשיר חובר",
-      "Other players": "נגנים נוספים",
-      Theme: "ערכת תצוגה",
-      "Transfer Queue": "העבר תור",
-      "Move to next": "העבר לבא בתור",
-      Remove: "הסר",
-      Up: "למעלה",
-      Down: "למטה",
-      "Choose target player": "בחר נגן יעד",
-      "Queue transferred": "התור הועבר",
-      "Queue action failed": "פעולה על התור נכשלה",
-      "Music Assistant config entry was not found": "לא נמצא Config Entry של Music Assistant",
-      "Reorder queue": "סידור תור",
-      Dark: "כהה",
-      Light: "בהיר",
-      "No target players available": "אין נגנים זמינים להעברה",
-      "No queue item to rebuild": "לא נמצא פריט פעיל לתור",
-      "Layout adapted to height": "הפריסה הותאמה לגובה",
-      "Open Player Picker": "בחר נגן",
-      Lyrics: "מילים",
-      "Track Lyrics": "מילות השיר",
-      "Loading lyrics...": "טוען מילים...",
-      "No lyrics found": "לא נמצאו מילים לשיר הזה",
-      "Lyrics unavailable right now": "המילים לא זמינות כרגע",
-      Like: "לייק",
-      Grid: "גריד",
-      List: "רשימה",
-      Settings: "הגדרות",
-      Library: "ספריה",
-      Players: "נגנים",
-      "Active Players": "נגנים פעילים",
-      "Stop all players": "עצור את כל הנגנים",
-      Today: "היום",
-      Week: "השבוע",
-      Enabled: "פעיל",
-      Disabled: "כבוי",
-      "Sort ascending": "סדר עולה",
-      "Sort descending": "סדר יורד",
-      Newest: "הכי חדש",
-      Oldest: "הכי ישן",
-      "Volume presets": "בחירת ווליום",
-      "Set volume": "קבע ווליום",
-    };
-    return map[text] || text;
+  _t(text, params = {}) {
+    return homeiiTranslateText(this._language(), text, params, text);
   }
 
   _iconSvg(name) {
@@ -543,6 +697,7 @@
       library_music: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="5" width="9" height="14" rx="2.2" fill="none" stroke="currentColor" stroke-width="2"></rect><path d="M15.5 8.5v7.2a2.3 2.3 0 1 0 1.5 2.15V10l3-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7.5 9h3.5M7.5 12h3.5M7.5 15h2.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
       media: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect><rect x="13" y="4" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect><rect x="4" y="13" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect><rect x="13" y="13" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect></svg>`,
       menu: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M6 12h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M6 17h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
+      language: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="2"></circle><path d="M4.8 12h14.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M12 3.8c2.1 2.2 3.2 4.9 3.2 8.2s-1.1 6-3.2 8.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path><path d="M12 3.8C9.9 6 8.8 8.7 8.8 12s1.1 6 3.2 8.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>`,
       settings: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.2A3.8 3.8 0 1 0 12 15.8 3.8 3.8 0 0 0 12 8.2Z" fill="none" stroke="currentColor" stroke-width="2"></path><path d="M4 13.4v-2.8l2.1-.5a6.2 6.2 0 0 1 .8-1.8L5.8 6.6l2-2 1.7 1.1c.6-.3 1.2-.6 1.8-.8L11.8 3h2.8l.5 2.1c.6.2 1.2.5 1.8.8l1.7-1.1 2 2-1.1 1.7c.3.6.6 1.2.8 1.8l2.1.5v2.8l-2.1.5a6.2 6.2 0 0 1-.8 1.8l1.1 1.7-2 2-1.7-1.1c-.6.3-1.2.6-1.8.8l-.5 2.1h-2.8l-.5-2.1a6.2 6.2 0 0 1-1.8-.8l-1.7 1.1-2-2 1.1-1.7a6.2 6.2 0 0 1-.8-1.8Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path></svg>`,
       home: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.8 11.1 12 5l7.2 6.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7.2 10.2v8.3h9.6v-8.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path><path d="M10.2 18.5v-4.7h3.6v4.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path></svg>`,
       stats: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18.5V13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M10 18.5V9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M15 18.5V5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M20 18.5V11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
@@ -571,6 +726,7 @@
       mic: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="4" width="6" height="10" rx="3" fill="none" stroke="currentColor" stroke-width="2"></rect><path d="M6 11.5a6 6 0 0 0 12 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M12 17.5V21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M9 21h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
       announcement: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10v4a2 2 0 0 0 2 2h2l5 3V5L9 8H7a2 2 0 0 0-2 2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path><path d="M17 9.5a3.5 3.5 0 0 1 0 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M19.5 7a7 7 0 0 1 0 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
       stop: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.8" fill="currentColor"></rect></svg>`,
+      power: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.8v8.1" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path><path d="M7.1 7.5a7 7 0 1 0 9.8 0" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path></svg>`,
       up: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 18V7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="m7.5 11.5 4.5-4.5 4.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>`,
       down: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="m7.5 12.5 4.5 4.5 4.5-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>`,
       trash: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M9 7V5.8A1.8 1.8 0 0 1 10.8 4h2.4A1.8 1.8 0 0 1 15 5.8V7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M8 7.5v9.2A2.3 2.3 0 0 0 10.3 19h3.4A2.3 2.3 0 0 0 16 16.7V7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M10.5 10.5v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M13.5 10.5v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
@@ -585,7 +741,7 @@
   _versionedAssetUrl(url) {
     const value = String(url || "").trim();
     if (!value || /^data:/i.test(value) || /[?&]v=/.test(value)) return value;
-    const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.4.2";
+    const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.5.0";
     return `${value}${value.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
   }
 
@@ -680,9 +836,13 @@
     const rtl = this._isHebrew();
     const theme = this._effectiveTheme();
     const visualTheme = theme;
-    const configuredHeight = Math.max(420, Number(this._config.height || 760));
-    const viewportHeight = typeof window !== "undefined" ? window.innerHeight || configuredHeight : configuredHeight;
-    const effectiveHeight = Math.max(360, Math.min(configuredHeight, viewportHeight - 24));
+    const configuredHeight = Math.max(420, this._configuredCardHeightFallback(760));
+    const viewportHeight = this._getViewportHeight(configuredHeight);
+    const allocatedHeight = this._getAllocatedCardHeight(configuredHeight);
+    const layoutProfile = this._layoutProfileConfig("browser", { height: allocatedHeight });
+    const layoutProfileClass = this._layoutProfileClassNames(layoutProfile);
+    const layoutProfileStyle = this._layoutProfileStyleVars(layoutProfile);
+    const effectiveHeight = Math.max(360, Math.min(allocatedHeight || configuredHeight, viewportHeight - 24));
     const uiScale = Math.max(0.72, Math.min(1.02, effectiveHeight / 820));
     const mainOpacity = Math.max(0.3, Math.min(0.98, Number(this._config.main_opacity ?? 0.66)));
     const popupOpacity = Math.max(0.4, Math.min(0.98, Number(this._config.popup_opacity ?? 0.92)));
@@ -700,6 +860,8 @@
         @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800;900&family=Rubik:wght@400;500;700;800;900&display=swap');
         :host {
           display:block;
+          container-type:inline-size;
+          container-name:homeii-browser-host;
           margin:0 !important;
           padding:0 !important;
           background:transparent !important;
@@ -708,7 +870,7 @@
           overflow:visible !important;
           --ma-accent: var(--accent-color, #e0a11b);
           --ma-radius-xl: 22px;
-          --ma-card-height: ${configuredHeight}px;
+          --ma-card-height: ${Math.round(allocatedHeight || effectiveHeight)}px;
           --ma-effective-height: ${effectiveHeight}px;
           --ma-ui-scale: ${uiScale.toFixed(3)};
           --ma-main-opacity: ${mainOpacity.toFixed(2)};
@@ -774,6 +936,8 @@
         .card {
           display:grid;
           grid-template-columns:220px minmax(0,1fr);
+          container-type:inline-size;
+          container-name:homeii-browser-card;
           position:relative;
           width:100%;
           height:min(var(--ma-card-height), calc(100dvh - 24px));
@@ -1100,7 +1264,7 @@
           gap:12px;
           min-width:220px;
           max-width:340px;
-          flex:0 0 clamp(220px, 24vw, 340px);
+          flex:0 0 clamp(220px, 24cqi, 340px);
           min-height:48px;
           padding:0 16px;
           border-radius:18px;
@@ -1375,6 +1539,64 @@
           margin:0 auto 10px;
         }
         @keyframes spin { to { transform:rotate(360deg); } }
+        .homeii-loading-state {
+          min-height:240px;
+          display:grid;
+          place-items:center;
+          text-align:center;
+          padding:24px;
+          color:var(--ma-text-2);
+        }
+        .homeii-loading-content {
+          display:grid;
+          justify-items:center;
+          gap:12px;
+        }
+        .homeii-loading-mark {
+          position:relative;
+          width:70px;
+          height:70px;
+          display:grid;
+          place-items:center;
+        }
+        .homeii-loading-ring {
+          position:absolute;
+          inset:8px;
+          border-radius:999px;
+          border:2px solid color-mix(in srgb, var(--ma-text-3) 16%, transparent);
+          border-top-color:color-mix(in srgb, var(--ma-accent) 88%, #fff 8%);
+          animation:homeiiLoadingSpin 1.4s linear infinite;
+        }
+        .homeii-loading-ring.secondary {
+          inset:17px;
+          opacity:.58;
+          animation-duration:2.1s;
+          animation-direction:reverse;
+        }
+        .homeii-loading-core {
+          width:15px;
+          height:15px;
+          border-radius:999px;
+          background:var(--ma-accent);
+          box-shadow:0 0 24px color-mix(in srgb, var(--ma-accent) 56%, transparent);
+          animation:homeiiLoadingPulse 1.2s ease-in-out infinite;
+        }
+        .homeii-loading-text {
+          color:var(--ma-text-2);
+          font-size:13px;
+          font-weight:850;
+        }
+        @keyframes homeiiLoadingSpin { to { transform:rotate(360deg); } }
+        @keyframes homeiiLoadingPulse {
+          0%,100% { transform:scale(.86); opacity:.62; }
+          50% { transform:scale(1.08); opacity:1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .homeii-loading-ring,
+          .homeii-loading-core {
+            animation:none;
+          }
+        }
         .queue-panel {
           position:absolute;
           inset:0;
@@ -2746,7 +2968,7 @@
             font-size:13px;
           }
           .modal {
-            width:min(100%, calc(100vw - 16px));
+            width:min(100%, calc(100cqi - 16px));
             max-height:calc(100dvh - 16px);
             border-radius:20px;
           }
@@ -2817,12 +3039,12 @@
 .theme-light .mobile-art-actions{background:transparent!important;border-color:transparent!important;box-shadow:none!important;}
 .mobile-art-fab{width:46px;min-width:46px;height:46px;border-radius:999px;}
 @media (max-width: 600px){.mobile-art-actions{left:50%!important;right:auto!important;transform:translateX(-50%)!important;inset-inline:auto!important;inset-block-end:12px!important;gap:8px!important;}.mobile-art-fab{width:42px;min-width:42px;height:42px;}}
-.card.layout-tablet .menu-backdrop{justify-content:center!important;align-items:stretch!important;padding:18px 24px!important;}
-.card.layout-tablet .menu-sheet{width:min(calc(100% - 96px), 920px)!important;max-width:min(calc(100% - 96px), 920px)!important;max-height:calc(100% - 26px)!important;height:calc(100% - 26px)!important;margin-inline:auto!important;}
-.card.layout-tablet .menu-sheet.sheet-library,.card.layout-tablet .menu-sheet.sheet-search{width:min(calc(100% - 96px), 1120px)!important;max-width:min(calc(100% - 96px), 1120px)!important;}
-.card.layout-tablet .menu-sheet.sheet-queue{width:min(calc(100% - 160px), 980px)!important;max-width:min(calc(100% - 160px), 980px)!important;}
-.card.layout-tablet .menu-sheet.sheet-actions,.card.layout-tablet .menu-sheet.sheet-simple,.card.layout-tablet .menu-sheet.sheet-schedules,.card.layout-tablet .menu-sheet.sheet-players,.card.layout-tablet .menu-sheet.sheet-groupplayers,.card.layout-tablet .menu-sheet.sheet-settings{width:min(calc(100% - 180px), 860px)!important;max-width:min(calc(100% - 180px), 860px)!important;}
-.card.layout-tablet .menu-sheet.sheet-schedules{width:min(calc(100% - 96px), 1080px)!important;max-width:min(calc(100% - 96px), 1080px)!important;}
+.card.layout-tablet .menu-backdrop{justify-content:center!important;align-items:stretch!important;padding:var(--flow-sheet-pad-block) var(--flow-sheet-pad-inline)!important;}
+.card.layout-tablet .menu-sheet{width:min(calc(100% - var(--flow-sheet-gutter)), 920px)!important;max-width:min(calc(100% - var(--flow-sheet-gutter)), 920px)!important;max-height:calc(100% - 26px)!important;height:calc(100% - 26px)!important;margin-inline:auto!important;}
+.card.layout-tablet .menu-sheet.sheet-library,.card.layout-tablet .menu-sheet.sheet-search{width:min(calc(100% - var(--flow-sheet-gutter)), 1120px)!important;max-width:min(calc(100% - var(--flow-sheet-gutter)), 1120px)!important;}
+.card.layout-tablet .menu-sheet.sheet-queue{width:min(calc(100% - var(--flow-sheet-queue-gutter)), 980px)!important;max-width:min(calc(100% - var(--flow-sheet-queue-gutter)), 980px)!important;}
+.card.layout-tablet .menu-sheet.sheet-actions,.card.layout-tablet .menu-sheet.sheet-simple,.card.layout-tablet .menu-sheet.sheet-schedules,.card.layout-tablet .menu-sheet.sheet-players,.card.layout-tablet .menu-sheet.sheet-groupplayers,.card.layout-tablet .menu-sheet.sheet-settings{width:min(calc(100% - var(--flow-sheet-narrow-gutter)), 860px)!important;max-width:min(calc(100% - var(--flow-sheet-narrow-gutter)), 860px)!important;}
+.card.layout-tablet .menu-sheet.sheet-schedules{width:min(calc(100% - var(--flow-sheet-gutter)), 1080px)!important;max-width:min(calc(100% - var(--flow-sheet-gutter)), 1080px)!important;}
 .card.layout-tablet .menu-body.sheet-schedules{justify-items:stretch!important;align-content:start!important;overflow:auto!important;}
 .card.layout-tablet .menu-body.sheet-schedules .settings-shell{height:auto!important;min-height:100%!important;grid-template-rows:auto auto!important;overflow:visible!important;}
 .card.layout-tablet .wake-schedule-layout{height:auto!important;display:grid!important;grid-template-columns:minmax(0,1fr)!important;align-items:stretch!important;overflow:visible!important;}
@@ -2863,10 +3085,10 @@
 
 </style>
 
-      <div class="card ${rtl ? "rtl" : ""} theme-${visualTheme}${theme === "custom" ? " theme-custom" : ""}" style="--v2-custom-text:${this._state.mobileCustomTextTone === "dark" ? "#1f2633" : "#ffffff"};">
+      <div class="card ${rtl ? "rtl" : ""} theme-${visualTheme}${theme === "custom" ? " theme-custom" : ""}${layoutProfileClass ? ` ${layoutProfileClass}` : ""}" style="${layoutProfileStyle}--v2-custom-text:${this._state.mobileCustomTextTone === "dark" ? "#1f2633" : "#ffffff"};">
         <aside class="sidebar">
           <div class="brand">
-            <button class="brand-icon" id="brandPlayersBtn" title="${this._t("Open Music Assistant")}">▶</button>
+            <button class="brand-icon" id="brandPlayersBtn" title="${this._i18n("ui.open_music_assistant")}">▶</button>
             <div>
       <div class="brand-title">homeii-music-flow</div>
               <div class="brand-sub">Music Assistant</div>
@@ -2874,38 +3096,38 @@
           </div>
 
           <nav class="nav">
-            <button class="nav-btn active" data-view="home"><span class="nav-ico">⌂</span><span>${this._t("Home")}</span></button>
-            <button class="nav-btn" data-view="now_playing"><span class="nav-ico">▶</span><span>${this._t("Now Playing")}</span></button>
-            <button class="nav-btn" data-view="radio"><span class="nav-ico">📻</span><span>${this._t("Radio")}</span></button>
-            <button class="nav-btn" data-view="podcasts"><span class="nav-ico">🎙</span><span>${this._t("Podcasts")}</span></button>
-            <button class="nav-btn" data-view="albums"><span class="nav-ico">◉</span><span>${this._t("Albums")}</span></button>
-            <button class="nav-btn" data-view="artists"><span class="nav-ico">♪</span><span>${this._t("Artists")}</span></button>
-            <button class="nav-btn" data-view="tracks"><span class="nav-ico">♫</span><span>${this._t("Tracks")}</span></button>
-            <button class="nav-btn" data-view="playlists"><span class="nav-ico">☰</span><span>${this._t("Playlists")}</span></button>
+            <button class="nav-btn active" data-view="home"><span class="nav-ico">⌂</span><span>${this._i18n("ui.home")}</span></button>
+            <button class="nav-btn" data-view="now_playing"><span class="nav-ico">▶</span><span>${this._i18n("ui.now_playing")}</span></button>
+            <button class="nav-btn" data-view="radio"><span class="nav-ico">📻</span><span>${this._i18n("ui.radio")}</span></button>
+            <button class="nav-btn" data-view="podcasts"><span class="nav-ico">🎙</span><span>${this._i18n("ui.podcasts")}</span></button>
+            <button class="nav-btn" data-view="albums"><span class="nav-ico">◉</span><span>${this._i18n("ui.albums")}</span></button>
+            <button class="nav-btn" data-view="artists"><span class="nav-ico">♪</span><span>${this._i18n("ui.artists")}</span></button>
+            <button class="nav-btn" data-view="tracks"><span class="nav-ico">♫</span><span>${this._i18n("ui.tracks")}</span></button>
+            <button class="nav-btn" data-view="playlists"><span class="nav-ico">☰</span><span>${this._i18n("ui.playlists")}</span></button>
           </nav>
 
           <div class="player-panel">
-            <div class="np-row" id="npRow" title="${this._t("Now Playing")}">
+            <div class="np-row" id="npRow" title="${this._i18n("ui.now_playing")}">
               <div class="np-art" id="npArt">${this._artPlaceholderHtml("music_note")}</div>
               <div class="np-meta">
-                <div class="np-title" id="npTitle">${this._t("Nothing playing")}</div>
+                <div class="np-title" id="npTitle">${this._i18n("ui.nothing_playing")}</div>
                 <div class="np-sub" id="npSub">—</div>
               </div>
             </div>
 
             <div class="controls">
-              <button class="icon-btn" id="btnPrev" title="${this._t("Previous")}">${this._iconSvg("previous")}</button>
-              <button class="play-btn" id="btnPlay" title="${this._t("Play / Pause")}">${this._iconSvg("play")}</button>
-              <button class="icon-btn" id="btnNext" title="${this._t("Next")}">${this._iconSvg("next")}</button>
+              <button class="icon-btn" id="btnPrev" title="${this._i18n("ui.previous")}">${this._iconSvg("previous")}</button>
+              <button class="play-btn" id="btnPlay" title="${this._i18n("ui.play_pause")}">${this._iconSvg("play")}</button>
+              <button class="icon-btn" id="btnNext" title="${this._i18n("ui.next")}">${this._iconSvg("next")}</button>
             </div>
 
             <div class="volume-row">
-              <button class="icon-btn" id="btnMute" title="${this._t("Mute")}">${this._iconSvg("volume_high")}</button>
+              <button class="icon-btn" id="btnMute" title="${this._i18n("ui.mute")}">${this._iconSvg("volume_high")}</button>
               <input class="volume-range" id="volSlider" type="range" min="0" max="100" value="50" style="--vol-pct:50%">
             </div>
 
             <select class="player-select" id="playerSel" aria-hidden="true" tabindex="-1">
-              <option value="">${this._t("Loading players...")}</option>
+              <option value="">${this._i18n("ui.loading_players")}</option>
             </select>
           </div>
         </aside>
@@ -2915,30 +3137,30 @@
             <div class="topbar-row">
               <div class="search" id="searchWrap">
                 <span>🔍</span>
-                <input id="searchInp" type="text" placeholder="${this._t("Search everything...")}">
-                <button class="icon-btn" id="searchClear" style="display:none;" title="${this._t("Clear")}">✕</button>
+                <input id="searchInp" type="text" placeholder="${this._i18n("ui.search_everything")}">
+                <button class="icon-btn" id="searchClear" style="display:none;" title="${this._i18n("ui.clear")}">✕</button>
               </div>
 
               <div class="selected-player-box" id="selectedPlayerBox">
                 <div class="chip-dot"></div>
                 <div class="selected-player-meta">
-                  <div class="selected-player-title" id="selectedPlayerTitle">${this._t("Selected Player")}</div>
+                  <div class="selected-player-title" id="selectedPlayerTitle">${this._i18n("ui.selected_player")}</div>
                   <div class="selected-player-sub" id="selectedPlayerSub">—</div>
                 </div>
               </div>
 
               <div class="topbar-actions">
-                <button class="chip-btn" id="choosePlayerBtn">${this._t("Choose Player")}</button>
+                <button class="chip-btn" id="choosePlayerBtn">${this._i18n("ui.choose_player")}</button>
                 <button class="theme-btn" id="themeToggleBtn" style="display:${this._config.show_theme_toggle ? "" : "none"};">${theme === "dark" ? "☀" : "🌙"}</button>
                 <button class="chip-btn" id="maOpenBtn" style="display:none;">MA</button>
-                <button class="lang-btn" id="langBtn" title="${this._t("Language")}">${rtl ? "EN" : "עב"}</button>
-                <div class="status-pill offline" id="statusPill"><span class="status-dot"></span><span id="statusText">${this._t("Connecting")}</span></div>
+                <button class="lang-btn" id="langBtn" title="${this._i18n("ui.language")}">${this._languageShortcutLabel()}</button>
+                <div class="status-pill offline" id="statusPill"><span class="status-dot"></span><span id="statusText">${this._i18n("ui.connecting")}</span></div>
               </div>
             </div>
           </div>
 
           <div class="content" id="content">
-            <div class="state-box"><div><div class="spinner"></div><div>${this._t("Connecting...")}</div></div></div>
+            <div class="state-box"><div><div class="spinner"></div><div>${this._i18n("ui.connecting_2")}</div></div></div>
           </div>
 
           <div class="modal-backdrop" id="groupModal">
@@ -2946,22 +3168,22 @@
               <div class="modal-header">
                 <div class="modal-header-icon">🔗</div>
                 <div class="modal-header-meta">
-                  <div class="modal-title">${this._t("Group Speakers")}</div>
-                  <div class="modal-subtitle" id="groupModalSubtitle">${this._t("Choose target player")}</div>
+                  <div class="modal-title">${this._i18n("ui.group_speakers")}</div>
+                  <div class="modal-subtitle" id="groupModalSubtitle">${this._i18n("ui.choose_target_player")}</div>
                 </div>
                 <button class="close-btn" id="groupModalClose">✕</button>
               </div>
               <div class="modal-body">
                 <div class="modal-section">
                   <div class="modal-section-top">
-                    <div class="modal-section-title">${this._t("Group Speakers")}</div>
+                    <div class="modal-section-title">${this._i18n("ui.group_speakers")}</div>
                     <div class="modal-section-badge" id="groupCountBadge">0</div>
                   </div>
                   <div class="group-list" id="groupList"></div>
                 </div>
                 <div class="group-actions">
-                  <button class="chip-btn" id="applyGroupBtn">${this._t("Apply Group")}</button>
-                  <button class="chip-btn warn" id="unGroupBtn">${this._t("Ungroup")}</button>
+                  <button class="chip-btn" id="applyGroupBtn">${this._i18n("ui.apply_group")}</button>
+                  <button class="chip-btn warn" id="unGroupBtn">${this._i18n("ui.ungroup")}</button>
                 </div>
               </div>
             </div>
@@ -2972,7 +3194,7 @@
               <div class="modal-header">
                 <div class="modal-header-icon" id="playerModalIcon">🎵</div>
                 <div class="modal-header-meta">
-                  <div class="modal-title" id="playerModalTitle">${this._t("Choose Player")}</div>
+                  <div class="modal-title" id="playerModalTitle">${this._i18n("ui.choose_player")}</div>
                   <div class="modal-subtitle" id="playerModalSubtitle">—</div>
                 </div>
                 <button class="close-btn" id="playerModalClose">✕</button>
@@ -2989,10 +3211,7 @@
     `;
 
     this.shadowRoot.querySelectorAll(".nav-btn").forEach((btn) => btn.addEventListener("click", () => this._setView(btn.dataset.view, btn)));
-    if (!this._resizeListening) {
-      window.addEventListener("resize", this._boundWindowResize);
-      this._resizeListening = true;
-    }
+    this._startResizeTracking();
     this.$("playerSel")?.addEventListener("change", (e) => this._selectPlayer(e.target.value || null, true));
     this.$("btnPlay").addEventListener("click", () => this._togglePlay());
     this.$("btnPrev").addEventListener("click", () => this._playerCmd("previous"));
@@ -3072,8 +3291,53 @@
 
   $(id) { return this.shadowRoot.getElementById(id); }
 
+  _languageBaseCode(value = "") {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace("_", "-")
+      .split("-")[0];
+  }
+
+  _languageOptions(includeAuto = false) {
+    return HOMEII_LANGUAGE_OPTIONS.filter((option) => includeAuto || option.value !== "auto");
+  }
+
+  _languageShortLabel(value = "") {
+    const code = this._languageBaseCode(value);
+    if (code === "he") return "עב";
+    return code ? code.slice(0, 2).toUpperCase() : "EN";
+  }
+
+  _nextLanguageCode() {
+    const options = this._languageOptions(false).map((option) => this._languageBaseCode(option.value)).filter(Boolean);
+    if (!options.length) return "en";
+    const current = this._languageBaseCode(this._language() || this._state.lang || this._config?.language || "en");
+    const index = options.indexOf(current);
+    return options[(index + 1) % options.length] || options[0] || "en";
+  }
+
+  _languageShortcutLabel() {
+    return this._languageShortLabel(this._nextLanguageCode());
+  }
+
+  _settingsLanguageSelectHtml() {
+    const current = this._languageBaseCode(this._state.lang || this._config?.language || this._language() || "en");
+    return `
+      <label class="settings-select-card language-select-card">
+        <span class="settings-select-card-icon">${this._iconSvg("language")}</span>
+        <select class="media-sort-select settings-select language-select" id="mobileLanguageSelect" aria-label="${this._esc(this._i18n("ui.language"))}">
+          ${this._languageOptions(true).map((option) => {
+            const value = this._languageBaseCode(option.value);
+            return `<option value="${this._esc(option.value)}" ${value === current ? "selected" : ""}>${this._esc(option.label || option.value)}</option>`;
+          }).join("")}
+        </select>
+      </label>
+    `;
+  }
+
   _toggleLanguage() {
-    this._state.lang = this._isHebrew() ? "en" : "he";
+    this._state.lang = this._nextLanguageCode();
     try { localStorage.setItem("homeii_music_flow_lang", this._state.lang); } catch (_) {}
 
     const currentTheme = this._state.cardTheme;
@@ -3140,10 +3404,10 @@
   }
 
   _playerStateLabel(player) {
-    if (!player) return this._t("Idle");
-    if (player.state === "playing") return this._t("Playing");
-    if (player.state === "paused") return this._t("Paused");
-    return this._t("Idle");
+    if (!player) return this._i18n("ui.idle");
+    if (player.state === "playing") return this._i18n("ui.playing");
+    if (player.state === "paused") return this._i18n("ui.paused");
+    return this._i18n("ui.idle");
   }
 
   _isPlayerActive(player) {
@@ -3612,7 +3876,7 @@
       return;
     }
     const media = queueItem?.media_item || {};
-    const title = media?.name || queueItem?.name || player.attributes?.media_title || this._m("Nothing playing", "לא מתנגן");
+    const title = media?.name || queueItem?.name || player.attributes?.media_title || this._i18n("ui.nothing_playing");
     const artist = Array.isArray(media?.artists)
       ? media.artists.map((entry) => entry?.name).filter(Boolean).join(", ")
       : (queueItem?.media_artist || player.attributes?.media_artist || "");
@@ -4240,7 +4504,7 @@
     this._loadPlayers();
     if (this._state.controlRoomOpen) this._syncControlRoomUi({ force: true });
     if (this._state.menuOpen && typeof this._renderMobileMenu === "function") this._renderMobileMenu().catch(() => {});
-    this._toastSuccess(this._t("This device player disconnected"));
+    this._toastSuccess(this._i18n("ui.this_device_player_disconnected"));
   }
 
   _selectPlayer(entityId, manual = false) {
@@ -4250,7 +4514,7 @@
       : entityId;
     if (!nextEntityId) return;
     if (manual && pinnedEntities.length && entityId && !pinnedEntities.includes(entityId)) {
-      this._toast(this._m("Player is pinned from settings", "הנגן מקובע מתוך ההגדרות"));
+      this._toast(this._i18n("ui.player_is_pinned_from_settings"));
     }
     this._state.selectedPlayer = nextEntityId;
     const selectedPlayer = this._playerByEntityId(nextEntityId);
@@ -4275,7 +4539,7 @@
     const selected = this._getSelectedPlayer();
     const title = this.$("selectedPlayerTitle");
     const sub = this.$("selectedPlayerSub");
-    if (title) title.textContent = selected?.attributes?.friendly_name || this._t("Selected Player");
+    if (title) title.textContent = selected?.attributes?.friendly_name || this._i18n("ui.selected_player");
     if (sub) {
       const label = this._playerStateLabel(selected);
       const track = selected?.attributes?.media_title || "";
@@ -4289,7 +4553,7 @@
     if (!themeBtn) return;
     const effective = this._effectiveTheme();
     themeBtn.textContent = effective === "dark" ? "☀" : "🌙";
-    themeBtn.title = `${this._t("Theme")}: ${this._t(effective === "dark" ? "Dark" : "Light")}`;
+    themeBtn.title = `${this._i18n("ui.theme")}: ${this._t(effective === "dark" ? "Dark" : "Light")}`;
   }
 
   _syncBrandPlayingState() {
@@ -4298,7 +4562,7 @@
     if (!btn) return;
     const isPlaying = player?.state === "playing";
     btn.classList.toggle("playing", !!isPlaying);
-    btn.title = this._t("Open Music Assistant");
+    btn.title = this._i18n("ui.open_music_assistant");
   }
 
   _setPlayerModalHeader(mode = "players") {
@@ -4308,16 +4572,16 @@
     if (icon) icon.textContent = mode === "transfer" ? "⇆" : "🎵";
     if (!subtitle) return;
     if (mode === "transfer") {
-      subtitle.textContent = selected?.attributes?.friendly_name || this._t("Choose target player");
+      subtitle.textContent = selected?.attributes?.friendly_name || this._i18n("ui.choose_target_player");
       return;
     }
     const count = (this._state.players || []).length;
-    subtitle.textContent = `${count} ${this._t("items")}`;
+    subtitle.textContent = `${count} ${this._i18n("ui.items")}`;
   }
 
   _renderPlayerModal() {
     this._state.modalMode = "players";
-    this.$("playerModalTitle").textContent = this._t("Choose Player");
+    this.$("playerModalTitle").textContent = this._i18n("ui.choose_player");
     this._setPlayerModalHeader("players");
     const body = this.$("playerModalBody");
     if (!body) return;
@@ -4349,7 +4613,7 @@
                   <span class="player-card-meta">
                     <span class="player-card-top">
                       <span class="player-card-title">${this._esc(name)}</span>
-                      <span class="player-card-badge">${selected ? this._esc(this._t("Selected Player")) : this._esc(this._playerStateLabel(p))}</span>
+                      <span class="player-card-badge">${selected ? this._esc(this._i18n("ui.selected_player")) : this._esc(this._playerStateLabel(p))}</span>
                     </span>
                     <span class="player-card-sub">${this._esc(this._playerStateLabel(p))}</span>
                     <span class="player-card-track">${this._esc(track || "—")}</span>
@@ -4361,7 +4625,7 @@
         </div>
       `;
     };
-    body.innerHTML = `<div class="player-modal-grid">${renderGroup(this._t("Playing"), activePlayers)}${renderGroup(this._t("Other players"), others)}</div>`;
+    body.innerHTML = `<div class="player-modal-grid">${renderGroup(this._i18n("ui.playing"), activePlayers)}${renderGroup(this._i18n("ui.other_players"), others)}</div>`;
     body.querySelectorAll("[data-modal-player]").forEach((btn) => btn.addEventListener("click", () => {
       this._selectPlayer(btn.dataset.modalPlayer, true);
       this._closePlayerModal();
@@ -4440,8 +4704,8 @@
 
   _sourceProviderMeta(value = "") {
     return HomeiiMediaPresentationFoundation.sourceProviderMeta(value, {
-      libraryLabel: this._m("Library", "ספריה"),
-      radioLabel: this._m("Radio", "רדיו"),
+      libraryLabel: this._i18n("ui.library"),
+      radioLabel: this._i18n("ui.radio"),
     });
   }
 
@@ -4456,8 +4720,8 @@
         parseMediaReferenceFn: (uri, mediaType) => this._parseMediaReference(uri, mediaType),
         sourceProviderMetaFn: (value, labels) => HomeiiMediaPresentationFoundation.sourceProviderMeta(value, labels),
         qualityBadgeLabelFn: (values) => HomeiiMediaPresentationFoundation.qualityBadgeLabel(values),
-        libraryLabel: this._m("Library", "ספריה"),
-        radioLabel: this._m("Radio", "רדיו"),
+        libraryLabel: this._i18n("ui.library"),
+        radioLabel: this._i18n("ui.radio"),
       },
     );
   }
@@ -4513,8 +4777,8 @@
       .map((item) => ({
         uri: String(item.uri || "").trim(),
         media_type: "playlist",
-        title: item.name || item.title || this._m("Recommended playlist", "פלייליסט מומלץ"),
-        artist: this._m("Playlist", "פלייליסט"),
+        title: item.name || item.title || this._i18n("ui.recommended_playlist"),
+        artist: this._i18n("ui.playlist"),
         album: item.provider_label || item.provider || "",
         image: this._artUrl(item) || item.image || "",
         provider_label: item.provider_label || item.provider || "",
@@ -4562,7 +4826,7 @@
         return {
           uri: String(media.uri || "").trim(),
           media_type: media.media_type || item.media_type || "track",
-          title: media.name || item.name || this._m("Recommended track", "המלצה"),
+          title: media.name || item.name || this._i18n("ui.recommended_track"),
           artist: media.artists?.map((artist) => artist.name).join(", ") || media.album?.name || "",
           album: media.album?.name || "",
           image: this._queueItemImageUrl(item, 120) || this._artUrl(media) || "",
@@ -4574,7 +4838,7 @@
       .filter((item) => item?.uri)
       .map((item) => ({
         ...item,
-        title: item.title || item.name || this._m("Recommended track", "המלצה"),
+        title: item.title || item.name || this._i18n("ui.recommended_track"),
       }));
     const recommendations = [];
     pushUnique(this._state.quickMixRecommendationItems || [], recommendations);
@@ -4631,8 +4895,8 @@
     const items = tab === "recommendations" ? this._historyRecommendationItems() : this._visibleRecentHistoryItems();
     if (!items.length) {
       const emptyText = tab === "recommendations"
-        ? this._m("Recommendations will appear once HOMEii Flow sees your queue or recent listening.", "המלצות יופיעו אחרי ש-HOMEii Flow יזהה את התור או ההאזנות האחרונות.")
-        : this._m("Play a few tracks and they will appear here.", "נגן כמה שירים והם יופיעו כאן.");
+        ? this._i18n("ui.recommendations_will_appear_once_homeii_flow_sees_your_queue_or_recent_l")
+        : this._i18n("ui.play_a_few_tracks_and_they_will_appear_here");
       const emptyHtml = `<div class="history-empty">${this._esc(emptyText)}</div>`;
       if (force || this._state.mobileHistoryRenderedHtml !== emptyHtml) {
         host.innerHTML = emptyHtml;
@@ -4645,7 +4909,7 @@
         <button class="history-chip" data-history-index="${this._esc(String(index))}" title="${this._esc(item.title || "")}">
           <span class="history-chip-art">${item.image ? `<img src="${this._esc(item.image)}" alt="">` : this._iconSvg("music_note")}</span>
           <span class="history-chip-copy">
-            <span class="history-chip-title">${this._esc(item.title || this._m("Recent track", "שיר קודם"))}</span>
+            <span class="history-chip-title">${this._esc(item.title || this._i18n("ui.recent_track"))}</span>
             <span class="history-chip-sub">${this._esc(item.artist || item.album || item.provider_label || "—")}</span>
           </span>
         </button>
@@ -4678,36 +4942,36 @@
   }
 
   _controlRoomLabel() {
-    return this._m("Studio", "סטודיו");
+    return this._i18n("ui.studio");
   }
 
   _controlRoomPlayerName(entityOrPlayer = "") {
     const player = entityOrPlayer && typeof entityOrPlayer === "object"
       ? entityOrPlayer
       : this._playerByEntityId(String(entityOrPlayer || ""));
-    return player?.attributes?.friendly_name || String(entityOrPlayer || "") || this._m("player", "נגן");
+    return player?.attributes?.friendly_name || String(entityOrPlayer || "") || this._i18n("ui.player");
   }
 
   _controlRoomPlayerCountLabel(count = 0) {
     const amount = Math.max(0, Number(count) || 0);
-    if (this._isHebrew()) return amount === 1 ? "נגן אחד" : `${amount} נגנים`;
-    return amount === 1 ? "1 player" : `${amount} players`;
+    if (amount === 1) return this._i18n("ui.player_count_one");
+    return this._i18n("ui.player_count_many", { count: amount });
   }
 
   _controlRoomPanelLabel(panel = "") {
     const labels = {
-      selection: this._m("connected players", "נגנים מחוברים"),
-      visible: this._m("visible tiles", "אריחים מוצגים"),
-      music: this._m("music hub", "מרכז מוזיקה"),
-      actions: this._m("actions", "פעולות"),
-      library: this._m("studio search", "חיפוש סטודיו"),
-      transfer: this._m("queue cockpit", "ניהול תור"),
-      mix: this._m("smart mix", "מיקס חכם"),
-      recent: this._m("recent listening", "האזנות אחרונות"),
-      favorites: this._m("favorite center", "מרכז אהבתי"),
-      scenes: this._m("scene presets", "סצנות"),
-      announce: this._m("announcement studio", "סטודיו כריזה"),
-      pro: this._m("studio pro", "סטודיו Pro"),
+      selection: this._i18n("ui.connected_players"),
+      visible: this._i18n("ui.visible_tiles"),
+      music: this._i18n("ui.music_hub"),
+      actions: this._i18n("ui.actions"),
+      library: this._i18n("ui.studio_search"),
+      transfer: this._i18n("ui.queue_cockpit"),
+      mix: this._i18n("ui.smart_mix"),
+      recent: this._i18n("ui.recent_listening"),
+      favorites: this._i18n("ui.favorite_center"),
+      scenes: this._i18n("ui.scene_presets"),
+      announce: this._i18n("ui.announcement_studio"),
+      pro: this._i18n("ui.studio_pro"),
     };
     return labels[String(panel || "")] || this._controlRoomLabel();
   }
@@ -4734,18 +4998,18 @@
       return {
         art,
         count: players.length,
-        kicker: this._m("Controlling", "שולט עכשיו על"),
+        kicker: this._i18n("ui.controlling"),
         name: this._controlRoomPlayerCountLabel(players.length),
         track: names.slice(0, 3).join(" · ") + (names.length > 3 ? "..." : ""),
       };
     }
-    const name = first?.attributes?.friendly_name || this._m("Selected player", "נגן נבחר");
+    const name = first?.attributes?.friendly_name || this._i18n("ui.selected_player_2");
     return {
       art,
       count: first ? 1 : 0,
-      kicker: selectedIds.length ? this._m("Controlling", "שולט עכשיו על") : this._m("Primary target", "יעד ראשי"),
+      kicker: selectedIds.length ? this._i18n("ui.controlling") : this._i18n("ui.primary_target"),
       name,
-      track: first?.attributes?.media_title || first?.attributes?.media_artist || this._playerStateLabel(first) || this._m("Idle", "ממתין"),
+      track: first?.attributes?.media_title || first?.attributes?.media_artist || this._playerStateLabel(first) || this._i18n("ui.idle_2"),
     };
   }
 
@@ -4765,11 +5029,7 @@
   _tabletStabilityModeEnabled() {
     try {
       const ua = String(window.navigator?.userAgent || "");
-      const width = Math.max(
-        Number(window.innerWidth || 0),
-        Number(this.getBoundingClientRect?.().width || 0),
-        Number(this.offsetWidth || 0),
-      );
+      const width = this._getCardWidth(Number(window.innerWidth || 0));
       const touchPoints = Number(window.navigator?.maxTouchPoints || 0);
       return HomeiiResponsiveFoundation.tabletStabilityModeEnabled({
         layoutMode: this._layoutModeConfig(),
@@ -5097,7 +5357,7 @@
     this._syncControlRoomChrome();
     this._syncControlRoomUi({ force: true });
     this._loadControlRoomQueues(this._controlRoomPlayers().map((player) => player.entity_id)).catch(() => {});
-    this._toastSuccess(this._m("Studio opened", "סטודיו נפתח"));
+    this._toastSuccess(this._i18n("ui.studio_opened"));
   }
 
   _closeControlRoom(options = {}) {
@@ -5106,7 +5366,7 @@
     this._state.controlRoomPanel = "";
     this._state.controlRoomRestoreAfterMenu = false;
     this._syncControlRoomChrome();
-    if (!options.silent) this._toast(this._m("Studio closed", "סטודיו נסגר"));
+    if (!options.silent) this._toast(this._i18n("ui.studio_closed"));
   }
 
   _isScheduleFormControl(target) {
@@ -5207,14 +5467,14 @@
   _controlRoomMediaTypeLabel(mediaType = "") {
     const type = String(mediaType || "").toLowerCase();
     const labels = {
-      track: this._m("Track", "שיר"),
-      album: this._m("Album", "אלבום"),
-      artist: this._m("Artist", "אמן"),
-      playlist: this._m("Playlist", "פלייליסט"),
-      radio: this._m("Radio", "רדיו"),
-      podcast: this._m("Podcast", "פודקאסט"),
+      track: this._i18n("ui.track"),
+      album: this._i18n("ui.album"),
+      artist: this._i18n("ui.artist"),
+      playlist: this._i18n("ui.playlist"),
+      radio: this._i18n("ui.radio"),
+      podcast: this._i18n("ui.podcast"),
     };
-    return labels[type] || this._m("Media", "מדיה");
+    return labels[type] || this._i18n("ui.media");
   }
 
   _controlRoomNormalizeMediaEntry(item = {}, fallbackType = "album", options = {}) {
@@ -5350,42 +5610,42 @@
       : items[0];
     const queueCount = this._controlRoomQueueCount(player, snapshot);
     const previewItems = (currentItem ? [currentItem, ...items.filter((item) => item !== currentItem)] : items).slice(0, 4);
-    const title = player?.attributes?.friendly_name || entityId || this._m("Player", "נגן");
+    const title = player?.attributes?.friendly_name || entityId || this._i18n("ui.player_2");
     return `
       <div class="control-room-queue-preview" data-control-room-scroll="queue-${this._esc(entityId)}">
         <div class="control-room-queue-preview-head">
           <span class="control-room-queue-player">${this._esc(title)}</span>
-          <span class="control-room-queue-count">${this._esc(queueCount ? `${queueCount}` : this._m("No queue", "אין תור"))}</span>
+          <span class="control-room-queue-count">${this._esc(queueCount ? `${queueCount}` : this._i18n("ui.no_queue"))}</span>
         </div>
         ${previewItems.length ? previewItems.map((item, index) => {
           const media = item.media_item || {};
           const art = this._queueItemImageUrl(item, 96) || this._artUrl(media) || "";
-          const itemTitle = media.name || item.name || item.media_title || this._m("Queue item", "פריט בתור");
+          const itemTitle = media.name || item.name || item.media_title || this._i18n("ui.queue_item");
           const artist = item.media_artist || (media.artists || []).map((artistEntry) => artistEntry?.name).filter(Boolean).join(", ") || media.album?.name || "";
           return `
             <div class="control-room-queue-row ${index === 0 ? "current" : ""}">
               <span class="control-room-queue-art">${art ? `<img src="${this._esc(art)}" alt="">` : this._iconSvg("music_note")}</span>
               <span class="control-room-queue-copy">
                 <span class="control-room-queue-title">${this._esc(itemTitle)}</span>
-                <span class="control-room-queue-sub">${this._esc(index === 0 ? this._m("Now playing", "מתנגן עכשיו") : (artist || this._m("Up next", "הבא בתור")))}</span>
+                <span class="control-room-queue-sub">${this._esc(index === 0 ? this._i18n("ui.now_playing_2") : (artist || this._i18n("ui.up_next_2")))}</span>
               </span>
             </div>
           `;
-        }).join("") : `<div class="control-room-empty subtle">${this._esc(this._state.controlRoomQueueLoading ? this._m("Loading queue...", "טוען תור...") : this._m("Queue is unavailable for this player", "התור לא זמין לנגן הזה"))}</div>`}
+        }).join("") : `<div class="control-room-empty subtle">${this._esc(this._state.controlRoomQueueLoading ? this._i18n("ui.loading_queue") : this._i18n("ui.queue_is_unavailable_for_this_player"))}</div>`}
       </div>
     `;
   }
 
   _controlRoomMixPresets() {
     return [
-      { id: "calm", icon: "moon", label: this._m("Calm", "רגוע"), subtitle: this._m("Soft, relaxed music", "מוזיקה רכה ורגועה"), queries: ["relax chill playlist", "calm music", "acoustic chill"] },
-      { id: "party", icon: "radio", label: this._m("Party", "מסיבה"), subtitle: this._m("Energy and rhythm", "אנרגיה וקצב"), queries: ["party hits playlist", "dance playlist", "upbeat music"] },
-      { id: "morning", icon: "music_note", label: this._m("Morning", "בוקר"), subtitle: this._m("Fresh start", "פתיחה נעימה ליום"), queries: ["morning playlist", "coffee music", "feel good morning"] },
-      { id: "night", icon: "moon", label: this._m("Night", "לילה"), subtitle: this._m("Lower volume mood", "אווירת לילה רגועה"), queries: ["night chill playlist", "sleep music", "quiet jazz"] },
-      { id: "kids", icon: "speaker", label: this._m("Kids", "ילדים"), subtitle: this._m("Family friendly", "ידידותי למשפחה"), queries: ["kids music playlist", "children songs", "family music"] },
-      { id: "israeli", icon: "music_note", label: this._m("Israeli", "ישראלי"), subtitle: this._m("Local favorites", "מוזיקה מקומית"), queries: ["ישראלי עברית פלייליסט", "israeli music hebrew"] },
-      { id: "favorites", icon: "heart_filled", label: this._m("Liked", "אהבתי"), subtitle: this._m("Shuffle favorites", "ערבוב אהובים"), favorite: true },
-      { id: "random", icon: "shuffle", label: this._m("Random", "אקראי"), subtitle: this._m("Library surprise", "הפתעה מהספריה"), random: true },
+      { id: "calm", icon: "moon", label: this._i18n("ui.calm"), subtitle: this._i18n("ui.soft_relaxed_music"), queries: ["relax chill playlist", "calm music", "acoustic chill"] },
+      { id: "party", icon: "radio", label: this._i18n("ui.party"), subtitle: this._i18n("ui.energy_and_rhythm"), queries: ["party hits playlist", "dance playlist", "upbeat music"] },
+      { id: "morning", icon: "music_note", label: this._i18n("ui.morning"), subtitle: this._i18n("ui.fresh_start"), queries: ["morning playlist", "coffee music", "feel good morning"] },
+      { id: "night", icon: "moon", label: this._i18n("ui.night"), subtitle: this._i18n("ui.lower_volume_mood"), queries: ["night chill playlist", "sleep music", "quiet jazz"] },
+      { id: "kids", icon: "speaker", label: this._i18n("ui.kids"), subtitle: this._i18n("ui.family_friendly"), queries: ["kids music playlist", "children songs", "family music"] },
+      { id: "israeli", icon: "music_note", label: this._i18n("ui.israeli"), subtitle: this._i18n("ui.local_favorites"), queries: ["ישראלי עברית פלייליסט", "israeli music hebrew"] },
+      { id: "favorites", icon: "heart_filled", label: this._i18n("ui.liked"), subtitle: this._i18n("ui.shuffle_favorites"), favorite: true },
+      { id: "random", icon: "shuffle", label: this._i18n("ui.random"), subtitle: this._i18n("ui.library_surprise"), random: true },
     ];
   }
 
@@ -5434,7 +5694,7 @@
         const inProgress = await this._callDirectMaCommand("music/in_progress_items", { limit: 12 });
         const rawItems = Array.isArray(inProgress?.items) ? inProgress.items : (Array.isArray(inProgress) ? inProgress : []);
         items.push(...rawItems.map((item) => this._controlRoomNormalizeMediaEntry(item, item.media_type || "podcast", {
-          subtitle: this._m("Continue listening", "המשך האזנה"),
+          subtitle: this._i18n("ui.continue_listening"),
         })));
       } catch (_) {}
     }
@@ -5454,7 +5714,7 @@
     }
     this._state.controlRoomFavoritesItems = this._controlRoomUniqueEntries(
       items.map((item) => this._controlRoomNormalizeMediaEntry(item, item.media_type || "track", {
-        subtitle: this._m("Favorite", "אהבתי"),
+        subtitle: this._i18n("ui.favorite"),
       }))
     ).slice(0, 36);
     this._state.controlRoomFavoritesLoading = false;
@@ -5463,7 +5723,7 @@
 
   _controlRoomMediaGridHtml(entries = [], options = {}) {
     const list = Array.isArray(entries) ? entries.filter((entry) => entry?.uri) : [];
-    const empty = options.empty || this._m("No media found.", "לא נמצאה מדיה.");
+    const empty = options.empty || this._i18n("ui.no_media_found");
     if (!list.length) return `<div class="control-room-empty subtle">${this._esc(empty)}</div>`;
     return `
       <div class="control-room-media-grid ${options.large ? "large" : ""}">
@@ -5473,20 +5733,20 @@
           const attrs = this._controlRoomEntryDataAttrs(entry);
           return `
             <article class="control-room-media-card ${liked ? "liked" : ""}">
-              <button class="control-room-media-main" data-room-library-action="play" ${attrs} title="${this._esc(this._m("Play now", "נגן עכשיו"))}">
+              <button class="control-room-media-main" data-room-library-action="play" ${attrs} title="${this._esc(this._i18n("ui.play_now"))}">
                 <span class="control-room-media-art">${entry.image ? `<img src="${this._esc(entry.image)}" alt="">` : this._iconSvg(this._controlRoomMediaTypeIcon(entry.media_type))}</span>
                 <span class="control-room-media-copy">
                   <span class="control-room-media-kicker">${this._esc(this._controlRoomMediaTypeLabel(entry.media_type))}</span>
-                  <span class="control-room-media-title">${this._esc(entry.name || this._m("Media", "מדיה"))}</span>
+                  <span class="control-room-media-title">${this._esc(entry.name || this._i18n("ui.media"))}</span>
                   <span class="control-room-media-sub">${this._esc(entry.subtitle || entry.media_type || "")}</span>
                 </span>
               </button>
               <span class="control-room-media-actions">
-                <button type="button" class="control-room-media-action primary" data-room-library-action="play" ${attrs}>${this._esc(this._m("Play", "נגן"))}</button>
-                <button type="button" class="control-room-media-action" data-room-library-action="next" ${attrs}>${this._esc(this._m("Next", "הבא"))}</button>
-                <button type="button" class="control-room-media-action" data-room-library-action="add" ${attrs}>${this._esc(this._m("Add", "הוסף"))}</button>
-                ${radioSupported ? `<button type="button" class="control-room-media-action" data-room-library-action="radio_mode" ${attrs}>${this._esc(this._m("Radio", "רדיו"))}</button>` : ``}
-                <button type="button" class="control-room-media-action icon ${liked ? "active" : ""}" data-room-library-action="like" ${attrs} title="${this._esc(this._m("Like", "אהבתי"))}">${this._iconSvg(liked ? "heart_filled" : "heart_outline")}</button>
+                <button type="button" class="control-room-media-action primary" data-room-library-action="play" ${attrs}>${this._esc(this._i18n("ui.play"))}</button>
+                <button type="button" class="control-room-media-action" data-room-library-action="next" ${attrs}>${this._esc(this._i18n("ui.next"))}</button>
+                <button type="button" class="control-room-media-action" data-room-library-action="add" ${attrs}>${this._esc(this._i18n("ui.add"))}</button>
+                ${radioSupported ? `<button type="button" class="control-room-media-action" data-room-library-action="radio_mode" ${attrs}>${this._esc(this._i18n("ui.radio"))}</button>` : ``}
+                <button type="button" class="control-room-media-action icon ${liked ? "active" : ""}" data-room-library-action="like" ${attrs} title="${this._esc(this._i18n("ui.like_2"))}">${this._iconSvg(liked ? "heart_filled" : "heart_outline")}</button>
               </span>
             </article>
           `;
@@ -5537,21 +5797,21 @@
     const customInput = this.$("controlRoomSmartQueryInput");
     const customQuery = customInput?.value || this._state.controlRoomSmartQuery || "";
     if (sourceEl) this._pressUiButton(sourceEl);
-    this._toast(this._m("Building Studio mix...", "בונה מיקס סטודיו..."));
+    this._toast(this._i18n("ui.building_studio_mix"));
     try {
       const entries = await this._controlRoomFindMixEntries(presetId, customQuery);
       if (!entries.length) {
-        this._toastError(this._m("No mix content found", "לא נמצא תוכן למיקס"));
+        this._toastError(this._i18n("ui.no_mix_content_found"));
         return false;
       }
       const ok = await this._playControlRoomEntries(entries, { shuffle: presetId === "favorites" || presetId === "random" });
       if (ok) {
         this._state.controlRoomPanel = "";
-        this._toastSuccess(this._m("Studio mix started", "מיקס הסטודיו הופעל"));
+        this._toastSuccess(this._i18n("ui.studio_mix_started"));
       }
       return ok;
     } catch (error) {
-      this._toastError(error?.message || this._m("Could not build Studio mix", "לא הצלחתי לבנות מיקס סטודיו"));
+      this._toastError(error?.message || this._i18n("ui.could_not_build_studio_mix"));
       return false;
     }
   }
@@ -5562,15 +5822,15 @@
     try {
       const snapshot = await this._fetchControlRoomQueueSnapshot(sourcePlayer.entity_id);
       const items = HomeiiMediaQueueFoundation.sortQueueItems(snapshot?.items || []);
-      if (!items.length) throw new Error(this._m("No queue to clone", "אין תור להעתקה"));
+      if (!items.length) throw new Error(this._i18n("ui.no_queue_to_clone"));
       const currentPos = sourcePlayer.entity_id === this._state.selectedPlayer ? this._getCurrentPosition() : 0;
       await this._rebuildQueue(targetPlayerEntityId, items, currentPos);
       if (options.selectTarget !== false) this._selectPlayer(targetPlayerEntityId, true);
-      if (!options.silent) this._toastSuccess(this._m("Queue cloned", "התור הועתק"));
+      if (!options.silent) this._toastSuccess(this._i18n("ui.queue_cloned"));
       this._loadControlRoomQueues([sourcePlayer.entity_id, targetPlayerEntityId]).catch(() => {});
       return true;
     } catch (error) {
-      if (!options.silent) this._toastError(error?.message || this._m("Could not clone the queue", "לא הצלחתי להעתיק את התור"));
+      if (!options.silent) this._toastError(error?.message || this._i18n("ui.could_not_clone_the_queue"));
       return false;
     }
   }
@@ -5580,13 +5840,13 @@
     const volumeInput = this.$("controlRoomAnnouncementVolumeInput");
     const message = String(input?.value || this._state.controlRoomAnnouncementText || "").trim();
     if (!message) {
-      this._toastError(this._m("Enter an announcement first", "קודם צריך להזין הודעת כריזה"));
+      this._toastError(this._i18n("ui.enter_an_announcement_first"));
       return false;
     }
     const selectedIds = this._controlRoomSelectedPlayerIds();
     const targets = selectedIds.length ? selectedIds : [this._controlRoomPrimaryPlayerId()].filter(Boolean);
     if (!targets.length) {
-      this._toastError(this._m("Select at least one Studio player", "בחר לפחות נגן אחד בסטודיו"));
+      this._toastError(this._i18n("ui.select_at_least_one_studio_player"));
       return false;
     }
     if (sourceEl) this._pressUiButton(sourceEl);
@@ -5645,7 +5905,7 @@
       : { uri: "", media_type: "track", name: "" };
     return {
       id,
-      name: String(scene?.name || "").trim() || this._m("Studio scene", "סצנת סטודיו"),
+      name: String(scene?.name || "").trim() || this._i18n("ui.studio_scene"),
       primaryId: String(scene?.primaryId || playerIds[0] || "").trim(),
       playerIds: [...new Set(playerIds)],
       visibleIds: [...new Set(visibleIds)],
@@ -5697,7 +5957,7 @@
     const mediaType = String(attrs.media_content_type || attrs.media_type || "track").trim() || "track";
     return this._normalizeControlRoomScene({
       id: `custom:${Date.now().toString(36)}`,
-      name: String(name || "").trim() || this._m("My Studio Scene", "סצנת סטודיו שלי"),
+      name: String(name || "").trim() || this._i18n("ui.my_studio_scene"),
       primaryId: primaryId || targets[0],
       playerIds: targets,
       visibleIds: this._controlRoomVisiblePlayerIds(),
@@ -5717,7 +5977,7 @@
     const input = this.$("controlRoomSceneNameInput");
     const scene = this._captureControlRoomScene(input?.value || this._state.controlRoomSceneName || "");
     if (!scene) {
-      this._toastError(this._m("Select at least one Studio player", "בחר לפחות נגן אחד בסטודיו"));
+      this._toastError(this._i18n("ui.select_at_least_one_studio_player"));
       return false;
     }
     this._state.controlRoomCustomScenes = [scene, ...this._controlRoomCustomScenes()].slice(0, 12);
@@ -5725,7 +5985,7 @@
     if (input) input.value = "";
     this._persistControlRoomScenes();
     this._syncControlRoomUi({ force: true });
-    this._toastSuccess(this._m("Studio scene saved", "סצנת סטודיו נשמרה"));
+    this._toastSuccess(this._i18n("ui.studio_scene_saved"));
     return true;
   }
 
@@ -5736,7 +5996,7 @@
     this._state.controlRoomCustomScenes = this._controlRoomCustomScenes().filter((scene) => scene.id !== id);
     this._persistControlRoomScenes();
     this._syncControlRoomUi({ force: true });
-    this._toastSuccess(this._m("Studio scene deleted", "סצנת סטודיו נמחקה"));
+    this._toastSuccess(this._i18n("ui.studio_scene_deleted"));
     return true;
   }
 
@@ -5747,7 +6007,7 @@
     const validIds = new Set(allPlayers.map((player) => player.entity_id));
     const selected = saved.playerIds.filter((entityId) => validIds.has(entityId));
     if (!selected.length) {
-      this._toastError(this._m("Scene players are not available", "הנגנים של הסצנה לא זמינים"));
+      this._toastError(this._i18n("ui.scene_players_are_not_available"));
       return false;
     }
     const primaryId = selected.includes(saved.primaryId) ? saved.primaryId : selected[0];
@@ -5786,7 +6046,7 @@
     if (scene.startsWith("custom:")) {
       const saved = this._controlRoomCustomScenes().find((item) => item.id === scene);
       if (!saved) {
-        this._toastError(this._m("Studio scene was not found", "סצנת הסטודיו לא נמצאה"));
+        this._toastError(this._i18n("ui.studio_scene_was_not_found"));
         return false;
       }
       return this._applySavedControlRoomScene(saved, sourceEl);
@@ -5794,7 +6054,7 @@
     const selectedIds = this._controlRoomSelectedPlayerIds();
     const primaryId = selectedIds[0] || this._controlRoomPrimaryPlayerId();
     if (!primaryId) {
-      this._toastError(this._m("Select at least one Studio player", "בחר לפחות נגן אחד בסטודיו"));
+      this._toastError(this._i18n("ui.select_at_least_one_studio_player"));
       return false;
     }
     const targets = selectedIds.length ? selectedIds : [primaryId];
@@ -5802,7 +6062,7 @@
     const volume = scene === "night" ? 0.18 : scene === "party" ? 0.55 : 0.35;
     await Promise.allSettled(targets.map((entityId) => this._setPlayerVolumeFor(entityId, volume)));
     if (scene === "home") {
-      this._toastSuccess(this._m("Home scene prepared", "סצנת בית מוכנה"));
+      this._toastSuccess(this._i18n("ui.home_scene_prepared"));
       return true;
     }
     const mixId = scene === "party" ? "party" : "night";
@@ -5866,7 +6126,7 @@
   async _startControlRoomLibraryVoice() {
     const SpeechRecognition = this._speechRecognitionCtor();
     if (!SpeechRecognition) {
-      this._toastError(this._m("Voice input is not supported on this device", "הכתבה קולית לא נתמכת במכשיר הזה"));
+      this._toastError(this._i18n("ui.voice_input_is_not_supported_on_this_device"));
       return;
     }
     try { this._voiceRecognition?.abort?.(); } catch (_) {}
@@ -5876,7 +6136,7 @@
     recognition.interimResults = true;
     recognition.continuous = false;
     recognition.maxAlternatives = 1;
-    this._toast(this._m("Listening...", "מקשיב..."));
+    this._toast(this._i18n("ui.listening"));
     recognition.onresult = (event) => {
       const transcript = Array.from(event.results || [])
         .map((result) => result?.[0]?.transcript || "")
@@ -5895,11 +6155,11 @@
       clearTimeout(this._searchTimer);
       this._searchTimer = setTimeout(() => this._searchControlRoomLibrary(transcript), 120);
     };
-    recognition.onerror = () => this._toastError(this._m("Voice input failed", "הכתבה קולית נכשלה"));
+    recognition.onerror = () => this._toastError(this._i18n("ui.voice_input_failed"));
     recognition.onend = () => {
       if (this._voiceRecognition === recognition) this._voiceRecognition = null;
     };
-    try { recognition.start(); } catch (_) { this._toastError(this._m("Voice input failed", "הכתבה קולית נכשלה")); }
+    try { recognition.start(); } catch (_) { this._toastError(this._i18n("ui.voice_input_failed")); }
   }
 
   async _playControlRoomLibraryEntry(entry, mode = "play") {
@@ -5913,7 +6173,7 @@
     if (!primaryId) return false;
     const mediaType = entry.media_type || "album";
     if (action === "radio_mode" && !this._supportsMusicAssistantRadioMode(mediaType)) {
-      this._toastError(this._m("Radio mode is not available for this media type", "Radio לא זמין לסוג המדיה הזה"));
+      this._toastError(this._i18n("ui.radio_mode_is_not_available_for_this_media_type"));
       return false;
     }
     const enqueue = action === "next" ? "next" : action === "add" ? "add" : action === "shuffle" ? "shuffle" : "play";
@@ -5932,7 +6192,7 @@
     const playing = player.state === "playing";
     const art = this._playerArtworkUrl(player, 320);
     const name = player.attributes?.friendly_name || player.entity_id;
-    const track = player.attributes?.media_title || this._m("Idle", "ממתין");
+    const track = player.attributes?.media_title || this._i18n("ui.idle_2");
     const volume = Math.round((player.attributes?.volume_level || 0) * 100);
     const groupInfo = this._controlRoomGroupInfo(player);
     const groupCount = groupInfo.count;
@@ -5946,18 +6206,18 @@
       <article class="control-room-tile ${art ? "has-art" : "no-art"} ${isSelected ? "selected" : ""} ${isPrimary ? "primary" : ""} ${playing ? "is-playing" : ""} ${groupCount ? "grouped" : ""}" data-room-tile="${this._esc(player.entity_id)}" ${tileStyle}>
         <div class="control-room-tile-bg"></div>
         <div class="control-room-tile-shade"></div>
-        <button class="control-room-select-fab ${isSelected ? "active" : ""} ${isSelected && selectedIds.length > 1 ? "removable" : ""}" data-room-select="${this._esc(player.entity_id)}" title="${this._esc(isSelected && selectedIds.length > 1 ? this._m("Remove from selection", "הסר מהבחירה") : isSelected ? this._m("Selected player", "נגן נבחר") : this._m("Add to selection", "הוסף לבחירה"))}">
+        <button class="control-room-select-fab ${isSelected ? "active" : ""} ${isSelected && selectedIds.length > 1 ? "removable" : ""}" data-room-select="${this._esc(player.entity_id)}" title="${this._esc(isSelected && selectedIds.length > 1 ? this._i18n("ui.remove_from_selection") : isSelected ? this._i18n("ui.selected_player_2") : this._i18n("ui.add_to_selection"))}">
           ${this._iconSvg(isSelected && selectedIds.length > 1 ? "close" : isSelected ? "check" : "grid")}
-          <span class="control-room-select-label">${this._esc(isSelected && selectedIds.length > 1 ? this._m("Remove", "הסר") : isSelected ? this._m("Selected", "נבחר") : this._m("Select", "בחר"))}</span>
+          <span class="control-room-select-label">${this._esc(isSelected && selectedIds.length > 1 ? this._i18n("ui.remove") : isSelected ? this._i18n("ui.selected") : this._i18n("ui.select"))}</span>
         </button>
         <button class="control-room-tile-main" data-room-primary="${this._esc(player.entity_id)}" title="${this._esc(name)}">
           <span class="control-room-tile-copy">
             <span class="control-room-tile-pills">
-              ${isPrimary ? `<span class="control-room-primary-pill">${this._esc(this._m("Primary", "ראשי"))}</span>` : ``}
-              ${groupCount ? `<span class="control-room-float-pill grouped" title="${this._esc(groupInfo.label || this._m("Grouped players", "נגנים בקבוצה"))}">${this._iconSvg("speaker")}${this._esc(this._m(`${groupCount} grouped`, `${groupCount} בקבוצה`))}</span>` : ``}
+              ${isPrimary ? `<span class="control-room-primary-pill">${this._esc(this._i18n("ui.primary"))}</span>` : ``}
+              ${groupCount ? `<span class="control-room-float-pill grouped" title="${this._esc(groupInfo.label || this._i18n("ui.grouped_players"))}">${this._iconSvg("speaker")}${this._esc(this._m(`${groupCount} grouped`, `${groupCount} בקבוצה`))}</span>` : ``}
               ${queueCount ? `<span class="control-room-float-pill">${this._iconSvg("queue")}${this._esc(`${queueCount}`)}</span>` : ``}
               ${protocolLabel ? `<span class="control-room-float-pill protocol">${this._esc(protocolLabel)}</span>` : ``}
-              ${playing ? `<span class="control-room-float-pill live">${this._esc(this._m("Playing", "מנגן"))}</span>` : ``}
+              ${playing ? `<span class="control-room-float-pill live">${this._esc(this._i18n("ui.playing"))}</span>` : ``}
             </span>
             <span class="control-room-tile-track">${this._esc(track)}</span>
             <span class="control-room-tile-name">${this._esc(name)}</span>
@@ -5965,9 +6225,9 @@
           </span>
         </button>
         <div class="control-room-tile-actions">
-          <button type="button" data-room-toggle-play="${this._esc(player.entity_id)}" title="${this._esc(this._m("Play / Pause", "נגן / השהה"))}">${this._iconSvg(playing ? "pause" : "play")}</button>
-          <button type="button" data-room-next="${this._esc(player.entity_id)}" title="${this._esc(this._m("Next", "הבא"))}">${this._iconSvg("next")}</button>
-          <button type="button" class="${muted ? "active" : ""}" data-room-mute="${this._esc(player.entity_id)}" title="${this._esc(this._m("Mute", "השתק"))}">${this._iconSvg(muted ? "volume_mute" : this._volumeIconName(player))}</button>
+          <button type="button" data-room-toggle-play="${this._esc(player.entity_id)}" title="${this._esc(this._i18n("ui.play_pause"))}">${this._iconSvg(playing ? "pause" : "play")}</button>
+          <button type="button" data-room-next="${this._esc(player.entity_id)}" title="${this._esc(this._i18n("ui.next"))}">${this._iconSvg("next")}</button>
+          <button type="button" class="${muted ? "active" : ""}" data-room-mute="${this._esc(player.entity_id)}" title="${this._esc(this._i18n("ui.mute"))}">${this._iconSvg(muted ? "volume_mute" : this._volumeIconName(player))}</button>
         </div>
         <label class="control-room-volume-row">
           <input class="control-room-volume" data-room-volume="${this._esc(player.entity_id)}" type="range" min="0" max="100" value="${volume}" style="--vol-pct:${volume}%">
@@ -5981,10 +6241,10 @@
     const loading = !!this._state.controlRoomLibraryLoading;
     const results = Array.isArray(this._state.controlRoomLibraryResults) ? this._state.controlRoomLibraryResults : [];
     const query = String(this._state.controlRoomLibraryQuery || "").trim();
-    if (loading) return `<div class="control-room-empty subtle">${this._esc(this._m("Searching library...", "מחפש בספריה..."))}</div>`;
-    if (!query) return `<div class="control-room-empty subtle">${this._esc(this._m("Search and choose Play, Next, Add, Radio, or Like.", "חפש ובחר נגן, הבא, הוסף, רדיו או אהבתי."))}</div>`;
+    if (loading) return `<div class="control-room-empty subtle">${this._esc(this._i18n("ui.searching_library"))}</div>`;
+    if (!query) return `<div class="control-room-empty subtle">${this._esc(this._i18n("ui.search_and_choose_play_next_add_radio_or_like"))}</div>`;
     return this._controlRoomMediaGridHtml(results, {
-      empty: this._m("No media found for this search.", "לא נמצאה מדיה לחיפוש הזה."),
+      empty: this._i18n("ui.no_media_found_for_this_search"),
       large: true,
     });
   }
@@ -5997,8 +6257,8 @@
       return `
         <div class="control-room-tray open compact">
           <div class="control-room-tray-head">
-            <div class="control-room-tray-title">${this._esc(this._m("Connected players", "נגנים מחוברים"))}</div>
-            <div class="control-room-tray-sub">${this._esc(this._m("Choose which players stay in the current control selection.", "בחר אילו נגנים יישארו בבחירה הנוכחית."))}</div>
+            <div class="control-room-tray-title">${this._esc(this._i18n("ui.connected_players_2"))}</div>
+            <div class="control-room-tray-sub">${this._esc(this._i18n("ui.choose_which_players_stay_in_the_current_control_selection"))}</div>
           </div>
           ${this._controlRoomPlayerChoiceRows("selection")}
         </div>
@@ -6008,8 +6268,8 @@
       return `
         <div class="control-room-tray open compact">
           <div class="control-room-tray-head">
-            <div class="control-room-tray-title">${this._esc(this._m("Visible tiles", "אריחים מוצגים"))}</div>
-            <div class="control-room-tray-sub">${this._esc(this._m("Choose which players appear as tiles in the room.", "בחר אילו נגנים יופיעו כאריחים בחדר."))}</div>
+            <div class="control-room-tray-title">${this._esc(this._i18n("ui.visible_tiles_2"))}</div>
+            <div class="control-room-tray-sub">${this._esc(this._i18n("ui.choose_which_players_appear_as_tiles_in_the_room"))}</div>
           </div>
           ${this._controlRoomPlayerChoiceRows("visible")}
         </div>
@@ -6019,24 +6279,24 @@
       return `
         <div class="control-room-tray open wide control-room-hub-panel">
           <div class="control-room-tray-head">
-            <div class="control-room-tray-title">${this._esc(this._m("Music Hub", "מרכז מוזיקה"))}</div>
-            <div class="control-room-tray-sub">${this._esc(this._m("Choose the source first. Playback will use the current target.", "בחר מקור מוזיקה. הניגון יישלח ליעד הנוכחי."))}</div>
+            <div class="control-room-tray-title">${this._esc(this._i18n("ui.music_hub_2"))}</div>
+            <div class="control-room-tray-sub">${this._esc(this._i18n("ui.choose_the_source_first_playback_will_use_the_current_target"))}</div>
           </div>
           ${context}
           <div class="control-room-library-shortcuts">
-            <button data-room-selection-action="browse_library">${this._iconSvg("playlist")}<span>${this._esc(this._m("Playlists", "פלייליסטים"))}</span></button>
-            <button data-room-selection-action="browse_artists">${this._iconSvg("artist")}<span>${this._esc(this._m("Artists", "אמנים"))}</span></button>
-            <button data-room-selection-action="browse_albums">${this._iconSvg("album")}<span>${this._esc(this._m("Albums", "אלבומים"))}</span></button>
-            <button data-room-selection-action="browse_tracks">${this._iconSvg("tracks")}<span>${this._esc(this._m("Tracks", "שירים"))}</span></button>
-            <button data-room-selection-action="browse_radio">${this._iconSvg("radio")}<span>${this._esc(this._m("Radio", "רדיו"))}</span></button>
+            <button data-room-selection-action="browse_library">${this._iconSvg("playlist")}<span>${this._esc(this._i18n("ui.playlists"))}</span></button>
+            <button data-room-selection-action="browse_artists">${this._iconSvg("artist")}<span>${this._esc(this._i18n("ui.artists"))}</span></button>
+            <button data-room-selection-action="browse_albums">${this._iconSvg("album")}<span>${this._esc(this._i18n("ui.albums"))}</span></button>
+            <button data-room-selection-action="browse_tracks">${this._iconSvg("tracks")}<span>${this._esc(this._i18n("ui.tracks"))}</span></button>
+            <button data-room-selection-action="browse_radio">${this._iconSvg("radio")}<span>${this._esc(this._i18n("ui.radio"))}</span></button>
           </div>
           <div class="control-room-hub-grid">
-            <button class="control-room-hub-card primary" data-room-selection-action="browse_library">${this._iconSvg("library_music")}<span>${this._esc(this._m("Library", "ספריה"))}</span><small>${this._esc(this._m("Browse playlists, artists, albums and radio", "דפדוף בפלייליסטים, אמנים, אלבומים ורדיו"))}</small></button>
-            <button class="control-room-hub-card" data-room-selection-action="library">${this._iconSvg("search")}<span>${this._esc(this._m("Search", "חיפוש"))}</span><small>${this._esc(this._m("Search tracks, albums, artists and playlists", "חיפוש שירים, אלבומים, אמנים ופלייליסטים"))}</small></button>
-            <button class="control-room-hub-card" data-room-selection-action="mix">${this._iconSvg("wand")}<span>${this._esc(this._m("FLOW Mix", "מיקס FLOW"))}</span><small>${this._esc(this._m("Mood, style or free text", "מצב רוח, סגנון או חיפוש חופשי"))}</small></button>
-            <button class="control-room-hub-card" data-room-selection-action="recent">${this._iconSvg("history")}<span>${this._esc(this._m("Recent", "אחרונים"))}</span><small>${this._esc(this._m("Continue what was played recently", "המשך ממה שהתנגן לאחרונה"))}</small></button>
-            <button class="control-room-hub-card" data-room-selection-action="favorites">${this._iconSvg("heart_filled")}<span>${this._esc(this._m("Liked", "אהבתי"))}</span><small>${this._esc(this._m("Favorites and liked music", "מועדפים ומוזיקה אהובה"))}</small></button>
-            <button class="control-room-hub-card" data-room-selection-action="scenes">${this._iconSvg("home")}<span>${this._esc(this._m("Scenes", "סצנות"))}</span><small>${this._esc(this._m("Home, party, night presets", "בית, מסיבה, לילה"))}</small></button>
+            <button class="control-room-hub-card primary" data-room-selection-action="browse_library">${this._iconSvg("library_music")}<span>${this._esc(this._i18n("ui.library"))}</span><small>${this._esc(this._i18n("ui.browse_playlists_artists_albums_and_radio"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="library">${this._iconSvg("search")}<span>${this._esc(this._i18n("ui.search"))}</span><small>${this._esc(this._i18n("ui.search_tracks_albums_artists_and_playlists"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="mix">${this._iconSvg("wand")}<span>${this._esc(this._i18n("ui.flow_mix"))}</span><small>${this._esc(this._i18n("ui.mood_style_or_free_text"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="recent">${this._iconSvg("history")}<span>${this._esc(this._i18n("ui.recent"))}</span><small>${this._esc(this._i18n("ui.continue_what_was_played_recently"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="favorites">${this._iconSvg("heart_filled")}<span>${this._esc(this._i18n("ui.liked"))}</span><small>${this._esc(this._i18n("ui.favorites_and_liked_music"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="scenes">${this._iconSvg("home")}<span>${this._esc(this._i18n("ui.scenes"))}</span><small>${this._esc(this._i18n("ui.home_party_night_presets"))}</small></button>
           </div>
         </div>
       `;
@@ -6052,8 +6312,8 @@
       return `
         <div class="control-room-tray open wide control-room-hub-panel">
           <div class="control-room-tray-head">
-            <div class="control-room-tray-title">${this._esc(this._m("Actions", "פעולות"))}</div>
-            <div class="control-room-tray-sub">${this._esc(this._m("Only actions for the current target are shown here.", "כאן מופיעות רק פעולות ליעד השליטה הנוכחי."))}</div>
+            <div class="control-room-tray-title">${this._esc(this._i18n("ui.actions_2"))}</div>
+            <div class="control-room-tray-sub">${this._esc(this._i18n("ui.only_actions_for_the_current_target_are_shown_here"))}</div>
           </div>
           <div class="control-room-action-console">
             <div class="control-room-action-now">
@@ -6065,22 +6325,22 @@
               </span>
             </div>
             <div class="control-room-media-controls">
-              <button class="control-room-media-control primary" data-room-selection-action="playpause" ${targetCount ? "" : "disabled"}>${this._iconSvg(primaryPlaying ? "pause" : "play")}<span>${this._esc(primaryPlaying ? this._m("Pause", "השהה") : this._m("Play", "נגן"))}</span></button>
-              <button class="control-room-media-control" data-room-selection-action="next" ${targetCount ? "" : "disabled"}>${this._iconSvg("next")}<span>${this._esc(this._m("Next", "הבא"))}</span></button>
-              <button class="control-room-media-control ${primaryMuted ? "active" : ""}" data-room-selection-action="mute" ${targetCount ? "" : "disabled"}>${this._iconSvg(primaryMuted ? "volume_mute" : (primary ? this._volumeIconName(primary) : "speaker"))}<span>${this._esc(this._m("Mute", "השתק"))}</span></button>
-              <button class="control-room-media-control danger" data-room-selection-action="clear" ${targetCount ? "" : "disabled"}>${this._iconSvg("trash")}<span>${this._esc(this._m("Clear queue", "נקה תור"))}</span></button>
+              <button class="control-room-media-control primary" data-room-selection-action="playpause" ${targetCount ? "" : "disabled"}>${this._iconSvg(primaryPlaying ? "pause" : "play")}<span>${this._esc(primaryPlaying ? this._i18n("ui.pause") : this._i18n("ui.play"))}</span></button>
+              <button class="control-room-media-control" data-room-selection-action="next" ${targetCount ? "" : "disabled"}>${this._iconSvg("next")}<span>${this._esc(this._i18n("ui.next"))}</span></button>
+              <button class="control-room-media-control ${primaryMuted ? "active" : ""}" data-room-selection-action="mute" ${targetCount ? "" : "disabled"}>${this._iconSvg(primaryMuted ? "volume_mute" : (primary ? this._volumeIconName(primary) : "speaker"))}<span>${this._esc(this._i18n("ui.mute"))}</span></button>
+              <button class="control-room-media-control danger" data-room-selection-action="clear" ${targetCount ? "" : "disabled"}>${this._iconSvg("trash")}<span>${this._esc(this._i18n("ui.clear_queue"))}</span></button>
             </div>
           </div>
           <div class="control-room-action-grid management">
-            <button class="control-room-hub-card" data-room-selection-action="selection">${this._iconSvg("grid")}<span>${this._esc(this._m("Target players", "נגני יעד"))}</span><small>${this._esc(this._m("Choose who is controlled", "בחר על מי שולטים"))}</small></button>
-            <button class="control-room-hub-card" data-room-selection-action="visible">${this._iconSvg("grid")}<span>${this._esc(this._m("Visible tiles", "אריחים מוצגים"))}</span><small>${this._esc(this._m("Clean the Studio wall", "סדר את מסך הסטודיו"))}</small></button>
-            <button class="control-room-hub-card" data-room-selection-action="group" ${targetCount > 1 ? "" : "disabled"}>${this._iconSvg("speaker")}<span>${this._esc(this._m("Group", "קבוצה"))}</span><small>${this._esc(this._m("Join selected players", "חבר נגנים נבחרים"))}</small></button>
-            <button class="control-room-hub-card" data-room-selection-action="ungroup" ${targetCount ? "" : "disabled"}>${this._iconSvg("close")}<span>${this._esc(this._m("Ungroup", "נתק"))}</span><small>${this._esc(this._m("Disconnect groups", "נתק קבוצות"))}</small></button>
-            <button class="control-room-hub-card danger" data-room-selection-action="stop_all">${this._iconSvg("stop")}<span>${this._esc(this._m("Stop all", "עצור הכל"))}</span><small>${this._esc(this._m("Stop playback, clear queues and disconnect groups", "עצירה, ניקוי תורים וניתוק קבוצות"))}</small></button>
-            <button class="control-room-hub-card" data-room-selection-action="announce">${this._iconSvg("announcement")}<span>${this._esc(this._m("Announcement", "כריזה"))}</span><small>${this._esc(this._m("Speak to target players", "שלח הודעה לנגנים"))}</small></button>
-            <button class="control-room-hub-card" data-room-selection-action="timers">${this._iconSvg("timer")}<span>${this._esc(this._m("Timers", "טיימרים"))}</span><small>${this._esc(this._m("Sleep timer and scheduled playback", "טיימר שינה ותזמון הפעלה"))}</small></button>
-            <button class="control-room-hub-card" data-room-selection-action="open_ma">${this._iconSvg("library_music")}<span>${this._esc(this._m("Open MA", "פתח MA"))}</span><small>${this._esc(this._m("Open the full Music Assistant interface", "פתח את ממשק Music Assistant המלא"))}</small></button>
-            <button class="control-room-hub-card" data-room-selection-action="pro">${this._iconSvg("settings")}<span>${this._esc(this._m("Pro tools", "כלי Pro"))}</span><small>${this._esc(this._m("Sendspin and diagnostics", "Sendspin ודיאגנוסטיקה"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="selection">${this._iconSvg("grid")}<span>${this._esc(this._i18n("ui.target_players"))}</span><small>${this._esc(this._i18n("ui.choose_who_is_controlled"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="visible">${this._iconSvg("grid")}<span>${this._esc(this._i18n("ui.visible_tiles_2"))}</span><small>${this._esc(this._i18n("ui.clean_the_studio_wall"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="group" ${targetCount > 1 ? "" : "disabled"}>${this._iconSvg("speaker")}<span>${this._esc(this._i18n("ui.group"))}</span><small>${this._esc(this._i18n("ui.join_selected_players"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="ungroup" ${targetCount ? "" : "disabled"}>${this._iconSvg("close")}<span>${this._esc(this._i18n("ui.ungroup_2"))}</span><small>${this._esc(this._i18n("ui.disconnect_groups"))}</small></button>
+            <button class="control-room-hub-card danger" data-room-selection-action="stop_all">${this._iconSvg("stop")}<span>${this._esc(this._i18n("ui.stop_all"))}</span><small>${this._esc(this._i18n("ui.stop_playback_clear_queues_and_disconnect_groups"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="announce">${this._iconSvg("announcement")}<span>${this._esc(this._i18n("ui.announcement"))}</span><small>${this._esc(this._i18n("ui.speak_to_target_players"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="timers">${this._iconSvg("timer")}<span>${this._esc(this._i18n("ui.timers"))}</span><small>${this._esc(this._i18n("ui.sleep_timer_and_scheduled_playback"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="open_ma">${this._iconSvg("library_music")}<span>${this._esc(this._i18n("ui.open_ma"))}</span><small>${this._esc(this._i18n("ui.open_the_full_music_assistant_interface_2"))}</small></button>
+            <button class="control-room-hub-card" data-room-selection-action="pro">${this._iconSvg("settings")}<span>${this._esc(this._i18n("ui.pro_tools"))}</span><small>${this._esc(this._i18n("ui.sendspin_and_diagnostics"))}</small></button>
           </div>
         </div>
       `;
@@ -6090,8 +6350,8 @@
       const target = this._state.controlRoomTransferTarget || "";
       const sourcePlayer = this._playerByEntityId(source);
       const targetPlayer = this._playerByEntityId(target);
-      const sourceName = sourcePlayer?.attributes?.friendly_name || source || this._m("Choose source", "בחר מקור");
-      const targetName = targetPlayer?.attributes?.friendly_name || target || this._m("Choose target", "בחר יעד");
+      const sourceName = sourcePlayer?.attributes?.friendly_name || source || this._i18n("ui.choose_source");
+      const targetName = targetPlayer?.attributes?.friendly_name || target || this._i18n("ui.choose_target");
       const targetPlayers = players.filter((player) => player.entity_id !== source);
       const transferChoiceRows = (role, options, selectedId) => `
         <div class="control-room-transfer-list" data-control-room-scroll="transfer-${this._esc(role)}">
@@ -6108,41 +6368,41 @@
                 <span class="control-room-transfer-check">${isActive ? this._iconSvg("check") : ""}</span>
               </button>
             `;
-          }).join("") : `<div class="control-room-empty subtle">${this._esc(this._m("No available players", "אין נגנים זמינים"))}</div>`}
+          }).join("") : `<div class="control-room-empty subtle">${this._esc(this._i18n("ui.no_available_players"))}</div>`}
         </div>
       `;
       return `
         <div class="control-room-tray open transfer-panel">
           <div class="control-room-tray-head">
-            <div class="control-room-tray-title">${this._esc(this._m("Queue Cockpit", "ניהול תור"))}</div>
-            <div class="control-room-tray-sub">${this._esc(this._m("Transfer, clone, inspect, or clear queues without hiding the Studio.", "העבר, העתק, בדוק או נקה תורים בלי להסתיר את הסטודיו."))}</div>
+            <div class="control-room-tray-title">${this._esc(this._i18n("ui.queue_cockpit_2"))}</div>
+            <div class="control-room-tray-sub">${this._esc(this._i18n("ui.transfer_clone_inspect_or_clear_queues_without_hiding_the_studio"))}</div>
           </div>
           <div class="control-room-queue-layout">
             <div class="control-room-queue-lanes">
               <section class="control-room-queue-lane source">
                 <div class="control-room-queue-lane-head">
-                  <span>${this._esc(this._m("From", "מ־"))}</span>
+                  <span>${this._esc(this._i18n("ui.from"))}</span>
                   <strong>${this._esc(sourceName)}</strong>
                 </div>
                 ${transferChoiceRows("source", players, source)}
-                <div class="control-room-transfer-label">${this._esc(this._m("Source queue", "תור מקור"))}</div>
-                ${source ? this._controlRoomQueuePreviewHtml(source) : `<div class="control-room-empty subtle">${this._esc(this._m("Choose a source player", "בחר נגן מקור"))}</div>`}
+                <div class="control-room-transfer-label">${this._esc(this._i18n("ui.source_queue"))}</div>
+                ${source ? this._controlRoomQueuePreviewHtml(source) : `<div class="control-room-empty subtle">${this._esc(this._i18n("ui.choose_a_source_player"))}</div>`}
               </section>
               <section class="control-room-queue-lane target">
                 <div class="control-room-queue-lane-head">
-                  <span>${this._esc(this._m("To", "אל"))}</span>
+                  <span>${this._esc(this._i18n("ui.to"))}</span>
                   <strong>${this._esc(targetName)}</strong>
                 </div>
                 ${transferChoiceRows("target", targetPlayers, target)}
-                <div class="control-room-transfer-label">${this._esc(this._m("Target queue", "תור יעד"))}</div>
-                ${target ? this._controlRoomQueuePreviewHtml(target) : `<div class="control-room-empty subtle">${this._esc(this._m("Choose a target player", "בחר נגן יעד"))}</div>`}
+                <div class="control-room-transfer-label">${this._esc(this._i18n("ui.target_queue"))}</div>
+                ${target ? this._controlRoomQueuePreviewHtml(target) : `<div class="control-room-empty subtle">${this._esc(this._i18n("ui.choose_a_target_player"))}</div>`}
               </section>
             </div>
             <div class="control-room-queue-actions">
-              <button class="control-room-panel-action primary" data-room-transfer ${source && target ? "" : "disabled"}>${this._iconSvg("queue")}<span>${this._esc(this._m("Transfer queue", "העבר תור"))}</span></button>
-              <button class="control-room-panel-action" data-room-clone ${source && target ? "" : "disabled"}>${this._iconSvg("repeat")}<span>${this._esc(this._m("Clone queue", "העתק תור"))}</span></button>
-              <button class="control-room-panel-action" data-room-refresh-queues>${this._iconSvg("sync")}<span>${this._esc(this._m("Refresh", "רענן"))}</span></button>
-              <button class="control-room-panel-action danger" data-room-clear-queue="${this._esc(target || source || "")}" ${source || target ? "" : "disabled"}>${this._iconSvg("trash")}<span>${this._esc(this._m("Clear queue", "נקה תור"))}</span></button>
+              <button class="control-room-panel-action primary" data-room-transfer ${source && target ? "" : "disabled"}>${this._iconSvg("queue")}<span>${this._esc(this._i18n("ui.transfer_queue_2"))}</span></button>
+              <button class="control-room-panel-action" data-room-clone ${source && target ? "" : "disabled"}>${this._iconSvg("repeat")}<span>${this._esc(this._i18n("ui.clone_queue"))}</span></button>
+              <button class="control-room-panel-action" data-room-refresh-queues>${this._iconSvg("sync")}<span>${this._esc(this._i18n("ui.refresh"))}</span></button>
+              <button class="control-room-panel-action danger" data-room-clear-queue="${this._esc(target || source || "")}" ${source || target ? "" : "disabled"}>${this._iconSvg("trash")}<span>${this._esc(this._i18n("ui.clear_queue"))}</span></button>
             </div>
           </div>
         </div>
@@ -6153,8 +6413,8 @@
         <div class="control-room-tray open wide">
           <label class="control-room-search">
             ${this._iconSvg("search")}
-            <input id="controlRoomLibraryInput" type="search" placeholder="${this._esc(this._m("Search the library...", "חפש בספריה..."))}" value="${this._esc(this._state.controlRoomLibraryQuery || "")}" autocomplete="off" spellcheck="false">
-            <button type="button" class="control-room-search-mic" data-room-library-mic title="${this._esc(this._m("Voice search", "חיפוש קולי"))}">
+            <input id="controlRoomLibraryInput" type="search" placeholder="${this._esc(this._i18n("ui.search_the_library"))}" value="${this._esc(this._state.controlRoomLibraryQuery || "")}" autocomplete="off" spellcheck="false">
+            <button type="button" class="control-room-search-mic" data-room-library-mic title="${this._esc(this._i18n("ui.voice_search"))}">
               ${this._iconSvg("mic")}
             </button>
           </label>
@@ -6166,14 +6426,14 @@
       return `
         <div class="control-room-tray open wide">
           <div class="control-room-tray-head">
-            <div class="control-room-tray-title">${this._esc(this._m("Smart Mix Builder", "בונה מיקס חכם"))}</div>
-            <div class="control-room-tray-sub">${this._esc(this._m("Pick a mood or type your own style. Studio will search Music Assistant and build a queue.", "בחר מצב רוח או כתוב סגנון חופשי. הסטודיו יחפש ב־Music Assistant ויבנה תור."))}</div>
+            <div class="control-room-tray-title">${this._esc(this._i18n("ui.smart_mix_builder"))}</div>
+            <div class="control-room-tray-sub">${this._esc(this._i18n("ui.pick_a_mood_or_type_your_own_style_studio_will_search_music_assistant_an"))}</div>
           </div>
           <div class="control-room-mix-panel">
             <label class="control-room-search">
               ${this._iconSvg("wand")}
-              <input id="controlRoomSmartQueryInput" type="search" placeholder="${this._esc(this._m("Free style: quiet jazz, Greek music, workout...", "סגנון חופשי: ג'אז רגוע, יוונית, אימון..."))}" value="${this._esc(this._state.controlRoomSmartQuery || "")}" autocomplete="off" spellcheck="false">
-              <button type="button" class="control-room-search-mic" data-room-smart-custom title="${this._esc(this._m("Build custom mix", "בנה מיקס חופשי"))}">${this._iconSvg("play")}</button>
+              <input id="controlRoomSmartQueryInput" type="search" placeholder="${this._esc(this._i18n("ui.free_style_quiet_jazz_greek_music_workout"))}" value="${this._esc(this._state.controlRoomSmartQuery || "")}" autocomplete="off" spellcheck="false">
+              <button type="button" class="control-room-search-mic" data-room-smart-custom title="${this._esc(this._i18n("ui.build_custom_mix"))}">${this._iconSvg("play")}</button>
             </label>
             <div class="control-room-mix-grid">
               ${this._controlRoomMixPresets().map((preset) => `
@@ -6194,11 +6454,11 @@
       return `
         <div class="control-room-tray open wide">
           <div class="control-room-tray-head">
-            <div class="control-room-tray-title">${this._esc(this._m("Recent / Continue", "אחרונים / המשך"))}</div>
-            <div class="control-room-tray-sub">${this._esc(this._m("Continue from recent Music Assistant activity.", "המשך מהאזנות אחרונות ב־Music Assistant."))}</div>
+            <div class="control-room-tray-title">${this._esc(this._i18n("ui.recent_continue"))}</div>
+            <div class="control-room-tray-sub">${this._esc(this._i18n("ui.continue_from_recent_music_assistant_activity"))}</div>
           </div>
           <div class="control-room-library-results" data-control-room-scroll="recent">
-            ${loading ? `<div class="control-room-empty subtle">${this._esc(this._m("Loading recent items...", "טוען אחרונים..."))}</div>` : this._controlRoomMediaGridHtml(items, { empty: this._m("No recent listening yet.", "אין האזנות אחרונות עדיין."), large: true })}
+            ${loading ? `<div class="control-room-empty subtle">${this._esc(this._i18n("ui.loading_recent_items"))}</div>` : this._controlRoomMediaGridHtml(items, { empty: this._i18n("ui.no_recent_listening_yet"), large: true })}
           </div>
         </div>
       `;
@@ -6209,11 +6469,11 @@
       return `
         <div class="control-room-tray open wide">
           <div class="control-room-tray-head">
-            <div class="control-room-tray-title">${this._esc(this._m("Favorite Center", "מרכז אהבתי"))}</div>
-            <div class="control-room-tray-sub">${this._esc(this._m("Play, queue, radio, or remove favorites directly from Studio.", "נגן, הוסף, הפעל רדיו או נהל אהובים ישירות מהסטודיו."))}</div>
+            <div class="control-room-tray-title">${this._esc(this._i18n("ui.favorite_center_2"))}</div>
+            <div class="control-room-tray-sub">${this._esc(this._i18n("ui.play_queue_radio_or_remove_favorites_directly_from_studio"))}</div>
           </div>
           <div class="control-room-library-results" data-control-room-scroll="favorites">
-            ${loading ? `<div class="control-room-empty subtle">${this._esc(this._m("Loading favorites...", "טוען אהובים..."))}</div>` : this._controlRoomMediaGridHtml(items, { empty: this._m("No favorites found.", "לא נמצאו אהובים."), large: true })}
+            ${loading ? `<div class="control-room-empty subtle">${this._esc(this._i18n("ui.loading_favorites"))}</div>` : this._controlRoomMediaGridHtml(items, { empty: this._i18n("ui.no_favorites_found"), large: true })}
           </div>
         </div>
       `;
@@ -6223,25 +6483,25 @@
       return `
         <div class="control-room-tray open wide">
           <div class="control-room-tray-head">
-            <div class="control-room-tray-title">${this._esc(this._m("Scene Presets", "סצנות"))}</div>
-            <div class="control-room-tray-sub">${this._esc(this._m("One tap prepares players, grouping, volume and content. Save your own current Studio target as a local scene.", "לחיצה אחת מכינה נגנים, קבוצה, ווליום ותוכן. אפשר לשמור את יעד הסטודיו הנוכחי כסצנה מקומית."))}</div>
+            <div class="control-room-tray-title">${this._esc(this._i18n("ui.scene_presets_2"))}</div>
+            <div class="control-room-tray-sub">${this._esc(this._i18n("ui.one_tap_prepares_players_grouping_volume_and_content_save_your_own_curre"))}</div>
           </div>
           <div class="control-room-scenes-grid">
-            <button class="control-room-scene-card" data-room-scene="home">${this._iconSvg("home")}<span>${this._esc(this._m("Home", "בית"))}</span><small>${this._esc(this._m("Selected players at comfortable volume", "נגנים נבחרים בווליום נוח"))}</small></button>
-            <button class="control-room-scene-card" data-room-scene="party">${this._iconSvg("radio")}<span>${this._esc(this._m("Party", "מסיבה"))}</span><small>${this._esc(this._m("Group, volume up, energetic mix", "קבוצה, ווליום גבוה ומיקס קצבי"))}</small></button>
-            <button class="control-room-scene-card" data-room-scene="night">${this._iconSvg("moon")}<span>${this._esc(this._m("Night", "לילה"))}</span><small>${this._esc(this._m("Low volume and quiet mix", "ווליום נמוך ומיקס רגוע"))}</small></button>
+            <button class="control-room-scene-card" data-room-scene="home">${this._iconSvg("home")}<span>${this._esc(this._i18n("ui.home"))}</span><small>${this._esc(this._i18n("ui.selected_players_at_comfortable_volume"))}</small></button>
+            <button class="control-room-scene-card" data-room-scene="party">${this._iconSvg("radio")}<span>${this._esc(this._i18n("ui.party"))}</span><small>${this._esc(this._i18n("ui.group_volume_up_energetic_mix"))}</small></button>
+            <button class="control-room-scene-card" data-room-scene="night">${this._iconSvg("moon")}<span>${this._esc(this._i18n("ui.night"))}</span><small>${this._esc(this._i18n("ui.low_volume_and_quiet_mix"))}</small></button>
           </div>
           <div class="control-room-scene-save">
             <label class="control-room-search">
               ${this._iconSvg("home")}
-              <input id="controlRoomSceneNameInput" type="text" placeholder="${this._esc(this._m("Name this Studio scene...", "שם לסצנת הסטודיו..."))}" value="${this._esc(this._state.controlRoomSceneName || "")}" autocomplete="off" spellcheck="false">
+              <input id="controlRoomSceneNameInput" type="text" placeholder="${this._esc(this._i18n("ui.name_this_studio_scene"))}" value="${this._esc(this._state.controlRoomSceneName || "")}" autocomplete="off" spellcheck="false">
             </label>
-            <button class="control-room-panel-action primary" data-room-save-scene>${this._iconSvg("plus")}<span>${this._esc(this._m("Save current target", "שמור יעד נוכחי"))}</span></button>
+            <button class="control-room-panel-action primary" data-room-save-scene>${this._iconSvg("plus")}<span>${this._esc(this._i18n("ui.save_current_target"))}</span></button>
           </div>
           <div class="control-room-saved-scenes" data-control-room-scroll="saved-scenes">
             ${customScenes.length ? customScenes.map((scene) => {
               const count = scene.playerIds.length;
-              const mediaName = scene.media?.name || this._m("Volume and player target", "ווליום ויעד נגנים");
+              const mediaName = scene.media?.name || this._i18n("ui.volume_and_player_target");
               return `
                 <article class="control-room-saved-scene-card">
                   <button class="control-room-saved-scene-main" data-room-scene="${this._esc(scene.id)}">
@@ -6251,10 +6511,10 @@
                       <small>${this._esc(`${this._controlRoomPlayerCountLabel(count)} · ${mediaName}`)}</small>
                     </span>
                   </button>
-                  <button class="control-room-saved-scene-delete" data-room-delete-scene="${this._esc(scene.id)}" title="${this._esc(this._m("Delete scene", "מחק סצנה"))}">${this._iconSvg("trash")}</button>
+                  <button class="control-room-saved-scene-delete" data-room-delete-scene="${this._esc(scene.id)}" title="${this._esc(this._i18n("ui.delete_scene"))}">${this._iconSvg("trash")}</button>
                 </article>
               `;
-            }).join("") : `<div class="control-room-empty subtle">${this._esc(this._m("No saved Studio scenes yet.", "עדיין אין סצנות סטודיו שמורות."))}</div>`}
+            }).join("") : `<div class="control-room-empty subtle">${this._esc(this._i18n("ui.no_saved_studio_scenes_yet"))}</div>`}
           </div>
         </div>
       `;
@@ -6266,27 +6526,27 @@
           <div class="control-room-announce-hero">
             <span class="control-room-announce-icon">${this._iconSvg("announcement")}</span>
             <span class="control-room-announce-copy">
-              <span class="control-room-tray-title">${this._esc(this._m("Announcement Studio", "סטודיו כריזה"))}</span>
-              <span class="control-room-tray-sub">${this._esc(this._m("Send a short voice message or announcement URL.", "שלח הודעה קולית קצרה או קישור כריזה."))}</span>
+              <span class="control-room-tray-title">${this._esc(this._i18n("ui.announcement_studio_2"))}</span>
+              <span class="control-room-tray-sub">${this._esc(this._i18n("ui.send_a_short_voice_message_or_announcement_url"))}</span>
             </span>
           </div>
           ${context}
           <div class="control-room-announce-panel">
             <label class="control-room-announce-compose">
-              <span>${this._esc(this._m("Message", "הודעה"))}</span>
-              <textarea id="controlRoomAnnouncementText" class="announcement-textarea" rows="3" placeholder="${this._esc(this._m("Type what should be announced...", "כתוב מה להכריז..."))}">${this._esc(this._state.controlRoomAnnouncementText || "")}</textarea>
+              <span>${this._esc(this._i18n("ui.message"))}</span>
+              <textarea id="controlRoomAnnouncementText" class="announcement-textarea" rows="3" placeholder="${this._esc(this._i18n("ui.type_what_should_be_announced"))}">${this._esc(this._state.controlRoomAnnouncementText || "")}</textarea>
             </label>
             <div class="control-room-announce-controls">
               <div class="control-room-announce-volume-card announcement-volume-field">
                 <div class="control-room-announce-volume-head">
-                  <span>${this._esc(this._m("Volume boost", "חיזוק ווליום"))}</span>
+                  <span>${this._esc(this._i18n("ui.volume_boost"))}</span>
                   <strong class="settings-value">+${this._esc(String(volume))}%</strong>
                 </div>
                 <input id="controlRoomAnnouncementVolumeInput" type="range" min="20" max="50" step="1" value="${this._esc(String(volume))}">
               </div>
               <button class="control-room-panel-action primary wide control-room-announce-send" data-room-announce-send>
                 ${this._iconSvg("announcement")}
-                <span>${this._esc(this._m("Send announcement", "שלח כריזה"))}</span>
+                <span>${this._esc(this._i18n("ui.send_announcement"))}</span>
               </button>
             </div>
           </div>
@@ -6296,28 +6556,28 @@
     if (panel === "pro") {
       const directReady = this._hasDirectMAConnection();
       const realtimeReady = this._hasRealtimeDirectMA();
-      const sendspinState = this._localSendspinConnected ? this._m("Connected", "מחובר") : (this._localSendspinConnecting ? this._m("Connecting", "מתחבר") : this._m("Idle", "ממתין"));
+      const sendspinState = this._localSendspinConnected ? this._i18n("ui.connected") : (this._localSendspinConnecting ? this._i18n("ui.connecting") : this._i18n("ui.idle_2"));
       const primary = this._controlRoomPrimaryPlayer();
       const protocol = primary ? this._controlRoomProtocolLabel(primary) : "";
       return `
         <div class="control-room-tray open compact">
           <div class="control-room-tray-head">
-            <div class="control-room-tray-title">${this._esc(this._m("Studio Pro", "סטודיו Pro"))}</div>
-            <div class="control-room-tray-sub">${this._esc(this._m("Feature detection, player context and this-device playback tools.", "זיהוי יכולות, הקשר נגן וכלים לנגן המכשיר הזה."))}</div>
+            <div class="control-room-tray-title">${this._esc(this._i18n("ui.studio_pro_2"))}</div>
+            <div class="control-room-tray-sub">${this._esc(this._i18n("ui.feature_detection_player_context_and_this_device_playback_tools"))}</div>
           </div>
           <div class="control-room-diagnostics">
-            <div class="control-room-diagnostic-row"><span>Target player</span><strong>${this._esc(primary?.attributes?.friendly_name || this._m("None", "אין"))}</strong></div>
-            <div class="control-room-diagnostic-row"><span>Protocol</span><strong>${this._esc(protocol || this._m("Unknown", "לא ידוע"))}</strong></div>
-            <div class="control-room-diagnostic-row"><span>Direct API</span><strong>${this._esc(directReady ? this._m("Available", "זמין") : this._m("Missing URL", "חסר URL"))}</strong></div>
-            <div class="control-room-diagnostic-row"><span>Realtime token</span><strong>${this._esc(realtimeReady ? this._m("Ready", "מוכן") : this._m("Optional", "אופציונלי"))}</strong></div>
+            <div class="control-room-diagnostic-row"><span>Target player</span><strong>${this._esc(primary?.attributes?.friendly_name || this._i18n("ui.none"))}</strong></div>
+            <div class="control-room-diagnostic-row"><span>Protocol</span><strong>${this._esc(protocol || this._i18n("ui.unknown"))}</strong></div>
+            <div class="control-room-diagnostic-row"><span>Direct API</span><strong>${this._esc(directReady ? this._i18n("ui.available") : this._i18n("ui.missing_url"))}</strong></div>
+            <div class="control-room-diagnostic-row"><span>Realtime token</span><strong>${this._esc(realtimeReady ? this._i18n("ui.ready") : this._i18n("ui.optional"))}</strong></div>
             <div class="control-room-diagnostic-row"><span>Sendspin</span><strong>${this._esc(sendspinState)}</strong></div>
             <div class="control-room-diagnostic-row"><span>Players</span><strong>${this._esc(String(players.length))}</strong></div>
             <div class="control-room-pro-actions">
-              <button class="control-room-panel-action" data-room-this-device="connect">${this._iconSvg("speaker")}<span>${this._esc(this._m("Connect this device", "חבר מכשיר זה"))}</span></button>
-              <button class="control-room-panel-action danger" data-room-this-device="disconnect">${this._iconSvg("close")}<span>${this._esc(this._m("Disconnect", "נתק"))}</span></button>
-              <button class="control-room-panel-action" data-room-selection-action="open_ma">${this._iconSvg("library_music")}<span>${this._esc(this._m("Open Music Assistant", "פתח Music Assistant"))}</span></button>
+              <button class="control-room-panel-action" data-room-this-device="connect">${this._iconSvg("speaker")}<span>${this._esc(this._i18n("ui.connect_this_device_2"))}</span></button>
+              <button class="control-room-panel-action danger" data-room-this-device="disconnect">${this._iconSvg("close")}<span>${this._esc(this._i18n("ui.disconnect"))}</span></button>
+              <button class="control-room-panel-action" data-room-selection-action="open_ma">${this._iconSvg("library_music")}<span>${this._esc(this._i18n("ui.open_music_assistant"))}</span></button>
             </div>
-            <div class="control-room-empty subtle">${this._esc(this._m("Player settings and DSP presets stay read-only until Music Assistant exposes a reliable schema for this player.", "הגדרות נגן ו־DSP נשארים בשלב זה כזיהוי יכולות בלבד עד ש־Music Assistant מחזיר schema אמין לנגן."))}</div>
+            <div class="control-room-empty subtle">${this._esc(this._i18n("ui.player_settings_and_dsp_presets_stay_read_only_until_music_assistant_exp"))}</div>
           </div>
         </div>
       `;
@@ -6326,10 +6586,11 @@
   }
 
   _controlRoomViewportSize() {
-    const cardRect = this.shadowRoot?.querySelector(".card")?.getBoundingClientRect?.() || null;
+    const viewportWidth = typeof window !== "undefined" ? Number(window.innerWidth || 0) : 0;
+    const viewportHeight = this._getViewportHeight(this._config?.height || 0);
     return {
-      width: Math.max(320, Math.round(cardRect?.width || this._lastViewportWidth || window.innerWidth || 1600)),
-      height: Math.max(360, Math.round(cardRect?.height || this._lastViewportHeight || this._config?.height || window.innerHeight || 760)),
+      width: Math.max(320, Math.round(this._getCardWidth(this._lastCardWidth || viewportWidth || 1600))),
+      height: Math.max(280, Math.round(this._getAllocatedCardHeight(this._lastCardHeight || this._config?.height || viewportHeight || 760))),
     };
   }
 
@@ -6468,37 +6729,37 @@
                 </span>
               </div>
               <div class="control-room-dock-section player primary-actions">
-                <button class="control-room-dock-btn" data-room-selection-action="player_playpause" title="${this._esc(this._m("Play / Pause", "נגן / השהה"))}">
+                <button class="control-room-dock-btn" data-room-selection-action="player_playpause" title="${this._esc(this._i18n("ui.play_pause"))}">
                   ${this._iconSvg(primaryPlaying ? "pause" : "play")}
-                  <span class="control-room-dock-label">${this._esc(primaryPlaying ? this._m("Pause", "השהה") : this._m("Play", "נגן"))}</span>
+                  <span class="control-room-dock-label">${this._esc(primaryPlaying ? this._i18n("ui.pause") : this._i18n("ui.play"))}</span>
                 </button>
-                <button class="control-room-dock-btn" data-room-selection-action="player_next" title="${this._esc(this._m("Next", "הבא"))}">
+                <button class="control-room-dock-btn" data-room-selection-action="player_next" title="${this._esc(this._i18n("ui.next"))}">
                   ${this._iconSvg("next")}
-                  <span class="control-room-dock-label">${this._esc(this._m("Next", "הבא"))}</span>
+                  <span class="control-room-dock-label">${this._esc(this._i18n("ui.next"))}</span>
                 </button>
-                <button class="control-room-dock-btn ${primaryMuted ? "active" : ""}" data-room-selection-action="player_mute" title="${this._esc(this._m("Mute", "השתק"))}">
+                <button class="control-room-dock-btn ${primaryMuted ? "active" : ""}" data-room-selection-action="player_mute" title="${this._esc(this._i18n("ui.mute"))}">
                   ${this._iconSvg(primary ? this._volumeIconName(primary) : "speaker")}
-                  <span class="control-room-dock-label">${this._esc(this._m("Mute", "השתק"))}</span>
+                  <span class="control-room-dock-label">${this._esc(this._i18n("ui.mute"))}</span>
                 </button>
               </div>
             </div>
             <span class="control-room-dock-divider" aria-hidden="true"></span>
             <div class="control-room-dock-section room focus-nav">
-              <button class="control-room-selection-pill ${this._state.controlRoomPanel === "selection" ? "active" : ""}" data-room-selection-action="selection" title="${this._esc(this._m("Connected players", "נגנים מחוברים"))}">
+              <button class="control-room-selection-pill ${this._state.controlRoomPanel === "selection" ? "active" : ""}" data-room-selection-action="selection" title="${this._esc(this._i18n("ui.connected_players_2"))}">
                 <span class="control-room-selection-count">${this._esc(String(targetIds.length))}</span>
-                <span class="control-room-dock-label">${this._esc(this._m("Players", "נגנים"))}</span>
+                <span class="control-room-dock-label">${this._esc(this._i18n("ui.players"))}</span>
               </button>
-              <button class="control-room-dock-btn ${musicPanelActive ? "active" : ""}" data-room-selection-action="music" title="${this._esc(this._m("Music Hub", "מרכז מוזיקה"))}">
+              <button class="control-room-dock-btn ${musicPanelActive ? "active" : ""}" data-room-selection-action="music" title="${this._esc(this._i18n("ui.music_hub_2"))}">
                 ${this._iconSvg("wand")}
-                <span class="control-room-dock-label">${this._esc(this._m("Music", "מוזיקה"))}</span>
+                <span class="control-room-dock-label">${this._esc(this._i18n("ui.music"))}</span>
               </button>
-              <button class="control-room-dock-btn ${this._state.controlRoomPanel === "transfer" ? "active" : ""}" data-room-selection-action="transfer" title="${this._esc(this._m("Transfer queue", "העבר תור"))}">
+              <button class="control-room-dock-btn ${this._state.controlRoomPanel === "transfer" ? "active" : ""}" data-room-selection-action="transfer" title="${this._esc(this._i18n("ui.transfer_queue_2"))}">
                 ${this._iconSvg("queue")}
-                <span class="control-room-dock-label">${this._esc(this._m("Queue", "תור"))}</span>
+                <span class="control-room-dock-label">${this._esc(this._i18n("ui.queue_2"))}</span>
               </button>
-              <button class="control-room-dock-btn ${actionsPanelActive ? "active" : ""}" data-room-selection-action="actions" title="${this._esc(this._m("Actions", "פעולות"))}">
+              <button class="control-room-dock-btn ${actionsPanelActive ? "active" : ""}" data-room-selection-action="actions" title="${this._esc(this._i18n("ui.actions_2"))}">
                 ${this._iconSvg("settings")}
-                <span class="control-room-dock-label">${this._esc(this._m("Actions", "פעולות"))}</span>
+                <span class="control-room-dock-label">${this._esc(this._i18n("ui.actions_2"))}</span>
               </button>
             </div>
           </div>
@@ -6548,9 +6809,9 @@
         selectFab.classList.toggle("active", isSelected);
         selectFab.classList.toggle("removable", removable);
         selectFab.title = removable
-          ? this._m("Remove from selection", "הסר מהבחירה")
-          : isSelected ? this._m("Selected player", "נגן נבחר") : this._m("Add to selection", "הוסף לבחירה");
-        setHtml(selectFab, `${this._iconSvg(removable ? "close" : isSelected ? "check" : "grid")}<span class="control-room-select-label">${this._esc(removable ? this._m("Remove", "הסר") : isSelected ? this._m("Selected", "נבחר") : this._m("Select", "בחר"))}</span>`);
+          ? this._i18n("ui.remove_from_selection")
+          : isSelected ? this._i18n("ui.selected_player_2") : this._i18n("ui.add_to_selection");
+        setHtml(selectFab, `${this._iconSvg(removable ? "close" : isSelected ? "check" : "grid")}<span class="control-room-select-label">${this._esc(removable ? this._i18n("ui.remove") : isSelected ? this._i18n("ui.selected") : this._i18n("ui.select"))}</span>`);
       }
       if (art) tile.style.setProperty("--control-room-tile-art", cssUrl(art));
       else tile.style.removeProperty("--control-room-tile-art");
@@ -6560,14 +6821,14 @@
       const queueCount = this._controlRoomQueueCount(player, snapshot);
       const protocolLabel = this._controlRoomProtocolLabel(player);
       const pillsHtml = [
-        isPrimary ? `<span class="control-room-primary-pill">${this._esc(this._m("Primary", "ראשי"))}</span>` : ``,
-        groupCount ? `<span class="control-room-float-pill grouped" title="${this._esc(groupInfo.label || this._m("Grouped players", "נגנים בקבוצה"))}">${this._iconSvg("speaker")}${this._esc(this._m(`${groupCount} grouped`, `${groupCount} בקבוצה`))}</span>` : ``,
+        isPrimary ? `<span class="control-room-primary-pill">${this._esc(this._i18n("ui.primary"))}</span>` : ``,
+        groupCount ? `<span class="control-room-float-pill grouped" title="${this._esc(groupInfo.label || this._i18n("ui.grouped_players"))}">${this._iconSvg("speaker")}${this._esc(this._m(`${groupCount} grouped`, `${groupCount} בקבוצה`))}</span>` : ``,
         queueCount ? `<span class="control-room-float-pill">${this._iconSvg("queue")}${this._esc(String(queueCount))}</span>` : ``,
         protocolLabel ? `<span class="control-room-float-pill protocol">${this._esc(protocolLabel)}</span>` : ``,
-        playing ? `<span class="control-room-float-pill live">${this._esc(this._m("Playing", "מנגן"))}</span>` : ``,
+        playing ? `<span class="control-room-float-pill live">${this._esc(this._i18n("ui.playing"))}</span>` : ``,
       ].filter(Boolean).join("");
       setHtml(pills, pillsHtml);
-      setText(tile.querySelector(".control-room-tile-track"), player.attributes?.media_title || this._m("Idle", "ממתין"));
+      setText(tile.querySelector(".control-room-tile-track"), player.attributes?.media_title || this._i18n("ui.idle_2"));
       setText(tile.querySelector(".control-room-tile-name"), player.attributes?.friendly_name || player.entity_id);
       setText(tile.querySelector(".control-room-tile-state"), this._playerStateLabel(player));
       setHtml(tile.querySelector("[data-room-toggle-play]"), this._iconSvg(playing ? "pause" : "play"));
@@ -6600,24 +6861,24 @@
     const playPauseBtn = host.querySelector('[data-room-selection-action="player_playpause"]');
     if (playPauseBtn) {
       const primaryPlaying = primary?.state === "playing";
-      setHtml(playPauseBtn, `${this._iconSvg(primaryPlaying ? "pause" : "play")}<span class="control-room-dock-label">${this._esc(primaryPlaying ? this._m("Pause", "השהה") : this._m("Play", "נגן"))}</span>`);
+      setHtml(playPauseBtn, `${this._iconSvg(primaryPlaying ? "pause" : "play")}<span class="control-room-dock-label">${this._esc(primaryPlaying ? this._i18n("ui.pause") : this._i18n("ui.play"))}</span>`);
     }
     const actionPlayPauseBtn = host.querySelector('.control-room-action-console [data-room-selection-action="playpause"]');
     if (actionPlayPauseBtn) {
       const primaryPlaying = primary?.state === "playing";
-      setHtml(actionPlayPauseBtn, `${this._iconSvg(primaryPlaying ? "pause" : "play")}<span>${this._esc(primaryPlaying ? this._m("Pause", "השהה") : this._m("Play", "נגן"))}</span>`);
+      setHtml(actionPlayPauseBtn, `${this._iconSvg(primaryPlaying ? "pause" : "play")}<span>${this._esc(primaryPlaying ? this._i18n("ui.pause") : this._i18n("ui.play"))}</span>`);
     }
     const muteBtn = host.querySelector('[data-room-selection-action="player_mute"]');
     if (muteBtn) {
       const muted = primary ? this._isMuted(primary) : false;
       muteBtn.classList.toggle("active", muted);
-      setHtml(muteBtn, `${this._iconSvg(primary ? this._volumeIconName(primary) : "speaker")}<span class="control-room-dock-label">${this._esc(this._m("Mute", "השתק"))}</span>`);
+      setHtml(muteBtn, `${this._iconSvg(primary ? this._volumeIconName(primary) : "speaker")}<span class="control-room-dock-label">${this._esc(this._i18n("ui.mute"))}</span>`);
     }
     const actionMuteBtn = host.querySelector('.control-room-action-console [data-room-selection-action="mute"]');
     if (actionMuteBtn) {
       const muted = primary ? this._isMuted(primary) : false;
       actionMuteBtn.classList.toggle("active", muted);
-      setHtml(actionMuteBtn, `${this._iconSvg(muted ? "volume_mute" : (primary ? this._volumeIconName(primary) : "speaker"))}<span>${this._esc(this._m("Mute", "השתק"))}</span>`);
+      setHtml(actionMuteBtn, `${this._iconSvg(muted ? "volume_mute" : (primary ? this._volumeIconName(primary) : "speaker"))}<span>${this._esc(this._i18n("ui.mute"))}</span>`);
     }
   }
 
@@ -6820,23 +7081,23 @@
         <div class="lyrics-head">
           <div class="lyrics-title-wrap">
             <div class="lyrics-title-brand" aria-hidden="true">${this._tabletBrandSignatureHtml("lyrics-title-logo")}</div>
-            <div class="lyrics-title">${this._esc(title || this._t("Track Lyrics"))}</div>
+            <div class="lyrics-title">${this._esc(title || this._i18n("ui.track_lyrics"))}</div>
             <div class="lyrics-sub">${this._esc(subtitle || "")}</div>
           </div>
           <div class="lyrics-head-actions">
-            <div class="lyrics-font-controls" title="${this._esc(this._m("Lyrics font size", "גודל פונט מילים"))}">
-              <button class="lyrics-offset-btn" id="lyricsFontMinusBtn" title="${this._esc(this._m("Smaller lyrics", "מילים קטנות יותר"))}">−</button>
-              <button class="lyrics-offset-label" id="lyricsFontResetBtn" title="${this._esc(this._m("Reset lyrics font size", "איפוס גודל מילים"))}">${this._esc(this._lyricsFontScaleLabel())}</button>
-              <button class="lyrics-offset-btn" id="lyricsFontPlusBtn" title="${this._esc(this._m("Larger lyrics", "מילים גדולות יותר"))}">+</button>
+            <div class="lyrics-font-controls" title="${this._esc(this._i18n("ui.lyrics_font_size"))}">
+              <button class="lyrics-offset-btn" id="lyricsFontMinusBtn" title="${this._esc(this._i18n("ui.smaller_lyrics"))}">−</button>
+              <button class="lyrics-offset-label" id="lyricsFontResetBtn" title="${this._esc(this._i18n("ui.reset_lyrics_font_size"))}">${this._esc(this._lyricsFontScaleLabel())}</button>
+              <button class="lyrics-offset-btn" id="lyricsFontPlusBtn" title="${this._esc(this._i18n("ui.larger_lyrics"))}">+</button>
             </div>
-            <div class="lyrics-offset-controls" title="${this._esc(this._m("Lyrics timing", "תזמון מילים"))}">
-              <button class="lyrics-offset-btn" id="lyricsOffsetMinusBtn" title="${this._esc(this._m("Lyrics earlier", "מילים מוקדם יותר"))}">−</button>
-              <button class="lyrics-offset-label" id="lyricsOffsetResetBtn" title="${this._esc(this._m("Reset lyrics timing", "איפוס תזמון מילים"))}">${this._esc(offsetLabel)}</button>
-              <button class="lyrics-offset-btn" id="lyricsOffsetPlusBtn" title="${this._esc(this._m("Lyrics later", "מילים מאוחר יותר"))}">+</button>
+            <div class="lyrics-offset-controls" title="${this._esc(this._i18n("ui.lyrics_timing"))}">
+              <button class="lyrics-offset-btn" id="lyricsOffsetMinusBtn" title="${this._esc(this._i18n("ui.lyrics_earlier"))}">−</button>
+              <button class="lyrics-offset-label" id="lyricsOffsetResetBtn" title="${this._esc(this._i18n("ui.reset_lyrics_timing"))}">${this._esc(offsetLabel)}</button>
+              <button class="lyrics-offset-btn" id="lyricsOffsetPlusBtn" title="${this._esc(this._i18n("ui.lyrics_later"))}">+</button>
             </div>
-            <button class="lyrics-sync-btn ${this._state.mobileLyricsSyncEnabled !== false ? "active" : ""}" id="lyricsSyncBtn" title="${this._esc(this._m("Sync lyrics", "סנכרון מילים"))}">
+            <button class="lyrics-sync-btn ${this._state.mobileLyricsSyncEnabled !== false ? "active" : ""}" id="lyricsSyncBtn" title="${this._esc(this._i18n("ui.sync_lyrics"))}">
               ${this._iconSvg("sync")}
-              <span>${this._esc(this._m("Sync", "סנכרון"))}</span>
+              <span>${this._esc(this._i18n("ui.sync"))}</span>
             </button>
             <button class="close-btn" id="lyricsCloseBtn">✕</button>
           </div>
@@ -6966,9 +7227,9 @@
     const token = `${Date.now()}-${Math.random()}`;
     this._lyricsRequestToken = token;
     this._renderLyricsModalShell(
-      info.title || this._t("Track Lyrics"),
+      info.title || this._i18n("ui.track_lyrics"),
       subtitle,
-      `<div class="lyrics-state">${this._esc(this._t("Loading lyrics..."))}</div>`,
+      `<div class="lyrics-state">${this._esc(this._i18n("ui.loading_lyrics"))}</div>`,
     );
     try {
       const payload = await this._fetchLyricsForCurrentTrack();
@@ -6978,13 +7239,13 @@
       this._state.lyricsLines = lines;
       this._state.lyricsActiveIndex = -1;
       this._renderLyricsModalShell(
-        info.title || this._t("Track Lyrics"),
+        info.title || this._i18n("ui.track_lyrics"),
         subtitle,
         lines.length
           ? this._lyricsTimelineHtml(lines)
           : text
           ? `<pre class="lyrics-pre">${this._esc(text)}</pre>`
-          : `<div class="lyrics-state">${this._esc(this._t("No lyrics found"))}</div>`,
+          : `<div class="lyrics-state">${this._esc(this._i18n("ui.no_lyrics_found"))}</div>`,
       );
       if (lines.length) requestAnimationFrame(() => this._syncLyricsHighlight(true));
     } catch (_) {
@@ -6992,9 +7253,9 @@
       this._state.lyricsLines = [];
       this._state.lyricsActiveIndex = -1;
       this._renderLyricsModalShell(
-        info.title || this._t("Track Lyrics"),
+        info.title || this._i18n("ui.track_lyrics"),
         subtitle,
-        `<div class="lyrics-state">${this._esc(this._t("Lyrics unavailable right now"))}</div>`,
+        `<div class="lyrics-state">${this._esc(this._i18n("ui.lyrics_unavailable_right_now"))}</div>`,
       );
     }
   }
@@ -7075,7 +7336,7 @@
       queueItem: this._state.maQueueState?.current_item || {},
       resolvedUri: this._getCurrentMediaUri(),
       queueItemImage: this._queueItemImageUrl(this._state.maQueueState?.current_item || {}, 240),
-      fallbackName: this._m("Unknown", "לא ידוע"),
+      fallbackName: this._i18n("ui.unknown"),
     }, (uri, fallbackType) => this._parseMediaReference(uri, fallbackType));
   }
 
@@ -7333,7 +7594,7 @@
             try { actionOk = await this._toggleMaLikeEntryDirect(entry, true, mediaType); } catch (_) {}
           }
           if (!actionOk) throw new Error("Music Assistant favorite action was not available");
-          this._toast(this._m("Removed from Music Assistant liked", "הוסר מאהבתי של מיוזיק אסיסטנט"));
+          this._toast(this._i18n("ui.removed_from_music_assistant_liked"));
         } else {
           try { actionOk = await this._toggleMaLikeEntryDirect(entry, false, mediaType); } catch (_) {}
           if (!actionOk) {
@@ -7348,7 +7609,7 @@
             actionOk = true;
           }
           if (!actionOk) throw new Error("Music Assistant favorite action was not available");
-          this._toast(this._m("Added to Music Assistant liked", "נוסף לאהבתי של מיוזיק אסיסטנט"));
+          this._toast(this._i18n("ui.added_to_music_assistant_liked"));
         }
         [140, 520, 1400, 3000].forEach((delay) => setTimeout(() => this._refreshFavoriteState(true).catch(() => {}), delay));
         return true;
@@ -7357,9 +7618,9 @@
         this._applyMaFavoriteOptimisticState(entry, likedNow);
         entry.favorite = likedNow;
         if (entry.media_item) entry.media_item.favorite = likedNow;
-        this._toastError(this._isHebrew()
-          ? `פעולת אהבתי של מיוזיק אסיסטנט נכשלה${error?.message ? `: ${error.message}` : ""}`
-          : `Music Assistant favorite action failed${error?.message ? `: ${error.message}` : ""}`);
+        this._toastError(this._i18n("ui.ma_favorite_action_failed_with_error", {
+          error: error?.message ? `: ${error.message}` : "",
+        }));
         return false;
       }
     }
@@ -7375,7 +7636,7 @@
         this._applyMaFavoriteOptimisticState(entry, !likedNow);
         verified = await this._waitForFavoriteState(effectiveEntry, !likedNow, [400, 1100, 2200, 4200, 5800]);
         if (!verified) this._applyMaFavoriteOptimisticState(entry, !likedNow);
-        this._toast(likedNow ? this._m("Removed from Music Assistant liked", "הוסר מאהבתי של מיוזיק אסיסטנט") : this._m("Added to Music Assistant liked", "נוסף לאהבתי של מיוזיק אסיסטנט"));
+        this._toast(likedNow ? this._i18n("ui.removed_from_music_assistant_liked") : this._i18n("ui.added_to_music_assistant_liked"));
         if (sourceEl) this._flashInteraction(sourceEl);
         entry.favorite = !likedNow;
         if (entry.media_item) entry.media_item.favorite = !likedNow;
@@ -7389,7 +7650,7 @@
           this._applyMaFavoriteOptimisticState(entry, !likedNow);
           verified = await this._waitForFavoriteState(effectiveEntry, !likedNow, [450, 1200, 2600, 4200, 5800]);
           if (!verified) this._applyMaFavoriteOptimisticState(entry, !likedNow);
-          this._toast(likedNow ? this._m("Removed from Music Assistant liked", "הוסר מאהבתי של מיוזיק אסיסטנט") : this._m("Added to Music Assistant liked", "נוסף לאהבתי של מיוזיק אסיסטנט"));
+          this._toast(likedNow ? this._i18n("ui.removed_from_music_assistant_liked") : this._i18n("ui.added_to_music_assistant_liked"));
           if (sourceEl) this._flashInteraction(sourceEl);
           entry.favorite = !likedNow;
           if (entry.media_item) entry.media_item.favorite = !likedNow;
@@ -7403,16 +7664,16 @@
       this._applyMaFavoriteOptimisticState(entry, !likedNow);
       verified = await this._waitForFavoriteState(effectiveEntry, !likedNow, [350, 900, 1800, 3200, 5200]);
       if (!verified) this._applyMaFavoriteOptimisticState(entry, !likedNow);
-      this._toast(likedNow ? this._m("Removed from Music Assistant liked", "הוסר מאהבתי של מיוזיק אסיסטנט") : this._m("Added to Music Assistant liked", "נוסף לאהבתי של מיוזיק אסיסטנט"));
+      this._toast(likedNow ? this._i18n("ui.removed_from_music_assistant_liked") : this._i18n("ui.added_to_music_assistant_liked"));
       if (sourceEl) this._flashInteraction(sourceEl);
       [300, 900, 1800].forEach((delay) => setTimeout(() => this._refreshFavoriteState(true).catch(() => {}), delay));
       entry.favorite = !likedNow;
       if (entry.media_item) entry.media_item.favorite = !likedNow;
       return true;
     } catch (error) {
-      this._toastError(this._isHebrew()
-        ? `פעולת אהבתי של מיוזיק אסיסטנט נכשלה${error?.message ? `: ${error.message}` : ""}`
-        : `Music Assistant favorite action failed${error?.message ? `: ${error.message}` : ""}`);
+      this._toastError(this._i18n("ui.ma_favorite_action_failed_with_error", {
+        error: error?.message ? `: ${error.message}` : "",
+      }));
       return false;
     }
   }
@@ -7636,14 +7897,14 @@
     menu.innerHTML = `
       <div class="queue-move-control ctx-move-control">
         <label>
-          <span>${this._esc(this._m("Move to position", "העבר למיקום"))}</span>
+          <span>${this._esc(this._i18n("ui.move_to_position"))}</span>
           ${this._queueMoveSelectHtml(queueCount, currentPosition, entry)}
         </label>
       </div>
-      <div class="ctx-item" data-queue-popup="next"><span class="ctx-ico">${this._iconSvg("next")}</span><span>${this._esc(this._m("Move to next", "העבר לבא בתור"))}</span></div>
-      <div class="ctx-item" data-queue-popup="like"><span class="ctx-ico">${this._iconSvg(liked ? "heart_filled" : "heart_outline")}</span><span>${this._esc(this._m("Like", "אהבתי"))}</span></div>
-      <div class="ctx-item" data-queue-popup="remove"><span class="ctx-ico">${this._iconSvg("menu")}</span><span>${this._esc(this._m("Remove", "הסר"))}</span></div>
-      <div class="ctx-item" data-queue-popup="close"><span class="ctx-ico">×</span><span>${this._esc(this._m("Close", "סגור"))}</span></div>`;
+      <div class="ctx-item" data-queue-popup="next"><span class="ctx-ico">${this._iconSvg("next")}</span><span>${this._esc(this._i18n("ui.move_to_next"))}</span></div>
+      <div class="ctx-item" data-queue-popup="like"><span class="ctx-ico">${this._iconSvg(liked ? "heart_filled" : "heart_outline")}</span><span>${this._esc(this._i18n("ui.like_2"))}</span></div>
+      <div class="ctx-item" data-queue-popup="remove"><span class="ctx-ico">${this._iconSvg("menu")}</span><span>${this._esc(this._i18n("ui.remove"))}</span></div>
+      <div class="ctx-item" data-queue-popup="close"><span class="ctx-ico">×</span><span>${this._esc(this._i18n("ui.close"))}</span></div>`;
     menu.addEventListener("click", (e) => e.stopPropagation());
     menu.querySelectorAll("[data-queue-popup]").forEach((item) => item.addEventListener("click", async (e) => {
       e.stopPropagation();
@@ -7691,8 +7952,8 @@
     const player = this._getSelectedPlayer();
     if (!backdrop || !player) return;
 
-    const title = player.attributes.media_title || this._t("No active media");
-    const artist = player.attributes.media_artist || this._t("Unknown");
+    const title = player.attributes.media_title || this._i18n("ui.no_active_media");
+    const artist = player.attributes.media_artist || this._i18n("ui.unknown");
     const album = player.attributes.media_album_name || "";
     const playerName = player.attributes.friendly_name || player.entity_id;
     const art = this._currentArtworkUrl(player, this._state.maQueueState?.current_item || null, 180);
@@ -7716,7 +7977,7 @@
       <div class="immersive-kicker">homeii-music-flow</div>
             <div class="immersive-title">${this._esc(title)}</div>
             <div class="immersive-subtitle">${this._esc([artist, album].filter(Boolean).join(" · "))}</div>
-            <div class="immersive-player-pill" id="immersivePlayerName">${this._esc(`${this._t("Playing on")}: ${playerName}`)}</div>
+            <div class="immersive-player-pill" id="immersivePlayerName">${this._esc(`${this._i18n("ui.playing_on")}: ${playerName}`)}</div>
           </div>
         </div>
         <div class="immersive-body">
@@ -7738,9 +7999,9 @@
               <input id="immersiveVolumeSlider" type="range" min="0" max="100" value="${volumePct}" style="--vol-pct:${volumePct}%">
             </div>
             <div class="immersive-actions">
-              <button class="chip-btn immersive-player-picker-btn" id="immersiveChoosePlayerBtn" title="${this._t("Open Player Picker")}">${this._iconSvg("speaker")}</button>
-              <button class="chip-btn" id="immersiveQueueBtn">${this._t("Open full queue")}</button>
-              <button class="chip-btn" id="immersiveTransferBtn">${this._t("Transfer Queue")}</button>
+              <button class="chip-btn immersive-player-picker-btn" id="immersiveChoosePlayerBtn" title="${this._i18n("ui.open_player_picker")}">${this._iconSvg("speaker")}</button>
+              <button class="chip-btn" id="immersiveQueueBtn">${this._i18n("ui.open_full_queue")}</button>
+              <button class="chip-btn" id="immersiveTransferBtn">${this._i18n("ui.transfer_queue")}</button>
             </div>
           </div>
         </div>
@@ -7786,13 +8047,13 @@
     const vol = Math.round((player.attributes.volume_level || 0) * 100);
     const art = this._currentArtworkUrl(player, this._state.maQueueState?.current_item || null, 180);
     const repeat = player.attributes.repeat || "off";
-    const title = player.attributes.media_title || this._t("No active media");
-    const artist = player.attributes.media_artist || this._t("Unknown");
+    const title = player.attributes.media_title || this._i18n("ui.no_active_media");
+    const artist = player.attributes.media_artist || this._i18n("ui.unknown");
     const album = player.attributes.media_album_name || "";
     const playerName = player.attributes.friendly_name || player.entity_id;
     backdrop.querySelector(".immersive-title")?.replaceChildren(document.createTextNode(title));
     backdrop.querySelector(".immersive-subtitle")?.replaceChildren(document.createTextNode([artist, album].filter(Boolean).join(" · ")));
-    backdrop.querySelector("#immersivePlayerName")?.replaceChildren(document.createTextNode(`${this._t("Playing on")}: ${playerName}`));
+    backdrop.querySelector("#immersivePlayerName")?.replaceChildren(document.createTextNode(`${this._i18n("ui.playing_on")}: ${playerName}`));
     const play = backdrop.querySelector("#immersivePlayBtn");
     this._setButtonIcon(play, this._playPauseIconName(player));
     const shuffle = backdrop.querySelector("#immersiveShuffleBtn");
@@ -7828,10 +8089,17 @@
     this._resizeTimer = setTimeout(() => {
       if (!this.isConnected || !this._built) return;
       const reopenImmersive = this._state.immersiveNowPlayingOpen;
-      const currentWidth = window.innerWidth || 0;
-      const currentHeight = window.innerHeight || 0;
-      const previousWidth = this._lastViewportWidth || 0;
-      const previousHeight = this._lastViewportHeight || 0;
+      const viewportWidth = typeof window !== "undefined" ? Number(window.innerWidth || 0) : 0;
+      const viewportHeight = typeof window !== "undefined" ? Number(window.innerHeight || 0) : 0;
+      const currentWidth = this._getCardWidth(viewportWidth);
+      const currentHeight = this._getAllocatedCardHeight(viewportHeight);
+      const previousWidth = this._lastCardWidth || this._lastViewportWidth || 0;
+      const previousHeight = this._lastCardHeight || this._lastViewportHeight || 0;
+      const currentLayoutMode = this._layoutModeConfig({ width: currentWidth });
+      const card = this.shadowRoot?.querySelector(".card") || null;
+      const renderedLayoutMode = this._renderedLayoutMode
+        || (card?.classList.contains("layout-tablet") ? "tablet" : card?.classList.contains("layout-mobile") ? "mobile" : "");
+      const layoutModeStale = !!(renderedLayoutMode && currentLayoutMode && renderedLayoutMode !== currentLayoutMode);
       const active = this.shadowRoot?.activeElement || document.activeElement;
       const activeTag = active?.tagName?.toLowerCase?.() || "";
       const editingText = active && (activeTag === "input" || activeTag === "textarea" || active?.isContentEditable);
@@ -7844,10 +8112,12 @@
         editingText,
         tabletStabilityMode,
       });
-      this._lastViewportWidth = currentWidth;
-      this._lastViewportHeight = currentHeight;
-      if (resizeStrategy.keyboardLikeResize) return;
-      if (resizeStrategy.softSync) {
+      this._lastCardWidth = currentWidth;
+      this._lastCardHeight = currentHeight;
+      this._lastViewportWidth = viewportWidth;
+      this._lastViewportHeight = viewportHeight;
+      if (resizeStrategy.keyboardLikeResize && !layoutModeStale) return;
+      if (resizeStrategy.softSync && !layoutModeStale) {
         this._syncTabletAutoFitUi();
         this._syncSleepTimerChip();
         this._syncSourceBadgesUi();
@@ -7906,12 +8176,28 @@
     return token === this._state.renderToken;
   }
 
-  _renderLoading(text = this._t("Loading...")) {
-    this.$("content").classList.remove("now-playing-mode");
-    this.$("content").innerHTML = `<div class="state-box"><div><div class="spinner"></div><div>${this._esc(text)}</div></div></div>`;
+  _loadingStateHtml(text = this._i18n("ui.loading"), { notice = false, compact = false } = {}) {
+    const className = notice ? "notice open homeii-loading-notice" : `homeii-loading-state${compact ? " compact" : ""}`;
+    return `
+      <div class="${className}" role="status" aria-live="polite">
+        <div class="homeii-loading-content">
+          <span class="homeii-loading-mark" aria-hidden="true">
+            <span class="homeii-loading-ring"></span>
+            <span class="homeii-loading-ring secondary"></span>
+            <span class="homeii-loading-core"></span>
+          </span>
+          <span class="homeii-loading-text">${this._esc(text)}</span>
+        </div>
+      </div>
+    `;
   }
 
-  _renderEmpty(text = this._t("No content found")) {
+  _renderLoading(text = this._i18n("ui.loading")) {
+    this.$("content").classList.remove("now-playing-mode");
+    this.$("content").innerHTML = this._loadingStateHtml(text);
+  }
+
+  _renderEmpty(text = this._i18n("ui.no_content_found")) {
     this.$("content").classList.remove("now-playing-mode");
     this.$("content").innerHTML = `<div class="state-box">${this._esc(text)}</div>`;
   }
@@ -7924,7 +8210,7 @@
         <div>
           <div style="font-size:20px;margin-bottom:8px;">⚠</div>
           <div>${this._esc(msg)}</div>
-          ${retryFn ? `<div style="margin-top:12px;"><button class="chip-btn" id="retryBtn">${this._t("Try again")}</button></div>` : ""}
+          ${retryFn ? `<div style="margin-top:12px;"><button class="chip-btn" id="retryBtn">${this._i18n("ui.try_again")}</button></div>` : ""}
         </div>
       </div>`;
     if (retryFn) this.$("retryBtn")?.addEventListener("click", retryFn, { once: true });
@@ -7932,7 +8218,7 @@
 
   async _renderHome() {
     const token = this._nextRenderToken();
-    this._renderLoading(this._t("Loading library..."));
+    this._renderLoading(this._i18n("ui.loading_library"));
     try {
       const results = await Promise.allSettled([
         this._getLibrary("radio", "sort_name", 24, true),
@@ -7943,12 +8229,12 @@
       if (!this._isValidRender(token)) return;
       const [radio, recentlyPlayed, recentAlbums, randomAlbums] = results.map((r) => r.value ?? []);
       let html = "";
-      if (radio.length) html += this._sectionHtml(this._t("Favorite Radio"), radio, "radio", true);
-      if (recentlyPlayed.length) html += this._sectionHtml(this._t("Recently Played"), recentlyPlayed, "album", true);
-      if (recentAlbums.length) html += this._sectionHtml(this._t("Recently Added"), recentAlbums, "album", true);
-      if (randomAlbums.length) html += this._sectionHtml(this._t("Discover"), randomAlbums, "album", true);
+      if (radio.length) html += this._sectionHtml(this._i18n("ui.favorite_radio"), radio, "radio", true);
+      if (recentlyPlayed.length) html += this._sectionHtml(this._i18n("ui.recently_played"), recentlyPlayed, "album", true);
+      if (recentAlbums.length) html += this._sectionHtml(this._i18n("ui.recently_added"), recentAlbums, "album", true);
+      if (randomAlbums.length) html += this._sectionHtml(this._i18n("ui.discover"), randomAlbums, "album", true);
       this.$("content").classList.remove("now-playing-mode");
-      this.$("content").innerHTML = html || `<div class="state-box">${this._esc(this._t("No content found"))}</div>`;
+      this.$("content").innerHTML = html || `<div class="state-box">${this._esc(this._i18n("ui.no_content_found"))}</div>`;
       this._hydrateImages();
       this._highlightNowPlaying();
     } catch (e) {
@@ -7957,11 +8243,11 @@
     }
   }
 
-  async _renderRadio() { return this._renderGridCollection("radio", this._t("Radio Stations"), 5000, false); }
-  async _renderPodcasts() { return this._renderGridCollection("podcast", this._t("All Podcasts"), 500, false); }
-  async _renderAlbums() { return this._renderGridCollection("album", this._t("All Albums"), 500, false); }
-  async _renderArtists() { return this._renderGridCollection("artist", this._t("All Artists"), 500, false); }
-  async _renderPlaylists() { return this._renderGridCollection("playlist", this._t("Playlists"), 500, false); }
+  async _renderRadio() { return this._renderGridCollection("radio", this._i18n("ui.radio_stations"), 5000, false); }
+  async _renderPodcasts() { return this._renderGridCollection("podcast", this._i18n("ui.all_podcasts"), 500, false); }
+  async _renderAlbums() { return this._renderGridCollection("album", this._i18n("ui.all_albums"), 500, false); }
+  async _renderArtists() { return this._renderGridCollection("artist", this._i18n("ui.all_artists"), 500, false); }
+  async _renderPlaylists() { return this._renderGridCollection("playlist", this._i18n("ui.playlists"), 500, false); }
 
   _setTracksLayout(layout) {
     this._state.tracksLayout = layout === "grid" ? "grid" : "list";
@@ -7971,7 +8257,7 @@
 
   async _renderTracks() {
     const token = this._nextRenderToken();
-    this._renderLoading(this._t("Loading..."));
+    this._renderLoading(this._i18n("ui.loading"));
     try {
       const items = await this._getLibrary("track", "sort_name", 500);
       if (!this._isValidRender(token)) return;
@@ -7980,11 +8266,11 @@
       this.$("content").innerHTML = `
         <div class="section">
           <div class="section-header">
-            <div class="section-title">${this._esc(this._t("All Tracks"))}</div>
+            <div class="section-title">${this._esc(this._i18n("ui.all_tracks"))}</div>
             <div class="section-badge">${items.length}</div>
             <div class="section-actions">
-              <button class="chip-btn ${isGrid ? "active" : ""}" id="tracksGridBtn">${this._t("Grid")}</button>
-              <button class="chip-btn ${!isGrid ? "active" : ""}" id="tracksListBtn">${this._t("List")}</button>
+              <button class="chip-btn ${isGrid ? "active" : ""}" id="tracksGridBtn">${this._i18n("ui.grid")}</button>
+              <button class="chip-btn ${!isGrid ? "active" : ""}" id="tracksListBtn">${this._i18n("ui.list")}</button>
               ${this._sectionActionButtons(items)}
             </div>
           </div>
@@ -8002,7 +8288,7 @@
 
   async _renderGridCollection(mediaType, title, limit = 500, favoritesOnly = false) {
     const token = this._nextRenderToken();
-    this._renderLoading(this._t("Loading..."));
+    this._renderLoading(this._i18n("ui.loading"));
     try {
       const items = await this._getLibrary(mediaType, "sort_name", limit, favoritesOnly);
       if (!this._isValidRender(token)) return;
@@ -8018,21 +8304,21 @@
 
   async _renderGlobalSearch(query) {
     const token = this._nextRenderToken();
-    this._renderLoading(`${this._t("Search")}: ${query}`);
+    this._renderLoading(`${this._i18n("ui.search")}: ${query}`);
     try {
       const res = await this._search(query);
       if (!this._isValidRender(token)) return;
       const { radio = [], podcasts = [], albums = [], artists = [], tracks = [], playlists = [] } = res;
-      let html = `<div class="section"><div class="section-header"><div class="section-title">${this._esc(this._t("Search"))}: ${this._esc(query)}</div></div></div>`;
-      if (radio.length) html += this._sectionHtml(this._t("Radio"), radio, "radio", false);
-      if (podcasts.length) html += this._sectionHtml(this._t("Podcasts"), podcasts, "podcast", false);
-      if (albums.length) html += this._sectionHtml(this._t("Albums"), albums, "album", false);
-      if (artists.length) html += this._sectionHtml(this._t("Artists"), artists, "artist", false);
+      let html = `<div class="section"><div class="section-header"><div class="section-title">${this._esc(this._i18n("ui.search"))}: ${this._esc(query)}</div></div></div>`;
+      if (radio.length) html += this._sectionHtml(this._i18n("ui.radio"), radio, "radio", false);
+      if (podcasts.length) html += this._sectionHtml(this._i18n("ui.podcasts"), podcasts, "podcast", false);
+      if (albums.length) html += this._sectionHtml(this._i18n("ui.albums"), albums, "album", false);
+      if (artists.length) html += this._sectionHtml(this._i18n("ui.artists"), artists, "artist", false);
       if (tracks.length) {
-        html += `<div class="section"><div class="section-header"><div class="section-title">${this._esc(this._t("Tracks"))}</div><div class="section-badge">${tracks.length}</div><div class="section-actions">${this._sectionActionButtons(tracks)}</div></div><div class="track-list">${tracks.map((item, i) => this._trackRowHtml(item, i + 1)).join("")}</div></div>`;
+        html += `<div class="section"><div class="section-header"><div class="section-title">${this._esc(this._i18n("ui.tracks"))}</div><div class="section-badge">${tracks.length}</div><div class="section-actions">${this._sectionActionButtons(tracks)}</div></div><div class="track-list">${tracks.map((item, i) => this._trackRowHtml(item, i + 1)).join("")}</div></div>`;
       }
-      if (playlists.length) html += this._sectionHtml(this._t("Playlists"), playlists, "playlist", false);
-      if (!radio.length && !podcasts.length && !albums.length && !artists.length && !tracks.length && !playlists.length) html = `<div class="state-box">${this._esc(this._t("No results"))}: "${this._esc(query)}"</div>`;
+      if (playlists.length) html += this._sectionHtml(this._i18n("ui.playlists"), playlists, "playlist", false);
+      if (!radio.length && !podcasts.length && !albums.length && !artists.length && !tracks.length && !playlists.length) html = `<div class="state-box">${this._esc(this._i18n("ui.no_results"))}: "${this._esc(query)}"</div>`;
       this.$("content").classList.remove("now-playing-mode");
       this.$("content").innerHTML = html;
       this._hydrateImages();
@@ -8045,16 +8331,16 @@
 
   async _renderNowPlayingPage() {
     const token = this._nextRenderToken();
-    this._renderLoading(this._t("Loading..."));
+    this._renderLoading(this._i18n("ui.loading"));
     try {
       await this._ensureQueueSnapshot();
       this._refreshGroupingState();
       if (!this._isValidRender(token)) return;
       const player = this._getSelectedPlayer();
-      if (!player) return this._renderEmpty(this._t("No active media"));
+      if (!player) return this._renderEmpty(this._i18n("ui.no_active_media"));
 
-      const title = player.attributes.media_title || this._t("No active media");
-      const artist = player.attributes.media_artist || this._t("Unknown");
+      const title = player.attributes.media_title || this._i18n("ui.no_active_media");
+      const artist = player.attributes.media_artist || this._i18n("ui.unknown");
       const album = player.attributes.media_album_name || "";
       const state = player.state || "idle";
       const queueItem = this._state.maQueueState?.current_item || null;
@@ -8096,7 +8382,7 @@
                   <input id="bigVolumeSlider" type="range" min="0" max="100" value="${volumePct}" style="--vol-pct:${volumePct}%">
                 </div>
                 <div class="now-actions">
-                  <button class="chip-btn now-player-picker-btn" id="choosePlayerInlineBtn" title="${this._t("Open Player Picker")}">${this._iconSvg("speaker")}</button>
+                  <button class="chip-btn now-player-picker-btn" id="choosePlayerInlineBtn" title="${this._i18n("ui.open_player_picker")}">${this._iconSvg("speaker")}</button>
                 </div>
               </div>
             </div>
@@ -8106,18 +8392,18 @@
             <div class="now-card now-queue-card">
               <div class="now-queue-toolbar">
                 <div class="now-queue-header">
-                  <div class="now-queue-title" id="nowQueuePanelTitle">${this._t("Up Next")}</div>
+                  <div class="now-queue-title" id="nowQueuePanelTitle">${this._i18n("ui.up_next")}</div>
                   <div class="now-queue-count" id="nowQueuePanelCount">${queueItems.length}</div>
                   <div class="group-inline">
-                    <button class="chip-btn" id="openQueueBtn">${this._t("Open full queue")}</button>
-                    <button class="chip-btn" id="transferQueueBtn">${this._t("Transfer Queue")}</button>
-                    <button class="chip-btn" id="groupBtn">${this._t("Group Speakers")}</button>
+                    <button class="chip-btn" id="openQueueBtn">${this._i18n("ui.open_full_queue")}</button>
+                    <button class="chip-btn" id="transferQueueBtn">${this._i18n("ui.transfer_queue")}</button>
+                    <button class="chip-btn" id="groupBtn">${this._i18n("ui.group_speakers")}</button>
                   </div>
                 </div>
                 <div class="search now-queue-search">
                   <span>🔍</span>
-                  <input id="nowQueueSearchInput" type="text" value="${this._esc(nowPlayingQuery)}" placeholder="${this._t("Search queue and library...")}">
-                  <button class="icon-btn" id="nowQueueSearchClear" style="display:${nowPlayingQuery.trim() ? "" : "none"};" title="${this._t("Clear search")}">✕</button>
+                  <input id="nowQueueSearchInput" type="text" value="${this._esc(nowPlayingQuery)}" placeholder="${this._i18n("ui.search_queue_and_library")}">
+                  <button class="icon-btn" id="nowQueueSearchClear" style="display:${nowPlayingQuery.trim() ? "" : "none"};" title="${this._i18n("ui.clear_search")}">✕</button>
                 </div>
               </div>
               <div class="now-queue-body" id="nowQueuePanelBody">${this._queuePanelHtml(queueItems)}</div>
@@ -8140,7 +8426,7 @@
 
   _queuePanelHtml(queueItems = []) {
     if (!queueItems.length) {
-      return `<div class="now-side-scroll"><div class="state-box" style="min-height:120px;">${this._esc(this._t("Queue is empty"))}</div></div>`;
+      return `<div class="now-side-scroll"><div class="state-box" style="min-height:120px;">${this._esc(this._i18n("ui.queue_is_empty"))}</div></div>`;
     }
     return `<div class="now-side-scroll"><div class="now-queue-list">${queueItems.map((item) => this._miniQueueItemHtml(item)).join("")}</div></div>`;
   }
@@ -8149,23 +8435,23 @@
     const { radio = [], podcasts = [], albums = [], artists = [], tracks = [], playlists = [] } = results || {};
     const total = radio.length + podcasts.length + albums.length + artists.length + tracks.length + playlists.length;
     if (!total) {
-      return `<div class="now-side-scroll"><div class="state-box">${this._esc(this._t("No results"))}: "${this._esc(query)}"</div></div>`;
+      return `<div class="now-side-scroll"><div class="state-box">${this._esc(this._i18n("ui.no_results"))}: "${this._esc(query)}"</div></div>`;
     }
 
     let html = `
       <div class="now-side-scroll">
         <div class="side-search-summary">
-          <div class="side-search-summary-text">${this._esc(this._t("Queue results"))}: "${this._esc(query)}"</div>
-          <button class="chip-btn" id="backToQueueBtn">${this._esc(this._t("Back to queue"))}</button>
+          <div class="side-search-summary-text">${this._esc(this._i18n("ui.queue_results"))}: "${this._esc(query)}"</div>
+          <button class="chip-btn" id="backToQueueBtn">${this._esc(this._i18n("ui.back_to_queue"))}</button>
         </div>`;
-    if (radio.length) html += this._sectionHtml(this._t("Radio"), radio, "radio", false);
-    if (podcasts.length) html += this._sectionHtml(this._t("Podcasts"), podcasts, "podcast", false);
-    if (albums.length) html += this._sectionHtml(this._t("Albums"), albums, "album", false);
-    if (artists.length) html += this._sectionHtml(this._t("Artists"), artists, "artist", false);
+    if (radio.length) html += this._sectionHtml(this._i18n("ui.radio"), radio, "radio", false);
+    if (podcasts.length) html += this._sectionHtml(this._i18n("ui.podcasts"), podcasts, "podcast", false);
+    if (albums.length) html += this._sectionHtml(this._i18n("ui.albums"), albums, "album", false);
+    if (artists.length) html += this._sectionHtml(this._i18n("ui.artists"), artists, "artist", false);
     if (tracks.length) {
-      html += `<div class="section"><div class="section-header"><div class="section-title">${this._esc(this._t("Tracks"))}</div><div class="section-badge">${tracks.length}</div></div><div class="track-list">${tracks.map((item, i) => this._trackRowHtml(item, i + 1)).join("")}</div></div>`;
+      html += `<div class="section"><div class="section-header"><div class="section-title">${this._esc(this._i18n("ui.tracks"))}</div><div class="section-badge">${tracks.length}</div></div><div class="track-list">${tracks.map((item, i) => this._trackRowHtml(item, i + 1)).join("")}</div></div>`;
     }
-    if (playlists.length) html += this._sectionHtml(this._t("Playlists"), playlists, "playlist", false);
+    if (playlists.length) html += this._sectionHtml(this._i18n("ui.playlists"), playlists, "playlist", false);
     html += `</div>`;
     return html;
   }
@@ -8184,7 +8470,7 @@
     const token = ++this._state.sidePanelToken;
     if (!query) {
       const queueItems = this._getNowPlayingQueueItems();
-      title.textContent = this._t("Up Next");
+      title.textContent = this._i18n("ui.up_next");
       count.textContent = String(queueItems.length);
       body.innerHTML = this._queuePanelHtml(queueItems);
       this._hydrateImages();
@@ -8192,9 +8478,9 @@
       return;
     }
 
-    title.textContent = this._t("Search");
+    title.textContent = this._i18n("ui.search");
     count.textContent = "…";
-    body.innerHTML = `<div class="now-side-scroll"><div class="state-box" style="min-height:120px;">${this._esc(this._t("Loading..."))}</div></div>`;
+    body.innerHTML = `<div class="now-side-scroll">${this._loadingStateHtml(this._i18n("ui.loading"), { compact: true })}</div>`;
 
     try {
       const results = await this._search(query);
@@ -8213,7 +8499,7 @@
     } catch (e) {
       if (token !== this._state.sidePanelToken || !body.isConnected) return;
       count.textContent = "!";
-      body.innerHTML = `<div class="now-side-scroll"><div class="state-box">${this._esc(e?.message || this._t("Try again"))}</div></div>`;
+      body.innerHTML = `<div class="now-side-scroll"><div class="state-box">${this._esc(e?.message || this._i18n("ui.try_again"))}</div></div>`;
     }
   }
 
@@ -8276,7 +8562,7 @@
   _sectionActionButtons(items) {
     if (!items?.length) return "";
     const encoded = this._esc(JSON.stringify(items.map((i) => ({ uri: i.uri, media_type: i.media_type || "album" }))));
-    return `<button class="chip-btn" data-action="play-all" data-items="${encoded}">${this._esc(this._t("Play all"))}</button><button class="chip-btn" data-action="shuffle-all" data-items="${encoded}">${this._esc(this._t("Shuffle all"))}</button>`;
+    return `<button class="chip-btn" data-action="play-all" data-items="${encoded}">${this._esc(this._i18n("ui.play_all"))}</button><button class="chip-btn" data-action="shuffle-all" data-items="${encoded}">${this._esc(this._i18n("ui.shuffle_all"))}</button>`;
   }
 
   _mediaCardHtml(item, forcedType = null) {
@@ -8284,7 +8570,7 @@
     const uri = item.uri || "";
     const name = item.name || "";
     const artUrl = this._artUrl(item);
-    const artist = mediaType === "artist" ? (this._isHebrew() ? "אמן" : "Artist") : mediaType === "radio" ? (item.metadata?.description || "") : this._artistName(item) || item.album?.name || "";
+    const artist = mediaType === "artist" ? this._i18n("ui.artist") : mediaType === "radio" ? (item.metadata?.description || "") : this._artistName(item) || item.album?.name || "";
     const placeholder = mediaType === "radio" ? "radio" : mediaType === "artist" ? "artist" : mediaType === "podcast" ? "podcast" : "music_note";
     const imgAttrs = artUrl ? `data-img="${this._esc(artUrl)}" data-placeholder="${placeholder}"` : "";
     return `<div class="media-card" data-uri="${this._esc(uri)}" data-type="${this._esc(mediaType)}"><div class="media-art" ${imgAttrs}><div class="media-placeholder">${this._artPlaceholderHtml(placeholder)}</div><div class="media-overlay"><div class="play-bubble">▶</div></div><div class="playing-badge">▶</div></div><div class="media-title">${this._esc(name)}</div><div class="media-sub">${this._esc(artist)}</div></div>`;
@@ -8473,18 +8759,18 @@
         if (titleEl) titleEl.textContent = "";
         return;
       }
-      const title = this._queueItemPrimaryTitle(item) || this._m("Up next", "הבא בתור");
+      const title = this._queueItemPrimaryTitle(item) || this._i18n("ui.up_next_2");
       const art = this._queueItemImageUrl(item, 72);
       button.hidden = false;
       button.dataset.queueItemId = this._getQueueItemKey(item);
       button.dataset.uri = this._getQueueItemUri(item);
       button.dataset.type = item?.media_item?.media_type || item?.media_type || "track";
       button.dataset.sortIndex = Number.isFinite(Number(item?.sort_index)) ? String(item.sort_index) : "";
-      button.title = this._isHebrew() ? `הבא בתור: ${title}` : `Up next: ${title}`;
+      button.title = this._i18n("ui.up_next_title", { title });
       if (artEl) {
         artEl.innerHTML = art ? `<img src="${this._esc(art)}" alt="">` : `<span class="up-next-art-fallback">${this._iconSvg("tracks")}</span>`;
       }
-      if (prefixEl) prefixEl.textContent = this._m("Up next", "הבא בתור");
+      if (prefixEl) prefixEl.textContent = this._i18n("ui.up_next_2");
       if (titleEl) titleEl.textContent = title;
     });
   }
@@ -8492,7 +8778,7 @@
   async _playMobileUpNext() {
     const item = this._mobileUpNextItem();
     if (!item) {
-      this._toast(this._m("No next track in queue", "אין שיר הבא בתור"));
+      this._toast(this._i18n("ui.no_next_track_in_queue"));
       return;
     }
     const queueItemId = this._getQueueItemKey(item);
@@ -8500,7 +8786,7 @@
     const mediaType = item?.media_item?.media_type || item?.media_type || "track";
     const sortIndex = Number.isFinite(Number(item?.sort_index)) ? Number(item.sort_index) : "";
     const played = await this._playQueueItem(queueItemId, uri, mediaType, sortIndex);
-    if (played) this._toastSuccess(this._m("Skipped to up next", "עבר לשיר הבא בתור"));
+    if (played) this._toastSuccess(this._i18n("ui.skipped_to_up_next"));
   }
 
   _miniQueueItemHtml(item) {
@@ -8550,7 +8836,7 @@
       let items = [];
       try { items = JSON.parse(secBtn.dataset.items || "[]"); } catch (_) { items = []; }
       if (!Array.isArray(items) || !items.length) {
-        this._toastError(this._t("No content found"));
+        this._toastError(this._i18n("ui.no_content_found"));
         return;
       }
       const shuffle = secBtn.dataset.action === "shuffle-all";
@@ -8633,10 +8919,10 @@
     const menu = document.createElement("div");
     menu.className = "ctx-menu";
     menu.innerHTML = `
-      <div class="ctx-item" data-enqueue="play"><span class="ctx-ico">▶</span><span>${this._esc(this._t("Play now"))}</span></div>
-      <div class="ctx-item" data-enqueue="shuffle"><span class="ctx-ico">⇄</span><span>${this._esc(this._t("Shuffle play"))}</span></div>
-      <div class="ctx-item" data-enqueue="next"><span class="ctx-ico">⏭</span><span>${this._esc(this._t("Play next"))}</span></div>
-      <div class="ctx-item" data-enqueue="add"><span class="ctx-ico">＋</span><span>${this._esc(this._t("Add to queue"))}</span></div>`;
+      <div class="ctx-item" data-enqueue="play"><span class="ctx-ico">▶</span><span>${this._esc(this._i18n("ui.play_now"))}</span></div>
+      <div class="ctx-item" data-enqueue="shuffle"><span class="ctx-ico">⇄</span><span>${this._esc(this._i18n("ui.shuffle_play"))}</span></div>
+      <div class="ctx-item" data-enqueue="next"><span class="ctx-ico">⏭</span><span>${this._esc(this._i18n("ui.play_next"))}</span></div>
+      <div class="ctx-item" data-enqueue="add"><span class="ctx-ico">＋</span><span>${this._esc(this._i18n("ui.add_to_queue"))}</span></div>`;
     menu.querySelectorAll(".ctx-item").forEach((item) => item.addEventListener("click", async (e) => {
       e.stopPropagation();
       await this._playMedia(uri, type, item.dataset.enqueue);
@@ -9035,7 +9321,7 @@
       }
     } catch (e) {
       this._clearMobileQueuePlayPending();
-      this._toast(e?.message || this._t("Queue action failed"));
+      this._toast(e?.message || this._i18n("ui.queue_action_failed"));
       return false;
     } finally {
       this._setQueueBusy(false);
@@ -9049,7 +9335,7 @@
     if (includeConfigEntryId) {
       const configEntryId = await this._ensureConfigEntryId();
       if (!configEntryId) {
-        throw new Error(this._t("Music Assistant config entry was not found"));
+        throw new Error(this._i18n("ui.music_assistant_config_entry_was_not_found"));
       }
       serviceData = { config_entry_id: configEntryId, ...serviceData };
     }
@@ -9297,19 +9583,19 @@
 
   _radioBrowserCountryOptions() {
     const base = [
-      ["all", this._m("All countries", "כל המדינות")],
-      ["IL", this._m("Israel", "ישראל")],
-      ["US", this._m("United States", "ארצות הברית")],
-      ["GB", this._m("United Kingdom", "בריטניה")],
-      ["DE", this._m("Germany", "גרמניה")],
-      ["FR", this._m("France", "צרפת")],
-      ["IT", this._m("Italy", "איטליה")],
-      ["ES", this._m("Spain", "ספרד")],
-      ["NL", this._m("Netherlands", "הולנד")],
-      ["GR", this._m("Greece", "יוון")],
-      ["TR", this._m("Turkey", "טורקיה")],
-      ["CA", this._m("Canada", "קנדה")],
-      ["AU", this._m("Australia", "אוסטרליה")],
+      ["all", this._i18n("ui.all_countries")],
+      ["IL", this._i18n("ui.israel")],
+      ["US", this._i18n("ui.united_states")],
+      ["GB", this._i18n("ui.united_kingdom")],
+      ["DE", this._i18n("ui.germany")],
+      ["FR", this._i18n("ui.france")],
+      ["IT", this._i18n("ui.italy")],
+      ["ES", this._i18n("ui.spain")],
+      ["NL", this._i18n("ui.netherlands")],
+      ["GR", this._i18n("ui.greece")],
+      ["TR", this._i18n("ui.turkey")],
+      ["CA", this._i18n("ui.canada")],
+      ["AU", this._i18n("ui.australia")],
     ];
     const current = this._mobileRadioBrowserCountry();
     if (current !== "all" && !base.some(([code]) => code === current)) {
@@ -9325,7 +9611,7 @@
 
   _radioBrowserCountryLabel(code = "") {
     const normalized = String(code || "").trim().toUpperCase();
-    if (!normalized || normalized === "ALL") return this._m("All countries", "כל המדינות");
+    if (!normalized || normalized === "ALL") return this._i18n("ui.all_countries");
     const found = this._radioBrowserCountryOptions().find(([value]) => value === normalized);
     return found?.[1] || this._state.mobileRadioBrowseCountryName || normalized;
   }
@@ -9470,7 +9756,7 @@
     const next = stations[nextIndex];
     if (!next?.uri) return false;
     await this._playMedia(next.uri, "radio", "play", { label: next.name || "Radio", silent: true });
-    this._toastSuccess(this._m("Radio station changed", "תחנת הרדיו הוחלפה"));
+    this._toastSuccess(this._i18n("ui.radio_station_changed"));
     return true;
   }
 
@@ -9532,7 +9818,7 @@
   }
 
   _normalizeSearchResponse(raw) {
-    const out = { radio: [], podcasts: [], albums: [], artists: [], tracks: [], playlists: [] };
+    const out = { radio: [], podcasts: [], albums: [], artists: [], tracks: [], playlists: [], genres: [] };
     if (!raw) return out;
     const readGroup = (value) => Array.isArray(value) ? value : (value?.items && Array.isArray(value.items) ? value.items : []);
     const groupForItem = (item = {}) => {
@@ -9543,6 +9829,7 @@
       if (type === "artist") return "artists";
       if (type === "track") return "tracks";
       if (type === "playlist") return "playlists";
+      if (type === "genre") return "genres";
       return "";
     };
     const addFlatItems = (items = []) => {
@@ -9558,6 +9845,7 @@
       out.artists.push(...readGroup(source.artist || source.artists).map((item) => this._normalizeSearchItem(item, "artist")));
       out.tracks.push(...readGroup(source.track || source.tracks).map((item) => this._normalizeSearchItem(item, "track")));
       out.playlists.push(...readGroup(source.playlist || source.playlists).map((item) => this._normalizeSearchItem(item, "playlist")));
+      out.genres.push(...readGroup(source.genre || source.genres).map((item) => this._normalizeSearchItem(item, "genre")));
     };
     const src = raw.response ?? raw.result ?? raw;
     const sources = [src];
@@ -9580,16 +9868,16 @@
   }
 
   _emptySearchResults() {
-    return { radio: [], podcasts: [], albums: [], artists: [], tracks: [], playlists: [] };
+    return { radio: [], podcasts: [], albums: [], artists: [], tracks: [], playlists: [], genres: [] };
   }
 
   _hasSearchResults(results = {}) {
-    return Object.values(results || {}).some((arr) => Array.isArray(arr) && arr.length);
+    return Object.entries(results || {}).some(([group, arr]) => group !== "genres" && Array.isArray(arr) && arr.length);
   }
 
   _mergeSearchResults(...sets) {
     const out = this._emptySearchResults();
-    const groups = ["radio", "podcasts", "albums", "artists", "tracks", "playlists"];
+    const groups = ["radio", "podcasts", "albums", "artists", "tracks", "playlists", "genres"];
     const seen = new Set();
     sets.forEach((results) => {
       groups.forEach((group) => {
@@ -9629,6 +9917,7 @@
       artist: "artists",
       track: "tracks",
       playlist: "playlists",
+      genre: "genres",
     };
     const seen = new Set();
     const scoreItem = (item, mediaType) => {
@@ -9700,7 +9989,7 @@
       globalResults = this._normalizeSearchResponse(raw);
     } catch (_) {
       try {
-        const raw2 = await this._callService("search", { name: q, limit: 25, media_type: ["radio", "podcast", "album", "artist", "track", "playlist"] });
+        const raw2 = await this._callService("search", { name: q, limit: 25, media_type: ["radio", "podcast", "album", "artist", "track", "playlist", "genre"] });
         globalResults = this._normalizeSearchResponse(raw2);
       } catch (_) {}
     }
@@ -9918,7 +10207,7 @@
     if (!helperEntity.startsWith("input_text.")) {
       this._notifyCardIssue(
         "active-player-helper-domain",
-        this._m("Active player helper must be an input_text entity", "ה־helper של הנגן הפעיל חייב להיות מסוג input_text"),
+        this._i18n("ui.active_player_helper_must_be_an_input_text_entity"),
         "error",
         60000,
       );
@@ -9934,7 +10223,7 @@
       this._state.activePlayerHelperLastValue = undefined;
       this._notifyCardIssue(
         "active-player-helper-update",
-        error?.message || this._m("Could not update active player helper", "לא ניתן לעדכן helper לנגן פעיל"),
+        error?.message || this._i18n("ui.could_not_update_active_player_helper"),
         "error",
         60000,
       );
@@ -10003,11 +10292,11 @@
     entities = entities.map((entity) => this._applyOptimisticPlayerVolumeState(entity));
     this._state.players = entities;
     if (!entities.length) {
-      if (sel) sel.innerHTML = `<option value="">${this._esc(this._t("No players found"))}</option>`;
+      if (sel) sel.innerHTML = `<option value="">${this._esc(this._i18n("ui.no_players_found"))}</option>`;
       this._syncActivePlayerHelper(null);
       this._notifyCardIssue(
         "no-players-found",
-        this._m("No Music Assistant players were found. Check Music Assistant and media_player entities.", "לא נמצאו נגני Music Assistant. בדוק את Music Assistant ואת ישויות media_player."),
+        this._i18n("ui.no_music_assistant_players_were_found_check_music_assistant_and_media_pl"),
         "error",
         45000,
       );
@@ -10104,7 +10393,7 @@
     const player = this._getSelectedPlayer();
     const entityId = this._selectedPlayerMoreInfoEntityId(player);
     if (!entityId) {
-      this._toast(this._m("More info is unavailable for this player", "מידע נוסף לא זמין לנגן הזה"));
+      this._toast(this._i18n("ui.more_info_is_unavailable_for_this_player"));
       return;
     }
     this.dispatchEvent(new CustomEvent("hass-more-info", {
@@ -10144,9 +10433,7 @@
       return true;
     } catch (_) {
       if (!options.silent) {
-        this._toastError(this._isHebrew()
-          ? `לא הצלחתי לנגן: ${label}`
-          : `Could not play: ${label}`);
+        this._toastError(this._i18n("ui.could_not_play_label", { label }));
       }
       return false;
     }
@@ -10160,15 +10447,15 @@
     if (!options.silent) {
       const successMessage = successCount > 1
         ? this._m(`Started on ${successCount} players`, `הופעל על ${successCount} נגנים`)
-        : this._m("Started on selected player", "הופעל על הנגן הנבחר");
-      (successCount ? this._toastSuccess : this._toastError).call(this, successCount ? successMessage : this._m("Could not start playback", "לא הצלחתי להתחיל ניגון"));
+        : this._i18n("ui.started_on_selected_player");
+      (successCount ? this._toastSuccess : this._toastError).call(this, successCount ? successMessage : this._i18n("ui.could_not_start_playback"));
     }
     return successCount > 0;
   }
 
   async _playMedia(uri, mediaType = "album", enqueue = "play", options = {}) {
     if (!this._state.selectedPlayer) {
-      this._toastError(this._t("Select a player first"));
+      this._toastError(this._i18n("ui.select_a_player_first"));
       return false;
     }
     this._state.forceRadioHero = !!options.forceRadioHero || String(mediaType || "").toLowerCase() === "radio";
@@ -10182,7 +10469,7 @@
 
   async _playAll(items = [], shuffle = false) {
     if (!items.length) return;
-    if (!this._state.selectedPlayer) return this._toast(this._t("Select a player first"));
+    if (!this._state.selectedPlayer) return this._toast(this._i18n("ui.select_a_player_first"));
     if (this._isDirectMaPlayer(this._state.selectedPlayer)) {
       const playable = items.map((item) => item?.uri).filter(Boolean);
       if (!playable.length) return;
@@ -10232,7 +10519,7 @@
     if (this._isDirectMaPlayer(player)) {
       this._callDirectMaPlayerCommand(player, player.state === "playing" ? "players/cmd/pause" : "players/cmd/play")
         .then(() => this._refreshDirectMaPlayers().catch(() => {}))
-        .catch((error) => this._toastError(error?.message || this._t("Playback command failed")));
+        .catch((error) => this._toastError(error?.message || this._i18n("ui.playback_command_failed")));
       return;
     }
     this._hass.callService("media_player", player.state === "playing" ? "media_pause" : "media_play", { entity_id: player.entity_id });
@@ -10265,7 +10552,7 @@
           setTimeout(() => this._ensureQueueSnapshot(true), 1500);
           setTimeout(() => this._ensureQueueSnapshot(true), 2850);
         })
-        .catch((error) => this._toastError(error?.message || this._t("Playback command failed")));
+        .catch((error) => this._toastError(error?.message || this._i18n("ui.playback_command_failed")));
       return;
     }
     this._hass.callService("media_player", cmd === "previous" ? "media_previous_track" : "media_next_track", { entity_id: player.entity_id });
@@ -10324,7 +10611,7 @@
       if (!queueId) return;
       this._callDirectMaCommand("player_queues/shuffle", { queue_id: queueId, shuffle_enabled: !player.attributes.shuffle })
         .then(() => this._refreshDirectMaPlayers().catch(() => {}))
-        .catch((error) => this._toastError(error?.message || this._t("Playback command failed")));
+        .catch((error) => this._toastError(error?.message || this._i18n("ui.playback_command_failed")));
       return;
     }
     this._hass.callService("media_player", "shuffle_set", { entity_id: player.entity_id, shuffle: !player.attributes.shuffle });
@@ -10341,7 +10628,7 @@
       if (!queueId) return;
       this._callDirectMaCommand("player_queues/repeat", { queue_id: queueId, repeat_mode: next })
         .then(() => this._refreshDirectMaPlayers().catch(() => {}))
-        .catch((error) => this._toastError(error?.message || this._t("Playback command failed")));
+        .catch((error) => this._toastError(error?.message || this._i18n("ui.playback_command_failed")));
       return;
     }
     this._hass.callService("media_player", "repeat_set", { entity_id: player.entity_id, repeat: next });
@@ -10477,14 +10764,14 @@
     if (this._maToken && this._maUrl) {
       if (this._state.wsReady) {
         pill.classList.remove("offline");
-        text.textContent = this._t("Connected");
+        text.textContent = this._i18n("ui.connected");
       } else {
         pill.classList.add("offline");
-        text.textContent = this._t("Connecting");
+        text.textContent = this._i18n("ui.connecting");
       }
     } else {
       pill.classList.remove("offline");
-      text.textContent = this._t("Connected");
+      text.textContent = this._i18n("ui.connected");
     }
   }
 
@@ -10546,7 +10833,7 @@
       || media?.album?.image_url
       || "";
     this._setButtonIcon(this.$("btnPlay"), this._playPauseIconName(player));
-    this.$("npTitle").textContent = queueTitle || player.attributes.media_title || this._t("Nothing playing");
+    this.$("npTitle").textContent = queueTitle || player.attributes.media_title || this._i18n("ui.nothing_playing");
     this.$("npSub").textContent = queueArtist || player.attributes.media_artist || "—";
     const art = this._currentArtworkUrl(player, queueItem, 420, { preferPlayerArtwork: true }) || queueArt || this._bestArtworkUrl([
       player.attributes.entity_picture_local,
@@ -10574,14 +10861,15 @@
     this._syncBrandPlayingState();
     this._syncStatus();
     this._syncNowPlayingPageLive();
+    if (this._state.screensaverOpen) this._syncScreensaverUi();
   }
 
   _syncNowPlayingPageLive() {
     if (this._state.view !== "now_playing") return;
     const player = this._getSelectedPlayer();
     if (!player) return;
-    const title = player.attributes.media_title || this._t("No active media");
-    const artist = player.attributes.media_artist || this._t("Unknown");
+    const title = player.attributes.media_title || this._i18n("ui.no_active_media");
+    const artist = player.attributes.media_artist || this._i18n("ui.unknown");
     const album = player.attributes.media_album_name || "";
     const duration = this._getCurrentDuration();
     const position = this._getCurrentPosition();
@@ -10651,6 +10939,10 @@
     this._syncScheduledStartState();
     this._syncNightModeUi();
     this._syncSleepTimerChip();
+    if (this._state.screensaverOpen) {
+      this._syncScreensaverUi();
+      return;
+    }
     const player = this._getSelectedPlayer();
     if (!player) return;
     const duration = this._getCurrentDuration();
@@ -10782,12 +11074,12 @@
     const selected = this._getSelectedPlayer();
     const subtitle = this.$("groupModalSubtitle");
     const badge = this.$("groupCountBadge");
-    if (subtitle) subtitle.textContent = selected?.attributes?.friendly_name || this._t("Choose Player");
+    if (subtitle) subtitle.textContent = selected?.attributes?.friendly_name || this._i18n("ui.choose_player");
     if (badge) badge.textContent = String(players.length);
     list.innerHTML = players.length ? players.map((p) => {
       const checked = (this._state.pendingGroupSelections || []).includes(p.entity_id);
       return `<label class="group-item ${checked ? "checked" : ""}"><span class="group-meta"><span class="group-name">${this._esc(p.attributes.friendly_name || p.entity_id)}<span class="group-item-toggle ${checked ? "checked" : ""}" aria-hidden="true">${this._iconSvg(checked ? "minus" : "plus")}</span></span><span class="group-sub"></span></span><input type="checkbox" data-group-player="${this._esc(p.entity_id)}" ${checked ? "checked" : ""}></label>`;
-    }).join("") : `<div class="state-box" style="min-height:80px;padding:8px 0;">${this._esc(this._t("No extra MA players"))}</div>`;
+    }).join("") : `<div class="state-box" style="min-height:80px;padding:8px 0;">${this._esc(this._i18n("ui.no_extra_ma_players"))}</div>`;
     this.$("groupModal").classList.add("open");
   }
 
@@ -10822,7 +11114,7 @@
     if (!player) return;
     const groupMembers = [...(this._state.pendingGroupSelections || [])];
     await this._applySpeakerGroupFor(player.entity_id, groupMembers);
-    this._toast(this._t("Group updated"));
+    this._toast(this._i18n("ui.group_updated"));
     this._closeGroupModal();
     setTimeout(() => { this._refreshGroupingState(); if (this._state.view === "now_playing") this._renderNowPlayingPage(); }, 500);
   }
@@ -10860,7 +11152,7 @@
     const player = this._getSelectedPlayer();
     if (!player) return;
     await this._clearSpeakerGroupFor(player.entity_id);
-    this._toast(this._t("Group cleared"));
+    this._toast(this._i18n("ui.group_cleared"));
     this._closeGroupModal();
   }
 
@@ -10882,10 +11174,10 @@
       <div class="queue-shell">
       <div class="queue-header">
         <div class="queue-art">${art ? `<img src="${this._esc(art)}" alt="">` : this._artPlaceholderHtml("music_note")}</div>
-        <div class="queue-meta"><div class="queue-title">${this._esc(player.attributes.media_title || this._t("Queue"))}</div><div class="queue-sub" id="queueSub">${this._esc(player.attributes.media_artist || "")}</div></div>
+        <div class="queue-meta"><div class="queue-title">${this._esc(player.attributes.media_title || this._i18n("ui.queue"))}</div><div class="queue-sub" id="queueSub">${this._esc(player.attributes.media_artist || "")}</div></div>
         <button class="close-btn" id="queueClose">✕</button>
       </div>
-      <div class="queue-scroll" id="queueScroll"><div class="state-box"><div><div class="spinner"></div><div>${this._esc(this._t("Loading queue..."))}</div></div></div></div>
+      <div class="queue-scroll" id="queueScroll">${this._loadingStateHtml(this._i18n("ui.loading_queue"))}</div>
       </div>`;
     this.shadowRoot.querySelector(".card")?.appendChild(panel);
     panel.querySelector("#queueClose").addEventListener("click", () => this._hideQueue());
@@ -10916,15 +11208,15 @@
       await this._ensureQueueSnapshot(true);
       const queueState = this._state.maQueueState;
       if (!queueState) {
-        queueScroll.innerHTML = `<div class="state-box">${this._esc(this._t("Queue is empty"))}</div>`;
+        queueScroll.innerHTML = `<div class="state-box">${this._esc(this._i18n("ui.queue_is_empty"))}</div>`;
         return;
       }
       const currentIndex = queueState.current_index ?? 0;
       const totalItems = queueState.items ?? 0;
       const queueItems = this._state.queueItems || [];
-      queueSub.textContent = `${player.attributes.media_artist || ""}${player.attributes.media_artist ? " · " : ""}${totalItems} ${this._t("items")}`;
+      queueSub.textContent = `${player.attributes.media_artist || ""}${player.attributes.media_artist ? " · " : ""}${totalItems} ${this._i18n("ui.items")}`;
       if (!Array.isArray(queueItems) || !queueItems.length) {
-        queueScroll.innerHTML = `<div class="state-box">${this._esc(this._t("Queue is empty"))}</div>`;
+        queueScroll.innerHTML = `<div class="state-box">${this._esc(this._i18n("ui.queue_is_empty"))}</div>`;
         return;
       }
       queueScroll.innerHTML = queueItems.map((item, idx) => {
@@ -11061,8 +11353,8 @@
       if (!acted) {
         await this._ensureQueueSnapshot(true).catch(() => {});
         const message = serviceQueueItemId
-          ? this._m("Queue action is not available for this player", "פעולת התור לא זמינה לנגן הזה")
-          : this._m("Queue item id is not ready yet. Refresh the queue and try again.", "מזהה פריט התור עדיין לא מוכן. רענן את התור ונסה שוב.");
+          ? this._i18n("ui.queue_action_is_not_available_for_this_player")
+          : this._i18n("ui.queue_item_id_is_not_ready_yet_refresh_the_queue_and_try_again");
         this._toast(message);
         return;
       }
@@ -11081,7 +11373,7 @@
       this._refreshQueueAfterMutation(900).catch(() => {});
       this._refreshQueueAfterMutation(1800).catch(() => {});
     } catch (e) {
-      this._toast(e?.message || this._t("Queue action failed"));
+      this._toast(e?.message || this._i18n("ui.queue_action_failed"));
     } finally {
       this._setQueueBusy(false);
     }
@@ -11130,7 +11422,7 @@
       : orderedItems.filter((i) => Number(i?.sort_index ?? -1) > Number(currentIndex));
 
     const currentUri = this._getQueueItemUri(currentItem);
-    if (!currentUri) throw new Error(this._t("No queue item to rebuild"));
+    if (!currentUri) throw new Error(this._i18n("ui.no_queue_item_to_rebuild"));
 
     const uriList = [currentUri, ...itemsAfterCurrent.map((i) => this._getQueueItemUri(i)).filter(Boolean)];
 
@@ -11199,7 +11491,7 @@
   async _openTransferQueuePicker(refreshOnly = false) {
     this.shadowRoot.querySelector(".card")?.appendChild(this.$("playerModal"));
     this._state.modalMode = "transfer";
-    this.$("playerModalTitle").textContent = this._t("Transfer Queue");
+    this.$("playerModalTitle").textContent = this._i18n("ui.transfer_queue");
     this._setPlayerModalHeader("transfer");
     const player = this._getSelectedPlayer();
     if (!player) return;
@@ -11207,7 +11499,7 @@
     const body = this.$("playerModalBody");
     if (!body) return;
     if (!others.length) {
-      body.innerHTML = `<div class="modal-section"><div class="state-box" style="min-height:120px;">${this._esc(this._t("No target players available"))}</div></div>`;
+      body.innerHTML = `<div class="modal-section"><div class="state-box" style="min-height:120px;">${this._esc(this._i18n("ui.no_target_players_available"))}</div></div>`;
       if (!refreshOnly) {
         this.$("playerModal").classList.add("open");
         this._state.playerModalOpen = true;
@@ -11218,7 +11510,7 @@
       <div class="player-modal-grid">
         <div class="modal-section">
           <div class="modal-section-top">
-            <div class="modal-section-title">${this._t("Choose target player")}</div>
+            <div class="modal-section-title">${this._i18n("ui.choose_target_player")}</div>
             <div class="modal-section-badge">${others.length}</div>
           </div>
           <div class="player-list">
@@ -11279,11 +11571,11 @@
       }
 
       if (options.selectTarget !== false) this._selectPlayer(targetPlayerEntityId, true);
-      if (!options.silent) this._toast(this._t("Queue transferred"));
+      if (!options.silent) this._toast(this._i18n("ui.queue_transferred"));
       setTimeout(() => this._ensureQueueSnapshot(true), 1200);
       return true;
     } catch (e) {
-      if (!options.silent) this._toast(e?.message || this._t("Queue action failed"));
+      if (!options.silent) this._toast(e?.message || this._i18n("ui.queue_action_failed"));
       return false;
     }
   }
@@ -11373,7 +11665,7 @@
     if (!host) return;
     const playerName = this._selectedPlayerName();
     const art = this._artUrl(item) || item?.image || item?.media_item?.image || item?.media_item?.album?.image || "";
-    const title = item?.name || this._m("Random playlist", "פלייליסט אקראי");
+    const title = item?.name || this._i18n("ui.random_playlist");
     host.innerHTML = `
       <div class="surprise-popup-card">
         <div class="surprise-popup-player">${this._esc(playerName)}</div>
@@ -11405,7 +11697,7 @@
 
   _selectedPlayerName() {
     const player = this._getSelectedPlayer();
-    return player?.attributes?.friendly_name || player?.entity_id || this._t("Choose Player");
+    return player?.attributes?.friendly_name || player?.entity_id || this._i18n("ui.choose_player");
   }
 
   _mediaFeedbackLabel(uri = "", fallback = "") {
@@ -11415,7 +11707,7 @@
       this._state.queueItems || [],
       {
         getQueueItemUriFn: (item) => this._getQueueItemUri(item),
-        defaultLabel: this._t("Media"),
+        defaultLabel: this._i18n("ui.media_2"),
       },
     );
   }
@@ -11423,9 +11715,10 @@
   _toastMediaQueued(label, targetName) {
     const mediaLabel = this._mediaFeedbackLabel("", label);
     const target = String(targetName || "").trim() || this._selectedPlayerName();
-    const message = this._isHebrew()
-      ? `נבחר: ${mediaLabel} · יעד: ${target}`
-      : `Selected: ${mediaLabel} · Target: ${target}`;
+    const message = this._i18n("ui.media_selected_target", {
+      media: mediaLabel,
+      target,
+    });
     this._toastSuccess(message);
   }
 
@@ -11493,6 +11786,12 @@
   }
 
   connectedCallback() {
+    this._startResizeTracking();
+    this._startScreensaverVisibilityTracking();
+    this._markScreensaverPageEntry("connected");
+    this._lastCardWidth = this._getCardWidth(this._lastCardWidth);
+    this._lastCardHeight = this._getAllocatedCardHeight(this._lastCardHeight || this._configuredCardHeightFallback(0));
+    this._scheduleLayoutRecovery("connected");
     this._adoptLocalSendspinGlobalSession();
     this._cancelLocalSendspinDisconnect();
     this._attachLocalSendspinLifecycleListeners();
@@ -11509,6 +11808,11 @@
     clearTimeout(this._controlRoomVolumeTimer);
     clearTimeout(this._seekTimer);
     clearTimeout(this._resizeTimer);
+    clearTimeout(this._layoutRecoveryTimer);
+    if (this._layoutRecoveryFrame && typeof cancelAnimationFrame === "function") {
+      cancelAnimationFrame(this._layoutRecoveryFrame);
+      this._layoutRecoveryFrame = null;
+    }
     clearTimeout(this._externalPlaybackSyncTimer);
     clearTimeout(this._systemMobileStatePersistTimer);
     clearTimeout(this._compactTransitionTimer);
@@ -11516,6 +11820,12 @@
     clearTimeout(this._surprisePopupTimer);
     clearTimeout(this._simpleWizardPopupTimer);
     clearTimeout(this._maReconnectTimer);
+    clearTimeout(this._screensaverTimer);
+    clearInterval(this._screensaverClockTimer);
+    this._screensaverTimer = null;
+    this._screensaverClockTimer = null;
+    this._state.screensaverOpen = false;
+    this._stopScreensaverVisibilityTracking();
     this._maReconnectTimer = null;
     clearInterval(this._mobileSmartVoiceTimer);
     this._mobileSmartVoiceTimer = null;
@@ -11544,10 +11854,7 @@
       this._scheduleLocalSendspinStop("shutdown", 5 * 60 * 1000);
     }
     document.removeEventListener("click", this._boundDocClick);
-    if (this._resizeListening) {
-      window.removeEventListener("resize", this._boundWindowResize);
-      this._resizeListening = false;
-    }
+    this._stopResizeTracking();
     this._imageBlobCache.forEach((url) => {
       try { URL.revokeObjectURL(url); } catch (_) {}
     });
@@ -11573,9 +11880,11 @@ function ensureHaEditorComponents() {
   } catch (_) {}
 }
 
-const HOMEII_CARD_VERSION = "5.4.2";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v542";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v542";
+const HOMEII_CARD_VERSION = "5.5.0";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v550";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v550";
+const AMBIENT_LIGHT_PAIR_PLAYER_PREFIX = "__homeii_ambient_light_pair_player_";
+const AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX = "__homeii_ambient_light_pair_lights_";
 
 const HomeiiEditorLocale = Object.freeze({
   isHebrewLanguageTag(value) {
@@ -11602,6 +11911,11 @@ const HomeiiEditorLocale = Object.freeze({
     }
   },
 });
+
+function homeiiEditorI18n(key, params = {}, fallback = "") {
+  const language = HomeiiEditorLocale.detectEditorHebrew() ? "he" : "en";
+  return homeiiTranslate(language, key, params, fallback);
+}
 
 const HomeiiConfigValidators = Object.freeze({
   assertStringIfDefined(value, key) {
@@ -11645,12 +11959,29 @@ const HomeiiConfigValidators = Object.freeze({
     HomeiiConfigValidators.assertNumberIfDefined(config.main_opacity, "main_opacity");
     HomeiiConfigValidators.assertNumberIfDefined(config.popup_opacity, "popup_opacity");
     HomeiiConfigValidators.assertNumberIfDefined(config.cache_ttl, "cache_ttl");
-    HomeiiConfigValidators.assertValueInList(config.language, "language", ["auto", "he", "en"]);
+    HomeiiConfigValidators.assertStringIfDefined(config.language, "language");
     HomeiiConfigValidators.assertValueInList(config.theme_mode, "theme_mode", ["auto", "dark", "light", "custom"]);
     HomeiiConfigValidators.assertBooleanIfDefined(config.rtl, "rtl");
     HomeiiConfigValidators.assertBooleanIfDefined(config.performance_mode, "performance_mode");
     HomeiiConfigValidators.assertBooleanIfDefined(config.show_ma_button, "show_ma_button");
     HomeiiConfigValidators.assertBooleanIfDefined(config.show_theme_toggle, "show_theme_toggle");
+    HomeiiConfigValidators.assertBooleanIfDefined(config.ambient_light_enabled, "ambient_light_enabled");
+    HomeiiConfigValidators.assertStringArrayIfDefined(config.ambient_light_entities, "ambient_light_entities");
+    HomeiiConfigValidators.assertStringArrayIfDefined(config.ambient_light_player_map, "ambient_light_player_map");
+    HomeiiConfigValidators.assertNumberIfDefined(config.ambient_light_brightness, "ambient_light_brightness");
+    HomeiiConfigValidators.assertNumberIfDefined(config.ambient_light_transition, "ambient_light_transition");
+    HomeiiConfigValidators.assertNumberIfDefined(config.ambient_light_cooldown, "ambient_light_cooldown");
+    HomeiiConfigValidators.assertBooleanIfDefined(config.screensaver_enabled, "screensaver_enabled");
+    HomeiiConfigValidators.assertValueInList(config.screensaver_clock_mode, "screensaver_clock_mode", ["digital", "analog"]);
+    HomeiiConfigValidators.assertNumberIfDefined(config.screensaver_timeout_seconds, "screensaver_timeout_seconds");
+    HomeiiConfigValidators.assertStringIfDefined(config.screensaver_message, "screensaver_message");
+    HomeiiConfigValidators.assertNumberIfDefined(config.screensaver_clock_size, "screensaver_clock_size");
+    HomeiiConfigValidators.assertNumberIfDefined(config.screensaver_clock_x, "screensaver_clock_x");
+    HomeiiConfigValidators.assertNumberIfDefined(config.screensaver_clock_y, "screensaver_clock_y");
+    HomeiiConfigValidators.assertBooleanIfDefined(config.power_button_enabled, "power_button_enabled");
+    HomeiiConfigValidators.assertValueInList(config.power_button_action, "power_button_action", ["stop_player", "toggle", "turn_on", "turn_off", "scene", "script"]);
+    HomeiiConfigValidators.assertStringIfDefined(config.power_button_entity, "power_button_entity");
+    HomeiiConfigValidators.assertBooleanIfDefined(config.discovery_mode_enabled, "discovery_mode_enabled");
   },
   validateMobileCardEditorConfig(config) {
     HomeiiConfigValidators.validateBaseCardEditorConfig(config);
@@ -11803,6 +12134,76 @@ const HomeiiMobileSettingsFoundation = Object.freeze({
       ? value.map((entry) => String(entry || "").trim()).filter(Boolean)
       : [];
   },
+  normalizeEntityList(value) {
+    const source = Array.isArray(value)
+      ? value
+      : String(value || "").split(/[\s,]+/);
+    const next = [];
+    source.map((entry) => String(entry || "").trim()).filter(Boolean).forEach((entityId) => {
+      if (!next.includes(entityId)) next.push(entityId);
+    });
+    return next;
+  },
+  parseAmbientLightPlayerMap(value) {
+    const groups = [];
+    const byPlayer = new Map();
+    HomeiiMobileSettingsFoundation.normalizeStringArray(value).forEach((mapping) => {
+      const parts = String(mapping || "").split(/\s*(?:=>|=|:)\s*/);
+      const player = String(parts[0] || "").trim();
+      const lights = HomeiiMobileSettingsFoundation.normalizeEntityList(parts.slice(1).join(","))
+        .filter((entityId) => entityId.startsWith("light."));
+      if (!player.startsWith("media_player.") || !lights.length) return;
+      if (!byPlayer.has(player)) {
+        const group = { player, lights: [] };
+        byPlayer.set(player, group);
+        groups.push(group);
+      }
+      const group = byPlayer.get(player);
+      lights.forEach((entityId) => {
+        if (!group.lights.includes(entityId)) group.lights.push(entityId);
+      });
+    });
+    return groups;
+  },
+  formatAmbientLightPlayerMapEntry(player, lights = []) {
+    const playerId = String(player || "").trim();
+    const lightIds = HomeiiMobileSettingsFoundation.normalizeEntityList(lights)
+      .filter((entityId) => entityId.startsWith("light."));
+    return playerId && lightIds.length ? `${playerId} = ${lightIds.join(", ")}` : "";
+  },
+  isColorCapableLightEntity(entity) {
+    if (!entity?.entity_id?.startsWith?.("light.")) return false;
+    const attributes = entity.attributes || {};
+    const colorModes = ["hs", "xy", "rgb", "rgbw", "rgbww"];
+    const supportedModes = Array.isArray(attributes.supported_color_modes)
+      ? attributes.supported_color_modes.map((mode) => String(mode || "").toLowerCase())
+      : [];
+    if (supportedModes.some((mode) => colorModes.includes(mode))) return true;
+    if (colorModes.includes(String(attributes.color_mode || "").toLowerCase())) return true;
+    const supportedFeatures = Number(attributes.supported_features);
+    return Number.isFinite(supportedFeatures) && (supportedFeatures & 16) === 16;
+  },
+  clampPercent(value, fallback = 35, { min = 1, max = 100 } = {}) {
+    const number = Number(value);
+    const safe = Number.isFinite(number) ? number : fallback;
+    return Math.max(min, Math.min(max, safe));
+  },
+  clampSeconds(value, fallback = 3, { min = 0, max = 300 } = {}) {
+    const number = Number(value);
+    const safe = Number.isFinite(number) ? number : fallback;
+    return Math.max(min, Math.min(max, safe));
+  },
+  clampNumber(value, fallback = 1, { min = 0, max = 1 } = {}) {
+    const number = Number(value);
+    const safe = Number.isFinite(number) ? number : fallback;
+    return Math.max(min, Math.min(max, safe));
+  },
+  normalizeScreensaverClockMode(value) {
+    return HomeiiMobileSettingsFoundation.normalizeEnum(value, ["digital", "analog"], "digital");
+  },
+  normalizePowerButtonAction(value) {
+    return HomeiiMobileSettingsFoundation.normalizeEnum(value, ["stop_player", "toggle", "turn_on", "turn_off", "scene", "script"], "stop_player");
+  },
   normalizeHomeShortcutPath(value, { leadingSlash = false } = {}) {
     const normalized = String(value || "/").trim() || "/";
     if (!leadingSlash) return normalized;
@@ -11923,6 +12324,23 @@ const HomeiiMobileSettingsFoundation = Object.freeze({
       mobileAnnouncementTtsEntity: String(config.announcement_tts_entity || ""),
       mobileAnnouncementTtsLanguage: String(config.announcement_tts_language || "auto"),
       pinnedPlayerEntities: HomeiiMobileSettingsFoundation.normalizePinnedPlayerEntities(config),
+      ambientLightEnabled: config.ambient_light_enabled === true,
+      ambientLightEntities: HomeiiMobileSettingsFoundation.normalizeEntityList(config.ambient_light_entities),
+      ambientLightPlayerMap: HomeiiMobileSettingsFoundation.normalizeStringArray(config.ambient_light_player_map),
+      ambientLightBrightness: HomeiiMobileSettingsFoundation.clampPercent(config.ambient_light_brightness, 35, { min: 1, max: 100 }),
+      ambientLightTransition: HomeiiMobileSettingsFoundation.clampSeconds(config.ambient_light_transition, 3, { min: 0, max: 120 }),
+      ambientLightCooldown: HomeiiMobileSettingsFoundation.clampSeconds(config.ambient_light_cooldown, 8, { min: 0, max: 120 }),
+      screensaverEnabled: config.screensaver_enabled === true,
+      screensaverClockMode: HomeiiMobileSettingsFoundation.normalizeScreensaverClockMode(config.screensaver_clock_mode),
+      screensaverTimeoutSeconds: HomeiiMobileSettingsFoundation.clampSeconds(config.screensaver_timeout_seconds, 90, { min: 15, max: 3600 }),
+      screensaverMessage: String(config.screensaver_message || ""),
+      screensaverClockSize: HomeiiMobileSettingsFoundation.clampNumber(config.screensaver_clock_size, 1, { min: 0.75, max: 1.45 }),
+      screensaverClockX: HomeiiMobileSettingsFoundation.clampNumber(config.screensaver_clock_x, 82, { min: 8, max: 92 }),
+      screensaverClockY: HomeiiMobileSettingsFoundation.clampNumber(config.screensaver_clock_y, 24, { min: 8, max: 70 }),
+      powerButtonEnabled: config.power_button_enabled === true,
+      powerButtonAction: HomeiiMobileSettingsFoundation.normalizePowerButtonAction(config.power_button_action),
+      powerButtonEntity: String(config.power_button_entity || "").trim(),
+      discoveryModeEnabled: config.discovery_mode_enabled !== false,
     };
   },
 });
@@ -11935,15 +12353,64 @@ const HomeiiResponsiveFoundation = Object.freeze({
   } = {}, tabletBreakpoint = 900) {
     const normalized = String(layoutMode || "auto").trim().toLowerCase();
     if (normalized === "mobile" || normalized === "tablet") return normalized;
-    const width = Math.max(
+    const cardWidth = Math.max(
       Number(rectWidth || 0),
       Number(hostWidth || 0),
-      Number(viewportWidth || 0),
     );
+    const width = cardWidth > 0 ? cardWidth : Number(viewportWidth || 0);
     return width >= tabletBreakpoint ? "tablet" : "mobile";
   },
   defaultMobileMediaLayout(layoutMode) {
     return layoutMode === "tablet" ? "grid" : "list";
+  },
+  resolveLayoutProfile({
+    width = 0,
+    height = 0,
+    layoutMode = "mobile",
+  } = {}) {
+    const measuredWidth = Math.max(0, Number(width || 0));
+    const measuredHeight = Math.max(0, Number(height || 0));
+    const size = measuredWidth < 380
+      ? "xs"
+      : measuredWidth < 520
+        ? "sm"
+        : measuredWidth < 760
+          ? "md"
+          : measuredWidth < 1100
+            ? "lg"
+            : "xl";
+    const heightSize = measuredHeight > 0 && measuredHeight < 620
+      ? "short"
+      : measuredHeight >= 900
+        ? "tall"
+        : "normal";
+    const aspect = measuredHeight > 0 && measuredWidth / measuredHeight >= 1.08
+      ? "wide"
+      : measuredWidth > 0 && measuredHeight / measuredWidth >= 1.18
+        ? "portrait"
+        : "balanced";
+    const tight = measuredHeight > 0 && measuredHeight < 560;
+    const compact = size === "xs" || heightSize === "short";
+    const roomy = size === "xl" && heightSize === "tall";
+    return {
+      width: measuredWidth,
+      height: measuredHeight,
+      layoutMode,
+      size,
+      heightSize,
+      aspect,
+      tight,
+      compact,
+      roomy,
+      classes: [
+        `size-${size}`,
+        `height-${heightSize}`,
+        `aspect-${aspect}`,
+        tight ? "height-tight" : "",
+        compact ? "profile-compact" : "profile-comfort",
+        roomy ? "profile-roomy" : "",
+      ].filter(Boolean),
+    };
   },
   tabletAutoFitEnabled(layoutMode) {
     return layoutMode === "tablet";
@@ -13427,13 +13894,12 @@ const HomeiiMediaHistoryFoundation = Object.freeze({
 });
 
 function getBaseCardConfigForm() {
-  const he = HomeiiEditorLocale.detectEditorHebrew();
   return {
     schema: [
       {
         type: "expandable",
         name: "general_section",
-        title: he ? "כללי ותצוגה" : "General and Display",
+        title: homeiiEditorI18n("ui.general_and_display"),
         flatten: true,
         schema: [
           {
@@ -13442,17 +13908,12 @@ function getBaseCardConfigForm() {
             flatten: true,
             column_min_width: "220px",
             schema: [
-              { name: "height", selector: { number: { min: 360, max: 1400, step: 10, mode: "box" } } },
-              { name: "language", selector: { select: { mode: "dropdown", options: [
-                { value: "auto", label: "Auto" },
-                { value: "he", label: he ? "עברית" : "Hebrew" },
-                { value: "en", label: he ? "אנגלית" : "English" },
-              ] } } },
+              { name: "language", selector: { select: { mode: "dropdown", options: HOMEII_LANGUAGE_OPTIONS } } },
               { name: "theme_mode", selector: { select: { mode: "dropdown", options: [
                 { value: "auto", label: "Auto" },
-                { value: "dark", label: he ? "כהה" : "Dark" },
-                { value: "light", label: he ? "בהיר" : "Light" },
-                { value: "custom", label: he ? "אישי" : "Custom" },
+                { value: "dark", label: homeiiEditorI18n("ui.dark") },
+                { value: "light", label: homeiiEditorI18n("ui.light") },
+                { value: "custom", label: homeiiEditorI18n("ui.custom") },
               ] } } },
               { name: "performance_mode", selector: { boolean: {} } },
               { name: "rtl", selector: { boolean: {} } },
@@ -13465,7 +13926,7 @@ function getBaseCardConfigForm() {
       {
         type: "expandable",
         name: "connection_section",
-        title: he ? "חיבור והתנהגות" : "Connection and Behavior",
+        title: homeiiEditorI18n("ui.connection_and_behavior"),
         flatten: true,
         schema: [
           {
@@ -13493,37 +13954,35 @@ function getBaseCardConfigForm() {
     ],
     computeLabel: (schema) => ({
       config_entry_id: "Config Entry ID",
-      ma_url: he ? "כתובת Music Assistant" : "Music Assistant URL",
-      ma_token: he ? "טוקן Music Assistant" : "Music Assistant token",
-      active_player_helper_entity: he ? "Helper לנגן פעיל" : "Active player helper",
-      ma_interface_url: he ? "נתיב ממשק MA" : "MA interface path",
-      ma_interface_target: he ? "פתיחת ממשק" : "Open interface in",
-      show_ma_button: he ? "כפתור MA" : "Show MA button",
-      show_theme_toggle: he ? "כפתור ערכת נושא" : "Show theme toggle",
-      cache_ttl: he ? "זמן קאש" : "Cache TTL",
-      height: he ? "גובה הכרטיס" : "Card height",
-      language: he ? "שפה" : "Language",
-      theme_mode: he ? "ערכת נושא" : "Theme mode",
-      performance_mode: he ? "מצב ביצועים למכשירים חלשים" : "Performance mode for weak devices",
-      night_mode: he ? "מצב לילה" : "Night mode",
-      night_mode_auto_start: he ? "שעת התחלה ללילה" : "Night start time",
-      night_mode_auto_end: he ? "שעת סיום ללילה" : "Night end time",
-      mobile_show_up_next: he ? "הצגת הבא בתור" : "Show Up Next",
+      ma_url: homeiiEditorI18n("ui.music_assistant_url"),
+      ma_token: homeiiEditorI18n("ui.music_assistant_token"),
+      active_player_helper_entity: homeiiEditorI18n("ui.active_player_helper"),
+      ma_interface_url: homeiiEditorI18n("ui.ma_interface_path"),
+      ma_interface_target: homeiiEditorI18n("ui.open_interface_in"),
+      show_ma_button: homeiiEditorI18n("ui.show_ma_button"),
+      show_theme_toggle: homeiiEditorI18n("ui.show_theme_toggle"),
+      cache_ttl: homeiiEditorI18n("ui.cache_ttl"),
+      language: homeiiEditorI18n("ui.language"),
+      theme_mode: homeiiEditorI18n("ui.theme_mode"),
+      performance_mode: homeiiEditorI18n("ui.performance_mode_for_weak_devices"),
+      night_mode: homeiiEditorI18n("ui.night_mode"),
+      night_mode_auto_start: homeiiEditorI18n("ui.night_start_time"),
+      night_mode_auto_end: homeiiEditorI18n("ui.night_end_time"),
+      mobile_show_up_next: homeiiEditorI18n("ui.show_up_next_2"),
       rtl: "RTL",
-      main_opacity: he ? "שקיפות ראשית" : "Main opacity",
-      popup_opacity: he ? "שקיפות חלונות" : "Popup opacity",
+      main_opacity: homeiiEditorI18n("ui.main_opacity"),
+      popup_opacity: homeiiEditorI18n("ui.popup_opacity"),
     })[schema.name],
     computeHelper: (schema) => ({
-      config_entry_id: he ? "מזהה ה־config entry של Music Assistant, אם רוצים קישור ישיר דרך Home Assistant." : "Music Assistant config entry id, if you want direct integration lookup through Home Assistant.",
-      ma_url: he ? "השאר ריק אם הכרטיס ניגש ל־Music Assistant דרך Home Assistant בלבד." : "Leave empty if the card should use Home Assistant only.",
-      ma_token: he ? "נדרש רק אם אתה עובד מול כתובת MA ישירה." : "Only needed when using a direct Music Assistant URL.",
-      active_player_helper_entity: he ? "אופציונלי: input_text שהכרטיס יעדכן עם entity_id של הנגן הפעיל, עבור אוטומציות ותבניות." : "Optional input_text helper updated with the active player entity_id for automations and templates.",
-      ma_interface_url: he ? "נתיב לפתיחת ממשק Music Assistant." : "Path used when opening the Music Assistant interface.",
-      cache_ttl: he ? "משך הקאש במילישניות עבור קריאות נתונים מסוימות." : "Cache duration in milliseconds for selected data requests.",
-      height: he ? "גובה הכרטיס בפיקסלים." : "Card height in pixels.",
-      performance_mode: he ? "מכבה טשטושים, אנימציות, רקעים דינמיים וצללים כבדים. מומלץ ל־Nest Hub וטאבלטים חלשים." : "Disables blur, animations, dynamic backgrounds, and heavy shadows. Recommended for Nest Hub and weaker tablets.",
-      main_opacity: he ? "שקיפות הרקע הראשי של הכרטיס." : "Opacity for the main card background.",
-      popup_opacity: he ? "שקיפות חלונות וקופצים." : "Opacity for popups and overlays.",
+      config_entry_id: homeiiEditorI18n("ui.music_assistant_config_entry_id_if_you_want_direct_integration_lookup_th"),
+      ma_url: homeiiEditorI18n("ui.leave_empty_if_the_card_should_use_home_assistant_only"),
+      ma_token: homeiiEditorI18n("ui.only_needed_when_using_a_direct_music_assistant_url"),
+      active_player_helper_entity: homeiiEditorI18n("ui.optional_input_text_helper_updated_with_the_active_player_entity_id_for"),
+      ma_interface_url: homeiiEditorI18n("ui.path_used_when_opening_the_music_assistant_interface"),
+      cache_ttl: homeiiEditorI18n("ui.cache_duration_in_milliseconds_for_selected_data_requests"),
+      performance_mode: homeiiEditorI18n("ui.disables_blur_animations_dynamic_backgrounds_and_heavy_shadows_recommend"),
+      main_opacity: homeiiEditorI18n("ui.opacity_for_the_main_card_background"),
+      popup_opacity: homeiiEditorI18n("ui.opacity_for_popups_and_overlays"),
     })[schema.name],
     assertConfig: (config) => {
       if (!config || typeof config !== "object" || Array.isArray(config)) {
@@ -13534,240 +13993,277 @@ function getBaseCardConfigForm() {
 }
 
 function getMobileEditorTexts() {
-  const he = HomeiiEditorLocale.detectEditorHebrew();
   return {
     sections: {
-      general: he ? "כללי" : "General",
-      appearance: he ? "מראה" : "Appearance",
-      behavior: he ? "התנהגות" : "Behavior",
-      connection: he ? "חיבור והתנהגות" : "Connection and Behavior",
-      mainbar: he ? "סרגל ראשי" : "Main Bar",
-      quickactions: he ? "פעולות מהירות" : "Quick Actions",
-      library: he ? "דפי ספרייה" : "Library Tabs",
-      announcements: he ? "כריזה" : "Announcements",
+      general: homeiiEditorI18n("ui.general"),
+      appearance: homeiiEditorI18n("ui.appearance"),
+      behavior: homeiiEditorI18n("ui.behavior"),
+      connection: homeiiEditorI18n("ui.connection_and_behavior"),
+      mainbar: homeiiEditorI18n("ui.main_bar"),
+      quickactions: homeiiEditorI18n("ui.quick_actions_2"),
+      library: homeiiEditorI18n("ui.library_tabs"),
+      announcements: homeiiEditorI18n("ui.announcements"),
+      smart_home: homeiiEditorI18n("ui.smart_home"),
     },
     labels: {
-      settings_source: he ? "מקור ההגדרות" : "Settings source",
-      layout_mode: he ? "מצב פריסה" : "Layout mode",
-      height: he ? "גובה הכרטיס" : "Card height",
-      main_opacity: he ? "שקיפות ראשית" : "Main opacity",
-      popup_opacity: he ? "שקיפות חלונות" : "Popup opacity",
-      language: he ? "שפה" : "Language",
-      theme_mode: he ? "ערכת נושא" : "Theme mode",
-      performance_mode: he ? "מצב ביצועים למכשירים חלשים" : "Performance mode for weak devices",
-      night_mode: he ? "מצב לילה" : "Night mode",
-      night_mode_auto_start: he ? "שעת התחלה ללילה" : "Night start time",
-      night_mode_auto_end: he ? "שעת סיום ללילה" : "Night end time",
-      night_mode_days: he ? "ימי מצב לילה" : "Night mode days",
+      settings_source: homeiiEditorI18n("ui.settings_source"),
+      layout_mode: homeiiEditorI18n("ui.layout_mode"),
+      main_opacity: homeiiEditorI18n("ui.main_opacity"),
+      popup_opacity: homeiiEditorI18n("ui.popup_opacity"),
+      language: homeiiEditorI18n("ui.language"),
+      theme_mode: homeiiEditorI18n("ui.theme_mode"),
+      performance_mode: homeiiEditorI18n("ui.performance_mode_for_weak_devices"),
+      night_mode: homeiiEditorI18n("ui.night_mode"),
+      night_mode_auto_start: homeiiEditorI18n("ui.night_start_time"),
+      night_mode_auto_end: homeiiEditorI18n("ui.night_end_time"),
+      night_mode_days: homeiiEditorI18n("ui.night_mode_days"),
       rtl: "RTL",
-      mobile_custom_color: he ? "צבע מוביל" : "Accent color",
-      mobile_dynamic_theme_mode: he ? "ערכת נושא דינמית" : "Dynamic theme",
-      mobile_background_motion_mode: he ? "תנועת רקע" : "Background motion",
-      mobile_custom_text_tone: he ? "טון טקסט" : "Text tone",
-      mobile_font_scale: he ? "סקייל פונט" : "Font scale",
-      mobile_compact_mode: he ? "מצב קומפקטי" : "Compact mode",
-      mobile_swipe_mode: he ? "סוויפ על עטיפה" : "Artwork swipe",
-      mobile_footer_search_enabled: he ? "חיפוש בפוטר" : "Footer search",
-      mobile_mic_mode: he ? "מיקרופון" : "Microphone",
-      mobile_footer_mode: he ? "סגנון פוטר" : "Footer style",
-      mobile_studio_shortcut: he ? "כפתור סטודיו" : "Studio shortcut",
-      mobile_home_shortcut: he ? "כפתור בית" : "Home shortcut",
-      mobile_home_shortcut_path: he ? "נתיב כפתור בית" : "Home shortcut path",
-      mobile_volume_mode: he ? "בקרת ווליום" : "Volume mode",
-      mobile_liked_mode: he ? "מצב אהבתי" : "Liked mode",
-      mobile_radio_browser_country: he ? "מדינת רדיו" : "Radio Browser country",
-      mobile_main_bar_items: he ? "פריטי סרגל ראשי" : "Main bar items",
-      mobile_quick_actions: he ? "פעולות מהירות" : "Quick actions",
-      mobile_library_tabs: he ? "טאבי ספרייה" : "Library tabs",
-      mobile_announcement_presets: he ? "משפטי כריזה" : "Announcement presets",
-      mobile_announcement_volume: he ? "תוספת ווליום כריזה" : "Announcement volume boost",
-      announcement_tts_entity: he ? "ישות TTS" : "TTS entity",
-      announcement_tts_language: he ? "שפת TTS" : "TTS language",
-      pinned_player_entities: he ? "נגנים מקובעים" : "Pinned players",
+      mobile_custom_color: homeiiEditorI18n("ui.accent_color"),
+      mobile_dynamic_theme_mode: homeiiEditorI18n("ui.dynamic_theme"),
+      mobile_background_motion_mode: homeiiEditorI18n("ui.background_motion"),
+      mobile_custom_text_tone: homeiiEditorI18n("ui.text_tone"),
+      mobile_font_scale: homeiiEditorI18n("ui.font_scale"),
+      mobile_compact_mode: homeiiEditorI18n("ui.compact_mode"),
+      mobile_swipe_mode: homeiiEditorI18n("ui.artwork_swipe"),
+      mobile_footer_search_enabled: homeiiEditorI18n("ui.footer_search"),
+      mobile_mic_mode: homeiiEditorI18n("ui.microphone_2"),
+      mobile_footer_mode: homeiiEditorI18n("ui.footer_style_2"),
+      mobile_studio_shortcut: homeiiEditorI18n("ui.studio_shortcut"),
+      mobile_home_shortcut: homeiiEditorI18n("ui.home_shortcut"),
+      mobile_home_shortcut_path: homeiiEditorI18n("ui.home_shortcut_path"),
+      mobile_volume_mode: homeiiEditorI18n("ui.volume_mode"),
+      mobile_liked_mode: homeiiEditorI18n("ui.liked_mode"),
+      mobile_radio_browser_country: homeiiEditorI18n("ui.radio_browser_country_2"),
+      mobile_main_bar_items: homeiiEditorI18n("ui.main_bar_items_2"),
+      mobile_quick_actions: homeiiEditorI18n("ui.quick_actions"),
+      mobile_library_tabs: homeiiEditorI18n("ui.library_tabs_2"),
+      mobile_announcement_presets: homeiiEditorI18n("ui.announcement_presets"),
+      mobile_announcement_volume: homeiiEditorI18n("ui.announcement_volume_boost"),
+      announcement_tts_entity: homeiiEditorI18n("ui.tts_entity"),
+      announcement_tts_language: homeiiEditorI18n("ui.tts_language"),
+      ambient_light_enabled: homeiiEditorI18n("ui.ambient_light"),
+      ambient_light_entities: homeiiEditorI18n("ui.ambient_light_entities"),
+      ambient_light_player_map: homeiiEditorI18n("ui.ambient_light_player_map"),
+      ambient_light_brightness: homeiiEditorI18n("ui.ambient_light_brightness"),
+      ambient_light_transition: homeiiEditorI18n("ui.ambient_light_transition"),
+      ambient_light_cooldown: homeiiEditorI18n("ui.ambient_light_cooldown"),
+      screensaver_enabled: homeiiEditorI18n("ui.screensaver"),
+      screensaver_clock_mode: homeiiEditorI18n("ui.screensaver_clock_mode"),
+      screensaver_timeout_seconds: homeiiEditorI18n("ui.screensaver_timeout"),
+      screensaver_message: homeiiEditorI18n("ui.screensaver_message"),
+      screensaver_clock_size: homeiiEditorI18n("ui.screensaver_clock_size"),
+      screensaver_clock_x: homeiiEditorI18n("ui.screensaver_clock_x"),
+      screensaver_clock_y: homeiiEditorI18n("ui.screensaver_clock_y"),
+      power_button_enabled: homeiiEditorI18n("ui.power_button"),
+      power_button_action: homeiiEditorI18n("ui.power_button_action"),
+      power_button_entity: homeiiEditorI18n("ui.power_button_entity"),
+      discovery_mode_enabled: homeiiEditorI18n("ui.discovery_mode"),
+      pinned_player_entities: homeiiEditorI18n("ui.pinned_players"),
       config_entry_id: "Config Entry ID",
-      ma_url: he ? "כתובת Music Assistant" : "Music Assistant URL",
-      ma_token: he ? "טוקן Music Assistant" : "Music Assistant token",
-      active_player_helper_entity: he ? "Helper לנגן פעיל" : "Active player helper",
-      favorite_button_entity: he ? "ישות כפתור Like" : "Favorite button entity",
-      ma_interface_url: he ? "נתיב ממשק MA" : "MA interface path",
-      ma_interface_target: he ? "פתיחת ממשק" : "Open interface in",
-      show_ma_button: he ? "כפתור MA" : "Show MA button",
-      show_theme_toggle: he ? "כפתור ערכת נושא" : "Show theme toggle",
-      cache_ttl: he ? "זמן קאש" : "Cache TTL",
-      allow_local_likes: he ? "אהבתי מקומי" : "Allow local likes",
-      use_mass_queue_send_command: he ? "Fallback mass_queue/send_command" : "mass_queue/send_command fallback",
+      ma_url: homeiiEditorI18n("ui.music_assistant_url"),
+      ma_token: homeiiEditorI18n("ui.music_assistant_token"),
+      active_player_helper_entity: homeiiEditorI18n("ui.active_player_helper"),
+      favorite_button_entity: homeiiEditorI18n("ui.favorite_button_entity"),
+      ma_interface_url: homeiiEditorI18n("ui.ma_interface_path"),
+      ma_interface_target: homeiiEditorI18n("ui.open_interface_in"),
+      show_ma_button: homeiiEditorI18n("ui.show_ma_button"),
+      show_theme_toggle: homeiiEditorI18n("ui.show_theme_toggle"),
+      cache_ttl: homeiiEditorI18n("ui.cache_ttl"),
+      allow_local_likes: homeiiEditorI18n("ui.allow_local_likes"),
+      use_mass_queue_send_command: homeiiEditorI18n("ui.mass_queue_send_command_fallback"),
     },
     helpers: {
-      settings_source: he ? "בחר אם ההגדרות נשלטות מתוך ה־UI בכרטיס או מתוך הגדרות הכרטיס בדשבורד." : "Choose whether settings are controlled from the in-card UI or from the card configuration in the dashboard.",
-      layout_mode: he ? "Auto בוחר מובייל או טאבלט לפי רוחב בפועל." : "Auto chooses mobile or tablet based on actual width.",
-      theme_mode: he ? "כולל גם מצב אישי כמו במסך ההגדרות של הכרטיס." : "Includes the custom theme mode from the in-card settings screen.",
-      night_mode: he ? "Off מכבה, On מפעיל תמיד, ו־Auto פועל לפי חלון השעות שהגדרת." : "Off disables it, On keeps it active, and Auto follows the configured time window.",
-      night_mode_auto_start: he ? "פורמט מומלץ: HH:MM כמו 22:00." : "Recommended format: HH:MM such as 22:00.",
-      night_mode_auto_end: he ? "פורמט מומלץ: HH:MM כמו 06:00. אפשר לחצות חצות." : "Recommended format: HH:MM such as 06:00. Crossing midnight is supported.",
-      night_mode_days: he ? "בחר באילו ימים חלון מצב הלילה יהיה פעיל במצב Auto." : "Choose which days the Auto night-mode window applies to.",
-      mobile_show_up_next: he ? "מציג או מסתיר את שורת השיר הבא במסך הניגון." : "Show or hide the inline next-track row in Now Playing.",
-      mobile_dynamic_theme_mode: he ? "מחלץ צבעים מעטיפת האלבום ומחיל אותם על הממשק." : "Extract colors from the current artwork and apply them to the interface.",
-      mobile_background_motion_mode: he ? "שולט אם רקע הכרטיס נע בעדינות, ובאיזו עוצמה." : "Control whether the card background moves gently, and how strong the motion feels.",
-      performance_mode: he ? "מכבה אפקטים כבדים כדי שהכרטיס ירוץ חלק יותר על Nest Hub, טאבלטים ישנים ומסכים חלשים." : "Turns off heavy visuals so the card runs smoother on Nest Hub, older tablets, and weaker displays.",
-      mobile_font_scale: he ? "סקייל כללי לכל הפונטים בממשק. 1 הוא ברירת המחדל." : "Global scale for every interface font. 1 is the default size.",
-      mobile_compact_mode: he ? "מציג נגן אריח עצמאי וקומפקטי עם עטיפה, פקדי בסיס, ווליום וכפתור הרחבה." : "Shows a standalone compact player tile with artwork, basic controls, volume and an expand action.",
-      mobile_swipe_mode: he ? "קובע האם סוויפ על עטיפת האלבום יעביר שיר או ידפדף עטיפות." : "Choose whether artwork swipe changes track or browses covers.",
-      mobile_footer_search_enabled: he ? "מפעיל או מכבה את כפתור החיפוש בפוטר." : "Enable or disable the footer search button.",
-      mobile_mic_mode: he ? "זהה לבחירת המיקרופון במסך ההגדרות." : "Matches the microphone setting from the in-card settings screen.",
-      mobile_footer_mode: he ? "קובע אם הפוטר יוצג כאייקונים, טקסט או שניהם." : "Choose icons, text, or both for the footer.",
-      mobile_studio_shortcut: he ? "מפעיל או מכבה את כפתור הסטודיו בסרגל התחתון." : "Enable or disable the Studio button in the footer bar.",
-      mobile_home_shortcut: he ? "מפעיל את כפתור הבית הצף." : "Enable the floating home shortcut button.",
-      mobile_home_shortcut_path: he ? "למשל /lovelace/home או כל נתיב אחר ב-Home Assistant." : "For example /lovelace/home or any other Home Assistant path.",
-      mobile_volume_mode: he ? "רלוונטי במיוחד במסכים גדולים." : "Mainly relevant on larger layouts.",
-      mobile_liked_mode: he ? "מצב Local שימושי רק אם Local likes מופעל." : "Local mode is only meaningful when local likes are enabled.",
-      mobile_radio_browser_country: he ? "אותה רשימת מדינות בסיסית שמופיעה במסך ההגדרות." : "Uses the same base country list shown in the in-card settings screen.",
-      mobile_main_bar_items: he ? "בחר אילו כפתורים יופיעו בסרגל הראשי." : "Choose which actions appear in the main bar.",
-      mobile_quick_actions: he ? "בחר אילו אייקונים יופיעו בשורת הפעולות המהירות." : "Choose which icons appear in the quick action row.",
-      mobile_library_tabs: he ? "בחר אילו טאבים יהיו זמינים במסך הספרייה." : "Choose which tabs are available in the library screen.",
-      mobile_announcement_presets: he ? "אפשר להגדיר כמה משפטי כריזה מוכנים מראש." : "Configure ready-made announcement phrases.",
-      mobile_announcement_volume: he ? "מוסיף אחוזים לווליום הקיים רק בזמן הכריזה ואז מחזיר למה שהיה לפני." : "Adds to the current volume only during announcements, then restores the previous volume.",
-      mobile_custom_color: he ? "בחר צבע בסיס לעיצוב המובייל." : "Choose the accent color for the mobile layout.",
-      active_player_helper_entity: he ? "אופציונלי: בחר input_text שהכרטיס יעדכן עם entity_id של הנגן הפעיל עבור אוטומציות ותבניות." : "Optional input_text helper updated with the active player entity_id for automations and templates.",
-      favorite_button_entity: he ? "ישות אופציונלית לכפתור Like חיצוני." : "Optional entity used for an external favorite button.",
-      announcement_tts_entity: he ? "ישות TTS שתשמש למסך הכריזה." : "TTS entity used by the announcement screen.",
-      announcement_tts_language: he ? "Auto לא שולח שפה ל־Home Assistant Cloud כדי להשתמש בברירת המחדל שלך. בחירה ידנית תשלח language מפורש." : "Auto leaves Home Assistant Cloud voice defaults untouched. Manual choices send an explicit language.",
-      pinned_player_entities: he ? "בחר רק נגני Music Assistant. בתוך הכרטיס יוצגו לקיבוע רק נגני Music Assistant כדי למנוע בלבול." : "Choose Music Assistant players only. The in-card pinning list shows only Music Assistant players to avoid confusion.",
-      allow_local_likes: he ? "מפעיל אפשרות לעבור ל־Liked mode מקומי." : "Enables switching to local liked mode.",
-      use_mass_queue_send_command: he ? "Fallback למערכות שבהן תור ההשמעה דורש נתיב service חלופי." : "Fallback for setups that need an alternate queue service path.",
+      settings_source: homeiiEditorI18n("ui.choose_whether_settings_are_controlled_from_the_in_card_ui_or_from_the_c"),
+      layout_mode: homeiiEditorI18n("ui.auto_chooses_mobile_or_tablet_based_on_actual_width"),
+      theme_mode: homeiiEditorI18n("ui.includes_the_custom_theme_mode_from_the_in_card_settings_screen"),
+      night_mode: homeiiEditorI18n("ui.off_disables_it_on_keeps_it_active_and_auto_follows_the_configured_time"),
+      night_mode_auto_start: homeiiEditorI18n("ui.recommended_format_hh_mm_such_as_22_00"),
+      night_mode_auto_end: homeiiEditorI18n("ui.recommended_format_hh_mm_such_as_06_00_crossing_midnight_is_supported"),
+      night_mode_days: homeiiEditorI18n("ui.choose_which_days_the_auto_night_mode_window_applies_to"),
+      mobile_show_up_next: homeiiEditorI18n("ui.show_or_hide_the_inline_next_track_row_in_now_playing"),
+      mobile_dynamic_theme_mode: homeiiEditorI18n("ui.extract_colors_from_the_current_artwork_and_apply_them_to_the_interface"),
+      mobile_background_motion_mode: homeiiEditorI18n("ui.control_whether_the_card_background_moves_gently_and_how_strong_the_moti"),
+      performance_mode: homeiiEditorI18n("ui.turns_off_heavy_visuals_so_the_card_runs_smoother_on_nest_hub_older_tabl"),
+      mobile_font_scale: homeiiEditorI18n("ui.global_scale_for_every_interface_font_1_is_the_default_size"),
+      mobile_compact_mode: homeiiEditorI18n("ui.shows_a_standalone_compact_player_tile_with_artwork_basic_controls_volum"),
+      mobile_swipe_mode: homeiiEditorI18n("ui.choose_whether_artwork_swipe_changes_track_or_browses_covers"),
+      mobile_footer_search_enabled: homeiiEditorI18n("ui.enable_or_disable_the_footer_search_button"),
+      mobile_mic_mode: homeiiEditorI18n("ui.matches_the_microphone_setting_from_the_in_card_settings_screen"),
+      mobile_footer_mode: homeiiEditorI18n("ui.choose_icons_text_or_both_for_the_footer"),
+      mobile_studio_shortcut: homeiiEditorI18n("ui.enable_or_disable_the_studio_button_in_the_footer_bar"),
+      mobile_home_shortcut: homeiiEditorI18n("ui.enable_the_floating_home_shortcut_button"),
+      mobile_home_shortcut_path: homeiiEditorI18n("ui.for_example_lovelace_home_or_any_other_home_assistant_path"),
+      mobile_volume_mode: homeiiEditorI18n("ui.mainly_relevant_on_larger_layouts"),
+      mobile_liked_mode: homeiiEditorI18n("ui.local_mode_is_only_meaningful_when_local_likes_are_enabled"),
+      mobile_radio_browser_country: homeiiEditorI18n("ui.uses_the_same_base_country_list_shown_in_the_in_card_settings_screen"),
+      mobile_main_bar_items: homeiiEditorI18n("ui.choose_which_actions_appear_in_the_main_bar"),
+      mobile_quick_actions: homeiiEditorI18n("ui.choose_which_icons_appear_in_the_quick_action_row"),
+      mobile_library_tabs: homeiiEditorI18n("ui.choose_which_tabs_are_available_in_the_library_screen"),
+      mobile_announcement_presets: homeiiEditorI18n("ui.configure_ready_made_announcement_phrases"),
+      mobile_announcement_volume: homeiiEditorI18n("ui.adds_to_the_current_volume_only_during_announcements_then_restores_the_p"),
+      mobile_custom_color: homeiiEditorI18n("ui.choose_the_accent_color_for_the_mobile_layout"),
+      active_player_helper_entity: homeiiEditorI18n("ui.optional_input_text_helper_updated_with_the_active_player_entity_id_for_2"),
+      favorite_button_entity: homeiiEditorI18n("ui.optional_entity_used_for_an_external_favorite_button"),
+      announcement_tts_entity: homeiiEditorI18n("ui.tts_entity_used_by_the_announcement_screen"),
+      announcement_tts_language: homeiiEditorI18n("ui.auto_leaves_home_assistant_cloud_voice_defaults_untouched_manual_choices"),
+      ambient_light_enabled: homeiiEditorI18n("ui.sync_selected_lights_to_the_current_artwork_color"),
+      ambient_light_entities: homeiiEditorI18n("ui.choose_only_the_lights_that_should_follow_the_music"),
+      ambient_light_player_map: homeiiEditorI18n("ui.ambient_light_player_map_helper"),
+      ambient_light_brightness: homeiiEditorI18n("ui.maximum_brightness_for_music_lighting"),
+      ambient_light_transition: homeiiEditorI18n("ui.soft_transition_time_for_music_lighting"),
+      ambient_light_cooldown: homeiiEditorI18n("ui.minimum_seconds_between_light_updates"),
+      screensaver_enabled: homeiiEditorI18n("ui.show_a_calm_clock_artwork_display_after_idle_time"),
+      screensaver_message: homeiiEditorI18n("ui.short_optional_message_shown_on_the_screensaver"),
+      screensaver_clock_size: homeiiEditorI18n("ui.screensaver_clock_size_helper"),
+      screensaver_clock_x: homeiiEditorI18n("ui.screensaver_clock_x_helper"),
+      screensaver_clock_y: homeiiEditorI18n("ui.screensaver_clock_y_helper"),
+      power_button_enabled: homeiiEditorI18n("ui.show_power_button_in_the_player_controls"),
+      power_button_entity: homeiiEditorI18n("ui.optional_entity_for_the_power_button_leave_empty_to_stop_the_active_player"),
+      discovery_mode_enabled: homeiiEditorI18n("ui.show_the_fullscreen_discovery_mode_in_actions"),
+      pinned_player_entities: homeiiEditorI18n("ui.choose_music_assistant_players_only_the_in_card_pinning_list_shows_only"),
+      allow_local_likes: homeiiEditorI18n("ui.enables_switching_to_local_liked_mode"),
+      use_mass_queue_send_command: homeiiEditorI18n("ui.fallback_for_setups_that_need_an_alternate_queue_service_path"),
     },
     options: {
       settings_source: [
-        { value: "ui", label: he ? "מה־UI בתוך הכרטיס" : "In-card UI" },
-        { value: "card", label: he ? "מהגדרות הכרטיס" : "Card configuration" },
+        { value: "ui", label: homeiiEditorI18n("ui.in_card_ui") },
+        { value: "card", label: homeiiEditorI18n("ui.card_configuration") },
       ],
       layout_mode: [
         { value: "auto", label: "Auto" },
-        { value: "mobile", label: he ? "מובייל" : "Mobile" },
-        { value: "tablet", label: he ? "טאבלט" : "Tablet" },
+        { value: "mobile", label: homeiiEditorI18n("ui.mobile") },
+        { value: "tablet", label: homeiiEditorI18n("ui.tablet") },
       ],
-      language: [
-        { value: "auto", label: "Auto" },
-        { value: "he", label: he ? "עברית" : "Hebrew" },
-        { value: "en", label: he ? "אנגלית" : "English" },
-      ],
+      language: HOMEII_LANGUAGE_OPTIONS,
       theme_mode: [
         { value: "auto", label: "Auto" },
-        { value: "dark", label: he ? "כהה" : "Dark" },
-        { value: "light", label: he ? "בהיר" : "Light" },
-        { value: "custom", label: he ? "אישי" : "Custom" },
+        { value: "dark", label: homeiiEditorI18n("ui.dark") },
+        { value: "light", label: homeiiEditorI18n("ui.light") },
+        { value: "custom", label: homeiiEditorI18n("ui.custom") },
       ],
       night_mode: [
-        { value: "off", label: he ? "כבוי" : "Off" },
+        { value: "off", label: homeiiEditorI18n("ui.off") },
         { value: "auto", label: "Auto" },
-        { value: "on", label: he ? "פעיל" : "On" },
+        { value: "on", label: homeiiEditorI18n("ui.on") },
       ],
       night_mode_days: [
-        { value: 0, label: he ? "א׳" : "Sun" },
-        { value: 1, label: he ? "ב׳" : "Mon" },
-        { value: 2, label: he ? "ג׳" : "Tue" },
-        { value: 3, label: he ? "ד׳" : "Wed" },
-        { value: 4, label: he ? "ה׳" : "Thu" },
-        { value: 5, label: he ? "ו׳" : "Fri" },
-        { value: 6, label: he ? "ש׳" : "Sat" },
+        { value: 0, label: homeiiEditorI18n("ui.sun") },
+        { value: 1, label: homeiiEditorI18n("ui.mon") },
+        { value: 2, label: homeiiEditorI18n("ui.tue") },
+        { value: 3, label: homeiiEditorI18n("ui.wed") },
+        { value: 4, label: homeiiEditorI18n("ui.thu") },
+        { value: 5, label: homeiiEditorI18n("ui.fri") },
+        { value: 6, label: homeiiEditorI18n("ui.sat") },
       ],
       mobile_custom_text_tone: [
-        { value: "light", label: he ? "בהיר" : "Light" },
-        { value: "dark", label: he ? "כהה" : "Dark" },
+        { value: "light", label: homeiiEditorI18n("ui.light") },
+        { value: "dark", label: homeiiEditorI18n("ui.dark") },
       ],
       mobile_dynamic_theme_mode: [
-        { value: "off", label: he ? "כבוי" : "Off" },
+        { value: "off", label: homeiiEditorI18n("ui.off") },
         { value: "auto", label: "Auto" },
-        { value: "strong", label: he ? "חזק" : "Strong" },
+        { value: "strong", label: homeiiEditorI18n("ui.strong") },
       ],
       mobile_background_motion_mode: [
-        { value: "off", label: he ? "כבוי" : "Off" },
-        { value: "subtle", label: he ? "עדין" : "Subtle" },
-        { value: "strong", label: he ? "חזק" : "Strong" },
-        { value: "extreme", label: he ? "אקסטרים" : "Extreme" },
+        { value: "off", label: homeiiEditorI18n("ui.off") },
+        { value: "subtle", label: homeiiEditorI18n("ui.subtle") },
+        { value: "strong", label: homeiiEditorI18n("ui.strong") },
+        { value: "extreme", label: homeiiEditorI18n("ui.extreme") },
       ],
       mobile_swipe_mode: [
-        { value: "play", label: he ? "מעביר שיר" : "Change track" },
-        { value: "browse", label: he ? "מדפדף עטיפות" : "Browse covers" },
+        { value: "play", label: homeiiEditorI18n("ui.change_track") },
+        { value: "browse", label: homeiiEditorI18n("ui.browse_covers") },
       ],
       mobile_mic_mode: [
-        { value: "on", label: he ? "פעיל" : "On" },
-        { value: "off", label: he ? "כבוי" : "Off" },
-        { value: "smart", label: he ? "חכם" : "Smart" },
+        { value: "on", label: homeiiEditorI18n("ui.on") },
+        { value: "off", label: homeiiEditorI18n("ui.off") },
+        { value: "smart", label: homeiiEditorI18n("ui.smart") },
       ],
       announcement_tts_language: [
-        { value: "auto", label: he ? "אוטומטי / ברירת מחדל בענן" : "Auto / Cloud default" },
+        { value: "auto", label: homeiiEditorI18n("ui.auto_cloud_default") },
         { value: "en-US", label: "English (US)" },
         { value: "en-GB", label: "English (UK)" },
-        { value: "he-IL", label: he ? "עברית" : "Hebrew" },
+        { value: "he-IL", label: homeiiEditorI18n("ui.hebrew") },
         { value: "de-DE", label: "Deutsch" },
         { value: "fr-FR", label: "Français" },
         { value: "es-ES", label: "Español" },
         { value: "it-IT", label: "Italiano" },
       ],
       mobile_footer_mode: [
-        { value: "icon", label: he ? "אייקון בלבד" : "Icon only" },
-        { value: "text", label: he ? "מלל בלבד" : "Text only" },
-        { value: "both", label: he ? "אייקון ומלל" : "Icon + text" },
+        { value: "icon", label: homeiiEditorI18n("ui.icon_only") },
+        { value: "text", label: homeiiEditorI18n("ui.text_only") },
+        { value: "both", label: homeiiEditorI18n("ui.icon_plus_text") },
       ],
       mobile_volume_mode: [
-        { value: "button", label: he ? "כפתור" : "Button" },
-        { value: "always", label: he ? "פעיל תמיד" : "Always visible" },
+        { value: "button", label: homeiiEditorI18n("ui.button") },
+        { value: "always", label: homeiiEditorI18n("ui.always_visible") },
       ],
       mobile_liked_mode: [
         { value: "ma", label: "Music Assistant" },
-        { value: "local", label: he ? "מקומי" : "Local" },
+        { value: "local", label: homeiiEditorI18n("ui.local") },
+      ],
+      screensaver_clock_mode: [
+        { value: "digital", label: homeiiEditorI18n("ui.digital") },
+        { value: "analog", label: homeiiEditorI18n("ui.analog") },
+      ],
+      power_button_action: [
+        { value: "stop_player", label: homeiiEditorI18n("ui.stop_player") },
+        { value: "toggle", label: homeiiEditorI18n("ui.toggle") },
+        { value: "turn_on", label: homeiiEditorI18n("ui.turn_on") },
+        { value: "turn_off", label: homeiiEditorI18n("ui.turn_off") },
+        { value: "scene", label: homeiiEditorI18n("ui.scene") },
+        { value: "script", label: homeiiEditorI18n("ui.script") },
       ],
       ma_interface_target: [
         { value: "_self", label: "_self" },
         { value: "_blank", label: "_blank" },
       ],
       mobile_main_bar_items: [
-        { value: "search", label: he ? "חיפוש" : "Search" },
-        { value: "library", label: he ? "ספרייה" : "Library" },
-        { value: "players", label: he ? "נגנים" : "Players" },
-        { value: "actions", label: he ? "פעולות" : "Actions" },
-        { value: "settings", label: he ? "הגדרות" : "Settings" },
-        { value: "theme", label: he ? "שמש / ירח" : "Theme toggle" },
+        { value: "search", label: homeiiEditorI18n("ui.search") },
+        { value: "library", label: homeiiEditorI18n("ui.library_2") },
+        { value: "players", label: homeiiEditorI18n("ui.players") },
+        { value: "actions", label: homeiiEditorI18n("ui.actions_2") },
+        { value: "settings", label: homeiiEditorI18n("ui.settings") },
+        { value: "theme", label: homeiiEditorI18n("ui.theme_toggle_2") },
       ],
       mobile_quick_actions: [
-        { value: "timer", label: he ? "טיימר" : "Timer" },
-        { value: "like", label: he ? "אהבתי" : "Like" },
-        { value: "lyrics", label: he ? "מילים" : "Lyrics" },
-        { value: "queue", label: he ? "תור" : "Queue" },
-        { value: "radio", label: he ? "מיקס מהיר" : "Quick mix" },
-        { value: "history", label: he ? "היסטוריה" : "History" },
-        { value: "info", label: he ? "מידע" : "Info" },
+        { value: "timer", label: homeiiEditorI18n("ui.timer") },
+        { value: "like", label: homeiiEditorI18n("ui.like_2") },
+        { value: "lyrics", label: homeiiEditorI18n("ui.lyrics") },
+        { value: "queue", label: homeiiEditorI18n("ui.queue_2") },
+        { value: "radio", label: homeiiEditorI18n("ui.quick_mix") },
+        { value: "history", label: homeiiEditorI18n("ui.history") },
+        { value: "info", label: homeiiEditorI18n("ui.info") },
       ],
       mobile_library_tabs: [
-        { value: "library_search", label: he ? "חיפוש" : "Search" },
-        { value: "library_playlists", label: he ? "פלייליסטים" : "Playlists" },
-        { value: "library_artists", label: he ? "אמנים" : "Artists" },
-        { value: "library_albums", label: he ? "אלבומים" : "Albums" },
-        { value: "library_tracks", label: he ? "שירים" : "Tracks" },
-        { value: "library_radio", label: he ? "רדיו" : "Radio" },
-        { value: "library_podcasts", label: he ? "פודקאסטים" : "Podcasts" },
-        { value: "library_liked", label: he ? "אהבתי" : "Liked" },
+        { value: "library_search", label: homeiiEditorI18n("ui.search") },
+        { value: "library_playlists", label: homeiiEditorI18n("ui.playlists") },
+        { value: "library_artists", label: homeiiEditorI18n("ui.artists") },
+        { value: "library_albums", label: homeiiEditorI18n("ui.albums") },
+        { value: "library_tracks", label: homeiiEditorI18n("ui.tracks") },
+        { value: "library_radio", label: homeiiEditorI18n("ui.radio") },
+        { value: "library_podcasts", label: homeiiEditorI18n("ui.podcasts") },
+        { value: "library_liked", label: homeiiEditorI18n("ui.liked") },
       ],
     },
   };
 }
 
 function getRadioBrowserCountrySelectorOptions() {
-  const he = HomeiiEditorLocale.detectEditorHebrew();
   return [
-    { value: "all", label: he ? "כל המדינות" : "All countries" },
-    { value: "IL", label: he ? "ישראל" : "Israel" },
-    { value: "US", label: he ? "ארצות הברית" : "United States" },
-    { value: "GB", label: he ? "בריטניה" : "United Kingdom" },
-    { value: "DE", label: he ? "גרמניה" : "Germany" },
-    { value: "FR", label: he ? "צרפת" : "France" },
-    { value: "IT", label: he ? "איטליה" : "Italy" },
-    { value: "ES", label: he ? "ספרד" : "Spain" },
-    { value: "NL", label: he ? "הולנד" : "Netherlands" },
-    { value: "GR", label: he ? "יוון" : "Greece" },
-    { value: "TR", label: he ? "טורקיה" : "Turkey" },
-    { value: "CA", label: he ? "קנדה" : "Canada" },
-    { value: "AU", label: he ? "אוסטרליה" : "Australia" },
+    { value: "all", label: homeiiEditorI18n("ui.all_countries") },
+    { value: "IL", label: homeiiEditorI18n("ui.israel") },
+    { value: "US", label: homeiiEditorI18n("ui.united_states") },
+    { value: "GB", label: homeiiEditorI18n("ui.united_kingdom") },
+    { value: "DE", label: homeiiEditorI18n("ui.germany") },
+    { value: "FR", label: homeiiEditorI18n("ui.france") },
+    { value: "IT", label: homeiiEditorI18n("ui.italy") },
+    { value: "ES", label: homeiiEditorI18n("ui.spain") },
+    { value: "NL", label: homeiiEditorI18n("ui.netherlands") },
+    { value: "GR", label: homeiiEditorI18n("ui.greece") },
+    { value: "TR", label: homeiiEditorI18n("ui.turkey") },
+    { value: "CA", label: homeiiEditorI18n("ui.canada") },
+    { value: "AU", label: homeiiEditorI18n("ui.australia") },
   ];
 }
 
@@ -13789,7 +14285,6 @@ function getMobileCardConfigForm() {
             schema: [
               { name: "settings_source", selector: { select: { mode: "dropdown", options: t.options.settings_source } } },
               { name: "layout_mode", selector: { select: { mode: "dropdown", options: t.options.layout_mode } } },
-              { name: "height", selector: { number: { min: 480, max: 1400, step: 10, mode: "box" } } },
               { name: "language", selector: { select: { mode: "dropdown", options: t.options.language } } },
               { name: "mobile_show_up_next", selector: { boolean: {} } },
               { name: "rtl", selector: { boolean: {} } },
@@ -13873,6 +14368,39 @@ function getMobileCardConfigForm() {
               { name: "cache_ttl", selector: { number: { min: 0, max: 3600000, step: 1000, mode: "box" } } },
               { name: "allow_local_likes", selector: { boolean: {} } },
               { name: "use_mass_queue_send_command", selector: { boolean: {} } },
+            ],
+          },
+        ],
+      },
+      {
+        type: "expandable",
+        name: "smart_home_section",
+        title: t.sections.smart_home,
+        flatten: true,
+        schema: [
+          {
+            type: "grid",
+            name: "smart_home_grid",
+            flatten: true,
+            column_min_width: "220px",
+            schema: [
+              { name: "ambient_light_enabled", selector: { boolean: {} } },
+              { name: "ambient_light_entities", selector: { entity: { multiple: true, filter: [{ domain: "light" }] } } },
+              { name: "ambient_light_player_map", selector: { text: { multiple: true } } },
+              { name: "ambient_light_brightness", selector: { number: { min: 1, max: 100, step: 1, mode: "slider" } } },
+              { name: "ambient_light_transition", selector: { number: { min: 0, max: 120, step: 1, mode: "box" } } },
+              { name: "ambient_light_cooldown", selector: { number: { min: 0, max: 120, step: 1, mode: "box" } } },
+              { name: "screensaver_enabled", selector: { boolean: {} } },
+              { name: "screensaver_clock_mode", selector: { select: { mode: "dropdown", options: t.options.screensaver_clock_mode } } },
+              { name: "screensaver_clock_size", selector: { number: { min: 0.75, max: 1.45, step: 0.05, mode: "slider" } } },
+              { name: "screensaver_clock_x", selector: { number: { min: 8, max: 92, step: 1, mode: "slider" } } },
+              { name: "screensaver_clock_y", selector: { number: { min: 8, max: 70, step: 1, mode: "slider" } } },
+              { name: "screensaver_timeout_seconds", selector: { number: { min: 15, max: 3600, step: 5, mode: "box" } } },
+              { name: "screensaver_message", selector: { text: {} } },
+              { name: "power_button_enabled", selector: { boolean: {} } },
+              { name: "power_button_action", selector: { select: { mode: "dropdown", options: t.options.power_button_action } } },
+              { name: "power_button_entity", selector: { entity: { multiple: false } } },
+              { name: "discovery_mode_enabled", selector: { boolean: {} } },
             ],
           },
         ],
@@ -13972,6 +14500,7 @@ class HomeiiBaseMusicEditor extends HTMLElement {
     this._editorForm = null;
     this._editorUsePathBtn = null;
     this._editorPathHint = null;
+    this._editorAmbientLightDraft = { player: "", lights: [] };
     this._editorBound = false;
     this._editorLastConfigKey = "";
     this._editorLastSchemaKey = "";
@@ -14017,8 +14546,19 @@ class HomeiiBaseMusicEditor extends HTMLElement {
   }
 
   _isHebrew() {
-    const lang = this._hass?.locale?.language || this._hass?.language || "";
-    return HomeiiEditorLocale.isHebrewLanguageTag(lang);
+    return homeiiIsRtlLanguage(homeiiDetectLanguage({
+      configLanguage: this._config?.language || "en",
+      hass: this._hass,
+    }));
+  }
+
+  _esc(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   _getConfigValidator() {
@@ -14094,12 +14634,16 @@ class HomeiiBaseMusicEditor extends HTMLElement {
       this._editorForm?.addEventListener("value-changed", (event) => {
         const nextValue = event.detail?.value;
         if (!nextValue || typeof nextValue !== "object") return;
+        const nextConfigValue = this._normalizeEditorFormValue(nextValue);
+        const previousSchemaKey = this._editorLastSchemaKey;
         this._config = {
           ...this._getCardCtor().getStubConfig(),
           ...this._config,
-          ...nextValue,
+          ...nextConfigValue,
         };
         this._dispatchConfig();
+        const nextSchemaKey = JSON.stringify(this._withDynamicEditorSchema(this._currentBaseEditorSchema()));
+        if (previousSchemaKey !== nextSchemaKey) queueMicrotask(() => this._render());
       });
     }
   }
@@ -14127,14 +14671,13 @@ class HomeiiBaseMusicEditor extends HTMLElement {
 
   _syncEditorLiveContext() {
     this._ensureEditorShell();
-    const he = this._isHebrew();
-    this.style.direction = he ? "rtl" : "ltr";
+    this.style.direction = this._isHebrew() ? "rtl" : "ltr";
     this._refreshEditorShellClasses();
     if (this._editorUsePathBtn) {
-      this._editorUsePathBtn.textContent = he ? "השתמש במסך הנוכחי עבור כפתור הבית" : "Use current view for Home button";
+      this._editorUsePathBtn.textContent = homeiiEditorI18n("ui.use_current_view_for_home_button");
     }
     if (this._editorPathHint) {
-      this._editorPathHint.textContent = `${he ? "נתיב נוכחי" : "Current path"}: ${this._currentUiPath()}`;
+      this._editorPathHint.textContent = `${homeiiEditorI18n("ui.current_path")}: ${this._currentUiPath()}`;
     }
     if (this._editorForm) {
       this._editorForm.hass = this._hass;
@@ -14167,15 +14710,236 @@ class HomeiiBaseMusicEditor extends HTMLElement {
   }
 
   _editorPinnedPlayerOptionsKey() {
-    return JSON.stringify(this._editorPinnedPlayerOptions());
+    return JSON.stringify({
+      players: this._editorPinnedPlayerOptions(),
+      lights: this._editorColorLightOptions(),
+      mappings: HomeiiMobileSettingsFoundation.normalizeStringArray(this._config?.ambient_light_player_map),
+      draft: this._editorAmbientLightDraft,
+    });
+  }
+
+  _editorColorLightOptions() {
+    const states = this._hass?.states || {};
+    return Object.values(states)
+      .filter((entity) => entity?.entity_id?.startsWith("light."))
+      .filter((entity) => HomeiiMobileSettingsFoundation.isColorCapableLightEntity(entity))
+      .map((entity) => ({
+        value: entity.entity_id,
+        label: entity.attributes?.friendly_name || entity.entity_id,
+      }))
+      .sort((left, right) => String(left.label).localeCompare(String(right.label), undefined, { sensitivity: "base" }));
+  }
+
+  _ambientLightPairPlayerKey(index) {
+    return `${AMBIENT_LIGHT_PAIR_PLAYER_PREFIX}${index}`;
+  }
+
+  _ambientLightPairLightsKey(index) {
+    return `${AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX}${index}`;
+  }
+
+  _ambientLightPairDisplayKey(type = "player", index = 0) {
+    const pairIndex = Math.max(0, Number(index) || 0);
+    const internalName = type === "lights"
+      ? this._ambientLightPairLightsKey(pairIndex)
+      : this._ambientLightPairPlayerKey(pairIndex);
+    const label = this._editorDynamicLabel({ name: internalName });
+    if (label) return label;
+    const number = pairIndex + 1;
+    return type === "lights" ? `Color lights ${number}` : `Music Assistant player ${number}`;
+  }
+
+  _ambientLightPairFieldInfo(source = "") {
+    const candidates = [];
+    const addCandidate = (value) => {
+      if (value == null) return;
+      if (Array.isArray(value)) {
+        value.forEach(addCandidate);
+        candidates.push(value.join("."));
+        return;
+      }
+      if (typeof value === "object") {
+        addCandidate(value.name);
+        addCandidate(value.key);
+        addCandidate(value.path);
+        addCandidate(value.schema?.name);
+        return;
+      }
+      candidates.push(String(value));
+    };
+    addCandidate(source);
+
+    const matchPairField = (value, prefix, type) => {
+      const offset = String(value || "").indexOf(prefix);
+      if (offset < 0) return null;
+      const match = String(value || "").slice(offset + prefix.length).match(/^\d+/);
+      if (!match) return null;
+      const index = Number(match[0]);
+      return Number.isInteger(index) ? { type, index } : null;
+    };
+
+    for (const value of candidates) {
+      const playerInfo = matchPairField(value, AMBIENT_LIGHT_PAIR_PLAYER_PREFIX, "player");
+      if (playerInfo) return playerInfo;
+      const lightsInfo = matchPairField(value, AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX, "lights");
+      if (lightsInfo) return lightsInfo;
+      const displayValue = String(value || "").trim();
+      const displayMatch = displayValue.match(/(\d+)\s*$/);
+      if (displayMatch) {
+        const index = Number(displayMatch[1]) - 1;
+        if (Number.isInteger(index) && index >= 0) {
+          const lower = displayValue.toLowerCase();
+          if (lower.includes("player") || lower.includes("נגן")) return { type: "player", index };
+          if (lower.includes("light") || lower.includes("licht") || lower.includes("תאור")) return { type: "lights", index };
+        }
+      }
+    }
+    return null;
+  }
+
+  _editorSchemaItem(item = {}) {
+    if (typeof item === "string") return { name: item };
+    if (Array.isArray(item)) return { name: item[item.length - 1] || item.join(".") };
+    return item && typeof item === "object" ? item : {};
+  }
+
+  _ambientLightPlayerMapConfigFromGroups(groups = []) {
+    return groups
+      .map((group) => HomeiiMobileSettingsFoundation.formatAmbientLightPlayerMapEntry(group.player, group.lights))
+      .filter(Boolean);
+  }
+
+  _ambientLightPairSelectorData(config = this._config) {
+    const data = {};
+    const groups = HomeiiMobileSettingsFoundation.parseAmbientLightPlayerMap(config?.ambient_light_player_map);
+    groups.forEach((group, index) => {
+      data[this._ambientLightPairDisplayKey("player", index)] = group.player;
+      data[this._ambientLightPairDisplayKey("lights", index)] = group.lights;
+    });
+    const draftIndex = groups.length;
+    data[this._ambientLightPairDisplayKey("player", draftIndex)] = this._editorAmbientLightDraft?.player || "";
+    data[this._ambientLightPairDisplayKey("lights", draftIndex)] = this._editorAmbientLightDraft?.lights || [];
+    return data;
+  }
+
+  _editorFormData(config = this._config) {
+    return {
+      ...config,
+      ...this._ambientLightPairSelectorData(config),
+    };
+  }
+
+  _normalizeEditorFormValue(value = {}) {
+    const next = { ...value };
+    const pairIndices = new Set();
+    Object.keys(next).forEach((key) => {
+      const info = this._ambientLightPairFieldInfo(key);
+      if (info) pairIndices.add(info.index);
+    });
+    if (!pairIndices.size) return next;
+
+    const currentPairCount = HomeiiMobileSettingsFoundation.parseAmbientLightPlayerMap(this._config?.ambient_light_player_map).length;
+    const groups = [];
+    let draft = { player: "", lights: [] };
+    Array.from(pairIndices).sort((left, right) => left - right).forEach((index) => {
+      const playerKey = this._ambientLightPairPlayerKey(index);
+      const lightsKey = this._ambientLightPairLightsKey(index);
+      const playerDisplayKey = this._ambientLightPairDisplayKey("player", index);
+      const lightsDisplayKey = this._ambientLightPairDisplayKey("lights", index);
+      const player = String((next[playerDisplayKey] ?? next[playerKey]) || "").trim();
+      const lights = HomeiiMobileSettingsFoundation.normalizeEntityList(next[lightsDisplayKey] ?? next[lightsKey]);
+      delete next[playerDisplayKey];
+      delete next[lightsDisplayKey];
+      delete next[playerKey];
+      delete next[lightsKey];
+      if (player && lights.length) {
+        groups.push({ player, lights });
+      } else if (index >= currentPairCount && (player || lights.length)) {
+        draft = { player, lights };
+      }
+    });
+    this._editorAmbientLightDraft = draft;
+    next.ambient_light_player_map = this._ambientLightPlayerMapConfigFromGroups(groups);
+    return next;
+  }
+
+  _ambientLightEntitySelector({ multiple = false, entities = [], fallbackFilter = [] } = {}) {
+    const selector = {
+      entity: {
+        multiple,
+        filter: fallbackFilter,
+      },
+    };
+    selector.entity.include_entities = entities.map((option) => option.value);
+    return selector;
+  }
+
+  _ambientLightPlayerPairSchema() {
+    const groups = HomeiiMobileSettingsFoundation.parseAmbientLightPlayerMap(this._config?.ambient_light_player_map);
+    const pairCount = Math.max(1, groups.length + 1);
+    const players = this._editorPinnedPlayerOptions();
+    const lights = this._editorColorLightOptions();
+    const schema = [];
+    for (let index = 0; index < pairCount; index += 1) {
+      const playerName = this._ambientLightPairDisplayKey("player", index);
+      const lightsName = this._ambientLightPairDisplayKey("lights", index);
+      schema.push({
+        name: playerName,
+        label: this._editorDynamicLabel({ name: playerName }),
+        helper: this._editorDynamicHelper({ name: playerName }),
+        selector: this._ambientLightEntitySelector({
+          multiple: false,
+          entities: players,
+          fallbackFilter: [{ integration: "music_assistant", domain: "media_player" }],
+        }),
+      });
+      schema.push({
+        name: lightsName,
+        label: this._editorDynamicLabel({ name: lightsName }),
+        helper: this._editorDynamicHelper({ name: lightsName }),
+        selector: this._ambientLightEntitySelector({
+          multiple: true,
+          entities: lights,
+          fallbackFilter: [{ domain: "light" }],
+        }),
+      });
+    }
+    return {
+      type: "grid",
+      name: "ambient_light_player_pair_grid",
+      flatten: true,
+      column_min_width: "220px",
+      schema,
+    };
+  }
+
+  _editorDynamicLabel(item = {}) {
+    const info = this._ambientLightPairFieldInfo(item);
+    if (!info) return "";
+    const key = info.type === "player" ? "ui.player_light_pair_player" : "ui.player_light_pair_lights";
+    return homeiiEditorI18n(key, { number: info.index + 1 });
+  }
+
+  _editorDynamicHelper(item = {}) {
+    const info = this._ambientLightPairFieldInfo(item);
+    if (!info) return "";
+    const key = info.type === "player" ? "ui.player_light_pair_player_helper" : "ui.player_light_pair_lights_helper";
+    return homeiiEditorI18n(key);
+  }
+
+  _currentBaseEditorSchema() {
+    const formDef = this._getCardCtor().getConfigForm?.() || {};
+    return Array.isArray(formDef) ? formDef : (Array.isArray(formDef.schema) ? formDef.schema : []);
   }
 
   _withDynamicEditorSchema(schema = []) {
     const pinnedOptions = this._editorPinnedPlayerOptions();
+    const colorLightOptions = this._editorColorLightOptions();
     const cloneItem = (item) => {
       if (!item || typeof item !== "object") return item;
+      if (item.name === "ambient_light_player_map") return this._ambientLightPlayerPairSchema();
       const next = { ...item };
-      if (Array.isArray(item.schema)) next.schema = item.schema.map(cloneItem);
+      if (Array.isArray(item.schema)) next.schema = item.schema.map(cloneItem).filter(Boolean);
       if (item.name === "pinned_player_entities") {
         next.selector = {
           select: {
@@ -14185,9 +14949,16 @@ class HomeiiBaseMusicEditor extends HTMLElement {
           },
         };
       }
+      if (item.name === "ambient_light_entities") {
+        next.selector = this._ambientLightEntitySelector({
+          multiple: true,
+          entities: colorLightOptions,
+          fallbackFilter: [{ domain: "light" }],
+        });
+      }
       return next;
     };
-    return (Array.isArray(schema) ? schema : []).map(cloneItem);
+    return (Array.isArray(schema) ? schema : []).map(cloneItem).filter(Boolean);
   }
 
   _render() {
@@ -14198,8 +14969,9 @@ class HomeiiBaseMusicEditor extends HTMLElement {
       ...this._config,
     };
     const formDef = cardCtor.getConfigForm?.() || {};
-    const baseSchema = Array.isArray(formDef) ? formDef : (Array.isArray(formDef.schema) ? formDef.schema : []);
+    const baseSchema = this._currentBaseEditorSchema();
     const schema = this._withDynamicEditorSchema(baseSchema);
+    const formData = this._editorFormData(config);
     const labels = formDef.labels || {};
     const helpers = formDef.helpers || {};
     const computeLabel = typeof formDef.computeLabel === "function"
@@ -14210,18 +14982,26 @@ class HomeiiBaseMusicEditor extends HTMLElement {
       : (item) => helpers?.[item?.name];
     this._syncEditorLiveContext();
     if (this._editorForm) {
+      const computeEditorLabel = (item) => {
+        const schemaItem = this._editorSchemaItem(item);
+        return this._editorDynamicLabel(item) || computeLabel(schemaItem) || schemaItem?.label || schemaItem?.name || "";
+      };
+      const computeEditorHelper = (item) => {
+        const schemaItem = this._editorSchemaItem(item);
+        return this._editorDynamicHelper(item) || computeHelper(schemaItem) || schemaItem?.helper || "";
+      };
+      this._editorForm.computeLabel = computeEditorLabel;
+      this._editorForm.computeHelper = computeEditorHelper;
       const schemaKey = JSON.stringify(schema);
       if (this._editorLastSchemaKey !== schemaKey) {
         this._editorForm.schema = schema;
         this._editorLastSchemaKey = schemaKey;
       }
-      const configKey = JSON.stringify(config);
+      const configKey = JSON.stringify(formData);
       if (this._editorLastConfigKey !== configKey) {
-        this._editorForm.data = config;
+        this._editorForm.data = formData;
         this._editorLastConfigKey = configKey;
       }
-      this._editorForm.computeLabel = (item) => computeLabel(item) || item?.label || item?.name || "";
-      this._editorForm.computeHelper = (item) => computeHelper(item) || "";
     }
   }
 }
@@ -14322,6 +15102,27 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.mobileAnnouncementVolume = 20;
     this._state.mobileAnnouncementTtsEntity = "";
     this._state.mobileAnnouncementTtsLanguage = "auto";
+    this._state.ambientLightEnabled = false;
+    this._state.ambientLightEntities = [];
+    this._state.ambientLightPlayerMap = [];
+    this._state.ambientLightBrightness = 35;
+    this._state.ambientLightTransition = 3;
+    this._state.ambientLightCooldown = 8;
+    this._state.screensaverEnabled = false;
+    this._state.screensaverClockMode = "digital";
+    this._state.screensaverTimeoutSeconds = 90;
+    this._state.screensaverMessage = "";
+    this._state.screensaverClockSize = 1;
+    this._state.screensaverClockX = 82;
+    this._state.screensaverClockY = 24;
+    this._state.screensaverOpen = false;
+    this._state.powerButtonEnabled = false;
+    this._state.powerButtonAction = "stop_player";
+    this._state.powerButtonEntity = "";
+    this._state.discoveryModeEnabled = true;
+    this._state.discoveryCategoryKey = "fresh";
+    this._state.discoveryGenreKey = "all";
+    this._state.discoveryExpandedUri = "";
     this._state.pinnedPlayerEntities = [];
     this._state.mobileArtBrowseOffset = 0;
     this._state.mobileArtAnchorKey = "";
@@ -14345,11 +15146,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._simpleWizardToken = 0;
     this._mobileDynamicThemePaletteCache = new Map();
     this._mobileDynamicThemeToken = 0;
+    this._ambientLightLastSignature = "";
+    this._ambientLightLastCallAt = 0;
+    this._ambientLightLastBrightness = null;
+    this._screensaverTimer = null;
+    this._screensaverClockTimer = null;
+    this._screensaverSuppressUntil = 0;
     this._state.mobileSmartVoice = null;
     this._state.simpleWizard = null;
     this._boundMobileMenuClick = this._handleMobileMenuClick.bind(this);
     this._boundMobileMenuChange = this._handleMobileMenuChange.bind(this);
     this._boundMobileMediaInput = this._handleMobileMediaInput.bind(this);
+    this._boundScreensaverActivity = this._handleScreensaverActivity.bind(this);
     try { this._state.mobileCustomColor = localStorage.getItem("homeii_music_flow_mobile_custom_color") || "#f5a623"; } catch (_) {}
     try {
       const storedPerformanceMode = localStorage.getItem("homeii_music_flow_mobile_performance_mode");
@@ -14453,6 +15261,24 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     } catch (_) {}
     try { this._state.mobileAnnouncementTtsEntity = localStorage.getItem("homeii_music_flow_mobile_announcement_tts_entity") || this._config?.announcement_tts_entity || ""; } catch (_) {}
     try { this._state.mobileAnnouncementTtsLanguage = this._normalizeAnnouncementLanguage(localStorage.getItem("homeii_music_flow_mobile_announcement_tts_language") || this._config?.announcement_tts_language || "auto"); } catch (_) {}
+    try { this._state.ambientLightEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_ambient_light_enabled") ?? "false"); } catch {}
+    try { this._state.ambientLightEntities = HomeiiMobileSettingsFoundation.normalizeEntityList(JSON.parse(localStorage.getItem("homeii_music_flow_ambient_light_entities") || "[]")); } catch {}
+    try { this._state.ambientLightPlayerMap = HomeiiMobileSettingsFoundation.normalizeStringArray(JSON.parse(localStorage.getItem("homeii_music_flow_ambient_light_player_map") || "[]")); } catch {}
+    try { this._state.ambientLightBrightness = HomeiiMobileSettingsFoundation.clampPercent(localStorage.getItem("homeii_music_flow_ambient_light_brightness") || 35, 35, { min: 1, max: 100 }); } catch {}
+    try { this._state.ambientLightTransition = HomeiiMobileSettingsFoundation.clampSeconds(localStorage.getItem("homeii_music_flow_ambient_light_transition") || 3, 3, { min: 0, max: 120 }); } catch {}
+    try { this._state.ambientLightCooldown = HomeiiMobileSettingsFoundation.clampSeconds(localStorage.getItem("homeii_music_flow_ambient_light_cooldown") || 8, 8, { min: 0, max: 120 }); } catch {}
+    try { this._state.screensaverEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_screensaver_enabled") ?? "false"); } catch {}
+    try { this._state.screensaverClockMode = HomeiiMobileSettingsFoundation.normalizeScreensaverClockMode(localStorage.getItem("homeii_music_flow_screensaver_clock_mode") || "digital"); } catch {}
+    try { this._state.screensaverTimeoutSeconds = HomeiiMobileSettingsFoundation.clampSeconds(localStorage.getItem("homeii_music_flow_screensaver_timeout_seconds") || 90, 90, { min: 15, max: 3600 }); } catch {}
+    try { this._state.screensaverMessage = localStorage.getItem("homeii_music_flow_screensaver_message") || ""; } catch {}
+    try { this._state.screensaverClockSize = HomeiiMobileSettingsFoundation.clampNumber(localStorage.getItem("homeii_music_flow_screensaver_clock_size") || 1, 1, { min: 0.75, max: 1.45 }); } catch {}
+    try { this._state.screensaverClockX = HomeiiMobileSettingsFoundation.clampNumber(localStorage.getItem("homeii_music_flow_screensaver_clock_x") || 82, 82, { min: 8, max: 92 }); } catch {}
+    try { this._state.screensaverClockY = HomeiiMobileSettingsFoundation.clampNumber(localStorage.getItem("homeii_music_flow_screensaver_clock_y") || 24, 24, { min: 8, max: 70 }); } catch {}
+    try { this._state.powerButtonEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_power_button_enabled") ?? "false"); } catch {}
+    try { this._state.powerButtonAction = HomeiiMobileSettingsFoundation.normalizePowerButtonAction(localStorage.getItem("homeii_music_flow_power_button_action") || "stop_player"); } catch {}
+    try { this._state.powerButtonEntity = localStorage.getItem("homeii_music_flow_power_button_entity") || ""; } catch {}
+    try { this._state.discoveryModeEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_discovery_mode_enabled") ?? "true"); } catch {}
+    try { this._state.discoveryGenreKey = localStorage.getItem("homeii_music_flow_discovery_genre_key") || "all"; } catch {}
   }
 
   _defaultMobileMediaLayout() {
@@ -14498,6 +15324,23 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       mobile_announcement_volume: 20,
       announcement_tts_entity: "",
       announcement_tts_language: "auto",
+      ambient_light_enabled: false,
+      ambient_light_entities: [],
+      ambient_light_player_map: [],
+      ambient_light_brightness: 35,
+      ambient_light_transition: 3,
+      ambient_light_cooldown: 8,
+      screensaver_enabled: false,
+      screensaver_clock_mode: "digital",
+      screensaver_timeout_seconds: 90,
+      screensaver_message: "",
+      screensaver_clock_size: 1,
+      screensaver_clock_x: 82,
+      screensaver_clock_y: 24,
+      power_button_enabled: false,
+      power_button_action: "stop_player",
+      power_button_entity: "",
+      discovery_mode_enabled: true,
       pinned_player_entity: "",
       pinned_player_entities: [],
     };
@@ -14536,182 +15379,220 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
 
   static _legacyEditorTexts() {
-    const he = this._editorIsHebrew();
     return {
       sections: {
-        general: he ? "כללי" : "General",
-        appearance: he ? "מראה" : "Appearance",
-        behavior: he ? "התנהגות" : "Behavior",
-        connection: he ? "חיבור והתנהגות" : "Connection and Behavior",
-        mainbar: he ? "סרגל ראשי" : "Main Bar",
-        quickactions: he ? "פעולות מהירות" : "Quick Actions",
-        library: he ? "דפי ספרייה" : "Library Tabs",
-        announcements: he ? "כריזה" : "Announcements",
+        general: homeiiEditorI18n("ui.general"),
+        appearance: homeiiEditorI18n("ui.appearance"),
+        behavior: homeiiEditorI18n("ui.behavior"),
+        connection: homeiiEditorI18n("ui.connection_and_behavior"),
+        mainbar: homeiiEditorI18n("ui.main_bar"),
+        quickactions: homeiiEditorI18n("ui.quick_actions_2"),
+        library: homeiiEditorI18n("ui.library_tabs"),
+        announcements: homeiiEditorI18n("ui.announcements"),
+        smart_home: homeiiEditorI18n("ui.smart_home"),
       },
       labels: {
-        settings_source: he ? "מקור ההגדרות" : "Settings source",
-        layout_mode: he ? "מצב פריסה" : "Layout mode",
-        height: he ? "גובה הכרטיס" : "Card height",
-        main_opacity: he ? "שקיפות ראשית" : "Main opacity",
-        popup_opacity: he ? "שקיפות חלונות" : "Popup opacity",
-        language: he ? "שפה" : "Language",
-        theme_mode: he ? "ערכת נושא" : "Theme mode",
-        performance_mode: he ? "מצב ביצועים למכשירים חלשים" : "Performance mode for weak devices",
-        night_mode: he ? "מצב לילה" : "Night mode",
-        night_mode_auto_start: he ? "שעת התחלה ללילה" : "Night start time",
-        night_mode_auto_end: he ? "שעת סיום ללילה" : "Night end time",
-        night_mode_days: he ? "ימי מצב לילה" : "Night mode days",
-        rtl: he ? "RTL" : "RTL",
-        mobile_custom_color: he ? "צבע מוביל" : "Accent color",
-        mobile_custom_text_tone: he ? "טון טקסט" : "Text tone",
-        mobile_font_scale: he ? "סקייל פונט" : "Font scale",
-        mobile_swipe_mode: he ? "סוויפ על עטיפה" : "Artwork swipe",
-        mobile_footer_search_enabled: he ? "חיפוש בפוטר" : "Footer search",
-        mobile_mic_mode: he ? "מיקרופון" : "Microphone",
-        mobile_footer_mode: he ? "סגנון פוטר" : "Footer style",
-        mobile_studio_shortcut: he ? "כפתור סטודיו" : "Studio shortcut",
-        mobile_home_shortcut: he ? "כפתור בית" : "Home shortcut",
-        mobile_home_shortcut_path: he ? "נתיב כפתור בית" : "Home shortcut path",
-        pinned_player_entities: he ? "נגנים מקובעים" : "Pinned players",
-        mobile_volume_mode: he ? "בקרת ווליום" : "Volume mode",
-        mobile_liked_mode: he ? "מצב אהבתי" : "Liked mode",
-        mobile_radio_browser_country: he ? "מדינת רדיו" : "Radio Browser country",
-        mobile_main_bar_items: he ? "פריטי סרגל ראשי" : "Main bar items",
-        mobile_quick_actions: he ? "פעולות מהירות" : "Quick actions",
-        mobile_library_tabs: he ? "טאבי ספרייה" : "Library tabs",
-        mobile_announcement_presets: he ? "משפטי כריזה" : "Announcement presets",
-        mobile_announcement_volume: he ? "תוספת ווליום כריזה" : "Announcement volume boost",
-        announcement_tts_entity: he ? "ישות TTS" : "TTS entity",
-        announcement_tts_language: he ? "שפת TTS" : "TTS language",
+        settings_source: homeiiEditorI18n("ui.settings_source"),
+        layout_mode: homeiiEditorI18n("ui.layout_mode"),
+        main_opacity: homeiiEditorI18n("ui.main_opacity"),
+        popup_opacity: homeiiEditorI18n("ui.popup_opacity"),
+        language: homeiiEditorI18n("ui.language"),
+        theme_mode: homeiiEditorI18n("ui.theme_mode"),
+        performance_mode: homeiiEditorI18n("ui.performance_mode_for_weak_devices"),
+        night_mode: homeiiEditorI18n("ui.night_mode"),
+        night_mode_auto_start: homeiiEditorI18n("ui.night_start_time"),
+        night_mode_auto_end: homeiiEditorI18n("ui.night_end_time"),
+        night_mode_days: homeiiEditorI18n("ui.night_mode_days"),
+        rtl: homeiiEditorI18n("ui.rtl"),
+        mobile_custom_color: homeiiEditorI18n("ui.accent_color"),
+        mobile_custom_text_tone: homeiiEditorI18n("ui.text_tone"),
+        mobile_font_scale: homeiiEditorI18n("ui.font_scale"),
+        mobile_swipe_mode: homeiiEditorI18n("ui.artwork_swipe"),
+        mobile_footer_search_enabled: homeiiEditorI18n("ui.footer_search"),
+        mobile_mic_mode: homeiiEditorI18n("ui.microphone_2"),
+        mobile_footer_mode: homeiiEditorI18n("ui.footer_style_2"),
+        mobile_studio_shortcut: homeiiEditorI18n("ui.studio_shortcut"),
+        mobile_home_shortcut: homeiiEditorI18n("ui.home_shortcut"),
+        mobile_home_shortcut_path: homeiiEditorI18n("ui.home_shortcut_path"),
+        pinned_player_entities: homeiiEditorI18n("ui.pinned_players"),
+        mobile_volume_mode: homeiiEditorI18n("ui.volume_mode"),
+        mobile_liked_mode: homeiiEditorI18n("ui.liked_mode"),
+        mobile_radio_browser_country: homeiiEditorI18n("ui.radio_browser_country_2"),
+        mobile_main_bar_items: homeiiEditorI18n("ui.main_bar_items_2"),
+        mobile_quick_actions: homeiiEditorI18n("ui.quick_actions"),
+        mobile_library_tabs: homeiiEditorI18n("ui.library_tabs_2"),
+        mobile_announcement_presets: homeiiEditorI18n("ui.announcement_presets"),
+        mobile_announcement_volume: homeiiEditorI18n("ui.announcement_volume_boost"),
+        announcement_tts_entity: homeiiEditorI18n("ui.tts_entity"),
+        announcement_tts_language: homeiiEditorI18n("ui.tts_language"),
+        ambient_light_enabled: homeiiEditorI18n("ui.ambient_light"),
+        ambient_light_entities: homeiiEditorI18n("ui.ambient_light_entities"),
+        ambient_light_player_map: homeiiEditorI18n("ui.ambient_light_player_map"),
+        ambient_light_brightness: homeiiEditorI18n("ui.ambient_light_brightness"),
+        ambient_light_transition: homeiiEditorI18n("ui.ambient_light_transition"),
+        ambient_light_cooldown: homeiiEditorI18n("ui.ambient_light_cooldown"),
+        screensaver_enabled: homeiiEditorI18n("ui.screensaver"),
+        screensaver_clock_mode: homeiiEditorI18n("ui.screensaver_clock_mode"),
+        screensaver_timeout_seconds: homeiiEditorI18n("ui.screensaver_timeout"),
+        screensaver_message: homeiiEditorI18n("ui.screensaver_message"),
+        screensaver_clock_size: homeiiEditorI18n("ui.screensaver_clock_size"),
+        screensaver_clock_x: homeiiEditorI18n("ui.screensaver_clock_x"),
+        screensaver_clock_y: homeiiEditorI18n("ui.screensaver_clock_y"),
+        power_button_enabled: homeiiEditorI18n("ui.power_button"),
+        power_button_action: homeiiEditorI18n("ui.power_button_action"),
+        power_button_entity: homeiiEditorI18n("ui.power_button_entity"),
+        discovery_mode_enabled: homeiiEditorI18n("ui.discovery_mode"),
         config_entry_id: "Config Entry ID",
-        ma_url: he ? "כתובת Music Assistant" : "Music Assistant URL",
-        ma_token: he ? "טוקן Music Assistant" : "Music Assistant token",
-        active_player_helper_entity: he ? "Helper לנגן פעיל" : "Active player helper",
-        favorite_button_entity: he ? "ישות כפתור Like" : "Favorite button entity",
-        ma_interface_url: he ? "נתיב ממשק MA" : "MA interface path",
-        ma_interface_target: he ? "פתיחת ממשק" : "Open interface in",
-        show_ma_button: he ? "כפתור MA" : "Show MA button",
-        show_theme_toggle: he ? "כפתור ערכת נושא" : "Show theme toggle",
-        cache_ttl: he ? "זמן קאש" : "Cache TTL",
-        allow_local_likes: he ? "אהבתי מקומי" : "Allow local likes",
-        use_mass_queue_send_command: he ? "Fallback mass_queue/send_command" : "mass_queue/send_command fallback",
+        ma_url: homeiiEditorI18n("ui.music_assistant_url"),
+        ma_token: homeiiEditorI18n("ui.music_assistant_token"),
+        active_player_helper_entity: homeiiEditorI18n("ui.active_player_helper"),
+        favorite_button_entity: homeiiEditorI18n("ui.favorite_button_entity"),
+        ma_interface_url: homeiiEditorI18n("ui.ma_interface_path"),
+        ma_interface_target: homeiiEditorI18n("ui.open_interface_in"),
+        show_ma_button: homeiiEditorI18n("ui.show_ma_button"),
+        show_theme_toggle: homeiiEditorI18n("ui.show_theme_toggle"),
+        cache_ttl: homeiiEditorI18n("ui.cache_ttl"),
+        allow_local_likes: homeiiEditorI18n("ui.allow_local_likes"),
+        use_mass_queue_send_command: homeiiEditorI18n("ui.mass_queue_send_command_fallback"),
       },
       helpers: {
-        settings_source: he ? "בחירה ב־Visual מבטלת את מסך ההגדרות מתוך הכרטיס." : "Choosing Visual disables the in-card settings screen.",
-        night_mode: he ? "Off מכבה, On מפעיל תמיד, ו־Auto פועל לפי חלון השעות שהגדרת." : "Off disables it, On keeps it active, and Auto follows the configured time window.",
-        night_mode_auto_start: he ? "פורמט מומלץ: HH:MM כמו 22:00." : "Recommended format: HH:MM such as 22:00.",
-        night_mode_auto_end: he ? "פורמט מומלץ: HH:MM כמו 06:00. אפשר לחצות חצות." : "Recommended format: HH:MM such as 06:00. Crossing midnight is supported.",
-        night_mode_days: he ? "בחר באילו ימים חלון מצב הלילה יהיה פעיל במצב Auto." : "Choose which days the Auto night-mode window applies to.",
-        performance_mode: he ? "מכבה אפקטים כבדים כדי שהכרטיס ירוץ חלק יותר על Nest Hub, טאבלטים ישנים ומסכים חלשים." : "Turns off heavy visuals so the card runs smoother on Nest Hub, older tablets, and weaker displays.",
-        mobile_main_bar_items: he ? "בחר אילו כפתורים יופיעו בסרגל הראשי." : "Choose which actions appear in the main bar.",
-        mobile_quick_actions: he ? "בחר אילו אייקונים יופיעו בשורת הפעולות המהירות." : "Choose which icons appear in the quick action row.",
-        mobile_library_tabs: he ? "בחר אילו טאבים יהיו זמינים במסך הספרייה." : "Choose which tabs are available in the library screen.",
-        mobile_announcement_presets: he ? "אפשר להגדיר כמה משפטי כריזה מוכנים מראש." : "Configure ready-made announcement phrases.",
-        mobile_announcement_volume: he ? "מוסיף אחוזים לווליום הקיים רק בזמן הכריזה ואז מחזיר למה שהיה לפני." : "Adds to the current volume only during announcements, then restores the previous volume.",
-        announcement_tts_language: he ? "Auto לא שולח שפה ל־Home Assistant Cloud כדי להשתמש בברירת המחדל שלך. בחירה ידנית תשלח language מפורש." : "Auto leaves Home Assistant Cloud voice defaults untouched. Manual choices send an explicit language.",
-        active_player_helper_entity: he ? "אופציונלי: בחר input_text שהכרטיס יעדכן עם entity_id של הנגן הפעיל עבור אוטומציות ותבניות." : "Optional input_text helper updated with the active player entity_id for automations and templates.",
+        settings_source: homeiiEditorI18n("ui.choosing_visual_disables_the_in_card_settings_screen"),
+        night_mode: homeiiEditorI18n("ui.off_disables_it_on_keeps_it_active_and_auto_follows_the_configured_time"),
+        night_mode_auto_start: homeiiEditorI18n("ui.recommended_format_hh_mm_such_as_22_00"),
+        night_mode_auto_end: homeiiEditorI18n("ui.recommended_format_hh_mm_such_as_06_00_crossing_midnight_is_supported"),
+        night_mode_days: homeiiEditorI18n("ui.choose_which_days_the_auto_night_mode_window_applies_to"),
+        performance_mode: homeiiEditorI18n("ui.turns_off_heavy_visuals_so_the_card_runs_smoother_on_nest_hub_older_tabl"),
+        mobile_main_bar_items: homeiiEditorI18n("ui.choose_which_actions_appear_in_the_main_bar"),
+        mobile_quick_actions: homeiiEditorI18n("ui.choose_which_icons_appear_in_the_quick_action_row"),
+        mobile_library_tabs: homeiiEditorI18n("ui.choose_which_tabs_are_available_in_the_library_screen"),
+        mobile_announcement_presets: homeiiEditorI18n("ui.configure_ready_made_announcement_phrases"),
+        mobile_announcement_volume: homeiiEditorI18n("ui.adds_to_the_current_volume_only_during_announcements_then_restores_the_p"),
+        announcement_tts_language: homeiiEditorI18n("ui.auto_leaves_home_assistant_cloud_voice_defaults_untouched_manual_choices"),
+        ambient_light_enabled: homeiiEditorI18n("ui.sync_selected_lights_to_the_current_artwork_color"),
+        ambient_light_entities: homeiiEditorI18n("ui.choose_only_the_lights_that_should_follow_the_music"),
+        ambient_light_player_map: homeiiEditorI18n("ui.ambient_light_player_map_helper"),
+        ambient_light_brightness: homeiiEditorI18n("ui.maximum_brightness_for_music_lighting"),
+        ambient_light_transition: homeiiEditorI18n("ui.soft_transition_time_for_music_lighting"),
+        ambient_light_cooldown: homeiiEditorI18n("ui.minimum_seconds_between_light_updates"),
+        screensaver_enabled: homeiiEditorI18n("ui.show_a_calm_clock_artwork_display_after_idle_time"),
+        screensaver_message: homeiiEditorI18n("ui.short_optional_message_shown_on_the_screensaver"),
+        screensaver_clock_size: homeiiEditorI18n("ui.screensaver_clock_size_helper"),
+        screensaver_clock_x: homeiiEditorI18n("ui.screensaver_clock_x_helper"),
+        screensaver_clock_y: homeiiEditorI18n("ui.screensaver_clock_y_helper"),
+        power_button_enabled: homeiiEditorI18n("ui.show_power_button_in_the_player_controls"),
+        power_button_entity: homeiiEditorI18n("ui.optional_entity_for_the_power_button_leave_empty_to_stop_the_active_player"),
+        discovery_mode_enabled: homeiiEditorI18n("ui.show_the_fullscreen_discovery_mode_in_actions"),
+        active_player_helper_entity: homeiiEditorI18n("ui.optional_input_text_helper_updated_with_the_active_player_entity_id_for_2"),
       },
       options: {
         settings_source: [
-          { value: "device", label: he ? "מהמכשיר / הממשק" : "Per device / in-card" },
-          { value: "visual", label: he ? "מהעורך הוויזואלי" : "Visual editor" },
+          { value: "device", label: homeiiEditorI18n("ui.per_device_in_card") },
+          { value: "visual", label: homeiiEditorI18n("ui.visual_editor") },
         ],
         layout_mode: [
           { value: "auto", label: "Auto" },
-          { value: "mobile", label: he ? "מובייל" : "Mobile" },
-          { value: "tablet", label: he ? "טאבלט" : "Tablet" },
+          { value: "mobile", label: homeiiEditorI18n("ui.mobile") },
+          { value: "tablet", label: homeiiEditorI18n("ui.tablet") },
         ],
-        language: [
-          { value: "auto", label: "Auto" },
-          { value: "he", label: he ? "עברית" : "Hebrew" },
-          { value: "en", label: he ? "אנגלית" : "English" },
-        ],
+        language: HOMEII_LANGUAGE_OPTIONS,
         theme_mode: [
           { value: "auto", label: "Auto" },
-          { value: "dark", label: he ? "כהה" : "Dark" },
-          { value: "light", label: he ? "בהיר" : "Light" },
-          { value: "custom", label: he ? "אישי" : "Custom" },
+          { value: "dark", label: homeiiEditorI18n("ui.dark") },
+          { value: "light", label: homeiiEditorI18n("ui.light") },
+          { value: "custom", label: homeiiEditorI18n("ui.custom") },
         ],
         night_mode: [
-          { value: "off", label: he ? "כבוי" : "Off" },
+          { value: "off", label: homeiiEditorI18n("ui.off") },
           { value: "auto", label: "Auto" },
-          { value: "on", label: he ? "פעיל" : "On" },
+          { value: "on", label: homeiiEditorI18n("ui.on") },
         ],
         night_mode_days: [
-          { value: 0, label: he ? "א׳" : "Sun" },
-          { value: 1, label: he ? "ב׳" : "Mon" },
-          { value: 2, label: he ? "ג׳" : "Tue" },
-          { value: 3, label: he ? "ד׳" : "Wed" },
-          { value: 4, label: he ? "ה׳" : "Thu" },
-          { value: 5, label: he ? "ו׳" : "Fri" },
-          { value: 6, label: he ? "ש׳" : "Sat" },
+          { value: 0, label: homeiiEditorI18n("ui.sun") },
+          { value: 1, label: homeiiEditorI18n("ui.mon") },
+          { value: 2, label: homeiiEditorI18n("ui.tue") },
+          { value: 3, label: homeiiEditorI18n("ui.wed") },
+          { value: 4, label: homeiiEditorI18n("ui.thu") },
+          { value: 5, label: homeiiEditorI18n("ui.fri") },
+          { value: 6, label: homeiiEditorI18n("ui.sat") },
         ],
         mobile_custom_text_tone: [
-          { value: "light", label: he ? "בהיר" : "Light" },
-          { value: "dark", label: he ? "כהה" : "Dark" },
+          { value: "light", label: homeiiEditorI18n("ui.light") },
+          { value: "dark", label: homeiiEditorI18n("ui.dark") },
         ],
         mobile_swipe_mode: [
-          { value: "play", label: he ? "מעביר שיר" : "Change track" },
-          { value: "browse", label: he ? "מדפדף עטיפות" : "Browse covers" },
+          { value: "play", label: homeiiEditorI18n("ui.change_track") },
+          { value: "browse", label: homeiiEditorI18n("ui.browse_covers") },
         ],
         mobile_mic_mode: [
-          { value: "on", label: he ? "פעיל" : "On" },
-          { value: "off", label: he ? "כבוי" : "Off" },
-          { value: "smart", label: he ? "חכם" : "Smart" },
+          { value: "on", label: homeiiEditorI18n("ui.on") },
+          { value: "off", label: homeiiEditorI18n("ui.off") },
+          { value: "smart", label: homeiiEditorI18n("ui.smart") },
         ],
         announcement_tts_language: [
-          { value: "auto", label: he ? "אוטומטי / ברירת מחדל בענן" : "Auto / Cloud default" },
+          { value: "auto", label: homeiiEditorI18n("ui.auto_cloud_default") },
           { value: "en-US", label: "English (US)" },
           { value: "en-GB", label: "English (UK)" },
-          { value: "he-IL", label: he ? "עברית" : "Hebrew" },
+          { value: "he-IL", label: homeiiEditorI18n("ui.hebrew") },
           { value: "de-DE", label: "Deutsch" },
           { value: "fr-FR", label: "Français" },
           { value: "es-ES", label: "Español" },
           { value: "it-IT", label: "Italiano" },
         ],
         mobile_footer_mode: [
-          { value: "icon", label: he ? "אייקון בלבד" : "Icon only" },
-          { value: "text", label: he ? "מלל בלבד" : "Text only" },
-          { value: "both", label: he ? "אייקון ומלל" : "Icon + text" },
+          { value: "icon", label: homeiiEditorI18n("ui.icon_only") },
+          { value: "text", label: homeiiEditorI18n("ui.text_only") },
+          { value: "both", label: homeiiEditorI18n("ui.icon_plus_text") },
         ],
         mobile_volume_mode: [
-          { value: "button", label: he ? "כפתור" : "Button" },
-          { value: "always", label: he ? "פעיל תמיד" : "Always visible" },
+          { value: "button", label: homeiiEditorI18n("ui.button") },
+          { value: "always", label: homeiiEditorI18n("ui.always_visible") },
         ],
         mobile_liked_mode: [
           { value: "ma", label: "Music Assistant" },
-          { value: "local", label: he ? "מקומי" : "Local" },
+          { value: "local", label: homeiiEditorI18n("ui.local") },
+        ],
+        screensaver_clock_mode: [
+          { value: "digital", label: homeiiEditorI18n("ui.digital") },
+          { value: "analog", label: homeiiEditorI18n("ui.analog") },
+        ],
+        power_button_action: [
+          { value: "stop_player", label: homeiiEditorI18n("ui.stop_player") },
+          { value: "toggle", label: homeiiEditorI18n("ui.toggle") },
+          { value: "turn_on", label: homeiiEditorI18n("ui.turn_on") },
+          { value: "turn_off", label: homeiiEditorI18n("ui.turn_off") },
+          { value: "scene", label: homeiiEditorI18n("ui.scene") },
+          { value: "script", label: homeiiEditorI18n("ui.script") },
         ],
         ma_interface_target: [
           { value: "_self", label: "_self" },
           { value: "_blank", label: "_blank" },
         ],
         mobile_main_bar_items: [
-          { value: "search", label: he ? "חיפוש" : "Search" },
-          { value: "library", label: he ? "ספרייה" : "Library" },
-          { value: "players", label: he ? "נגנים" : "Players" },
-          { value: "actions", label: he ? "פעולות" : "Actions" },
-          { value: "settings", label: he ? "הגדרות" : "Settings" },
-          { value: "theme", label: he ? "שמש / ירח" : "Theme toggle" },
+          { value: "search", label: homeiiEditorI18n("ui.search") },
+          { value: "library", label: homeiiEditorI18n("ui.library_2") },
+          { value: "players", label: homeiiEditorI18n("ui.players") },
+          { value: "actions", label: homeiiEditorI18n("ui.actions_2") },
+          { value: "settings", label: homeiiEditorI18n("ui.settings") },
+          { value: "theme", label: homeiiEditorI18n("ui.theme_toggle_2") },
         ],
         mobile_quick_actions: [
-          { value: "timer", label: he ? "טיימר" : "Timer" },
-          { value: "like", label: he ? "אהבתי" : "Like" },
-          { value: "lyrics", label: he ? "מילים" : "Lyrics" },
-          { value: "queue", label: he ? "תור" : "Queue" },
-          { value: "radio", label: he ? "מיקס מהיר" : "Quick mix" },
-          { value: "history", label: he ? "היסטוריה" : "History" },
-          { value: "info", label: he ? "מידע" : "Info" },
+          { value: "timer", label: homeiiEditorI18n("ui.timer") },
+          { value: "like", label: homeiiEditorI18n("ui.like_2") },
+          { value: "lyrics", label: homeiiEditorI18n("ui.lyrics") },
+          { value: "queue", label: homeiiEditorI18n("ui.queue_2") },
+          { value: "radio", label: homeiiEditorI18n("ui.quick_mix") },
+          { value: "history", label: homeiiEditorI18n("ui.history") },
+          { value: "info", label: homeiiEditorI18n("ui.info") },
         ],
         mobile_library_tabs: [
-          { value: "library_search", label: he ? "חיפוש" : "Search" },
-          { value: "library_playlists", label: he ? "פלייליסטים" : "Playlists" },
-          { value: "library_artists", label: he ? "אמנים" : "Artists" },
-          { value: "library_albums", label: he ? "אלבומים" : "Albums" },
-          { value: "library_tracks", label: he ? "שירים" : "Tracks" },
-          { value: "library_radio", label: he ? "רדיו" : "Radio" },
-          { value: "library_podcasts", label: he ? "פודקאסטים" : "Podcasts" },
-          { value: "library_liked", label: he ? "אהבתי" : "Liked" },
+          { value: "library_search", label: homeiiEditorI18n("ui.search") },
+          { value: "library_playlists", label: homeiiEditorI18n("ui.playlists") },
+          { value: "library_artists", label: homeiiEditorI18n("ui.artists") },
+          { value: "library_albums", label: homeiiEditorI18n("ui.albums") },
+          { value: "library_tracks", label: homeiiEditorI18n("ui.tracks") },
+          { value: "library_radio", label: homeiiEditorI18n("ui.radio") },
+          { value: "library_podcasts", label: homeiiEditorI18n("ui.podcasts") },
+          { value: "library_liked", label: homeiiEditorI18n("ui.liked") },
         ],
       },
     };
@@ -14729,7 +15610,6 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           schema: [
             { name: "settings_source", selector: { select: { mode: "dropdown", options: t.options.settings_source } } },
             { name: "layout_mode", selector: { select: { mode: "dropdown", options: t.options.layout_mode } } },
-            { name: "height", selector: { number: { min: 480, max: 1400, step: 10, mode: "box" } } },
             { name: "language", selector: { select: { mode: "dropdown", options: t.options.language } } },
             { name: "rtl", selector: { boolean: {} } },
           ],
@@ -14790,6 +15670,31 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             { name: "cache_ttl", selector: { number: { min: 0, max: 3600000, step: 1000, mode: "box" } } },
             { name: "allow_local_likes", selector: { boolean: {} } },
             { name: "use_mass_queue_send_command", selector: { boolean: {} } },
+          ],
+        },
+        {
+          type: "expandable",
+          name: "smart_home_section",
+          title: t.sections.smart_home,
+          flatten: true,
+          schema: [
+            { name: "ambient_light_enabled", selector: { boolean: {} } },
+            { name: "ambient_light_entities", selector: { entity: { multiple: true, filter: [{ domain: "light" }] } } },
+            { name: "ambient_light_player_map", selector: { text: { multiple: true } } },
+            { name: "ambient_light_brightness", selector: { number: { min: 1, max: 100, step: 1, mode: "slider" } } },
+            { name: "ambient_light_transition", selector: { number: { min: 0, max: 120, step: 1, mode: "box" } } },
+            { name: "ambient_light_cooldown", selector: { number: { min: 0, max: 120, step: 1, mode: "box" } } },
+            { name: "screensaver_enabled", selector: { boolean: {} } },
+            { name: "screensaver_clock_mode", selector: { select: { mode: "dropdown", options: t.options.screensaver_clock_mode } } },
+            { name: "screensaver_clock_size", selector: { number: { min: 0.75, max: 1.45, step: 0.05, mode: "slider" } } },
+            { name: "screensaver_clock_x", selector: { number: { min: 8, max: 92, step: 1, mode: "slider" } } },
+            { name: "screensaver_clock_y", selector: { number: { min: 8, max: 70, step: 1, mode: "slider" } } },
+            { name: "screensaver_timeout_seconds", selector: { number: { min: 15, max: 3600, step: 5, mode: "box" } } },
+            { name: "screensaver_message", selector: { text: {} } },
+            { name: "power_button_enabled", selector: { boolean: {} } },
+            { name: "power_button_action", selector: { select: { mode: "dropdown", options: t.options.power_button_action } } },
+            { name: "power_button_entity", selector: { entity: { multiple: false } } },
+            { name: "discovery_mode_enabled", selector: { boolean: {} } },
           ],
         },
         {
@@ -14872,6 +15777,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       settings_source: HomeiiStateFoundation.normalizeSettingsSource(config?.settings_source),
     });
     this._applyConfiguredMobileSettings();
+    this._syncScreensaverClockVars();
+    if (this._state.screensaverOpen) this._syncScreensaverUi();
     this._hydrateSystemMobileState().catch(() => {});
   }
 
@@ -14968,16 +15875,26 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
   }
 
-  _layoutModeConfig() {
+  _layoutModeConfig(options = {}) {
+    const viewportWidth = typeof window !== "undefined" ? Number(window.innerWidth || 0) : 0;
+    const optionWidth = Number(options?.width || 0);
+    const cardWidth = optionWidth > 0
+      ? optionWidth
+      : this._getCardWidth(this._lastCardWidth || viewportWidth);
     return HomeiiResponsiveFoundation.resolveLayoutMode(this._config?.layout_mode, {
-      rectWidth: Number(this.getBoundingClientRect?.().width || 0),
-      hostWidth: Number(this.offsetWidth || 0),
-      viewportWidth: typeof window !== "undefined" ? Number(window.innerWidth || 0) : 0,
+      rectWidth: cardWidth,
+      hostWidth: 0,
+      viewportWidth: cardWidth > 0 ? 0 : viewportWidth,
     });
   }
 
-  _m(en, he) {
-    return this._isHebrew() ? he : en;
+  _m(en, he, params = {}) {
+    return homeiiTranslateText(
+      this._language(),
+      en,
+      params,
+      this._isHebrew() ? he : en,
+    );
   }
 
   _effectiveTheme() {
@@ -15251,11 +16168,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._state.mobileDynamicThemeArtworkUrl = "";
       this._state.mobileDynamicThemePalette = null;
       this._applyDynamicThemeStyles();
+      this._syncAmbientLightForCurrentMedia("theme-off");
       return;
     }
     if (this._state.mobileDynamicThemeArtwork === artworkKey) {
       this._state.mobileDynamicThemeArtworkUrl = normalizedArt;
       this._applyDynamicThemeStyles();
+      this._syncAmbientLightForCurrentMedia("theme-cache");
       return;
     }
     this._state.mobileDynamicThemeArtwork = artworkKey;
@@ -15268,6 +16187,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.controlRoomRenderSignature = "";
     this._applyDynamicThemeStyles();
     this._applyBackgroundMotionStyles();
+    this._syncAmbientLightForCurrentMedia("theme-palette");
     this._syncNowPlayingUI();
   }
 
@@ -15297,13 +16217,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _nightModeDayOptions() {
     return [
-      [0, this._m("Sun", "א׳")],
-      [1, this._m("Mon", "ב׳")],
-      [2, this._m("Tue", "ג׳")],
-      [3, this._m("Wed", "ד׳")],
-      [4, this._m("Thu", "ה׳")],
-      [5, this._m("Fri", "ו׳")],
-      [6, this._m("Sat", "ש׳")],
+      [0, this._i18n("ui.sun")],
+      [1, this._i18n("ui.mon")],
+      [2, this._i18n("ui.tue")],
+      [3, this._i18n("ui.wed")],
+      [4, this._i18n("ui.thu")],
+      [5, this._i18n("ui.fri")],
+      [6, this._i18n("ui.sat")],
     ];
   }
 
@@ -15366,10 +16286,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         <button class="sleep-timer-menu-btn" data-sleep-timer-add="15">+15</button>
         <button class="sleep-timer-menu-btn" data-sleep-timer-add="30">+30</button>
         <button class="sleep-timer-menu-btn" data-sleep-timer-add="60">+60</button>
-        <button class="sleep-timer-menu-btn danger" data-sleep-timer-clear>${this._esc(this._m("Cancel", "בטל"))}</button>
-        <button class="sleep-timer-menu-btn ghost" data-sleep-timer-close>${this._esc(this._m("Close", "סגור"))}</button>
+        <button class="sleep-timer-menu-btn danger" data-sleep-timer-clear>${this._esc(this._i18n("ui.cancel_2"))}</button>
+        <button class="sleep-timer-menu-btn ghost" data-sleep-timer-close>${this._esc(this._i18n("ui.close"))}</button>
       </div>
-      <button class="sleep-timer-chip active" id="sleepTimerChip" title="${this._esc(this._m("Sleep timer", "טיימר שינה"))}">
+      <button class="sleep-timer-chip active" id="sleepTimerChip" title="${this._esc(this._i18n("ui.sleep_timer"))}">
         ${this._iconSvg("timer")}
         <span id="sleepTimerChipLabel">${this._esc(label)}</span>
       </button>
@@ -15470,10 +16390,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _scheduledStartPlaylistLabel(schedule = null) {
     const selected = String(schedule?.playlist || this._state.mobileStartTimerPlaylist || "").trim();
-    if (!selected) return this._m("Random gentle morning mix", "מיקס בוקר נעים ואקראי");
+    if (!selected) return this._i18n("ui.random_gentle_morning_mix");
     const playlists = Array.isArray(this._state.mobileStartTimerPlaylists) ? this._state.mobileStartTimerPlaylists : [];
     const match = playlists.find((item) => String(item?.uri || "").trim() === selected);
-    return match?.name || match?.title || schedule?.playlistName || this._state.mobileStartTimerPlaylistName || this._m("Selected playlist", "פלייליסט נבחר");
+    return match?.name || match?.title || schedule?.playlistName || this._state.mobileStartTimerPlaylistName || this._i18n("ui.selected_playlist");
   }
 
   _scheduledStartPlaylistOptionsHtml(schedule = null) {
@@ -15481,10 +16401,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const playlists = Array.isArray(this._state.mobileStartTimerPlaylists) ? this._state.mobileStartTimerPlaylists : [];
     const selectedKnown = selected && playlists.some((item) => String(item?.uri || "").trim() === selected);
     const options = [
-      `<option value="" ${selected ? "" : "selected"}>${this._esc(this._m("Random gentle morning mix", "מיקס בוקר נעים ואקראי"))}</option>`,
+      `<option value="" ${selected ? "" : "selected"}>${this._esc(this._i18n("ui.random_gentle_morning_mix"))}</option>`,
     ];
     if (selected && !selectedKnown) {
-      options.push(`<option value="${this._esc(selected)}" selected>${this._esc(schedule?.playlistName || this._state.mobileStartTimerPlaylistName || this._m("Selected playlist", "פלייליסט נבחר"))}</option>`);
+      options.push(`<option value="${this._esc(selected)}" selected>${this._esc(schedule?.playlistName || this._state.mobileStartTimerPlaylistName || this._i18n("ui.selected_playlist"))}</option>`);
     }
     playlists.forEach((item) => {
       const uri = String(item?.uri || "").trim();
@@ -15525,16 +16445,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const schedules = this._scheduledStartSchedules();
     const activeSchedules = schedules.filter((schedule) => schedule.enabled !== false);
     if (!activeSchedules.length) {
-      return this._m("No scheduled start is active", "אין כרגע תזמון הפעלה פעיל");
+      return this._i18n("ui.no_scheduled_start_is_active");
     }
     if (activeSchedules.length > 1) {
-      return this._isHebrew()
-        ? `${activeSchedules.length} תזמוני הפעלה פעילים`
-        : `${activeSchedules.length} scheduled starts active`;
+      return this._i18n("ui.scheduled_starts_active_count", { count: activeSchedules.length });
     }
     const schedule = activeSchedules[0];
     const player = this._playerByEntityId(this._scheduledStartPlayerId(schedule));
-    const playerName = player?.attributes?.friendly_name || this._m("Selected player", "הנגן הנבחר");
+    const playerName = player?.attributes?.friendly_name || this._i18n("ui.selected_player_3");
     const dayLabels = this._nightModeDayOptions()
       .filter(([value]) => this._normalizeNightModeDays(schedule.days).includes(value))
       .map(([, label]) => label)
@@ -15542,9 +16460,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const time = this._normalizeClockTime(schedule.time || "07:00", "07:00");
     const volume = Math.max(0, Math.min(100, Number(schedule.volume || 35) || 35));
     const playlist = this._scheduledStartPlaylistLabel(schedule);
-    return this._isHebrew()
-      ? `${time} · ${playerName} · ${playlist} · ${volume}% · ${dayLabels}`
-      : `${time} · ${playerName} · ${playlist} · ${volume}% · ${dayLabels}`;
+    return `${time} · ${playerName} · ${playlist} · ${volume}% · ${dayLabels}`;
   }
 
   _setScheduledStartFromMenu() {
@@ -15558,7 +16474,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6);
     const playerId = String(playerSelect?.value || this._state.selectedPlayer || "").trim();
     if (!playerId) {
-      this._toastError(this._m("Select a player first", "בחר נגן קודם"));
+      this._toastError(this._i18n("ui.select_a_player_first"));
       return false;
     }
     const editId = String(this._state.mobileStartScheduleEditId || "").trim();
@@ -15592,7 +16508,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.mobileStartTimerLastRunKey = schedule.lastRunKey;
     this._state.mobileStartTimerAfterRun = schedule.afterRun || "keep";
     this._persistMobileAppearance();
-    this._toastSuccess(this._m("Scheduled start saved", "תזמון ההפעלה נשמר"));
+    this._toastSuccess(this._i18n("ui.scheduled_start_saved"));
     return true;
   }
 
@@ -15607,7 +16523,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.mobileStartTimerEnabled = this._activeScheduledStartSchedules().length > 0;
     this._state.mobileStartTimerLastRunKey = "";
     this._persistMobileAppearance();
-    if (showToast) this._toast(this._m("Scheduled start cleared", "תזמון ההפעלה בוטל"));
+    if (showToast) this._toast(this._i18n("ui.scheduled_start_cleared"));
   }
 
   _editScheduledStart(id = "") {
@@ -15671,7 +16587,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       let ok = false;
       if (pick?.uri) {
         ok = await this._playMediaOnPlayer(entityId, pick.uri, pick.media_type || "playlist", "play", {
-          label: pick.name || pick.title || this._m("Morning mix", "מיקס בוקר"),
+          label: pick.name || pick.title || this._i18n("ui.morning_mix"),
           silent: true,
         });
       }
@@ -15683,12 +16599,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           await this._hass?.callService?.("media_player", "media_play", { entity_id: entityId });
         }
       }
-      const label = pick?.name || pick?.title || this._m("Scheduled start", "תזמון הפעלה");
-      this._toastSuccess(this._isHebrew()
-        ? `תזמון ההפעלה הופעל: ${label}`
-        : `Scheduled start activated: ${label}`);
+      const label = pick?.name || pick?.title || this._i18n("ui.scheduled_start");
+      this._toastSuccess(this._i18n("ui.scheduled_start_activated_label", { label }));
     } catch (error) {
-      this._toastError(error?.message || this._m("Scheduled start failed", "תזמון ההפעלה נכשל"));
+      this._toastError(error?.message || this._i18n("ui.scheduled_start_failed"));
     } finally {
       this._state.mobileStartTimerRunPending = false;
     }
@@ -15712,7 +16626,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       if (schedule.afterRun === "disable") schedule.enabled = false;
       changed = true;
       this._runScheduledStart(entityId, schedule).catch((error) => {
-        this._toastError(error?.message || this._m("Scheduled start failed", "תזמון ההפעלה נכשל"));
+        this._toastError(error?.message || this._i18n("ui.scheduled_start_failed"));
       });
     });
     if (changed) {
@@ -15735,6 +16649,24 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     });
   }
 
+  _mobileContentDense(layoutMode = this._layoutModeConfig(), layoutProfile = null, options = {}) {
+    if (layoutMode === "tablet") return false;
+    const profile = layoutProfile || this._layoutProfileConfig(layoutMode);
+    const width = Number(profile?.width || this._getCardWidth(this._lastCardWidth || 0));
+    const height = Number(profile?.height || this._lastCardHeight || 0);
+    const showNightRow = typeof options.showNightRow === "boolean"
+      ? options.showNightRow
+      : this._mobileNightMode() !== "off";
+    const showUpNextInline = typeof options.showUpNextInline === "boolean"
+      ? options.showUpNextInline
+      : (this._mobileShowUpNextEnabled() && !!this._mobileUpNextItem());
+    const narrowPhone = width > 0 && width <= 620;
+    const kioskLikePortrait = narrowPhone && profile?.aspect === "portrait";
+    const shortHeight = profile?.heightSize === "short" || profile?.tight || (height > 0 && height < 780);
+    const denseContent = showNightRow || showUpNextInline;
+    return !!(denseContent || shortHeight || kioskLikePortrait || profile?.size === "xs");
+  }
+
   _syncTabletAutoFitUi(hasUpNext = null) {
     const card = this.shadowRoot?.querySelector(".card");
     if (!card) return;
@@ -15742,21 +16674,27 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const upNextVisible = typeof hasUpNext === "boolean"
       ? hasUpNext
       : (this._mobileShowUpNextEnabled() && !!this._mobileUpNextItem());
-    const flags = HomeiiResponsiveFoundation.resolveTabletAutoFitFlags(this._layoutModeConfig(), {
+    const layoutMode = this._layoutModeConfig();
+    const flags = HomeiiResponsiveFoundation.resolveTabletAutoFitFlags(layoutMode, {
       showNightRow,
       showUpNext: upNextVisible,
     });
+    const layoutProfile = this._layoutProfileConfig(layoutMode);
     card.classList.toggle("tablet-auto-fit", flags.autoFit);
     card.classList.toggle("tablet-fit-night", flags.showNight);
     card.classList.toggle("tablet-fit-up-next", flags.showUpNext);
     card.classList.toggle("tablet-fit-dense", flags.dense);
+    card.classList.toggle("mobile-content-dense", this._mobileContentDense(layoutMode, layoutProfile, {
+      showNightRow,
+      showUpNextInline: upNextVisible,
+    }));
   }
 
   _setSleepTimerMinutes(minutes = 15, source = "general") {
     const amount = Math.max(1, Number(minutes) || 0);
     const player = this._getSelectedPlayer();
     if (!player?.entity_id) {
-      this._toastError(this._m("Select a player first", "בחר נגן קודם"));
+      this._toastError(this._i18n("ui.select_a_player_first"));
       return false;
     }
     this._state.mobileSleepTimerEndsAt = HomeiiNightFoundation.createSleepTimerTargetAt(amount, Date.now());
@@ -15766,7 +16704,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._persistMobileAppearance();
     this._syncNightModeUi();
     this._syncSleepTimerChip();
-    this._toastSuccess(this._isHebrew() ? `טיימר שינה הופעל ל־${amount} דקות` : `Sleep timer set for ${amount} minutes`);
+    this._toastSuccess(this._i18n("ui.sleep_timer_set_minutes", { minutes: amount }));
     return true;
   }
 
@@ -15782,7 +16720,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._persistMobileAppearance();
     this._syncNightModeUi();
     this._syncSleepTimerChip();
-    this._toastSuccess(this._isHebrew() ? `נוספו ${amount} דקות לטיימר` : `Added ${amount} minutes to the timer`);
+    this._toastSuccess(this._i18n("ui.sleep_timer_added_minutes", { minutes: amount }));
   }
 
   _toggleSleepTimerMenu(force = null) {
@@ -15809,7 +16747,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._syncNightModeUi();
     this._syncSleepTimerChip();
     if (showToast) {
-      this._toast(this._m("Sleep timer cleared", "טיימר השינה בוטל"));
+      this._toast(this._i18n("ui.sleep_timer_cleared"));
     }
   }
 
@@ -15820,7 +16758,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (!currentRemaining) {
       const player = this._getSelectedPlayer();
       if (!player?.entity_id) {
-        this._toastError(this._m("Select a player first", "בחר נגן קודם"));
+        this._toastError(this._i18n("ui.select_a_player_first"));
         return;
       }
       this._state.mobileSleepTimerEndsAt = HomeiiNightFoundation.createSleepTimerTargetAt(steps[0], Date.now());
@@ -15830,7 +16768,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._persistMobileAppearance();
       this._syncNightModeUi();
       this._syncSleepTimerChip();
-      this._toastSuccess(this._m("Sleep timer set for 15 minutes", "טיימר שינה הופעל ל־15 דקות"));
+      this._toastSuccess(this._i18n("ui.sleep_timer_set_for_15_minutes"));
       return;
     }
     const nextStep = HomeiiNightFoundation.nextSleepTimerStep(currentRemaining, steps);
@@ -15846,9 +16784,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._persistMobileAppearance();
     this._syncNightModeUi();
     this._syncSleepTimerChip();
-    this._toastSuccess(this._isHebrew()
-      ? `טיימר שינה עודכן ל־${nextStep} דקות`
-      : `Sleep timer updated to ${nextStep} minutes`);
+    this._toastSuccess(this._i18n("ui.sleep_timer_updated_minutes", { minutes: nextStep }));
   }
 
   async _playNightMix() {
@@ -15879,14 +16815,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const pool = matches.length ? matches : playlists;
       const pick = pool[Math.floor(Math.random() * pool.length)];
       const ok = await this._playMedia(pick.uri, pick.media_type || "playlist", "play", {
-        label: pick.name || this._m("Chill mix", "מיקס רגוע"),
+        label: pick.name || this._i18n("ui.chill_mix"),
         silent: true,
       });
       if (ok) {
-        this._toastSuccess(this._m("Starting a chill mix", "מפעיל מיקס רגוע"));
+        this._toastSuccess(this._i18n("ui.starting_a_chill_mix"));
       }
     } catch (error) {
-      this._toastError(error?.message || this._m("Could not start chill mix", "לא ניתן להפעיל מיקס רגוע"));
+      this._toastError(error?.message || this._i18n("ui.could_not_start_chill_mix"));
     }
   }
 
@@ -15918,7 +16854,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       return {
         uri,
         media_type: normalizedType,
-        name: title || this._m("Quick mix", "מיקס מהיר"),
+        name: title || this._i18n("ui.quick_mix"),
         image,
       };
     }
@@ -15952,7 +16888,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       ? {
           uri: String(best.uri || "").trim(),
           media_type: String(best.media_type || "track").toLowerCase(),
-          name: best.name || title || this._m("Quick mix", "מיקס מהיר"),
+          name: best.name || title || this._i18n("ui.quick_mix"),
           image: this._artUrl(best) || image,
         }
       : null;
@@ -15975,7 +16911,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       return {
         uri,
         media_type: media.media_type || item.media_type || "track",
-        title: media.name || item.name || this._m("Recommended track", "המלצה"),
+        title: media.name || item.name || this._i18n("ui.recommended_track"),
         artist: media.artists?.map((artist) => artist?.name).filter(Boolean).join(", ") || item.media_artist || media.album?.name || "",
         album: media.album?.name || item.album || "",
         image: this._queueItemImageUrl(item, 120) || this._artUrl(media) || "",
@@ -15987,7 +16923,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     try {
       const entry = await this._resolveQuickMixEntry();
       if (!entry?.uri || !this._supportsMusicAssistantRadioMode(entry.media_type || "")) {
-        this._toastError(this._m("Could not build Quick Mix from the current song", "לא הצלחתי לבנות Quick Mix מהשיר הנוכחי"));
+        this._toastError(this._i18n("ui.could_not_build_quick_mix_from_the_current_song"));
         return;
       }
       this._rememberQuickMixRecommendationSeed();
@@ -15995,22 +16931,22 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._state.quickMixPendingEntry = entry;
       this._syncNowPlayingUI();
       const ok = await this._playMedia(entry.uri, entry.media_type || "track", "play", {
-        label: entry.name || this._m("Quick mix", "מיקס מהיר"),
+        label: entry.name || this._i18n("ui.quick_mix"),
         radioMode: true,
         silent: true,
       });
       if (ok) {
-        this._toastSuccess(this._m("Quick mix started", "המיקס המהיר הופעל"), { position: "center", duration: 5000 });
+        this._toastSuccess(this._i18n("ui.quick_mix_started"), { position: "center", duration: 5000 });
         this._syncRecentHistoryUi();
         return;
       }
       this._state.quickMixPendingUntil = 0;
       this._state.quickMixPendingEntry = null;
-      this._toastError(this._m("Could not start Quick Mix", "לא ניתן להפעיל Quick Mix"));
+      this._toastError(this._i18n("ui.could_not_start_quick_mix"));
     } catch (error) {
       this._state.quickMixPendingUntil = 0;
       this._state.quickMixPendingEntry = null;
-      this._toastError(error?.message || this._m("Could not start Quick Mix", "לא ניתן להפעיל Quick Mix"));
+      this._toastError(error?.message || this._i18n("ui.could_not_start_quick_mix"));
     }
   }
 
@@ -16029,7 +16965,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (entityId) {
       this._hass.callService("media_player", "media_pause", { entity_id: entityId });
     }
-    this._toastSuccess(this._m("Sleep timer finished", "טיימר השינה הסתיים"));
+    this._toastSuccess(this._i18n("ui.sleep_timer_finished"));
   }
 
   _syncNightModeUi() {
@@ -16068,22 +17004,21 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       modeBtn.classList.toggle("active", active || mode === "on");
       modeBtn.classList.toggle("soft", mode === "auto" && !active);
       modeBtn.title = mode === "auto"
-        ? this._isHebrew()
-          ? `מצב לילה אוטומטי ${this._nightModeWindow().start}-${this._nightModeWindow().end}`
-          : `Night mode auto ${this._nightModeWindow().start}-${this._nightModeWindow().end}`
+        ? this._i18n("ui.night_mode_auto_window", {
+          start: this._nightModeWindow().start,
+          end: this._nightModeWindow().end,
+        })
         : mode === "on"
-          ? this._m("Night mode is always on", "מצב לילה פעיל תמיד")
-          : this._m("Night mode is off", "מצב לילה כבוי");
+          ? this._i18n("ui.night_mode_is_always_on")
+          : this._i18n("ui.night_mode_is_off");
     }
     const sleepBtn = this.$("nightSleepBtn");
     if (sleepBtn) {
       sleepBtn.hidden = mode !== "on";
       sleepBtn.classList.toggle("active", sleepActive);
       sleepBtn.title = sleepActive
-        ? this._isHebrew()
-          ? `טיימר שינה פעיל: ${this._sleepTimerRemainingLabel()}`
-          : `Sleep timer active: ${this._sleepTimerRemainingLabel()}`
-        : this._m("Tap to start a sleep timer", "לחץ כדי להפעיל טיימר שינה");
+        ? this._i18n("ui.sleep_timer_active_remaining", { remaining: this._sleepTimerRemainingLabel() })
+        : this._i18n("ui.tap_to_start_a_sleep_timer");
     }
     const chillBtn = this.$("nightChillBtn");
     if (chillBtn) {
@@ -16107,10 +17042,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     btn.classList.remove("hidden");
     btn.classList.toggle("active", active);
     btn.title = active
-      ? this._isHebrew()
-        ? `טיימר פעיל: ${remainingLabel}`
-        : `Timer active: ${remainingLabel}`
-      : this._m("Schedules", "תזמונים");
+      ? this._i18n("ui.timer_active_remaining", { remaining: remainingLabel })
+      : this._i18n("ui.schedules");
     if (label) {
       label.hidden = !active;
       label.textContent = active ? remainingLabel : "";
@@ -16356,6 +17289,24 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     try { localStorage.setItem("homeii_music_flow_mobile_announcement_volume", String(this._announcementVolumePct())); } catch (_) {}
     try { localStorage.setItem("homeii_music_flow_mobile_announcement_tts_entity", this._state.mobileAnnouncementTtsEntity || ""); } catch (_) {}
     try { localStorage.setItem("homeii_music_flow_mobile_announcement_tts_language", this._announcementLanguageSetting()); } catch (_) {}
+    try { localStorage.setItem("homeii_music_flow_ambient_light_enabled", JSON.stringify(!!this._state.ambientLightEnabled)); } catch {}
+    try { localStorage.setItem("homeii_music_flow_ambient_light_entities", JSON.stringify(this._ambientLightEntities())); } catch {}
+    try { localStorage.setItem("homeii_music_flow_ambient_light_player_map", JSON.stringify(this._ambientLightPlayerMap())); } catch {}
+    try { localStorage.setItem("homeii_music_flow_ambient_light_brightness", String(this._ambientLightBrightness())); } catch {}
+    try { localStorage.setItem("homeii_music_flow_ambient_light_transition", String(this._ambientLightTransition())); } catch {}
+    try { localStorage.setItem("homeii_music_flow_ambient_light_cooldown", String(this._ambientLightCooldown())); } catch {}
+    try { localStorage.setItem("homeii_music_flow_screensaver_enabled", JSON.stringify(!!this._state.screensaverEnabled)); } catch {}
+    try { localStorage.setItem("homeii_music_flow_screensaver_clock_mode", this._screensaverClockMode()); } catch {}
+    try { localStorage.setItem("homeii_music_flow_screensaver_timeout_seconds", String(this._screensaverTimeoutSeconds())); } catch {}
+    try { localStorage.setItem("homeii_music_flow_screensaver_message", this._screensaverMessage()); } catch {}
+    try { localStorage.setItem("homeii_music_flow_screensaver_clock_size", String(this._screensaverClockSize())); } catch {}
+    try { localStorage.setItem("homeii_music_flow_screensaver_clock_x", String(this._screensaverClockX())); } catch {}
+    try { localStorage.setItem("homeii_music_flow_screensaver_clock_y", String(this._screensaverClockY())); } catch {}
+    try { localStorage.setItem("homeii_music_flow_power_button_enabled", JSON.stringify(!!this._state.powerButtonEnabled)); } catch {}
+    try { localStorage.setItem("homeii_music_flow_power_button_action", this._powerButtonAction()); } catch {}
+    try { localStorage.setItem("homeii_music_flow_power_button_entity", this._powerButtonEntity()); } catch {}
+    try { localStorage.setItem("homeii_music_flow_discovery_mode_enabled", JSON.stringify(this._discoveryModeEnabled())); } catch {}
+    try { localStorage.setItem("homeii_music_flow_discovery_genre_key", this._state.discoveryGenreKey || "all"); } catch {}
     try { localStorage.setItem("homeii_music_flow_mobile_pinned_players", JSON.stringify(this._pinnedPlayerPreferences())); } catch (_) {}
     try { localStorage.setItem("homeii_music_flow_mobile_pinned_player", this._pinnedPlayerPreference()); } catch (_) {}
   }
@@ -16392,6 +17343,466 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _mobileHomeShortcutPath() {
     return HomeiiMobileSettingsFoundation.normalizeHomeShortcutPath(this._state.mobileHomeShortcutPath, { leadingSlash: true });
+  }
+
+  _ambientLightEnabled() {
+    return this._state.ambientLightEnabled === true;
+  }
+
+  _ambientLightEntities() {
+    const entities = HomeiiMobileSettingsFoundation.normalizeEntityList(this._state.ambientLightEntities);
+    this._state.ambientLightEntities = entities;
+    return entities;
+  }
+
+  _ambientLightPlayerMap() {
+    const mappings = HomeiiMobileSettingsFoundation.normalizeStringArray(this._state.ambientLightPlayerMap);
+    this._state.ambientLightPlayerMap = mappings;
+    return mappings;
+  }
+
+  _ambientLightPlayerMapEntries() {
+    return HomeiiMobileSettingsFoundation.parseAmbientLightPlayerMap(this._ambientLightPlayerMap());
+  }
+
+  _ambientLightEntitiesForPlayer(player = this._getSelectedPlayer()) {
+    const playerId = String(player?.entity_id || this._state.selectedPlayer || "").trim();
+    const mapped = this._ambientLightPlayerMapEntries()
+      .find((entry) => entry.player === playerId);
+    const entities = mapped ? mapped.lights : this._ambientLightEntities();
+    return HomeiiMobileSettingsFoundation.normalizeEntityList(entities)
+      .filter((entityId) => entityId.startsWith("light."));
+  }
+
+  _ambientLightBrightnessForPlayer(player = this._getSelectedPlayer()) {
+    const maxBrightness = this._ambientLightBrightness();
+    const volumeLevel = Number(player?.attributes?.volume_level);
+    if (!Number.isFinite(volumeLevel)) return maxBrightness;
+    const ratio = Math.max(0, Math.min(1, volumeLevel));
+    return Math.max(1, Math.min(maxBrightness, Math.round(maxBrightness * ratio)));
+  }
+
+  _ambientLightBrightness() {
+    const brightness = HomeiiMobileSettingsFoundation.clampPercent(this._state.ambientLightBrightness, 35, { min: 1, max: 100 });
+    this._state.ambientLightBrightness = brightness;
+    return brightness;
+  }
+
+  _ambientLightTransition() {
+    const transition = HomeiiMobileSettingsFoundation.clampSeconds(this._state.ambientLightTransition, 3, { min: 0, max: 120 });
+    this._state.ambientLightTransition = transition;
+    return transition;
+  }
+
+  _ambientLightCooldown() {
+    const cooldown = HomeiiMobileSettingsFoundation.clampSeconds(this._state.ambientLightCooldown, 8, { min: 0, max: 120 });
+    this._state.ambientLightCooldown = cooldown;
+    return cooldown;
+  }
+
+  _screensaverEnabled() {
+    if (this._state.screensaverEnabled !== true) return false;
+    const rect = this.getBoundingClientRect?.();
+    const width = Math.max(
+      Number(rect?.width || 0),
+      Number(this.offsetWidth || 0),
+      typeof window !== "undefined" ? Number(window.innerWidth || 0) : 0,
+    );
+    const height = Math.max(
+      Number(rect?.height || 0),
+      typeof window !== "undefined" ? Number(window.innerHeight || 0) : 0,
+    );
+    return width >= 760 && height >= 620;
+  }
+
+  _screensaverClockMode() {
+    const mode = HomeiiMobileSettingsFoundation.normalizeScreensaverClockMode(this._state.screensaverClockMode);
+    this._state.screensaverClockMode = mode;
+    return mode;
+  }
+
+  _screensaverClockSize() {
+    const size = HomeiiMobileSettingsFoundation.clampNumber(this._state.screensaverClockSize, 1, { min: 0.75, max: 1.45 });
+    this._state.screensaverClockSize = size;
+    return size;
+  }
+
+  _screensaverClockX() {
+    const x = HomeiiMobileSettingsFoundation.clampNumber(this._state.screensaverClockX, 82, { min: 8, max: 92 });
+    this._state.screensaverClockX = x;
+    return x;
+  }
+
+  _screensaverClockY() {
+    const y = HomeiiMobileSettingsFoundation.clampNumber(this._state.screensaverClockY, 24, { min: 8, max: 70 });
+    this._state.screensaverClockY = y;
+    return y;
+  }
+
+  _syncScreensaverClockVars() {
+    const card = this.shadowRoot?.querySelector?.(".card");
+    if (!card) return;
+    card.style.setProperty("--screensaver-clock-scale", this._screensaverClockSize().toFixed(2));
+    card.style.setProperty("--screensaver-clock-x", `${this._screensaverClockX().toFixed(1)}%`);
+    card.style.setProperty("--screensaver-clock-y", `${this._screensaverClockY().toFixed(1)}%`);
+  }
+
+  _screensaverTimeoutSeconds() {
+    const seconds = HomeiiMobileSettingsFoundation.clampSeconds(this._state.screensaverTimeoutSeconds, 90, { min: 15, max: 3600 });
+    this._state.screensaverTimeoutSeconds = seconds;
+    return seconds;
+  }
+
+  _screensaverMessage() {
+    return String(this._state.screensaverMessage || "").trim();
+  }
+
+  _powerButtonEnabled() {
+    return this._state.powerButtonEnabled === true;
+  }
+
+  _powerButtonAction() {
+    const action = HomeiiMobileSettingsFoundation.normalizePowerButtonAction(this._state.powerButtonAction);
+    this._state.powerButtonAction = action;
+    return action;
+  }
+
+  _powerButtonEntity() {
+    return String(this._state.powerButtonEntity || "").trim();
+  }
+
+  _discoveryModeEnabled() {
+    return this._state.discoveryModeEnabled !== false;
+  }
+
+  _activeAccentRgbTuple() {
+    const parts = String(this._activeAccentRgb() || "")
+      .split(/[\s,]+/)
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value));
+    if (parts.length >= 3) return parts.slice(0, 3).map((value) => this._clampByte(value));
+    return HomeiiPaletteFoundation.hexToRgbTuple(this._activeAccentColor() || "#f5a623");
+  }
+
+  _ambientLightTrackSignature(player = this._getSelectedPlayer()) {
+    const queueItem = this._state.maQueueState?.current_item || null;
+    return [
+      player?.entity_id,
+      player?.attributes?.media_content_id,
+      player?.attributes?.media_title,
+      player?.attributes?.media_artist,
+      this._getQueueItemStableId?.(queueItem),
+      this._getQueueItemUri?.(queueItem),
+      this._state.mobileDynamicThemeArtwork || "",
+    ].map((value) => String(value || "").trim()).filter(Boolean).join("|");
+  }
+
+  _syncAmbientLightForCurrentMedia(reason = "") {
+    if (!this._ambientLightEnabled() || !this._hass?.callService) return;
+    const player = this._getSelectedPlayer();
+    if (!player || player.state !== "playing") return;
+    const entities = this._ambientLightEntitiesForPlayer(player);
+    if (!entities.length) return;
+    const rgb = this._activeAccentRgbTuple();
+    const brightness = this._ambientLightBrightnessForPlayer(player);
+    const trackSignature = this._ambientLightTrackSignature(player);
+    const signature = [
+      trackSignature,
+      entities.join(","),
+      rgb.join(","),
+      brightness,
+      this._ambientLightTransition(),
+      reason,
+    ].join("|");
+    if (signature === this._ambientLightLastSignature) return;
+    const now = Date.now();
+    const trackChanged = trackSignature && trackSignature !== this._ambientLightLastTrackSignature;
+    const brightnessChanged = Math.abs(brightness - Number(this._ambientLightLastBrightness || 0)) >= 3;
+    const settingsUpdate = reason === "settings";
+    const cooldownMs = this._ambientLightCooldown() * 1000;
+    if (!trackChanged && !brightnessChanged && !settingsUpdate && cooldownMs > 0 && now - Number(this._ambientLightLastCallAt || 0) < cooldownMs) return;
+    this._ambientLightLastSignature = signature;
+    this._ambientLightLastTrackSignature = trackSignature;
+    this._ambientLightLastCallAt = now;
+    this._ambientLightLastBrightness = brightness;
+    const serviceCall = this._hass.callService("light", "turn_on", {
+      entity_id: entities,
+      rgb_color: rgb,
+      brightness_pct: brightness,
+      transition: this._ambientLightTransition(),
+    });
+    serviceCall?.catch?.(() => {});
+  }
+
+  async _runPowerButtonAction() {
+    if (!this._powerButtonEnabled()) return;
+    const action = this._powerButtonAction();
+    const entityId = this._powerButtonEntity();
+    try {
+      if (action === "stop_player" || !entityId) {
+        const target = entityId && entityId.startsWith("media_player.") ? entityId : this._state.selectedPlayer;
+        await this._stopPlayer(target);
+        this._toastSuccess(this._i18n("ui.power_action_sent"));
+        return;
+      }
+      const domain = String(entityId).split(".")[0] || "homeassistant";
+      const service = action === "script"
+        ? "turn_on"
+        : action === "scene"
+          ? "turn_on"
+          : action;
+      const serviceDomain = action === "script"
+        ? "script"
+        : action === "scene"
+          ? "scene"
+          : domain;
+      await this._hass?.callService?.(serviceDomain, service, { entity_id: entityId });
+      this._toastSuccess(this._i18n("ui.power_action_sent"));
+    } catch (error) {
+      this._toastError(this._i18n("ui.power_action_failed") + (error?.message ? `: ${error.message}` : ""));
+    }
+  }
+
+  _handleScreensaverActivity(event = null) {
+    if (event && event.isTrusted === false) return;
+    if (event?.target?.closest?.("#screensaverBackdrop")) {
+      event.preventDefault?.();
+      event.stopPropagation?.();
+    }
+    this._resetScreensaverTimer({ hide: true, activity: true });
+  }
+
+  _startScreensaverVisibilityTracking() {
+    if (this._screensaverVisibilityObserver || typeof IntersectionObserver === "undefined") {
+      this._markScreensaverPageEntry("connected");
+      return;
+    }
+    this._screensaverVisibilityObserver = new IntersectionObserver((entries = []) => {
+      const visible = entries.some((entry) => entry.isIntersecting && Number(entry.intersectionRatio || 0) > 0);
+      const wasVisible = this._screensaverVisible !== false;
+      this._screensaverVisibilityKnown = true;
+      this._screensaverVisible = visible;
+      if (visible && !wasVisible) {
+        this._markScreensaverPageEntry("visible");
+      } else if (!visible && wasVisible) {
+        this._pauseScreensaverWhileHidden();
+      } else if (visible && this._screensaverPageEntryPending) {
+        this._markScreensaverPageEntry("visible");
+      }
+    }, { threshold: 0.01 });
+    this._screensaverVisibilityObserver.observe(this);
+  }
+
+  _stopScreensaverVisibilityTracking() {
+    if (this._screensaverVisibilityObserver) {
+      this._screensaverVisibilityObserver.disconnect();
+      this._screensaverVisibilityObserver = null;
+    }
+    this._screensaverVisibilityKnown = false;
+    this._screensaverVisible = true;
+  }
+
+  _pauseScreensaverWhileHidden() {
+    clearTimeout(this._screensaverTimer);
+    this._screensaverTimer = null;
+    this._hideScreensaver();
+  }
+
+  _markScreensaverPageEntry(reason = "entry") {
+    this._screensaverPageEntryPending = true;
+    this._screensaverPageEntryReason = reason;
+    this._screensaverSuppressUntil = Date.now() + (this._screensaverTimeoutSeconds() * 1000);
+    this._resetScreensaverTimer({ hide: true, activity: true });
+  }
+
+  _resetScreensaverTimer({ hide = false, delayMs = null, activity = false } = {}) {
+    clearTimeout(this._screensaverTimer);
+    this._screensaverTimer = null;
+    if (hide) this._hideScreensaver();
+    if (!this._screensaverEnabled() || !this.isConnected) return;
+    if (this._screensaverVisibilityKnown && this._screensaverVisible === false) return;
+    const defaultDelayMs = this._screensaverTimeoutSeconds() * 1000;
+    if (activity || hide) {
+      this._screensaverSuppressUntil = Date.now() + defaultDelayMs;
+    }
+    const timeoutMs = Number.isFinite(Number(delayMs))
+      ? Math.max(500, Number(delayMs))
+      : defaultDelayMs;
+    this._screensaverTimer = setTimeout(() => {
+      this._showScreensaver();
+    }, timeoutMs);
+  }
+
+  _screensaverBlocked() {
+    return !!(
+      this._state.menuOpen
+      || this._state.controlRoomOpen
+      || this._state.lyricsOpen
+      || this._state.mobileHistoryDrawerOpen
+      || this.$("mobileQueueActionModal")?.classList?.contains("open")
+      || this.$("mobileVolumePresetModal")?.classList?.contains("open")
+      || this.$("mobileSmartVoiceModal")?.classList?.contains("open")
+    );
+  }
+
+  _showScreensaver() {
+    if (!this._screensaverEnabled()) return;
+    const now = Date.now();
+    const suppressUntil = Number(this._screensaverSuppressUntil || 0);
+    if (suppressUntil > now) {
+      this._resetScreensaverTimer({ delayMs: suppressUntil - now });
+      return;
+    }
+    if (this._screensaverBlocked()) {
+      this._resetScreensaverTimer({ delayMs: 2000 });
+      return;
+    }
+    this._state.screensaverOpen = true;
+    const overlay = this.$("screensaverBackdrop");
+    if (!overlay) return;
+    this.shadowRoot?.querySelector?.(".card")?.classList?.add("screensaver-active");
+    overlay.classList.add("open");
+    overlay.setAttribute("aria-hidden", "false");
+    this._ensureQueueSnapshot(true)
+      .then(() => { if (this._state.screensaverOpen) this._syncScreensaverUi(); })
+      .catch(() => {});
+    this._syncScreensaverUi();
+    clearInterval(this._screensaverClockTimer);
+    this._screensaverClockTimer = setInterval(() => this._syncScreensaverUi(), 1000);
+  }
+
+  _hideScreensaver() {
+    if (!this._state.screensaverOpen && !this.$("screensaverBackdrop")?.classList?.contains("open")) return;
+    this._state.screensaverOpen = false;
+    const overlay = this.$("screensaverBackdrop");
+    overlay?.classList.remove("open");
+    overlay?.setAttribute("aria-hidden", "true");
+    this.shadowRoot?.querySelector?.(".card")?.classList?.remove("screensaver-active");
+    clearInterval(this._screensaverClockTimer);
+    this._screensaverClockTimer = null;
+    this._syncNowPlayingUI();
+  }
+
+  _restoreScreensaverIfOpen() {
+    if (!this._state.screensaverOpen) return;
+    const overlay = this.$("screensaverBackdrop");
+    if (!overlay) return;
+    this.shadowRoot?.querySelector?.(".card")?.classList?.add("screensaver-active");
+    overlay.classList.add("open");
+    overlay.setAttribute("aria-hidden", "false");
+    this._syncScreensaverUi();
+    if (!this._screensaverClockTimer) {
+      this._screensaverClockTimer = setInterval(() => this._syncScreensaverUi(), 1000);
+    }
+  }
+
+  _setScreensaverImageHost(host, url = "", fallbackHtml = "") {
+    if (!host) return;
+    const nextUrl = String(url || "").trim();
+    if (host.dataset.artUrl === nextUrl) return;
+    host.dataset.artUrl = nextUrl;
+    host.dataset.artReady = nextUrl ? "0" : "1";
+    if (!nextUrl) {
+      host.innerHTML = fallbackHtml;
+      return;
+    }
+    const img = document.createElement("img");
+    img.alt = "";
+    img.decoding = "async";
+    img.loading = "eager";
+    const applyImage = () => {
+      if (!host.isConnected || host.dataset.artUrl !== nextUrl) return;
+      host.dataset.artReady = "1";
+      host.replaceChildren(img);
+    };
+    img.addEventListener("load", applyImage, { once: true });
+    img.addEventListener("error", () => {
+      if (!host.isConnected || host.dataset.artUrl !== nextUrl) return;
+      host.dataset.artReady = "1";
+      host.innerHTML = fallbackHtml;
+    }, { once: true });
+    img.src = nextUrl;
+    if (img.complete) applyImage();
+  }
+
+  _setScreensaverBackgroundArt(overlay, url = "") {
+    if (!overlay) return;
+    const nextUrl = String(url || "").trim();
+    if (overlay.dataset.bgArtUrl === nextUrl) return;
+    overlay.dataset.bgArtUrl = nextUrl;
+    if (!nextUrl) {
+      overlay.style.setProperty("--screensaver-art-url", "none");
+      return;
+    }
+    const img = new Image();
+    img.decoding = "async";
+    const applyImage = () => {
+      if (!overlay.isConnected || overlay.dataset.bgArtUrl !== nextUrl) return;
+      overlay.style.setProperty("--screensaver-art-url", `url(${JSON.stringify(nextUrl)})`);
+    };
+    img.addEventListener("load", applyImage, { once: true });
+    img.addEventListener("error", () => {
+      if (!overlay.isConnected || overlay.dataset.bgArtUrl !== nextUrl) return;
+      if (!overlay.style.getPropertyValue("--screensaver-art-url")) {
+        overlay.style.setProperty("--screensaver-art-url", "none");
+      }
+    }, { once: true });
+    img.src = nextUrl;
+    if (img.complete) applyImage();
+  }
+
+  _syncScreensaverUi() {
+    const overlay = this.$("screensaverBackdrop");
+    if (!overlay) return;
+    const mode = this._screensaverClockMode();
+    const now = new Date();
+    const player = this._getSelectedPlayer();
+    const queueItem = this._state.maQueueState?.current_item || null;
+    const art = this._currentArtworkUrl(player, queueItem, 720, { preferPlayerArtwork: true });
+    const mediaTitle = player?.attributes?.media_title || queueItem?.media_item?.name || "";
+    const mediaArtist = player?.attributes?.media_artist || (queueItem?.media_item?.artists || []).map((artistEntry) => artistEntry?.name).filter(Boolean).join(", ") || "";
+    const hasMedia = !!(mediaTitle || mediaArtist || art);
+    const title = mediaTitle || this._i18n("ui.nothing_playing");
+    const nextItem = this._mobileUpNextItem();
+    const nextTitle = nextItem ? this._queueItemPrimaryTitle(nextItem) : "";
+    const nextArtist = nextItem ? this._queueItemPrimaryArtist(nextItem) : "";
+    const nextArt = nextItem ? this._queueItemImageUrl(nextItem, 96) : "";
+    const message = this._screensaverMessage();
+    overlay.classList.toggle("analog-mode", mode === "analog");
+    overlay.classList.toggle("digital-mode", mode !== "analog");
+    overlay.classList.toggle("empty-mode", !hasMedia);
+    this._setScreensaverBackgroundArt(overlay, art);
+    const clock = this.$("screensaverClock");
+    if (clock) {
+      clock.textContent = new Intl.DateTimeFormat(this._language(), {
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(now);
+    }
+    this._setScreensaverImageHost(this.$("screensaverArt"), art, this._tabletBrandSignatureHtml("screensaver-empty-logo"));
+    if (this.$("screensaverTitle")) this.$("screensaverTitle").textContent = title;
+    if (this.$("screensaverArtist")) this.$("screensaverArtist").textContent = hasMedia ? (mediaArtist || this._selectedPlayerName()) : "";
+    const messageEl = this.$("screensaverMessage");
+    if (messageEl) {
+      messageEl.hidden = !message;
+      messageEl.textContent = message;
+    }
+    const nextEl = this.$("screensaverNext");
+    if (nextEl) {
+      nextEl.hidden = !nextTitle;
+      if (nextTitle) {
+        this._setScreensaverImageHost(this.$("screensaverNextArt"), nextArt, this._iconSvg("tracks"));
+        if (this.$("screensaverNextLabel")) this.$("screensaverNextLabel").textContent = this._i18n("ui.up_next_2");
+        if (this.$("screensaverNextTitle")) this.$("screensaverNextTitle").textContent = nextTitle;
+        if (this.$("screensaverNextArtist")) this.$("screensaverNextArtist").textContent = nextArtist;
+      }
+    }
+    const seconds = now.getSeconds();
+    const minutes = now.getMinutes() + (seconds / 60);
+    const hours = (now.getHours() % 12) + (minutes / 60);
+    this.$("screensaverHour")?.style?.setProperty("--hand-rotation", `${hours * 30}deg`);
+    this.$("screensaverMinute")?.style?.setProperty("--hand-rotation", `${minutes * 6}deg`);
+    this.$("screensaverSecond")?.style?.setProperty("--hand-rotation", `${seconds * 6}deg`);
   }
 
   _mobileStudioShortcutEnabled() {
@@ -16654,13 +18065,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _mobileQuickActionOptions() {
     return [
-      { value: "timer", icon: "timer", label: this._m("Timer", "טיימר") },
-      { value: "like", icon: "heart_outline", label: this._m("Liked", "אהבתי") },
-      { value: "lyrics", icon: "lyrics", label: this._m("Lyrics", "מילים") },
-      { value: "queue", icon: "queue", label: this._m("Queue", "תור") },
-      { value: "radio", icon: "radio", label: this._m("Quick mix", "מיקס מהיר") },
-      { value: "history", icon: "history", label: this._m("History", "היסטוריה") },
-      { value: "info", icon: "info", label: this._m("Info", "מידע") },
+      { value: "timer", icon: "timer", label: this._i18n("ui.timer") },
+      { value: "like", icon: "heart_outline", label: this._i18n("ui.liked") },
+      { value: "lyrics", icon: "lyrics", label: this._i18n("ui.lyrics") },
+      { value: "queue", icon: "queue", label: this._i18n("ui.queue_2") },
+      { value: "radio", icon: "radio", label: this._i18n("ui.quick_mix") },
+      { value: "history", icon: "history", label: this._i18n("ui.history") },
+      { value: "info", icon: "info", label: this._i18n("ui.info") },
     ];
   }
 
@@ -16670,24 +18081,28 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         const label = this._sleepTimerFooterLabel();
         const active = !!label && this._sleepTimerChipVisible();
         return `
-          <button class="mobile-art-fab mobile-timer-fab ${active ? "active" : ""}" id="mobileTimerBtn" title="${this._esc(this._m("Schedules", "תזמונים"))}">
+          <button class="mobile-art-fab mobile-timer-fab ${active ? "active" : ""}" id="mobileTimerBtn" title="${this._esc(this._i18n("ui.schedules"))}">
             ${this._iconSvg("timer")}
             <span class="mobile-timer-label" ${active ? "" : "hidden"}>${this._esc(active ? label : "")}</span>
           </button>
         `;
       }
       case "like":
-        return `<button class="mobile-art-fab" id="mobileLikeBtn" title="${this._t("Like")}">${this._iconSvg(this._currentMediaFavoriteState() ? "heart_filled" : "heart_outline")}</button>`;
+        return `<button class="mobile-art-fab" id="mobileLikeBtn" title="${this._i18n("ui.like")}">${this._iconSvg(this._currentMediaFavoriteState() ? "heart_filled" : "heart_outline")}</button>`;
       case "lyrics":
-        return `<button class="mobile-art-fab" id="mobileLyricsBtn" title="${this._t("Lyrics")}">${this._iconSvg("lyrics")}</button>`;
+        return `<button class="mobile-art-fab" id="mobileLyricsBtn" title="${this._i18n("ui.lyrics")}">${this._iconSvg("lyrics")}</button>`;
       case "queue":
-        return `<button class="mobile-art-fab" id="mobileQueueBtn" title="${this._m("Open queue", "פתח תור")}">${this._iconSvg("queue")}</button>`;
+        return `<button class="mobile-art-fab" id="mobileQueueBtn" title="${this._i18n("ui.open_queue")}">${this._iconSvg("queue")}</button>`;
       case "radio":
-        return `<button class="mobile-art-fab" id="mobileRandomBtn" title="${this._m("Quick mix", "מיקס מהיר")}">${this._iconSvg("radio")}</button>`;
+        return `<button class="mobile-art-fab" id="mobileRandomBtn" title="${this._i18n("ui.quick_mix")}">${this._iconSvg("radio")}</button>`;
       case "history":
         return historyToggleButtonHtml || "";
       case "info":
-        return `<button class="mobile-art-fab" id="mobileInfoBtn" title="${this._m("More info", "מידע נוסף")}">${this._iconSvg("info")}</button>`;
+        return `<button class="mobile-art-fab" id="mobileInfoBtn" title="${this._i18n("ui.more_info")}">${this._iconSvg("info")}</button>`;
+      case "power":
+        return this._powerButtonEnabled()
+          ? `<button class="mobile-art-fab power-fab" id="mobilePowerBtn" title="${this._esc(this._i18n("ui.power"))}">${this._iconSvg("power")}</button>`
+          : "";
       default:
         return "";
     }
@@ -16757,7 +18172,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   async _disconnectPlayerGroups(options = {}) {
     const ids = this._groupedPlayerIds();
     if (!ids.length) {
-      if (!options.silent) this._toastSuccess(this._m("No player groups to disconnect", "אין קבוצות נגנים לניתוק"));
+      if (!options.silent) this._toastSuccess(this._i18n("ui.no_player_groups_to_disconnect"));
       return { ok: true, count: 0, failed: false };
     }
     const dynamicIds = ids.filter((id) => {
@@ -16765,7 +18180,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       return target && !this._isStaticGroupPlayer(target) && !this._isLocalSendspinPlayer(target);
     });
     if (!dynamicIds.length) {
-      if (!options.silent) this._toastSuccess(this._m("No dynamic player groups to disconnect", "אין קבוצות נגנים דינמיות לניתוק"));
+      if (!options.silent) this._toastSuccess(this._i18n("ui.no_dynamic_player_groups_to_disconnect"));
       return { ok: true, count: 0, failed: false };
     }
     const results = await Promise.allSettled(dynamicIds.map((id) => this._callHaServiceRaw("media_player", "unjoin", { entity_id: id })));
@@ -16778,8 +18193,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }, 550);
     if (!options.silent) {
       (failed ? this._toastError : this._toastSuccess).call(this, failed
-        ? this._m("Player groups could not be disconnected", "קבוצות הנגנים לא נותקו")
-        : this._m("All player groups disconnected", "כל קבוצות הנגנים נותקו"));
+        ? this._i18n("ui.player_groups_could_not_be_disconnected")
+        : this._i18n("ui.all_player_groups_disconnected"));
     }
     return { ok: !failed, count: dynamicIds.length, failed };
   }
@@ -16799,7 +18214,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     ].filter(Boolean))];
     const hasLocalSendspin = this._isLocalSendspinDesired() || this._localSendspinConnected || this._localSendspinConnecting || !!this._localSendspinPlayer || !!this._localSendspinSocket;
     if (!targetIds.length && !hasLocalSendspin) {
-      this._toastError(this._m("No active players", "אין נגנים פעילים"));
+      this._toastError(this._i18n("ui.no_active_players"));
       return;
     }
     this._hapticTap([18, 24, 18]);
@@ -16831,8 +18246,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
     const failed = results.some((result) => result.status === "rejected") || groupResult.failed;
     (failed ? this._toastError : this._toastSuccess).call(this, failed
-      ? this._m("Some players could not be stopped or cleared", "חלק מהנגנים לא נעצרו או לא נוקו")
-      : this._m("Stopped all players, cleared playlists and disconnected groups", "כל הנגנים נעצרו, התורים נוקו והקבוצות נותקו"));
+      ? this._i18n("ui.some_players_could_not_be_stopped_or_cleared")
+      : this._i18n("ui.stopped_all_players_cleared_playlists_and_disconnected_groups"));
     setTimeout(() => this._updateNowPlayingState(), 500);
   }
 
@@ -16844,6 +18259,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _menuPageIcon(page) {
     const map = {
       main: "menu",
+      discovery: "grid",
       settings: "settings",
       queue: "queue",
       players: "speaker",
@@ -17017,7 +18433,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const mode = this._mobileFooterMode();
     const effective = this._effectiveTheme();
     const icon = `<span class="footer-theme-ic" aria-hidden="true">${effective === "dark" ? "☀" : "☾"}</span>`;
-    const label = `<span class="footer-btn-label">${this._esc(this._m("Theme", "ערכת נושא"))}</span>`;
+    const label = `<span class="footer-btn-label">${this._esc(this._i18n("ui.theme_2"))}</span>`;
     if (mode === "icon") return icon;
     if (mode === "text") return label;
     return `${icon}${label}`;
@@ -17079,10 +18495,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _mobileArtStackRenderKey() {
     const stack = this._mobileArtStackItems();
+    const player = this._getSelectedPlayer();
+    const currentItem = stack.current || this._state.maQueueState?.current_item || null;
     return [
       this._getQueueItemStableId(stack.previous) || this._getQueueItemUri(stack.previous) || this._getQueueItemKey(stack.previous) || "p0",
       this._getQueueItemStableId(stack.current) || this._getQueueItemUri(stack.current) || this._getQueueItemKey(stack.current) || "c0",
       this._getQueueItemStableId(stack.next) || this._getQueueItemUri(stack.next) || this._getQueueItemKey(stack.next) || "n0",
+      this._currentArtworkCacheKey(player, currentItem),
+      this._currentArtworkUrl(player, currentItem, 420, { preferPlayerArtwork: true }),
       this._mobileSwipeMode(),
     ].join("|");
   }
@@ -17157,8 +18577,20 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
 
   _preloadMobileArtImages(stack = this._mobileArtStackItems()) {
+    const player = this._getSelectedPlayer();
     const urls = [stack.previous, stack.current, stack.next]
-      .map((item) => this._queueItemImageUrl(item, 420) || item?.media_image || item?.image || item?.image_url || item?.media_item?.image || item?.media_item?.image_url || item?.media_item?.album?.image || "")
+      .map((item) => this._bestArtworkUrl([
+        this._queueItemImageUrl(item, 420),
+        item?.media_image,
+        item?.image,
+        item?.image_url,
+        item?.media_item?.image,
+        item?.media_item?.image_url,
+        item?.media_item?.album?.image,
+      ], {
+        size: 420,
+        cacheKey: this._currentArtworkCacheKey(player, item),
+      }))
       .filter(Boolean);
     for (const src of urls) {
       try {
@@ -17399,20 +18831,25 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
     const currentQueueItem = this._state.maQueueState?.current_item || null;
     const playingArt = this._currentArtworkUrl(player, currentQueueItem, 420, { preferPlayerArtwork: true });
-    const previewArt = this._queueItemImageUrl(stack.current, 420)
-      || stack.current?.media_image
-      || stack.current?.image
-      || stack.current?.image_url
-      || stack.current?.media_item?.image
-      || stack.current?.media_item?.image_url
-      || stack.current?.media_item?.album?.image
-      || stack.current?.media_item?.album?.image_url
-      || playingArt;
+    const stackArtCacheKey = this._currentArtworkCacheKey(player, stack.current || currentQueueItem);
+    const previewArt = this._bestArtworkUrl([
+      this._queueItemImageUrl(stack.current, 420),
+      stack.current?.media_image,
+      stack.current?.image,
+      stack.current?.image_url,
+      stack.current?.media_item?.image,
+      stack.current?.media_item?.image_url,
+      stack.current?.media_item?.album?.image,
+      stack.current?.media_item?.album?.image_url,
+    ], {
+      size: 420,
+      cacheKey: stackArtCacheKey,
+    }) || playingArt;
     const art = (this._mobileSwipeMode() === "browse" && stack.offset !== 0) ? playingArt : previewArt;
     if (artAura) artAura.style.backgroundImage = art ? `url("${this._esc(art)}")` : "";
     if (heroAura) heroAura.style.backgroundImage = art ? `url("${this._esc(art)}")` : "";
     if (this._mobileSwipeMode() === "browse" && stack.offset !== 0) {
-      const browseTitle = stack.current?.media_item?.name || stack.current?.name || player?.attributes?.media_title || this._m("Nothing playing", "לא מתנגן");
+      const browseTitle = stack.current?.media_item?.name || stack.current?.name || player?.attributes?.media_title || this._i18n("ui.nothing_playing");
       const browseArtist = stack.current?.media_item?.artists?.map((a) => a.name).join(", ")
         || stack.current?.artist_str
         || player?.attributes?.media_artist
@@ -17427,8 +18864,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const queueArtist = currentQueueItem?.media_artist || (currentQueueItem?.media_item?.artists || []).map((a) => a?.name).filter(Boolean).join(", ") || "";
       const queueAlbum = currentQueueItem?.media_item?.album?.name || currentQueueItem?.media_album_name || "";
       if (this.$("npTitle")) this.$("npTitle").textContent = hasPendingPlay
-        ? (queueTitle || player?.attributes?.media_title || this._m("Nothing playing", "לא מתנגן"))
-        : (player?.attributes?.media_title || queueTitle || this._m("Nothing playing", "לא מתנגן"));
+        ? (queueTitle || player?.attributes?.media_title || this._i18n("ui.nothing_playing"))
+        : (player?.attributes?.media_title || queueTitle || this._i18n("ui.nothing_playing"));
       const subParts = hasPendingPlay
         ? [queueArtist || player?.attributes?.media_artist || "", queueAlbum || player?.attributes?.media_album_name || ""]
         : [player?.attributes?.media_artist || queueArtist || "", player?.attributes?.media_album_name || queueAlbum || ""];
@@ -17482,6 +18919,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const theme = this._effectiveTheme();
     const visualTheme = this._visualTheme();
     const layoutMode = this._layoutModeConfig();
+    const fallbackHeight = this._configuredCardHeightFallback(760) || 760;
+    const allocatedHeight = this._getAllocatedCardHeight(fallbackHeight);
+    const layoutProfile = this._layoutProfileConfig(layoutMode, { height: allocatedHeight });
+    const layoutProfileClass = this._layoutProfileClassNames(layoutProfile);
+    const layoutProfileStyle = this._layoutProfileStyleVars(layoutProfile);
     const performanceMode = this._performanceModeEnabled();
     const compactMode = this._mobileCompactModeEnabled();
     const compactTileMode = this._isCompactTileMode();
@@ -17494,34 +18936,44 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const showUpNextInline = showUpNext && hasUpNextItem;
     const showNightRow = nightMode !== "off";
     const tabletAutoFit = this._tabletAutoFitEnabled();
-    const tabletDenseUi = this._tabletAutoFitDense(showNightRow, showUpNextInline);
-    const rawHeight = Number(this._config.height || 760);
-    const height = Number.isFinite(rawHeight) ? Math.max(420, Math.min(1800, rawHeight)) : 760;
-    const minCardHeight = layoutMode === "tablet" ? 520 : 480;
+    const tabletDenseUi = this._tabletAutoFitDense(showNightRow, showUpNextInline)
+      || (layoutMode === "tablet" && layoutProfile.heightSize === "short");
+    const mobileDenseContent = this._mobileContentDense(layoutMode, layoutProfile, {
+      showNightRow,
+      showUpNextInline,
+    });
+    const height = Math.max(280, Math.min(2200, Math.round(allocatedHeight || fallbackHeight)));
+    const minCardHeight = layoutProfile.heightSize === "short" ? 280 : (layoutMode === "tablet" ? 420 : 360);
+    const screensaverClockSize = this._screensaverClockSize();
+    const screensaverClockX = this._screensaverClockX();
+    const screensaverClockY = this._screensaverClockY();
     const compactTransition = String(this._state.mobileCompactTransition || "");
     const compactTransitionClass = compactTransition === "expand"
       ? " compact-transition-expand"
       : compactTransition === "collapse"
         ? " compact-transition-collapse"
         : "";
+    this._renderedLayoutMode = layoutMode;
+    this._lastCardWidth = Math.max(0, Math.round(layoutProfile.width || this._lastCardWidth || 0));
+    this._lastCardHeight = Math.max(0, Math.round(height || this._lastCardHeight || 0));
     this._state.mobileNightRenderedActive = nightActive;
     this._state.mobileNightRenderedMode = nightMode;
     const nightQuickRowHtml = showNightRow ? `
       <div class="night-quick-row ${nightMode === "auto" ? "auto-mode" : "on-mode"}" id="nightQuickRow" ${showNightRow ? "" : "hidden"}>
-        <button class="night-quick-btn icon-only ${nightActive || nightMode === "on" ? "active" : "soft"}" id="nightModeQuickBtn" title="${this._esc(this._m("Night mode", "מצב לילה"))}">
+        <button class="night-quick-btn icon-only ${nightActive || nightMode === "on" ? "active" : "soft"}" id="nightModeQuickBtn" title="${this._esc(this._i18n("ui.night_mode"))}">
           ${this._iconSvg("moon")}
         </button>
-        <button class="night-quick-btn icon-only ${sleepTimerActive ? "active" : ""}" id="nightSleepBtn" title="${this._esc(this._m("Sleep timer", "טיימר שינה"))}" ${nightMode === "on" ? "" : "hidden"}>
+        <button class="night-quick-btn icon-only ${sleepTimerActive ? "active" : ""}" id="nightSleepBtn" title="${this._esc(this._i18n("ui.sleep_timer"))}" ${nightMode === "on" ? "" : "hidden"}>
           ${this._iconSvg("timer")}
         </button>
-        <button class="night-quick-btn icon-only soft" id="nightChillBtn" title="${this._esc(this._m("Chill mix", "מיקס רגוע"))}" ${nightMode === "on" ? "" : "hidden"}>
+        <button class="night-quick-btn icon-only soft" id="nightChillBtn" title="${this._esc(this._i18n("ui.chill_mix"))}" ${nightMode === "on" ? "" : "hidden"}>
           ${this._iconSvg("wand")}
         </button>
       </div>` : ``;
     const playerFocusCoreHtml = `
-        <button class="player-focus" id="activePlayerChip" title="${this._m("Choose Player", "בחר נגן")}">
+        <button class="player-focus" id="activePlayerChip" title="${this._i18n("ui.choose_player")}">
           <span class="player-focus-copy">
-            <span class="player-focus-name" id="selectedPlayerTitle">${this._m("Selected Player", "נגן נבחר")}</span>
+            <span class="player-focus-name" id="selectedPlayerTitle">${this._i18n("ui.selected_player")}</span>
             <span class="player-focus-tags" id="selectedPlayerTags"></span>
           </span>
           <span class="player-focus-art-wrap" aria-hidden="true">
@@ -17536,6 +18988,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const quickActions = sleepTimerActive && !configuredQuickActions.includes("timer")
       ? ["timer", ...configuredQuickActions]
       : configuredQuickActions;
+    const quickActionsWithPower = this._powerButtonEnabled() && !quickActions.includes("power")
+      ? [...quickActions, "power"]
+      : quickActions;
     const controlRoomEnabled = this._controlRoomEnabled();
     const studioShortcutEnabled = this._mobileStudioShortcutEnabled();
     const mainBarButtons = [];
@@ -17543,26 +18998,26 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       mainBarButtons.push(`<button class="footer-btn control-room-entry" data-mainbar-action="control_room" title="${this._controlRoomLabel()}">${this._mobileFooterButtonInner("grid", this._controlRoomLabel())}</button>`);
     }
     if (mainBarItems.includes("actions")) {
-      mainBarButtons.push(`<button class="footer-btn" data-mainbar-action="actions" title="${this._m("Actions", "פעולות")}">${this._mobileFooterButtonInner("menu", this._m("Actions", "פעולות"))}</button>`);
+      mainBarButtons.push(`<button class="footer-btn" data-mainbar-action="actions" title="${this._i18n("ui.actions_2")}">${this._mobileFooterButtonInner("menu", this._i18n("ui.actions_2"))}</button>`);
     }
     if (mainBarItems.includes("players")) {
-      mainBarButtons.push(`<button class="footer-btn" data-mainbar-action="players" title="${this._m("Players", "נגנים")}">${this._mobileFooterButtonInner("speaker", this._m("Players", "נגנים"))}</button>`);
+      mainBarButtons.push(`<button class="footer-btn" data-mainbar-action="players" title="${this._i18n("ui.players")}">${this._mobileFooterButtonInner("speaker", this._i18n("ui.players"))}</button>`);
     }
     if (mainBarItems.includes("library")) {
-      mainBarButtons.push(`<button class="footer-btn soft-accent" data-mainbar-action="library" title="${this._m("Library", "ספריה")}">${this._mobileFooterButtonInner("library_music", this._m("Library", "ספריה"))}</button>`);
+      mainBarButtons.push(`<button class="footer-btn soft-accent" data-mainbar-action="library" title="${this._i18n("ui.library")}">${this._mobileFooterButtonInner("library_music", this._i18n("ui.library"))}</button>`);
     }
     if (mainBarItems.includes("search")) {
-      mainBarButtons.push(`<button class="footer-btn" data-mainbar-action="search" title="${this._m("Search", "חיפוש")}">${this._mobileFooterButtonInner("search", this._m("Search", "חיפוש"))}</button>`);
+      mainBarButtons.push(`<button class="footer-btn" data-mainbar-action="search" title="${this._i18n("ui.search")}">${this._mobileFooterButtonInner("search", this._i18n("ui.search"))}</button>`);
     }
     if (mainBarItems.includes("settings")) {
-      mainBarButtons.push(`<button class="footer-btn accent" data-mainbar-action="settings" title="${this._m("Settings", "הגדרות")}">${this._mobileFooterButtonInner("settings", this._m("Settings", "הגדרות"))}</button>`);
+      mainBarButtons.push(`<button class="footer-btn accent" data-mainbar-action="settings" title="${this._i18n("ui.settings")}">${this._mobileFooterButtonInner("settings", this._i18n("ui.settings"))}</button>`);
     }
     if (mainBarItems.includes("theme")) {
-      mainBarButtons.push(`<button class="footer-btn" data-mainbar-action="theme" title="${this._m("Theme", "ערכת נושא")}">${this._mobileThemeFooterInner()}</button>`);
+      mainBarButtons.push(`<button class="footer-btn" data-mainbar-action="theme" title="${this._i18n("ui.theme_2")}">${this._mobileThemeFooterInner()}</button>`);
     }
     const volumeHtml = `
       <div class="mobile-volume-inline${layoutMode === "tablet" ? " tablet-volume-inline" : ""}">
-        <button class="volume-value" id="mobileVolPctLabel" title="${this._m("Volume presets", "בחירת ווליום")}">50%</button>
+        <button class="volume-value" id="mobileVolPctLabel" title="${this._i18n("ui.volume_presets")}">50%</button>
         <div class="tablet-volume-track">
           <input class="volume-slider" id="volSlider" type="range" min="0" max="100" value="50" style="--vol-pct:50%">
         </div>
@@ -17570,22 +19025,22 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       </div>`;
     const footerHtml = `<div class="footer-nav">${mainBarButtons.join("")}</div>`;
     const compactCollapseFabHtml = compactMode && !compactTileMode
-      ? `<button class="compact-collapse-fab ${rtl ? "rtl" : "ltr"}" id="compactCollapseBtn" title="${this._m("Collapse compact player", "חזרה למצב קומפקטי")}">${this._iconSvg("close")}</button>`
+      ? `<button class="compact-collapse-fab ${rtl ? "rtl" : "ltr"}" id="compactCollapseBtn" title="${this._i18n("ui.collapse_compact_player")}">${this._iconSvg("close")}</button>`
       : ``;
     const hasHomeShortcutFab = !compactTileMode && this._mobileHomeShortcutEnabled();
     const homeShortcutFabHtml = hasHomeShortcutFab
-      ? `<button class="home-shortcut-fab ${layoutMode === "tablet" ? "tablet" : "mobile"} ${rtl ? "ltr" : "rtl"}" id="homeShortcutFab" title="${this._m("Home", "בית")}">${this._iconSvg("home")}</button>`
+      ? `<button class="home-shortcut-fab ${layoutMode === "tablet" ? "tablet" : "mobile"} ${rtl ? "ltr" : "rtl"}" id="homeShortcutFab" title="${this._i18n("ui.home")}">${this._iconSvg("home")}</button>`
       : ``;
     const historyEdgeClass = rtl ? "left-edge" : "right-edge";
     const historyToggleButtonHtml = !compactTileMode
-      ? `<button class="history-toggle-fab ${historyEdgeClass}" id="historyToggleFab" title="${this._m("Recently played", "נוגן לאחרונה")}" aria-expanded="false" hidden>${this._iconSvg("history")}</button>`
+      ? `<button class="history-toggle-fab ${historyEdgeClass}" id="historyToggleFab" title="${this._i18n("ui.recently_played_2")}" aria-expanded="false" hidden>${this._iconSvg("history")}</button>`
       : ``;
-    const floatingHistoryToggleFabHtml = layoutMode === "tablet" && quickActions.includes("history") ? historyToggleButtonHtml : ``;
-    const mobileHistoryToggleButtonHtml = layoutMode !== "tablet" && quickActions.includes("history") ? historyToggleButtonHtml : ``;
+    const floatingHistoryToggleFabHtml = layoutMode === "tablet" && quickActionsWithPower.includes("history") ? historyToggleButtonHtml : ``;
+    const mobileHistoryToggleButtonHtml = layoutMode !== "tablet" && quickActionsWithPower.includes("history") ? historyToggleButtonHtml : ``;
     const sleepTimerCornerMarkup = !compactTileMode ? `
       <div class="sleep-timer-corner ${rtl ? "left" : "right"}" id="sleepTimerCorner" hidden></div>
     ` : ``;
-    const floatingSleepTimerCornerHtml = layoutMode === "tablet" && (quickActions.includes("timer") || sleepTimerActive) ? sleepTimerCornerMarkup : ``;
+    const floatingSleepTimerCornerHtml = layoutMode === "tablet" && (quickActionsWithPower.includes("timer") || sleepTimerActive) ? sleepTimerCornerMarkup : ``;
     const tabletBrandWatermarkHtml = layoutMode === "tablet" && !compactTileMode
       ? `<div class="tablet-brand-watermark" aria-hidden="true">${this._tabletBrandSignatureHtml()}</div>`
       : ``;
@@ -17593,15 +19048,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       ? `<div class="mobile-brand-signature" aria-hidden="true">${this._tabletBrandSignatureHtml("mobile-brand-logo")}</div>`
       : ``;
     const quickActionsInArtRow = layoutMode === "tablet"
-      ? quickActions.filter((action) => action !== "timer" && action !== "history")
-      : quickActions;
+      ? quickActionsWithPower.filter((action) => action !== "timer" && action !== "history")
+      : quickActionsWithPower;
     const mobileQuickActionsHtml = this._mobileQuickActionButtonsHtml(mobileHistoryToggleButtonHtml, quickActionsInArtRow);
     const controlRoomBackdropHtml = controlRoomEnabled ? `
       <div class="control-room-backdrop" id="controlRoomBackdrop">
         <div class="control-room-shell">
           <div class="control-room-head">
             <div class="control-room-head-brand" aria-hidden="true">${this._tabletBrandSignatureHtml("control-room-head-logo")}</div>
-            <button class="control-room-close" id="controlRoomCloseBtn" title="${this._esc(this._m("Close", "סגור"))}">${this._iconSvg("close")}</button>
+            <button class="control-room-close" id="controlRoomCloseBtn" title="${this._esc(this._i18n("ui.close"))}">${this._iconSvg("close")}</button>
           </div>
           <div class="control-room-body-host" id="controlRoomBody"></div>
         </div>
@@ -17614,12 +19069,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         <div class="compact-sheen"></div>
         <div class="compact-content">
           <div class="compact-header">
-            <button class="compact-expand-btn compact-expand-ref" id="compactExpandBtn" title="${this._m("Expand player", "הרחב נגן")}">
+            <button class="compact-expand-btn compact-expand-ref" id="compactExpandBtn" title="${this._i18n("ui.expand_player")}">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20L22 4H2L12 20Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
             </button>
-            <button class="compact-player-chip" id="activePlayerChip" title="${this._m("Choose Player", "בחר נגן")}">
+            <button class="compact-player-chip" id="activePlayerChip" title="${this._i18n("ui.choose_player")}">
               <span class="compact-player-copy">
-                <span class="compact-player-label" id="selectedPlayerTitle">${this._m("Selected Player", "נגן נבחר")}</span>
+                <span class="compact-player-label" id="selectedPlayerTitle">${this._i18n("ui.selected_player")}</span>
               </span>
             </button>
           </div>
@@ -17628,19 +19083,19 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
               <div class="compact-brand-signature" aria-hidden="true">${this._tabletBrandSignatureHtml("compact-brand-logo")}</div>
               <div class="art-source-badges compact-source-badges" data-art-source-badges hidden></div>
               <div class="compact-cover-echo" id="compactCoverAura"></div>
-              <button class="compact-cover" id="npArt" title="${this._m("Play artwork action", "פעולת עטיפה")}">
+              <button class="compact-cover" id="npArt" title="${this._i18n("ui.play_artwork_action")}">
                 <img class="compact-cover-image" id="compactCoverImage" alt="">
                 <span class="compact-cover-placeholder">${this._artPlaceholderHtml("music_note")}</span>
               </button>
             </div>
             <div class="compact-main">
               <div class="compact-copy">
-                <div class="compact-title np-title" id="npTitle">${this._m("Nothing playing", "לא מתנגן")}</div>
+                <div class="compact-title np-title" id="npTitle">${this._i18n("ui.nothing_playing")}</div>
                 <div class="compact-sub np-sub" id="npSub">—</div>
                 <button class="up-next-inline compact-up-next" data-up-next-inline hidden>
                   <span class="up-next-art"></span>
                   <span class="up-next-line">
-                    <span class="up-next-prefix">${this._m("Up next", "הבא בתור")}</span>
+                    <span class="up-next-prefix">${this._i18n("ui.up_next_2")}</span>
                     <span class="up-next-title"></span>
                   </span>
                 </button>
@@ -17663,7 +19118,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             <div class="tablet-volume-track compact-volume-track">
               <input class="volume-slider compact-volume-slider" id="volSlider" type="range" min="0" max="100" value="50" style="--vol-pct:50%">
             </div>
-            <button class="volume-value compact-volume-value" id="mobileVolPctLabel" title="${this._m("Volume presets", "בחירת ווליום")}">50%</button>
+            <button class="volume-value compact-volume-value" id="mobileVolPctLabel" title="${this._i18n("ui.volume_presets")}">50%</button>
           </div>
         </div>
       </div>`;
@@ -17685,12 +19140,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           </div>
           <div class="hero-info">
             <div class="hero-copy">
-              <div class="hero-title np-title" id="npTitle">${this._m("Nothing playing", "לא מתנגן")}</div>
+              <div class="hero-title np-title" id="npTitle">${this._i18n("ui.nothing_playing")}</div>
               <div class="hero-sub np-sub" id="npSub">—</div>
               <button class="up-next-inline hero-up-next" data-up-next-inline hidden>
                 <span class="up-next-art"></span>
                 <span class="up-next-line">
-                  <span class="up-next-prefix">${this._m("Up next", "הבא בתור")}</span>
+                  <span class="up-next-prefix">${this._i18n("ui.up_next_2")}</span>
                   <span class="up-next-title"></span>
                 </span>
               </button>
@@ -17730,19 +19185,169 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
     this.shadowRoot.innerHTML = `
       <style>
-        :host { display:block; width:100%; max-width:100%; margin:0 !important; padding:0 !important; background:transparent !important; border:none !important; box-shadow:none !important; overflow:visible !important; --mobile-height:${height}px; --mobile-min-height:${minCardHeight}px; --v2-font-scale:${this._state.mobileFontScale || 1}; --v2-custom-rgb:${this._customRgb()}; --v2-custom-text:${this._customTextColor()}; --accent-color:${this._state.mobileCustomColor || "#e0a11b"}; --ma-accent: var(--accent-color, #e0a11b); }
+        :host { display:block; container-type:inline-size; container-name:homeii-flow-host; width:100%; max-width:100%; margin:0 !important; padding:0 !important; background:transparent !important; border:none !important; box-shadow:none !important; overflow:visible !important; --mobile-height:${height}px; --mobile-min-height:${minCardHeight}px; --v2-font-scale:${this._state.mobileFontScale || 1}; --v2-custom-rgb:${this._customRgb()}; --v2-custom-text:${this._customTextColor()}; --accent-color:${this._state.mobileCustomColor || "#e0a11b"}; --ma-accent: var(--accent-color, #e0a11b); }
         ha-card { background:transparent !important; border:none !important; box-shadow:none !important; overflow:visible !important; }
         * { box-sizing:border-box; }
         .card {
           position:relative; overflow:hidden; isolation:isolate; color:#fff;
+          container-type:inline-size;
+          container-name:homeii-flow-card;
           width:100%;
           max-width:100%;
-          height:max(var(--mobile-min-height), var(--mobile-height));
-          min-height:var(--mobile-min-height);
-          max-height:none;
+          height:var(--mobile-height);
+          min-height:min(var(--mobile-min-height), var(--mobile-height));
+          max-height:var(--mobile-height);
           border-radius:28px; border:1px solid rgba(255,255,255,.1);
           background:#0c0f16; box-shadow:0 24px 56px rgba(0,0,0,.3);
           font-size:calc(16px * var(--v2-font-scale));
+          --flow-stage-pad-block:16px;
+          --flow-stage-pad-inline:14px;
+          --flow-shell-gap:28px;
+          --flow-tablet-rail:102px;
+          --flow-tablet-max:calc(100cqi - 34px);
+          --flow-hero-gap:40px;
+          --flow-hero-info-min:300px;
+          --flow-hero-aura-width:min(980px, 74cqi);
+          --flow-hero-aura-height:260px;
+          --flow-tablet-aura-width:min(820px, 56cqi);
+          --flow-tablet-aura-height:320px;
+          --flow-tablet-title-size:30px;
+          --flow-tablet-sub-size:14px;
+          --flow-compact-title-size:64px;
+          --flow-side-btn-size:58px;
+          --flow-minor-btn-size:48px;
+          --flow-main-btn-size:118px;
+          --flow-tablet-side-btn-size:64px;
+          --flow-tablet-minor-btn-size:54px;
+          --flow-tablet-main-btn-size:110px;
+          --flow-art-aura-size:min(420px, 42cqi);
+          --flow-tablet-art-aura-size:min(520px, 42cqi);
+          --flow-mobile-art-size:clamp(190px, min(72cqi, var(--flow-mobile-art-budget)), 420px);
+          --flow-art-stack-height:var(--flow-mobile-art-size);
+          --flow-art-card-size:var(--flow-mobile-art-size);
+          --flow-art-card-max-size:var(--flow-art-stack-height);
+          --flow-autofit-art-height:clamp(320px, min(34cqi, var(--flow-tablet-art-budget)), 620px);
+          --flow-dense-art-height:clamp(250px, min(28cqi, var(--flow-tablet-dense-art-budget)), 480px);
+          --flow-sheet-gutter:96px;
+          --flow-sheet-queue-gutter:160px;
+          --flow-sheet-narrow-gutter:180px;
+          --flow-sheet-pad-block:18px;
+          --flow-sheet-pad-inline:24px;
+          --flow-media-grid-thumb:clamp(148px, 42cqi, 188px);
+          --flow-tablet-media-grid-thumb:clamp(178px, 18cqi, 224px);
+          --flow-control-room-brand-width:clamp(118px, 18cqi, 210px);
+        }
+        .card.size-xs {
+          --flow-stage-pad-block:12px;
+          --flow-stage-pad-inline:10px;
+          --flow-shell-gap:16px;
+          --flow-hero-gap:20px;
+          --flow-tablet-rail:86px;
+          --flow-tablet-title-size:24px;
+          --flow-tablet-sub-size:12px;
+          --flow-compact-title-size:44px;
+          --flow-side-btn-size:48px;
+          --flow-minor-btn-size:40px;
+          --flow-main-btn-size:84px;
+          --flow-tablet-side-btn-size:54px;
+          --flow-tablet-minor-btn-size:46px;
+          --flow-tablet-main-btn-size:92px;
+          --flow-mobile-art-size:clamp(156px, min(66cqi, var(--flow-mobile-short-art-budget)), 286px);
+          --flow-art-stack-height:var(--flow-mobile-art-size);
+          --flow-art-card-size:var(--flow-mobile-art-size);
+          --flow-autofit-art-height:clamp(230px, min(52cqi, var(--flow-tablet-art-budget)), 340px);
+          --flow-dense-art-height:clamp(210px, min(48cqi, var(--flow-tablet-dense-art-budget)), 300px);
+          --flow-sheet-gutter:28px;
+          --flow-sheet-queue-gutter:28px;
+          --flow-sheet-narrow-gutter:28px;
+          --flow-sheet-pad-inline:12px;
+          --flow-media-grid-thumb:clamp(132px, 52cqi, 164px);
+        }
+        .card.size-sm {
+          --flow-stage-pad-block:14px;
+          --flow-stage-pad-inline:12px;
+          --flow-shell-gap:20px;
+          --flow-hero-gap:24px;
+          --flow-tablet-rail:92px;
+          --flow-tablet-title-size:26px;
+          --flow-compact-title-size:52px;
+          --flow-side-btn-size:52px;
+          --flow-main-btn-size:96px;
+          --flow-tablet-side-btn-size:58px;
+          --flow-tablet-main-btn-size:100px;
+          --flow-mobile-art-size:clamp(170px, min(68cqi, var(--flow-mobile-art-budget)), 340px);
+          --flow-art-stack-height:var(--flow-mobile-art-size);
+          --flow-art-card-size:var(--flow-mobile-art-size);
+          --flow-sheet-gutter:40px;
+          --flow-sheet-queue-gutter:48px;
+          --flow-sheet-narrow-gutter:48px;
+          --flow-media-grid-thumb:clamp(142px, 44cqi, 174px);
+        }
+        .card.size-md {
+          --flow-shell-gap:22px;
+          --flow-hero-gap:28px;
+          --flow-tablet-rail:96px;
+          --flow-tablet-title-size:28px;
+          --flow-compact-title-size:58px;
+          --flow-sheet-gutter:56px;
+          --flow-sheet-queue-gutter:72px;
+          --flow-sheet-narrow-gutter:72px;
+        }
+        .card.size-lg {
+          --flow-shell-gap:28px;
+          --flow-hero-gap:36px;
+        }
+        .card.size-xl {
+          --flow-shell-gap:34px;
+          --flow-hero-gap:46px;
+          --flow-tablet-title-size:34px;
+          --flow-tablet-sub-size:16px;
+          --flow-compact-title-size:76px;
+        }
+        .card.height-short {
+          --flow-stage-pad-block:10px;
+          --flow-shell-gap:16px;
+          --flow-hero-gap:22px;
+          --flow-tablet-title-size:24px;
+          --flow-tablet-sub-size:12px;
+          --flow-compact-title-size:42px;
+          --flow-side-btn-size:48px;
+          --flow-minor-btn-size:40px;
+          --flow-main-btn-size:86px;
+          --flow-tablet-side-btn-size:54px;
+          --flow-tablet-minor-btn-size:46px;
+          --flow-tablet-main-btn-size:92px;
+          --flow-hero-aura-height:190px;
+          --flow-tablet-aura-height:230px;
+          --flow-mobile-art-size:clamp(142px, min(58cqi, var(--flow-mobile-short-art-budget)), 280px);
+          --flow-art-stack-height:var(--flow-mobile-art-size);
+          --flow-art-card-size:var(--flow-mobile-art-size);
+          --flow-autofit-art-height:clamp(220px, min(24cqi, var(--flow-tablet-art-budget)), 360px);
+          --flow-dense-art-height:clamp(200px, min(22cqi, var(--flow-tablet-dense-art-budget)), 320px);
+          --flow-sheet-pad-block:12px;
+        }
+        .card.height-tight {
+          --flow-stage-pad-block:8px;
+          --flow-shell-gap:12px;
+          --flow-hero-gap:14px;
+          --flow-tablet-rail:78px;
+          --flow-tablet-title-size:20px;
+          --flow-tablet-sub-size:11px;
+          --flow-compact-title-size:34px;
+          --flow-side-btn-size:42px;
+          --flow-minor-btn-size:36px;
+          --flow-main-btn-size:72px;
+          --flow-tablet-side-btn-size:44px;
+          --flow-tablet-minor-btn-size:38px;
+          --flow-tablet-main-btn-size:76px;
+          --flow-hero-aura-height:150px;
+          --flow-tablet-aura-height:180px;
+          --flow-mobile-art-size:clamp(122px, min(50cqi, var(--flow-mobile-tight-art-budget)), 220px);
+          --flow-art-stack-height:var(--flow-mobile-art-size);
+          --flow-art-card-size:var(--flow-mobile-art-size);
+          --flow-autofit-art-height:clamp(168px, min(20cqi, var(--flow-tablet-art-budget)), 260px);
+          --flow-dense-art-height:clamp(152px, min(18cqi, var(--flow-tablet-dense-art-budget)), 230px);
+          --flow-sheet-pad-block:10px;
         }
         .card button,
         .card input,
@@ -17921,8 +19526,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             radial-gradient(circle at 50% 78%, rgba(114,132,255,.12), transparent 30%);
         }
         .card.layout-tablet {
-          --tablet-max: min(1320px, calc(100vw - 34px));
-          --tablet-rail: 102px;
+          --tablet-max: var(--flow-tablet-max);
+          --tablet-rail: var(--flow-tablet-rail);
+          --flow-art-card-max-size:var(--flow-autofit-art-height);
         }
         .tablet-brand-watermark {
           display:none;
@@ -17937,7 +19543,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .card.layout-tablet > .tablet-brand-watermark {
           position:absolute;
           inset-block-end:28px;
-          width:clamp(156px, 15vw, 250px);
+          width:clamp(156px, 15cqi, 250px);
           height:auto;
           display:grid;
           place-items:center;
@@ -17953,7 +19559,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           inset-block-start:6px;
           left:50%;
           right:auto;
-          width:clamp(210px, 58vw, 326px);
+          width:clamp(210px, 58cqi, 326px);
           max-width:calc(100% - 104px);
           min-height:64px;
           display:grid;
@@ -17969,7 +19575,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .card.layout-tablet .control-room-scene > .control-room-brand-watermark {
           position:absolute;
           inset-block-end:28px;
-          width:clamp(156px, 15vw, 250px);
+          width:clamp(156px, 15cqi, 250px);
           height:auto;
           display:grid;
           place-items:center;
@@ -18002,7 +19608,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .menu-title-logo,
         .lyrics-title-logo,
         .queue-action-logo,
-        .smart-voice-logo {
+        .smart-voice-logo,
+        .screensaver-brand-logo,
+        .screensaver-empty-logo {
           width:100%;
           height:auto;
           display:block;
@@ -18090,12 +19698,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         }
         @media (max-height: 620px) {
           .card.layout-tablet > .tablet-brand-watermark {
-            width:clamp(116px, 11vw, 170px);
+            width:clamp(116px, 11cqi, 170px);
             inset-block-end:18px;
             opacity:.62;
           }
           .card:not(.layout-tablet) > .mobile-brand-signature {
-            width:clamp(158px, 44vw, 232px);
+            width:clamp(158px, 44cqi, 232px);
             min-height:52px;
             opacity:.84;
           }
@@ -19057,7 +20665,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           gap:8px !important;
         }
         .card.compact-mode .hero-title {
-          font-size:clamp(42px, 10vw, 76px) !important;
+          font-size:var(--flow-compact-title-size) !important;
           line-height:.92 !important;
         }
         .card.compact-mode .hero-sub {
@@ -19099,23 +20707,26 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           width:100%;
           max-width:100%;
           min-width:0;
-          display:grid; grid-template-rows:auto minmax(0,1fr) auto auto;
+          display:grid; grid-template-rows:minmax(0,1fr) auto auto;
           gap:8px;
-          padding:max(16px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+          padding:max(var(--flow-stage-pad-block), env(safe-area-inset-top)) max(var(--flow-stage-pad-inline), env(safe-area-inset-right)) max(var(--flow-stage-pad-block), env(safe-area-inset-bottom)) max(var(--flow-stage-pad-inline), env(safe-area-inset-left));
         }
         .card.layout-tablet .stage {
           gap:0;
-          padding:max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
-          grid-template-rows:auto auto auto auto;
-          align-content:start;
+          padding:max(var(--flow-stage-pad-block), env(safe-area-inset-top)) max(var(--flow-stage-pad-block), env(safe-area-inset-right)) max(var(--flow-stage-pad-block), env(safe-area-inset-bottom)) max(var(--flow-stage-pad-block), env(safe-area-inset-left));
+          grid-template-rows:minmax(0,1fr);
+          align-content:stretch;
+          min-height:0;
         }
         .card.layout-tablet .tablet-shell {
           width:100%;
           height:100%;
           display:grid;
           grid-template-columns:var(--tablet-rail) minmax(0, 1fr);
-          gap:28px;
-          align-items:start;
+          gap:var(--flow-shell-gap);
+          align-items:stretch;
+          min-height:0;
+          overflow:hidden;
         }
         .card.layout-tablet .tablet-main {
           min-width:0;
@@ -19133,7 +20744,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           flex-direction:column;
           align-items:stretch;
           gap:10px;
-          min-height:100%;
+          min-height:0;
+          height:100%;
+          overflow:hidden;
           position:relative;
           z-index:7;
         }
@@ -19144,8 +20757,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           position:absolute;
           top:-2%;
           left:50%;
-          width:min(980px, 74vw);
-          height:clamp(190px, 24vw, 310px);
+          width:var(--flow-hero-aura-width);
+          height:var(--flow-hero-aura-height);
           border-radius:999px;
           background:center / cover no-repeat;
           filter:blur(74px) saturate(1.08);
@@ -19160,8 +20773,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         }
         .card.layout-tablet .hero-aura {
           left:32%;
-          width:min(820px, 56vw);
-          height:clamp(240px, 28vw, 380px);
+          width:var(--flow-tablet-aura-width);
+          height:var(--flow-tablet-aura-height);
           opacity:.14;
         }
         .theme-light.card.layout-tablet .hero-aura {
@@ -19548,9 +21161,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           z-index:2;
         }
         .card.layout-tablet .hero-split-shell {
+          width:100%;
           direction:ltr;
-          grid-template-columns:minmax(0, 1.86fr) minmax(300px, 1fr);
-          gap:clamp(28px, 3.8vw, 56px);
+          grid-template-columns:minmax(0, 1.86fr) minmax(var(--flow-hero-info-min), 1fr);
+          gap:var(--flow-hero-gap);
         }
         .hero-visual {
           position:relative;
@@ -19612,7 +21226,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           -webkit-box-orient:vertical;
         }
         .card.layout-tablet .hero-title {
-          font-size:clamp(24px, 2vw, 34px);
+          font-size:var(--flow-tablet-title-size);
           text-wrap:balance;
           line-height:1.08;
         }
@@ -19649,14 +21263,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           justify-content:flex-start;
         }
         .card.layout-tablet .hero-sub {
-          font-size:clamp(13px, .96vw, 16px);
+          font-size:var(--flow-tablet-sub-size);
           text-wrap:balance;
         }
         .center {
           display:flex;
           flex-direction:column;
           align-items:center;
-          justify-content:flex-start;
+          justify-content:center;
           width:100%;
           max-width:100%;
           min-width:0;
@@ -19676,6 +21290,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           padding-bottom:2px;
           z-index:4;
           min-height:0;
+          justify-content:center;
         }
         .art-stage {
           position:relative;
@@ -19705,14 +21320,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         }
         .mobile-art-shell > .art-source-badges {
           inset-block-start:4px;
-          inset-inline-start:clamp(4px, 1.1vw, 12px);
+          inset-inline-start:clamp(4px, 1.1cqi, 12px);
         }
         .art-aura {
           position:absolute;
           top:50%;
           left:50%;
-          width:min(420px, 42vw);
-          height:min(420px, 42vw);
+          width:var(--flow-art-aura-size);
+          height:var(--flow-art-aura-size);
           border-radius:38%;
           background:center / cover no-repeat;
           filter:blur(44px) saturate(1.08);
@@ -19726,8 +21341,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           filter:blur(50px) saturate(1.02) brightness(1.03);
         }
         .card.layout-tablet .art-aura {
-          width:min(520px, 42vw);
-          height:min(520px, 42vw);
+          width:var(--flow-tablet-art-aura-size);
+          height:var(--flow-tablet-art-aura-size);
           transform:translate(-50%, -44%) scale(1.02);
         }
         .card.background-motion .art-aura {
@@ -19753,7 +21368,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .art-stack-view {
           position:relative;
           width:100%;
-          min-height:min(72vw, 420px);
+          height:var(--flow-art-stack-height);
+          min-height:var(--flow-art-stack-height);
           isolation:isolate;
           direction:ltr;
           overflow:hidden;
@@ -19762,7 +21378,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .art-stack-viewport {
           position:relative;
           width:100%;
-          min-height:min(72vw, 420px);
+          height:var(--flow-art-stack-height);
+          min-height:var(--flow-art-stack-height);
           overflow:hidden;
           direction:ltr;
           touch-action:pan-y;
@@ -19772,7 +21389,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .art-stack-container {
           position:relative;
           width:100%;
-          min-height:min(72vw, 420px);
+          height:var(--flow-art-stack-height);
+          min-height:var(--flow-art-stack-height);
           touch-action:pan-y;
           user-select:none;
           -webkit-user-select:none;
@@ -19796,8 +21414,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         }
         .art-stack-card {
           position:relative;
-          width:min(100%, 72vw, 420px);
-          max-height:100%;
+          width:min(var(--flow-art-card-size), 100%, var(--flow-art-card-max-size));
+          height:auto;
+          max-width:100%;
+          max-height:var(--flow-art-card-max-size);
           aspect-ratio:1/1;
           border-radius:34px;
           overflow:hidden;
@@ -19808,15 +21428,20 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           box-shadow:0 16px 30px rgba(0,0,0,.14);
           transition:transform .16s cubic-bezier(.22,.8,.24,1), opacity .16s ease, filter .16s ease;
           will-change:transform, opacity, filter;
+          contain:paint;
         }
         .art-stack-view.dragging .art-stack-slide,
         .art-stack-view.dragging .art-stack-card {
           transition:none !important;
         }
         .art-stack-card img {
+          position:absolute;
+          inset:0;
           width:100%;
           height:100%;
-          object-fit:contain;
+          max-width:100%;
+          max-height:100%;
+          object-fit:cover;
           object-position:center;
           display:block;
           pointer-events:none;
@@ -19998,7 +21623,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         }
         .mobile-art-shell {
           position:relative;
-          width:min(420px, calc(100% - 28px));
+          width:min(var(--flow-mobile-art-size), calc(100% - 28px));
           max-width:100%;
           margin-inline:auto;
           flex:0 0 auto;
@@ -20025,7 +21650,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .card.layout-tablet .art-stack-view,
         .card.layout-tablet .art-stack-viewport,
         .card.layout-tablet .art-stack-container {
-          min-height:clamp(340px, 34vw, 500px);
+          height:var(--flow-autofit-art-height);
+          min-height:var(--flow-autofit-art-height);
+          max-height:var(--flow-autofit-art-height);
         }
         .card.layout-tablet .art-stack-slide {
           width:70%;
@@ -20168,7 +21795,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           background:rgba(245,166,35,.16);
         }
         .mobile-meta { display:none; }
-        .bottom { display:grid; width:100%; max-width:100%; min-width:0; gap:12px; align-content:end; }
+        .bottom { display:grid; width:100%; max-width:100%; min-width:0; min-height:0; gap:12px; align-content:end; }
         .card.layout-tablet .bottom {
           width:100%;
           max-width:min(980px, 100%);
@@ -20191,8 +21818,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           gap:12px;
         }
         .card.layout-tablet.tablet-auto-fit .hero-split-shell {
-          grid-template-columns:minmax(0, 1.82fr) minmax(280px, 1fr);
-          gap:clamp(24px, 3vw, 44px);
+          grid-template-columns:minmax(0, 1.82fr) minmax(min(280px, var(--flow-hero-info-min)), 1fr);
+          gap:var(--flow-hero-gap);
         }
         .card.layout-tablet.tablet-auto-fit .hero-info {
           max-width:360px;
@@ -20208,7 +21835,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .card.layout-tablet.tablet-auto-fit .art-stack-view,
         .card.layout-tablet.tablet-auto-fit .art-stack-viewport,
         .card.layout-tablet.tablet-auto-fit .art-stack-container {
-          min-height:clamp(300px, 30vw, 420px);
+          height:var(--flow-autofit-art-height);
+          min-height:var(--flow-autofit-art-height);
+          max-height:var(--flow-autofit-art-height);
         }
         .card.layout-tablet.tablet-auto-fit .mobile-art-actions {
           margin:0;
@@ -20219,10 +21848,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           margin-top:0;
         }
         .card.layout-tablet.tablet-auto-fit .hero-title {
-          font-size:clamp(22px, 2vw, 32px);
+          font-size:calc(var(--flow-tablet-title-size) - 2px);
         }
         .card.layout-tablet.tablet-auto-fit .hero-sub {
-          font-size:clamp(12px, .92vw, 15px);
+          font-size:var(--flow-tablet-sub-size);
         }
         .card.layout-tablet.tablet-auto-fit .hero-up-next {
           max-width:min(460px, 90%);
@@ -20243,18 +21872,21 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           gap:16px;
         }
         .card.layout-tablet.tablet-auto-fit.tablet-fit-dense .mobile-art-shell {
+          --flow-art-card-max-size:var(--flow-dense-art-height);
           width:min(620px, 100%);
           padding:0;
           border-radius:0;
         }
         .card.layout-tablet.tablet-auto-fit.tablet-fit-dense .hero-split-shell {
-          grid-template-columns:minmax(0, 1.72fr) minmax(250px, 1fr);
-          gap:clamp(20px, 2.6vw, 34px);
+          grid-template-columns:minmax(0, 1.72fr) minmax(min(250px, var(--flow-hero-info-min)), 1fr);
+          gap:calc(var(--flow-hero-gap) * .78);
         }
         .card.layout-tablet.tablet-auto-fit.tablet-fit-dense .art-stack-view,
         .card.layout-tablet.tablet-auto-fit.tablet-fit-dense .art-stack-viewport,
         .card.layout-tablet.tablet-auto-fit.tablet-fit-dense .art-stack-container {
-          min-height:clamp(250px, 24vw, 340px);
+          height:var(--flow-dense-art-height);
+          min-height:var(--flow-dense-art-height);
+          max-height:var(--flow-dense-art-height);
         }
         .card.layout-tablet.tablet-auto-fit.tablet-fit-dense .art-stack-slide {
           width:66%;
@@ -20270,11 +21902,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           gap:6px;
         }
         .card.layout-tablet.tablet-auto-fit.tablet-fit-dense .hero-title {
-          font-size:clamp(18px, 1.75vw, 26px);
+          font-size:max(18px, calc(var(--flow-tablet-title-size) - 8px));
           line-height:1.02;
         }
         .card.layout-tablet.tablet-auto-fit.tablet-fit-dense .hero-sub {
-          font-size:clamp(11px, .84vw, 14px);
+          font-size:max(11px, calc(var(--flow-tablet-sub-size) - 1px));
         }
         .card.layout-tablet.tablet-auto-fit.tablet-fit-dense .hero-up-next {
           transform:scale(.94);
@@ -20515,15 +22147,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           -webkit-backdrop-filter:blur(14px) saturate(138%);
         }
         .side-btn,.volume-btn {
-          width:58px;
-          height:58px;
+          width:var(--flow-side-btn-size);
+          height:var(--flow-side-btn-size);
           border-radius:19px;
           box-shadow:0 12px 26px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.08);
         }
-        .side-btn.minor-btn { width:48px; height:48px; border-radius:16px; }
+        .side-btn.minor-btn { width:var(--flow-minor-btn-size); height:var(--flow-minor-btn-size); border-radius:16px; }
         .main-btn {
-          width:118px;
-          height:118px;
+          width:var(--flow-main-btn-size);
+          height:var(--flow-main-btn-size);
           border-radius:50%;
           box-shadow:0 18px 34px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.18);
           background:linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.07));
@@ -20531,9 +22163,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           overflow:visible;
         }
         .card.layout-tablet .side-btn,
-        .card.layout-tablet .volume-btn { width:64px; height:64px; border-radius:999px; }
-        .card.layout-tablet .side-btn.minor-btn { width:54px; height:54px; border-radius:999px; }
-        .card.layout-tablet .main-btn { width:110px; height:110px; }
+        .card.layout-tablet .volume-btn { width:var(--flow-tablet-side-btn-size); height:var(--flow-tablet-side-btn-size); border-radius:999px; }
+        .card.layout-tablet .side-btn.minor-btn { width:var(--flow-tablet-minor-btn-size); height:var(--flow-tablet-minor-btn-size); border-radius:999px; }
+        .card.layout-tablet .main-btn { width:var(--flow-tablet-main-btn-size); height:var(--flow-tablet-main-btn-size); }
         .card.layout-tablet .main-btn::after {
           content:"";
           position:absolute;
@@ -20635,7 +22267,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           accent-color:var(--ma-accent);
         }
         .tablet-volume-popup {
-          width:min(760px, calc(100vw - 104px));
+          width:min(760px, calc(100cqi - 104px));
           border-radius:0;
           padding:0;
           background:transparent;
@@ -21105,6 +22737,71 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .status-pill.offline .status-dot { background:#e26b6b; box-shadow:0 0 10px rgba(226,107,107,.42); }
         .notice { display:none; padding:14px 16px; border-radius:22px; line-height:1.45; }
         .notice.open { display:block; }
+        .homeii-loading-state,
+        .notice.open.homeii-loading-notice {
+          min-height:180px;
+          display:grid;
+          place-items:center;
+          text-align:center;
+          padding:28px 16px;
+          color:var(--ma-text-2);
+          background:transparent;
+          border:0;
+        }
+        .homeii-loading-state.compact {
+          min-height:120px;
+        }
+        .homeii-loading-content {
+          display:grid;
+          justify-items:center;
+          gap:12px;
+        }
+        .homeii-loading-mark {
+          position:relative;
+          width:72px;
+          height:72px;
+          display:grid;
+          place-items:center;
+          filter:drop-shadow(0 18px 32px rgba(0,0,0,.20));
+        }
+        .homeii-loading-ring {
+          position:absolute;
+          inset:8px;
+          border-radius:999px;
+          border:2px solid rgba(255,255,255,.10);
+          border-top-color:color-mix(in srgb, var(--ma-accent) 88%, #fff 8%);
+          animation:homeiiLoadingSpin 1.4s linear infinite;
+        }
+        .homeii-loading-ring.secondary {
+          inset:18px;
+          opacity:.58;
+          animation-duration:2.1s;
+          animation-direction:reverse;
+        }
+        .homeii-loading-core {
+          width:15px;
+          height:15px;
+          border-radius:999px;
+          background:var(--ma-accent);
+          box-shadow:0 0 26px color-mix(in srgb, var(--ma-accent) 58%, transparent);
+          animation:homeiiLoadingPulse 1.2s ease-in-out infinite;
+        }
+        .homeii-loading-text {
+          color:var(--ma-text-2);
+          font-size:13px;
+          font-weight:850;
+        }
+        @keyframes homeiiLoadingSpin { to { transform:rotate(360deg); } }
+        @keyframes homeiiLoadingPulse {
+          0%,100% { transform:scale(.86); opacity:.62; }
+          50% { transform:scale(1.08); opacity:1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .homeii-loading-ring,
+          .homeii-loading-core {
+            animation:none;
+          }
+        }
         .menu-backdrop {
           position:absolute; inset:0; z-index:30; display:none; align-items:stretch; justify-content:center;
           padding:max(30px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
@@ -21143,7 +22840,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           gap:10px;
         }
         .queue-action-sheet.tablet-volume-sheet-host {
-          width:min(760px, calc(100vw - 72px));
+          width:min(760px, calc(100cqi - 72px));
           padding:0;
           border:none;
           background:transparent;
@@ -21589,7 +23286,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .card.empty-media .art-stack-view,
         .card.empty-media .art-stack-viewport,
         .card.empty-media .art-stack-container {
+          height:170px;
           min-height:170px;
+          max-height:170px;
         }
         .card.empty-media .center {
           gap:18px;
@@ -21686,14 +23385,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           border-radius:42px;
         }
         .card.radio-media .art-stack-view {
-          min-height:clamp(246px, 26vw, 356px);
+          height:clamp(246px, 26cqi, 356px);
+          min-height:clamp(246px, 26cqi, 356px);
+          max-height:clamp(246px, 26cqi, 356px);
           display:grid;
           place-items:center;
         }
         .radio-stage {
           position:relative;
           width:min(100%, 760px);
-          min-height:clamp(230px, 24vw, 330px);
+          min-height:clamp(230px, 24cqi, 330px);
           display:grid;
           place-items:center;
         }
@@ -23902,12 +25603,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           align-content:start;
         }
         .media-items-list.layout-grid {
-          --media-grid-thumb-size:clamp(148px, 42vw, 188px);
+          --media-grid-thumb-size:var(--flow-media-grid-thumb);
           grid-template-columns:repeat(auto-fill, minmax(156px, 1fr));
           grid-auto-rows:auto;
         }
         .card.layout-tablet .media-items-list.layout-grid {
-          --media-grid-thumb-size:clamp(178px, 12vw, 224px);
+          --media-grid-thumb-size:var(--flow-tablet-media-grid-thumb);
           grid-template-columns:repeat(auto-fill, minmax(204px, 1fr));
           gap:18px;
         }
@@ -25244,6 +26945,46 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           width:100%;
           max-width:none;
         }
+        .settings-select-card {
+          display:grid;
+          grid-template-columns:44px minmax(0,1fr);
+          align-items:center;
+          gap:10px;
+          width:100%;
+          padding:8px;
+          border-radius:20px;
+          border:1px solid rgba(255,255,255,.12);
+          background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.045));
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 14px 28px rgba(0,0,0,.12);
+        }
+        .settings-select-card-icon {
+          width:44px;
+          height:44px;
+          border-radius:15px;
+          display:grid;
+          place-items:center;
+          color:var(--ma-accent);
+          background:color-mix(in srgb, var(--ma-accent) 16%, rgba(255,255,255,.08));
+          border:1px solid color-mix(in srgb, var(--ma-accent) 20%, rgba(255,255,255,.1));
+          flex-shrink:0;
+        }
+        .settings-select-card-icon .ui-ic {
+          width:21px;
+          height:21px;
+        }
+        .settings-select-card .settings-select {
+          min-height:44px;
+          border-radius:14px;
+          background:rgba(7,9,13,.28);
+        }
+        .theme-light .settings-select-card {
+          background:rgba(255,255,255,.68);
+          border-color:rgba(147,161,183,.18);
+          box-shadow:0 14px 28px rgba(110,127,153,.12);
+        }
+        .theme-light .settings-select-card .settings-select {
+          background:rgba(255,255,255,.72);
+        }
         .settings-hint {
           color:rgba(255,255,255,.58);
           font-size:12px;
@@ -25306,6 +27047,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           font-weight:800;
           padding:12px 14px;
           outline:none;
+        }
+        .ambient-map-input {
+          min-height:76px;
+          line-height:1.45;
+          resize:vertical;
         }
         .settings-text-input:focus,
         .announcement-textarea:focus {
@@ -25720,13 +27466,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         @media (max-width:600px) {
           .card {
             border-radius:22px;
-            height:min(max(var(--mobile-min-height), var(--mobile-height)), 100dvh);
-            min-height:min(var(--mobile-min-height), 100dvh);
-            max-height:100dvh;
+            height:var(--mobile-height);
+            min-height:min(var(--mobile-min-height), var(--mobile-height));
+            max-height:var(--mobile-height);
           }
           .stage {
             gap:8px;
-            grid-template-rows:auto minmax(0,1fr) auto auto;
+            grid-template-rows:minmax(0,1fr) auto auto;
             padding:max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
           }
           .player-chip { padding:0 2px; }
@@ -25741,7 +27487,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           .player-focus-copy { gap:6px; }
           .player-focus-tags { min-height:0; gap:4px; flex-wrap:nowrap; }
           .player-focus-pill { min-height:18px; padding:0 7px; font-size:calc(9px * var(--v2-font-scale)); }
-          .player-focus-name { font-size:calc(11px * var(--v2-font-scale)); max-width:min(46vw, 180px); }
+          .player-focus-name { font-size:calc(11px * var(--v2-font-scale)); max-width:min(46cqi, 180px); }
           .hero-mobile-top { margin-bottom:8px; }
           .hero-split-shell { gap:12px; }
           .hero-info { gap:10px; }
@@ -25753,26 +27499,26 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           .art-stage { width:100%; padding:0; gap:6px; }
           .art-stack-view,
           .art-stack-viewport,
-          .art-stack-container { min-height:min(56vw, 268px); }
+          .art-stack-container { height:var(--flow-art-stack-height); min-height:var(--flow-art-stack-height); max-height:var(--flow-art-stack-height); }
           .art-stack-slide { width:74%; }
           .art-stack-slide.center { width:78%; }
           .art-stack-slide.prev,
           .art-stack-slide.next { width:56%; }
-          .mobile-art-shell { width:min(318px, calc(100% - 28px)); border-radius:0; padding:0; }
-          .card.empty-media .mobile-art-shell { width:min(174px, 44vw); height:min(174px, 44vw); display:grid; place-items:center; border-radius:999px; overflow:visible; background:transparent; border:none; box-shadow:none; }
+          .mobile-art-shell { width:min(var(--flow-mobile-art-size), calc(100% - 28px)); border-radius:0; padding:0; }
+          .card.empty-media .mobile-art-shell { width:min(174px, 44cqi); height:min(174px, 44cqi); display:grid; place-items:center; border-radius:999px; overflow:visible; background:transparent; border:none; box-shadow:none; }
           .card.empty-media .art-stack-view,
           .card.empty-media .art-stack-viewport,
           .card.empty-media .art-stack-container { width:100%; height:100%; min-height:100%; display:grid; place-items:center; overflow:visible; background:transparent; border:none; box-shadow:none; }
-          .card.empty-media .surprise-me-card.magic-empty { width:min(168px, 42vw); height:min(168px, 42vw); border-radius:999px; overflow:hidden; }
+          .card.empty-media .surprise-me-card.magic-empty { width:min(168px, 42cqi); height:min(168px, 42cqi); border-radius:999px; overflow:hidden; }
           .np-art.mobile-art { border-radius:22px; }
           .mobile-art-actions { width:auto; margin-top:0; padding:0; gap:8px; }
           .mobile-art-fab { width:38px; min-width:38px; height:38px; border-radius:999px; }
           .bottom { gap:8px; }
           .progress-line { gap:12px; margin-top:4px; }
           .controls { gap:10px; margin-top:4px; flex-wrap:nowrap; }
-          .side-btn,.volume-btn { width:48px; height:48px; border-radius:18px; flex:0 0 auto; }
-          .side-btn.minor-btn { width:40px; height:40px; border-radius:16px; flex:0 0 auto; }
-          .main-btn { width:84px; height:84px; flex:0 0 auto; }
+          .side-btn,.volume-btn { width:var(--flow-side-btn-size); height:var(--flow-side-btn-size); border-radius:18px; flex:0 0 auto; }
+          .side-btn.minor-btn { width:var(--flow-minor-btn-size); height:var(--flow-minor-btn-size); border-radius:16px; flex:0 0 auto; }
+          .main-btn { width:var(--flow-main-btn-size); height:var(--flow-main-btn-size); flex:0 0 auto; }
           .mobile-volume-inline { margin-top:4px; gap:10px; }
           .footer-nav { gap:8px; margin-top:6px; padding:8px; border-radius:18px; }
           .footer-btn { min-height:52px; border-radius:16px; font-size:calc(10px * var(--v2-font-scale)); gap:4px; }
@@ -25811,7 +27557,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             gap:14px;
           }
           .media-items-list.layout-grid {
-            --media-grid-thumb-size:clamp(142px, 39vw, 174px);
+            --media-grid-thumb-size:var(--flow-media-grid-thumb);
             grid-template-columns:repeat(2, minmax(0, 1fr));
           }
           .media-entry.list {
@@ -25841,6 +27587,269 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           .queue-actions .chip-btn { min-width:32px; min-height:32px; width:32px; border-radius:11px; }
           .group-actions { grid-template-columns:1fr; }
         }
+        .card.height-short .stage {
+          gap:6px;
+          min-height:0;
+        }
+        .card.height-short .center,
+        .card.height-short .bottom,
+        .card.height-short .tablet-main {
+          gap:6px !important;
+          min-height:0;
+        }
+        .card.height-short .hero-split-shell,
+        .card.height-short .hero-visual,
+        .card.height-short .hero-info,
+        .card.height-short .art-stage {
+          min-height:0;
+        }
+        .card.height-short .hero-copy {
+          gap:4px;
+          min-width:0;
+        }
+        .card.height-short .hero-title,
+        .card.height-short .hero-sub {
+          display:-webkit-box;
+          -webkit-box-orient:vertical;
+          overflow:hidden;
+        }
+        .card.height-short .hero-title {
+          -webkit-line-clamp:1;
+          line-height:1.04;
+        }
+        .card.height-short .hero-sub {
+          -webkit-line-clamp:1;
+        }
+        .card.height-short .progress-line {
+          margin-top:0 !important;
+        }
+        .card.height-short .controls {
+          gap:8px !important;
+          margin-top:0 !important;
+        }
+        .card.height-short .mobile-volume-inline {
+          margin-top:0 !important;
+        }
+        .card.height-short:not(.layout-tablet) .footer-nav {
+          gap:6px !important;
+          margin-top:2px !important;
+          padding:6px !important;
+          border-radius:16px !important;
+        }
+        .card.height-short:not(.layout-tablet) .footer-btn {
+          min-height:42px !important;
+          padding:6px !important;
+          border-radius:14px !important;
+        }
+        .card.height-short:not(.layout-tablet) .footer-btn-label {
+          display:none !important;
+        }
+        .card.height-short:not(.layout-tablet) .mobile-volume-inline {
+          gap:8px !important;
+        }
+        .card.height-short.layout-tablet .footer-nav {
+          gap:8px !important;
+        }
+        .card.height-short.layout-tablet .footer-btn {
+          min-height:56px !important;
+          border-radius:18px !important;
+        }
+        .card.height-short.layout-tablet .player-focus {
+          min-height:58px !important;
+          padding:8px !important;
+        }
+        .card.aspect-wide:not(.layout-tablet) {
+          --flow-stage-pad-block:8px;
+          --flow-stage-pad-inline:10px;
+          --flow-hero-gap:14px;
+          --flow-side-btn-size:42px;
+          --flow-minor-btn-size:36px;
+          --flow-main-btn-size:72px;
+          --flow-mobile-art-size:clamp(140px, min(34cqi, var(--flow-mobile-art-budget)), 320px);
+          --flow-art-stack-height:var(--flow-mobile-art-size);
+          --flow-art-card-size:var(--flow-mobile-art-size);
+        }
+        .card.aspect-wide:not(.layout-tablet) > .mobile-brand-signature,
+        .card.aspect-wide:not(.layout-tablet) .hero-mobile-top,
+        .card.aspect-wide:not(.layout-tablet) .footer-nav,
+        .card.aspect-wide:not(.layout-tablet) .mobile-volume-inline {
+          display:none !important;
+        }
+        .card.aspect-wide:not(.layout-tablet) .stage {
+          grid-template-rows:minmax(0,1fr) auto !important;
+          gap:6px !important;
+          min-height:0;
+        }
+        .card.aspect-wide:not(.layout-tablet) .center {
+          justify-content:center;
+          min-height:0;
+          overflow:hidden;
+        }
+        .card.aspect-wide:not(.layout-tablet) .hero-split-shell {
+          width:100%;
+          max-width:min(940px, 100%);
+          display:grid;
+          grid-template-columns:minmax(150px, .82fr) minmax(0, 1fr);
+          gap:14px !important;
+          align-items:center;
+        }
+        .card.aspect-wide:not(.layout-tablet).rtl .hero-split-shell {
+          direction:rtl;
+        }
+        .card.aspect-wide:not(.layout-tablet) .hero-info,
+        .card.aspect-wide:not(.layout-tablet) .hero-copy {
+          justify-items:start;
+          text-align:start;
+          max-width:100%;
+          gap:6px;
+        }
+        .card.aspect-wide:not(.layout-tablet).rtl .hero-info,
+        .card.aspect-wide:not(.layout-tablet).rtl .hero-copy {
+          text-align:right;
+        }
+        .card.aspect-wide:not(.layout-tablet) .hero-title {
+          font-size:calc(22px * var(--v2-font-scale));
+          line-height:1.04;
+          -webkit-line-clamp:2;
+        }
+        .card.aspect-wide:not(.layout-tablet) .hero-sub {
+          font-size:calc(12px * var(--v2-font-scale));
+          -webkit-line-clamp:1;
+        }
+        .card.aspect-wide:not(.layout-tablet) .art-stage,
+        .card.aspect-wide:not(.layout-tablet) .hero-visual {
+          min-height:0;
+          width:100%;
+        }
+        .card.aspect-wide:not(.layout-tablet) .mobile-art-shell {
+          width:var(--flow-mobile-art-size) !important;
+          max-width:100% !important;
+        }
+        .card.aspect-wide:not(.layout-tablet) .art-stack-view,
+        .card.aspect-wide:not(.layout-tablet) .art-stack-viewport,
+        .card.aspect-wide:not(.layout-tablet) .art-stack-container {
+          height:var(--flow-mobile-art-size) !important;
+          min-height:var(--flow-mobile-art-size) !important;
+          max-height:var(--flow-mobile-art-size) !important;
+        }
+        .card.aspect-wide:not(.layout-tablet) .mobile-art-actions {
+          justify-content:flex-start !important;
+          gap:6px !important;
+          flex-wrap:nowrap !important;
+          overflow:hidden;
+        }
+        .card.aspect-wide:not(.layout-tablet) .mobile-art-fab,
+        .card.aspect-wide:not(.layout-tablet) .mobile-art-actions .history-toggle-fab,
+        .card.aspect-wide:not(.layout-tablet) .mobile-timer-fab {
+          width:34px !important;
+          min-width:34px !important;
+          height:34px !important;
+        }
+        .card.aspect-wide:not(.layout-tablet) .bottom {
+          gap:5px !important;
+          align-content:end;
+        }
+        .card.aspect-wide:not(.layout-tablet) .progress-line {
+          gap:8px !important;
+          margin-top:0 !important;
+        }
+        .card.aspect-wide:not(.layout-tablet) .progress-time {
+          min-width:34px;
+          font-size:11px;
+        }
+        .card.aspect-wide:not(.layout-tablet) .controls {
+          gap:8px !important;
+          margin-top:0 !important;
+        }
+        .card.height-tight:not(.layout-tablet) > .mobile-brand-signature,
+        .card.height-tight:not(.layout-tablet) .hero-mobile-top,
+        .card.height-tight:not(.layout-tablet) .footer-nav,
+        .card.height-tight:not(.layout-tablet) .mobile-volume-inline {
+          display:none !important;
+        }
+        .card.height-tight:not(.layout-tablet) .stage {
+          grid-template-rows:minmax(0,1fr) auto !important;
+        }
+        .card.height-tight:not(.layout-tablet) .center {
+          justify-content:center;
+          overflow:hidden;
+        }
+        .card.height-tight:not(.layout-tablet) .hero-split-shell {
+          width:100%;
+          max-width:min(760px, 100%);
+          display:grid;
+          grid-template-columns:minmax(112px, .86fr) minmax(0, 1fr);
+          gap:12px !important;
+          align-items:center;
+        }
+        .card.height-tight:not(.layout-tablet).rtl .hero-split-shell {
+          direction:rtl;
+        }
+        .card.height-tight:not(.layout-tablet) .hero-info,
+        .card.height-tight:not(.layout-tablet) .hero-copy {
+          justify-items:start;
+          text-align:start;
+          max-width:100%;
+        }
+        .card.height-tight:not(.layout-tablet).rtl .hero-info,
+        .card.height-tight:not(.layout-tablet).rtl .hero-copy {
+          text-align:right;
+        }
+        .card.height-tight:not(.layout-tablet) .art-stack-view,
+        .card.height-tight:not(.layout-tablet) .art-stack-viewport,
+        .card.height-tight:not(.layout-tablet) .art-stack-container {
+          height:min(var(--flow-art-stack-height), 48dvh) !important;
+          min-height:min(var(--flow-art-stack-height), 48dvh) !important;
+          max-height:min(var(--flow-art-stack-height), 48dvh) !important;
+        }
+        .card.height-tight:not(.layout-tablet) .mobile-art-shell {
+          width:min(240px, 42cqi, clamp(112px, calc(var(--flow-available-height) - 150px), 240px)) !important;
+        }
+        .card.height-tight:not(.layout-tablet) .mobile-art-actions {
+          justify-content:flex-start !important;
+          gap:6px !important;
+          flex-wrap:nowrap !important;
+          overflow:hidden;
+        }
+        .card.height-tight:not(.layout-tablet) .mobile-art-fab {
+          width:34px !important;
+          min-width:34px !important;
+          height:34px !important;
+        }
+        .card.height-tight:not(.layout-tablet) .bottom {
+          align-content:end;
+        }
+        .card.height-tight:not(.layout-tablet) .progress-time {
+          min-width:34px;
+          font-size:11px;
+        }
+        .card.height-tight.layout-tablet .tablet-shell {
+          gap:10px !important;
+        }
+        .card.height-tight.layout-tablet .footer-nav {
+          gap:6px !important;
+        }
+        .card.height-tight.layout-tablet .footer-btn {
+          min-height:42px !important;
+          padding:6px !important;
+          border-radius:16px !important;
+        }
+        .card.height-tight.layout-tablet .footer-btn-label {
+          display:none !important;
+        }
+        .card.height-tight.layout-tablet .player-focus {
+          min-height:44px !important;
+          padding:6px !important;
+          gap:6px !important;
+        }
+        .card.height-tight.layout-tablet .player-focus-art {
+          width:32px !important;
+          height:32px !important;
+        }
+        .card.height-tight .hero-up-next,
+        .card.height-tight .night-quick-row {
+          display:none !important;
+        }
       .mobile-volume-inline .volume-btn .ui-ic{width:22px;height:22px;}
 .card:not(.layout-tablet) .mobile-volume-inline{grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;}
 .card:not(.layout-tablet) .mobile-volume-inline .volume-value{order:1;min-width:46px;text-align:center;}
@@ -25848,6 +27857,193 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 .card:not(.layout-tablet) .mobile-volume-inline .volume-btn{order:3;width:42px;height:42px;border-radius:999px;}
 .card:not(.layout-tablet) .mobile-volume-inline .volume-btn.active{background:rgba(170,38,38,.28)!important;border-color:rgba(255,98,98,.36)!important;color:#fff!important;box-shadow:0 10px 24px rgba(120,22,22,.22)!important;}
 .card:not(.layout-tablet) .queue-action-item{min-height:58px;}
+.card.mobile-content-dense:not(.layout-tablet){
+  --flow-stage-pad-block:9px;
+  --flow-shell-gap:12px;
+  --flow-hero-gap:10px;
+  --flow-side-btn-size:46px;
+  --flow-minor-btn-size:38px;
+  --flow-main-btn-size:84px;
+  --flow-mobile-art-size:clamp(190px, min(72cqi, var(--flow-mobile-art-budget)), 370px);
+  --flow-art-stack-height:var(--flow-mobile-art-size);
+  --flow-art-card-size:var(--flow-mobile-art-size);
+}
+.card.mobile-content-dense:not(.layout-tablet) > .mobile-brand-signature{
+  inset-block-start:2px;
+  min-height:46px;
+  width:clamp(170px, 48cqi, 260px);
+  opacity:.52;
+  z-index:2;
+  transform:translateX(-50%) scale(.86);
+  transform-origin:50% 0;
+}
+.card.mobile-content-dense:not(.layout-tablet) .stage{
+  gap:6px!important;
+  padding-block-start:max(7px, env(safe-area-inset-top))!important;
+  padding-block-end:max(8px, env(safe-area-inset-bottom))!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .center{
+  justify-content:center!important;
+  gap:5px!important;
+  padding-top:18px;
+  overflow:visible;
+}
+.card.mobile-content-dense:not(.layout-tablet) .hero-mobile-top{
+  min-height:34px;
+  margin-bottom:0!important;
+  overflow:visible;
+  z-index:9;
+}
+.card.mobile-content-dense:not(.layout-tablet) .player-focus{
+  margin-top:0!important;
+  max-width:min(calc(100% - 76px), 360px)!important;
+  min-height:32px!important;
+  padding:5px 10px!important;
+  gap:6px!important;
+  border-radius:16px!important;
+  overflow:visible;
+}
+.card.mobile-content-dense:not(.layout-tablet) .player-focus-copy{
+  gap:6px!important;
+  min-width:0;
+}
+.card.mobile-content-dense:not(.layout-tablet) .player-focus-tags{
+  gap:4px!important;
+  min-width:0;
+  overflow:visible;
+}
+.card.mobile-content-dense:not(.layout-tablet) .player-focus-name{
+  font-size:calc(11px * var(--v2-font-scale))!important;
+  line-height:1.08!important;
+  max-width:min(40cqi, 162px)!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .player-focus-art-wrap,
+.card.mobile-content-dense:not(.layout-tablet) .player-focus-art{
+  width:30px!important;
+  height:30px!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .player-focus-pill{
+  min-height:17px!important;
+  padding:0 6px!important;
+  font-size:calc(9px * var(--v2-font-scale))!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .hero-split-shell,
+.card.mobile-content-dense:not(.layout-tablet) .hero-info,
+.card.mobile-content-dense:not(.layout-tablet) .hero-copy{
+  gap:5px!important;
+  min-height:0;
+}
+.card.mobile-content-dense:not(.layout-tablet) .hero-split-shell{
+  align-content:start;
+  max-height:100%;
+}
+.card.mobile-content-dense:not(.layout-tablet) .hero-copy{
+  max-width:min(94%, 520px)!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .hero-title{
+  font-size:calc(18px * var(--v2-font-scale))!important;
+  line-height:1.04!important;
+  -webkit-line-clamp:1!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .hero-sub{
+  font-size:calc(11px * var(--v2-font-scale))!important;
+  line-height:1.16!important;
+  -webkit-line-clamp:1!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .hero-up-next{
+  max-width:min(94%, 440px)!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .up-next-art{
+  width:18px!important;
+  min-width:18px!important;
+  height:18px!important;
+  border-radius:6px!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .up-next-line{
+  gap:4px!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .up-next-prefix{
+  font-size:10px!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .up-next-title{
+  font-size:11px!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .mobile-action-row-wrap{
+  width:100%;
+  min-height:38px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  overflow:visible;
+  position:relative;
+  z-index:3;
+}
+.card.mobile-content-dense:not(.layout-tablet) .mobile-art-actions{
+  gap:7px!important;
+  flex-wrap:nowrap!important;
+  overflow:visible!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .mobile-art-fab,
+.card.mobile-content-dense:not(.layout-tablet) .mobile-art-actions .history-toggle-fab,
+.card.mobile-content-dense:not(.layout-tablet) .mobile-timer-fab{
+  width:38px!important;
+  min-width:38px!important;
+  height:38px!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .night-quick-row{
+  margin-top:0!important;
+  gap:5px!important;
+  flex-wrap:nowrap!important;
+  max-width:100%;
+  overflow:visible;
+}
+.card.mobile-content-dense:not(.layout-tablet) .night-quick-btn.icon-only{
+  width:28px!important;
+  min-width:28px!important;
+  height:28px!important;
+  min-height:28px!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .night-quick-btn.icon-only .ui-ic{
+  width:15px!important;
+  height:15px!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .bottom{
+  gap:6px!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .progress-line,
+.card.mobile-content-dense:not(.layout-tablet) .controls,
+.card.mobile-content-dense:not(.layout-tablet) .mobile-volume-inline{
+  margin-top:0!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .controls{
+  gap:8px!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .mobile-volume-inline{
+  gap:8px!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .footer-nav{
+  margin-top:1px!important;
+  padding:6px!important;
+  gap:6px!important;
+}
+.card.mobile-content-dense:not(.layout-tablet) .footer-btn{
+  min-height:46px!important;
+  padding:6px!important;
+}
+.card.mobile-content-dense.height-tight:not(.layout-tablet){
+  --flow-mobile-art-size:clamp(150px, min(58cqi, calc(var(--flow-available-height) * .3)), 260px);
+}
+.card.mobile-content-dense.height-tight:not(.layout-tablet) .player-focus{
+  min-height:28px!important;
+  padding:4px 8px!important;
+}
+.card.mobile-content-dense.height-tight:not(.layout-tablet) .mobile-art-fab,
+.card.mobile-content-dense.height-tight:not(.layout-tablet) .mobile-art-actions .history-toggle-fab,
+.card.mobile-content-dense.height-tight:not(.layout-tablet) .mobile-timer-fab{
+  width:34px!important;
+  min-width:34px!important;
+  height:34px!important;
+}
 .mobile-art-actions{position:relative!important;left:auto!important;right:auto!important;transform:none!important;inset-inline:auto!important;inset-block-end:auto!important;display:flex!important;align-items:center!important;justify-content:center!important;gap:10px!important;flex-wrap:wrap!important;margin-top:0!important;padding:0!important;border-radius:0!important;background:transparent!important;border:none!important;box-shadow:none!important;backdrop-filter:none!important;}
 .card.layout-tablet .mobile-art-actions{position:relative!important;left:auto!important;right:auto!important;transform:none!important;inset-inline:auto!important;inset-block-end:auto!important;margin:0!important;justify-content:flex-start!important;z-index:4!important;}
 .theme-light .mobile-art-actions{background:transparent!important;border-color:transparent!important;box-shadow:none!important;}
@@ -25877,11 +28073,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   .history-drawer.right-edge{inset-inline-end:14px;transform:translateX(calc(100% + 14px));}
   .history-drawer.open{transform:translateX(0);}
 }
-.card.layout-tablet .menu-backdrop{justify-content:center!important;align-items:stretch!important;padding:18px 24px!important;}
-.card.layout-tablet .menu-sheet{width:min(calc(100% - 96px), 920px)!important;max-width:min(calc(100% - 96px), 920px)!important;max-height:calc(100% - 26px)!important;height:calc(100% - 26px)!important;margin-inline:auto!important;}
-.card.layout-tablet .menu-sheet.sheet-library,.card.layout-tablet .menu-sheet.sheet-search{width:min(calc(100% - 96px), 1120px)!important;max-width:min(calc(100% - 96px), 1120px)!important;}
-.card.layout-tablet .menu-sheet.sheet-queue{width:min(calc(100% - 160px), 980px)!important;max-width:min(calc(100% - 160px), 980px)!important;}
-.card.layout-tablet .menu-sheet.sheet-actions,.card.layout-tablet .menu-sheet.sheet-schedules,.card.layout-tablet .menu-sheet.sheet-players,.card.layout-tablet .menu-sheet.sheet-groupplayers,.card.layout-tablet .menu-sheet.sheet-settings{width:min(calc(100% - 180px), 860px)!important;max-width:min(calc(100% - 180px), 860px)!important;}
+.card.layout-tablet .menu-backdrop{justify-content:center!important;align-items:stretch!important;padding:var(--flow-sheet-pad-block) var(--flow-sheet-pad-inline)!important;}
+.card.layout-tablet .menu-sheet{width:min(calc(100% - var(--flow-sheet-gutter)), 920px)!important;max-width:min(calc(100% - var(--flow-sheet-gutter)), 920px)!important;max-height:calc(100% - 26px)!important;height:calc(100% - 26px)!important;margin-inline:auto!important;}
+.card.layout-tablet .menu-sheet.sheet-library,.card.layout-tablet .menu-sheet.sheet-search{width:min(calc(100% - var(--flow-sheet-gutter)), 1120px)!important;max-width:min(calc(100% - var(--flow-sheet-gutter)), 1120px)!important;}
+.card.layout-tablet .menu-sheet.sheet-queue{width:min(calc(100% - var(--flow-sheet-queue-gutter)), 980px)!important;max-width:min(calc(100% - var(--flow-sheet-queue-gutter)), 980px)!important;}
+.card.layout-tablet .menu-sheet.sheet-actions,.card.layout-tablet .menu-sheet.sheet-schedules,.card.layout-tablet .menu-sheet.sheet-players,.card.layout-tablet .menu-sheet.sheet-groupplayers,.card.layout-tablet .menu-sheet.sheet-settings{width:min(calc(100% - var(--flow-sheet-narrow-gutter)), 860px)!important;max-width:min(calc(100% - var(--flow-sheet-narrow-gutter)), 860px)!important;}
 .card.layout-tablet .queue-list{max-width:920px;margin-inline:auto;}
 .card.layout-tablet .queue-row{min-height:88px!important;}
 .card.layout-tablet .active-player-chip .bars,.card.layout-tablet .active-player-card .bars{display:none!important;}
@@ -25905,7 +28101,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 .control-room-shell{position:relative;width:100%;height:100%;min-height:100%;max-height:none;display:block;border-radius:inherit;overflow:hidden;border:none;background:transparent;box-shadow:none;}
 .theme-light .control-room-shell{background:transparent;}
 .control-room-head{position:absolute;inset-inline:0;inset-block-start:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 22px;z-index:48;pointer-events:none;}
-.control-room-head-brand{width:clamp(118px, 18vw, 210px);color:rgba(255,255,255,.68);opacity:.96;display:grid;place-items:center;pointer-events:none;}
+.control-room-head-brand{width:var(--flow-control-room-brand-width);color:rgba(255,255,255,.68);opacity:.96;display:grid;place-items:center;pointer-events:none;}
 .theme-light .control-room-head-brand{color:rgba(31,38,51,.42);}
 .control-room-close{width:46px;height:46px;border-radius:18px;border:1px solid rgba(255,255,255,.14);background:rgba(10,13,20,.34);color:#fff;display:grid;place-items:center;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);pointer-events:auto;z-index:49;}
 .theme-light .control-room-close{border-color:rgba(26,39,61,.1);background:rgba(255,255,255,.62);color:#1b2740;}
@@ -26332,9 +28528,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   pointer-events:auto!important;
 }
 .card.layout-tablet.rtl > .home-shortcut-fab.tablet{
-  inset:18px 18px auto auto!important;
-  right:18px!important;
-  left:auto!important;
+  inset:18px auto auto 18px!important;
+  right:auto!important;
+  left:18px!important;
 }
 .card.layout-tablet:not(.rtl) > .home-shortcut-fab.tablet{
   inset:18px 18px auto auto!important;
@@ -27113,7 +29309,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
 @media (max-width:980px){
   .control-room-player-console{
-    min-width:min(540px, 72vw);
+    min-width:min(540px, 72cqi);
     max-width:none;
     flex:0 0 auto;
   }
@@ -27137,7 +29333,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   .control-room-tile .control-room-select-fab{min-width:76px!important;height:38px!important;padding-inline:9px!important;}
   .control-room-select-label{font-size:9px!important;}
   .control-room-player-console{
-    min-width:calc(100vw - 34px);
+    min-width:calc(100cqi - 34px);
     flex-wrap:wrap;
     justify-content:space-between;
   }
@@ -28332,8 +30528,1253 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   background:rgba(180,35,43,.10)!important;
 }
 
+.card.layout-mobile .menu-backdrop.action-fullscreen-open{
+  padding:0!important;
+  background:rgba(5,7,12,.72)!important;
+  z-index:80!important;
+}
+.card.layout-mobile:has(.menu-backdrop.action-fullscreen-open.open) > .home-shortcut-fab{
+  display:none!important;
+}
+.card.layout-mobile .menu-backdrop.action-fullscreen-open::before{
+  opacity:.68!important;
+  filter:blur(46px) saturate(1.2) brightness(.78)!important;
+}
+.card.layout-mobile .menu-backdrop.action-fullscreen-open .menu-sheet{
+  width:100%!important;
+  max-width:100%!important;
+  height:100%!important;
+  max-height:100%!important;
+  margin:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+}
+.card.layout-mobile .menu-backdrop.action-fullscreen-open .menu-head{
+  min-height:62px;
+  background:rgba(8,10,16,.54);
+  border-bottom-color:rgba(255,255,255,.10);
+  backdrop-filter:blur(18px);
+  -webkit-backdrop-filter:blur(18px);
+}
+.card.layout-mobile .menu-backdrop.action-fullscreen-open .menu-title{
+  max-width:min(620px, calc(100% - 132px));
+}
+.card.layout-mobile .menu-backdrop.action-fullscreen-open .menu-title-text{
+  display:inline-block;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.card.layout-mobile .menu-backdrop.action-fullscreen-open .menu-sheet::after{
+  background:
+    radial-gradient(circle at 14% 12%, rgba(var(--dynamic-accent-rgb,245 166 35) / .16), transparent 34%),
+    radial-gradient(circle at 84% 4%, rgba(91,141,255,.14), transparent 28%),
+    linear-gradient(180deg, rgba(7,9,15,.68), rgba(8,10,16,.96))!important;
+}
+.theme-light.card.layout-mobile .menu-backdrop.action-fullscreen-open .menu-sheet::after{
+  background:
+    radial-gradient(circle at 14% 12%, rgba(var(--dynamic-accent-rgb,245 166 35) / .16), transparent 34%),
+    radial-gradient(circle at 84% 4%, rgba(80,127,220,.13), transparent 28%),
+    linear-gradient(180deg, rgba(248,250,253,.80), rgba(234,240,248,.98))!important;
+}
+.card.layout-mobile .menu-backdrop.action-fullscreen-open .menu-body{
+  padding:clamp(12px, 3vw, 20px) clamp(14px, 4vw, 24px) max(24px, env(safe-area-inset-bottom))!important;
+}
+.card.layout-mobile .menu-backdrop.action-fullscreen-open .menu-body.library-mode{
+  padding:0!important;
+}
+
+.card.layout-tablet .menu-backdrop.library-fullscreen-open{
+  padding:0!important;
+  background:rgba(5,7,12,.72)!important;
+  z-index:80!important;
+}
+.card.layout-tablet:has(.menu-backdrop.library-fullscreen-open.open) > .home-shortcut-fab{
+  display:none!important;
+}
+.card.layout-tablet .menu-backdrop.library-fullscreen-open::before{
+  opacity:.66!important;
+  filter:blur(46px) saturate(1.2) brightness(.78)!important;
+}
+.card.layout-tablet .menu-backdrop.library-fullscreen-open .menu-sheet.sheet-library,
+.card.layout-tablet .menu-backdrop.library-fullscreen-open .menu-sheet.sheet-search{
+  width:100%!important;
+  max-width:100%!important;
+  height:100%!important;
+  max-height:100%!important;
+  margin:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+}
+.card.layout-tablet .menu-backdrop.library-fullscreen-open .menu-head{
+  min-height:62px;
+  background:rgba(8,10,16,.54);
+  border-bottom-color:rgba(255,255,255,.10);
+  backdrop-filter:blur(18px);
+}
+.card.layout-tablet .menu-backdrop.library-fullscreen-open .menu-title{
+  max-width:min(620px, calc(100% - 132px));
+}
+.card.layout-tablet .menu-backdrop.library-fullscreen-open .menu-title-text{
+  display:inline-block;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.card.layout-tablet .menu-backdrop.library-fullscreen-open .menu-sheet.sheet-library::after,
+.card.layout-tablet .menu-backdrop.library-fullscreen-open .menu-sheet.sheet-search::after{
+  background:
+    radial-gradient(circle at 14% 12%, rgba(var(--dynamic-accent-rgb,245 166 35) / .18), transparent 34%),
+    radial-gradient(circle at 84% 4%, rgba(91,141,255,.16), transparent 28%),
+    linear-gradient(180deg, rgba(7,9,15,.68), rgba(8,10,16,.96))!important;
+}
+.theme-light.card.layout-tablet .menu-backdrop.library-fullscreen-open .menu-sheet.sheet-library::after,
+.theme-light.card.layout-tablet .menu-backdrop.library-fullscreen-open .menu-sheet.sheet-search::after{
+  background:
+    radial-gradient(circle at 14% 12%, rgba(var(--dynamic-accent-rgb,245 166 35) / .18), transparent 34%),
+    radial-gradient(circle at 84% 4%, rgba(80,127,220,.14), transparent 28%),
+    linear-gradient(180deg, rgba(248,250,253,.80), rgba(234,240,248,.98))!important;
+}
+.card.layout-tablet .menu-backdrop.library-fullscreen-open .menu-body.sheet-library,
+.card.layout-tablet .menu-backdrop.library-fullscreen-open .menu-body.sheet-search{
+  overflow:auto!important;
+  justify-items:stretch!important;
+  align-content:start!important;
+  padding:clamp(10px, 2vw, 24px) clamp(18px, 3vw, 46px) 36px!important;
+}
+
+.menu-backdrop.discovery-open{
+  padding:0!important;
+  background:rgba(5,7,12,.72)!important;
+  z-index:80!important;
+}
+.card:has(.menu-backdrop.discovery-open.open) > .home-shortcut-fab{
+  display:none!important;
+}
+.menu-backdrop.discovery-open::before{
+  opacity:.72!important;
+  filter:blur(46px) saturate(1.24) brightness(.78)!important;
+}
+.menu-backdrop.discovery-open .menu-sheet.sheet-discovery{
+  width:100%!important;
+  max-width:100%!important;
+  height:100%!important;
+  max-height:100%!important;
+  margin:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+}
+.menu-backdrop.discovery-open .menu-head{
+  min-height:62px;
+  background:rgba(8,10,16,.54);
+  border-bottom-color:rgba(255,255,255,.10);
+  backdrop-filter:blur(18px);
+}
+.menu-backdrop.discovery-open .menu-title{
+  max-width:min(620px, calc(100% - 132px));
+}
+.menu-backdrop.discovery-open .menu-title-text{
+  display:inline-block;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.menu-backdrop.discovery-open .menu-sheet.sheet-discovery::after{
+  background:
+    radial-gradient(circle at 14% 12%, rgba(var(--dynamic-accent-rgb,245 166 35) / .18), transparent 34%),
+    radial-gradient(circle at 84% 4%, rgba(91,141,255,.16), transparent 28%),
+    linear-gradient(180deg, rgba(7,9,15,.68), rgba(8,10,16,.96))!important;
+}
+.theme-light .menu-backdrop.discovery-open .menu-sheet.sheet-discovery::after{
+  background:
+    radial-gradient(circle at 14% 12%, rgba(var(--dynamic-accent-rgb,245 166 35) / .18), transparent 34%),
+    radial-gradient(circle at 84% 4%, rgba(80,127,220,.14), transparent 28%),
+    linear-gradient(180deg, rgba(248,250,253,.80), rgba(234,240,248,.98))!important;
+}
+.menu-body.sheet-discovery{
+  overflow:auto!important;
+  justify-items:stretch!important;
+  align-content:start!important;
+  padding:clamp(2px, .8vw, 10px) clamp(14px, 3vw, 42px) 36px!important;
+}
+.discovery-shell{
+  width:100%;
+  min-height:100%;
+  display:grid;
+  gap:8px;
+  align-content:start;
+}
+.discovery-hero{
+  min-height:clamp(92px, 13vh, 150px);
+  display:grid;
+  grid-template-columns:minmax(260px,.34fr) minmax(0,1fr);
+  align-items:end;
+  gap:clamp(16px, 3vw, 38px);
+  padding:clamp(2px, 1vw, 12px) 2px 0;
+}
+.discovery-hero-copy{
+  max-width:680px;
+  min-width:0;
+  display:grid;
+  gap:6px;
+}
+.discovery-hero-title{
+  max-width:min(100%, 540px);
+  font-size:clamp(34px, 5vw, 72px);
+  line-height:.98;
+  font-weight:950;
+  overflow-wrap:anywhere;
+}
+.discovery-hero-sub{
+  max-width:min(100%, 460px);
+  color:var(--ma-text-2);
+  font-size:13px;
+  line-height:1.4;
+  font-weight:850;
+  overflow-wrap:anywhere;
+}
+.discovery-filter-panel{
+  min-width:0;
+  align-self:end;
+}
+.discovery-filter-rail{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:0;
+  overflow:auto;
+  padding:2px 2px 10px;
+  scrollbar-width:none;
+  mask-image:linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
+}
+.discovery-filter-rail::-webkit-scrollbar{display:none;}
+.discovery-filter-divider{
+  flex:0 0 1px;
+  align-self:stretch;
+  min-height:38px;
+  background:rgba(255,255,255,.14);
+  margin-inline:2px;
+}
+.discovery-filter-chip{
+  flex:0 0 auto;
+  min-height:48px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:9px;
+  border:1px solid rgba(255,255,255,.13);
+  border-radius:999px;
+  background:linear-gradient(145deg, rgba(255,255,255,.105), rgba(255,255,255,.045));
+  color:var(--ma-text-2);
+  padding:9px 16px;
+  font:inherit;
+  font-size:13px;
+  font-weight:930;
+  white-space:nowrap;
+  cursor:pointer;
+  box-shadow:0 14px 30px rgba(0,0,0,.14), inset 0 1px 0 rgba(255,255,255,.10);
+  transition:transform .18s ease, border-color .18s ease, color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+.discovery-filter-chip:hover,
+.discovery-filter-chip:focus-visible,
+.discovery-filter-chip.active{
+  transform:translateY(-2px);
+  color:var(--ma-text-1);
+  border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .34);
+  background:linear-gradient(145deg, rgba(var(--dynamic-accent-rgb,245 166 35) / .20), rgba(255,255,255,.07));
+  box-shadow:0 20px 42px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.14);
+}
+.discovery-filter-chip-genre.active{
+  color:var(--ma-accent);
+}
+.discovery-filter-dot{
+  width:7px;
+  height:7px;
+  border-radius:999px;
+  background:currentColor;
+  box-shadow:0 0 14px currentColor;
+  flex:0 0 auto;
+}
+.discovery-filter-icon{
+  width:24px;
+  height:24px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  color:var(--ma-accent);
+  background:rgba(var(--dynamic-accent-rgb,245 166 35) / .14);
+}
+.discovery-filter-icon .ui-ic{width:15px;height:15px;}
+.theme-light .discovery-filter-chip{
+  background:rgba(255,255,255,.72);
+  border-color:rgba(15,23,42,.10);
+  box-shadow:0 12px 26px rgba(15,23,42,.08), inset 0 1px 0 rgba(255,255,255,.74);
+}
+.theme-light .discovery-filter-divider{
+  background:rgba(15,23,42,.12);
+}
+.discovery-subgenre-rail{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+  overflow:auto;
+  padding:0 2px 8px;
+  scrollbar-width:none;
+  mask-image:linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
+}
+.discovery-subgenre-rail::-webkit-scrollbar{display:none;}
+.discovery-subgenre-chip{
+  flex:0 0 auto;
+  min-height:34px;
+  border:1px solid rgba(255,255,255,.11);
+  border-radius:999px;
+  background:rgba(255,255,255,.055);
+  color:var(--ma-text-3);
+  padding:7px 12px;
+  font:inherit;
+  font-size:12px;
+  font-weight:850;
+  white-space:nowrap;
+  cursor:pointer;
+  transition:transform .16s ease, border-color .16s ease, color .16s ease, background .16s ease;
+}
+.discovery-subgenre-chip:hover,
+.discovery-subgenre-chip:focus-visible,
+.discovery-subgenre-chip.active{
+  transform:translateY(-1px);
+  color:var(--ma-text-1);
+  border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .30);
+  background:rgba(var(--dynamic-accent-rgb,245 166 35) / .14);
+}
+.theme-light .discovery-subgenre-chip{
+  background:rgba(255,255,255,.62);
+  border-color:rgba(15,23,42,.10);
+}
+.discovery-filter-panel{
+  min-width:0;
+  align-self:end;
+  display:grid;
+  gap:6px;
+}
+.discovery-selector{
+  display:grid;
+  gap:8px;
+  min-width:0;
+}
+.discovery-selector-label{
+  width:fit-content;
+  max-width:100%;
+  padding:5px 10px;
+  border-radius:999px;
+  color:var(--ma-text-2);
+  background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.10);
+  font-size:10px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.discovery-category-strip{
+  display:flex;
+  gap:10px;
+  overflow:auto;
+  padding:3px 2px 8px;
+  scrollbar-width:none;
+  mask-image:linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
+}
+.discovery-category-strip::-webkit-scrollbar{display:none;}
+.discovery-category-chip{
+  flex:0 0 auto;
+  min-width:136px;
+  min-height:56px;
+  display:grid;
+  grid-template-columns:34px minmax(0,1fr);
+  align-items:center;
+  gap:9px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.14);
+  background:linear-gradient(145deg, rgba(255,255,255,.11), rgba(255,255,255,.045));
+  color:var(--ma-text-1);
+  padding:8px 13px 8px 9px;
+  font:inherit;
+  text-align:start;
+  cursor:pointer;
+  box-shadow:0 16px 34px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.12);
+  transition:transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+.discovery-category-chip.active,
+.discovery-category-chip:hover,
+.discovery-category-chip:focus-visible{
+  transform:translateY(-2px);
+  border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .38);
+  background:linear-gradient(145deg, rgba(var(--dynamic-accent-rgb,245 166 35) / .22), rgba(255,255,255,.075));
+  box-shadow:0 20px 42px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.14);
+}
+.discovery-category-icon{
+  width:34px;
+  height:34px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  color:var(--ma-accent);
+  background:rgba(var(--dynamic-accent-rgb,245 166 35) / .14);
+}
+.discovery-category-icon .ui-ic{width:18px;height:18px;}
+.discovery-category-copy{
+  min-width:0;
+  display:grid;
+  gap:2px;
+}
+.discovery-category-title,
+.discovery-category-sub{
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.discovery-category-title{
+  font-size:13px;
+  font-weight:950;
+}
+.discovery-category-sub{
+  color:var(--ma-text-3);
+  font-size:10px;
+  font-weight:760;
+}
+.discovery-genre-strip{
+  display:flex;
+  gap:9px;
+  overflow:auto;
+  padding:2px 2px 8px;
+  scrollbar-width:none;
+  mask-image:linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
+}
+.discovery-genre-strip::-webkit-scrollbar{display:none;}
+.discovery-genre-chip{
+  flex:0 0 auto;
+  min-height:40px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:999px;
+  background:rgba(255,255,255,.06);
+  color:var(--ma-text-2);
+  padding:8px 14px;
+  font:inherit;
+  font-size:12px;
+  font-weight:900;
+  cursor:pointer;
+  box-shadow:0 12px 28px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.08);
+  transition:transform .18s ease, border-color .18s ease, color .18s ease, background .18s ease;
+}
+.discovery-genre-chip::before{
+  content:"";
+  width:7px;
+  height:7px;
+  border-radius:999px;
+  background:currentColor;
+  box-shadow:0 0 14px currentColor;
+}
+.discovery-genre-chip.active,
+.discovery-genre-chip:hover,
+.discovery-genre-chip:focus-visible{
+  transform:translateY(-2px);
+  color:var(--ma-accent);
+  border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .34);
+  background:rgba(var(--dynamic-accent-rgb,245 166 35) / .13);
+}
+.theme-light .discovery-category-chip{
+  background:rgba(255,255,255,.74);
+  border-color:rgba(15,23,42,.10);
+  box-shadow:0 14px 34px rgba(15,23,42,.10), inset 0 1px 0 rgba(255,255,255,.82);
+}
+.theme-light .discovery-category-chip.active,
+.theme-light .discovery-category-chip:hover,
+.theme-light .discovery-category-chip:focus-visible{
+  background:rgba(var(--dynamic-accent-rgb,245 166 35) / .14);
+  border-color:rgba(var(--dynamic-accent-rgb,245 166 35) / .26);
+}
+.theme-light .discovery-selector-label,
+.theme-light .discovery-genre-chip{
+  background:rgba(255,255,255,.70);
+  border-color:rgba(15,23,42,.10);
+  box-shadow:0 12px 26px rgba(15,23,42,.08), inset 0 1px 0 rgba(255,255,255,.74);
+}
+.discovery-endless{
+  display:grid;
+  gap:0;
+}
+.discovery-endless-head{
+  display:none;
+  align-items:end;
+  justify-content:space-between;
+  gap:12px;
+  padding-inline:2px;
+}
+.discovery-endless-title{
+  font-size:16px;
+  font-weight:950;
+  color:var(--ma-text-1);
+}
+.discovery-endless-sub{
+  color:var(--ma-text-3);
+  font-size:12px;
+  font-weight:760;
+}
+.discovery-orb-field{
+  position:relative;
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(154px, 1fr));
+  gap:52px clamp(22px, 4vw, 56px);
+  align-items:start;
+  padding:10px clamp(4px, 1vw, 14px) 110px;
+  isolation:isolate;
+}
+.discovery-orb-field::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  z-index:-1;
+  opacity:.46;
+  background:
+    radial-gradient(circle at 14% 22%, rgba(var(--dynamic-accent-rgb,245 166 35) / .18), transparent 18%),
+    radial-gradient(circle at 72% 46%, rgba(118,168,255,.12), transparent 22%),
+    radial-gradient(circle at 46% 88%, rgba(255,255,255,.08), transparent 16%);
+  filter:blur(2px);
+}
+.discovery-orb{
+  --orb-size:156px;
+  --orb-shift:0px;
+  --orb-lift:0px;
+  --orb-delay:0s;
+  width:var(--orb-size);
+  justify-self:center;
+  margin-block-start:var(--orb-lift);
+  display:grid;
+  gap:12px;
+  border:0;
+  background:transparent;
+  color:var(--ma-text-3);
+  padding:0;
+  text-align:center;
+  font:inherit;
+  cursor:pointer;
+  transform:translateX(var(--orb-shift));
+  transition:transform .22s ease, color .22s ease;
+  position:relative;
+  z-index:1;
+  isolation:isolate;
+}
+.discovery-orb::before{
+  content:none;
+}
+.rtl .discovery-orb{
+  transform:translateX(calc(var(--orb-shift) * -1));
+}
+.discovery-orb.is-active{
+  color:var(--ma-text-1);
+  z-index:8;
+}
+.discovery-orb-field.has-active .discovery-orb:not(.is-active){
+  z-index:0;
+}
+.discovery-orb-field.has-active .discovery-orb:not(.is-active) .discovery-orb-art{
+  opacity:.7;
+  filter:blur(.45px) saturate(.76) brightness(.82);
+}
+.discovery-orb-field.has-active .discovery-orb:not(.is-active) .discovery-orb-copy{
+  opacity:.66;
+}
+.discovery-orb-art{
+  position:relative;
+  width:var(--orb-size);
+  height:var(--orb-size);
+  scale:1;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 28% 22%, rgba(255,255,255,.34), transparent 15%),
+    radial-gradient(circle at 64% 74%, rgba(255,255,255,.10), transparent 35%),
+    rgba(255,255,255,.09);
+  border:1px solid rgba(255,255,255,.14);
+  box-shadow:0 24px 48px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.18);
+  animation:discoveryOrbBreath 7.5s ease-in-out infinite;
+  animation-delay:var(--orb-delay);
+  transition:transform .24s ease, box-shadow .24s ease, border-color .24s ease, filter .24s ease;
+  will-change:scale, opacity;
+}
+.discovery-orb-art::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:inherit;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 28% 18%, rgba(255,255,255,.50), transparent 11%),
+    linear-gradient(145deg, rgba(255,255,255,.22), transparent 38%, rgba(0,0,0,.16));
+  mix-blend-mode:screen;
+  opacity:.46;
+}
+.discovery-orb:hover .discovery-orb-art,
+.discovery-orb:focus-visible .discovery-orb-art{
+  transform:translateY(-3px) scale(1.04);
+  box-shadow:0 24px 48px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.18);
+}
+.discovery-orb.is-active .discovery-orb-art{
+  animation:none;
+  translate:0 0;
+  scale:1;
+  transform:translateY(-8px) scale(1.24);
+  border-color:rgba(255,255,255,.10);
+  box-shadow:0 34px 76px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.18);
+  filter:saturate(1.08) contrast(1.03);
+}
+.discovery-orb-art img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+}
+.discovery-orb-play{
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+  opacity:0;
+  color:rgba(255,255,255,.88);
+  background:radial-gradient(circle, rgba(0,0,0,.22), rgba(0,0,0,.02) 58%, transparent 72%);
+  transition:opacity .22s ease;
+}
+.discovery-orb-play::before{
+  content:"";
+  position:absolute;
+  width:74px;
+  height:74px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.34);
+  opacity:0;
+  transform:scale(.62);
+}
+.discovery-orb-play .ui-ic{
+  width:42px;
+  height:42px;
+  filter:drop-shadow(0 8px 20px rgba(0,0,0,.36));
+  transition:transform .18s ease, filter .18s ease;
+}
+.discovery-orb.is-active .discovery-orb-play{
+  opacity:.82;
+}
+.discovery-orb.is-launching .discovery-orb-art{
+  filter:saturate(1.14) contrast(1.06) brightness(1.08);
+}
+.discovery-orb.is-launching .discovery-orb-play{
+  opacity:1;
+}
+.discovery-orb.is-launching .discovery-orb-play::before{
+  animation:discoveryPlayConfirm .42s ease-out;
+}
+.discovery-orb.is-launching .discovery-orb-play .ui-ic{
+  transform:scale(1.18);
+  filter:drop-shadow(0 10px 24px rgba(0,0,0,.44));
+}
+.discovery-orb-copy{
+  display:grid;
+  gap:3px;
+  min-width:0;
+  padding:0 4px;
+  transition:transform .24s ease, opacity .24s ease, background .24s ease, border-color .24s ease, padding .24s ease, box-shadow .24s ease;
+}
+.discovery-orb-title,
+.discovery-orb-sub{
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.discovery-orb-title{
+  font-size:13px;
+  font-weight:950;
+  color:rgba(255,255,255,.54);
+}
+.discovery-orb-sub{
+  color:rgba(255,255,255,.38);
+  font-size:11px;
+  font-weight:700;
+  opacity:0;
+  max-height:0;
+  transition:opacity .2s ease, max-height .2s ease, color .2s ease;
+}
+.discovery-orb.is-active .discovery-orb-copy{
+  transform:translateY(10px);
+  padding:8px 2px 0;
+  border-radius:0;
+  background:transparent;
+  border:0;
+  box-shadow:none;
+  backdrop-filter:none;
+}
+.discovery-orb.is-active .discovery-orb-title{
+  color:var(--ma-text-1);
+  font-size:14px;
+}
+.discovery-orb.is-active .discovery-orb-sub{
+  color:var(--ma-text-2);
+  opacity:1;
+  max-height:34px;
+}
+.theme-light .discovery-orb-title{
+  color:rgba(15,23,42,.58);
+}
+.theme-light .discovery-orb-sub{
+  color:rgba(15,23,42,.42);
+}
+.theme-light .discovery-orb.is-active .discovery-orb-copy{
+  background:transparent;
+  box-shadow:none;
+}
+.theme-light .discovery-orb-field.has-active .discovery-orb:not(.is-active) .discovery-orb-art{
+  filter:blur(.45px) saturate(.72) brightness(.92);
+}
+@keyframes discoveryOrbBreath{
+  0%,100%{scale:.97;opacity:.88;}
+  50%{scale:1.045;opacity:1;}
+}
+@keyframes discoveryPlayConfirm{
+  0%{opacity:.72;transform:scale(.58);}
+  100%{opacity:0;transform:scale(1.28);}
+}
+@media (prefers-reduced-motion: reduce){
+  .discovery-orb-art{
+    animation:none;
+  }
+}
+@media (max-width: 760px){
+  .menu-backdrop.discovery-open .menu-head{min-height:58px;}
+  .discovery-hero{
+    min-height:auto;
+    grid-template-columns:1fr;
+    align-items:start;
+    padding:2px 2px 0;
+  }
+  .discovery-hero-title{font-size:clamp(32px, 10vw, 44px);}
+  .discovery-filter-rail{padding-block-start:0;}
+  .discovery-category-chip{min-width:128px;}
+  .discovery-orb-field{
+    grid-template-columns:repeat(auto-fit, minmax(126px, 1fr));
+    gap:40px 12px;
+    padding-bottom:70px;
+  }
+  .discovery-orb,
+  .rtl .discovery-orb{
+    --orb-size:126px;
+    margin-block-start:0;
+    transform:none;
+  }
+  .discovery-orb.is-active .discovery-orb-art{
+    transform:translateY(-5px) scale(1.18);
+  }
+}
+.power-fab{
+  color:#ffd9d9!important;
+  background:linear-gradient(145deg, rgba(255,85,95,.22), rgba(255,85,95,.1))!important;
+  border-color:rgba(255,105,115,.24)!important;
+}
+.theme-light .power-fab{
+  color:#b4232b!important;
+  background:#fff1f2!important;
+  border-color:rgba(180,35,43,.16)!important;
+}
+.card.screensaver-active .stage{
+  pointer-events:none;
+}
+.card.screensaver-active .bg,
+.card.screensaver-active .shade,
+.card.screensaver-active .glow{
+  animation-play-state:paused;
+}
+
+.screensaver-backdrop{
+  position:absolute;
+  inset:0;
+  z-index:85;
+  display:grid;
+  place-items:center;
+  padding:28px;
+  background:#02060d;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .28s ease;
+  overflow:hidden;
+  isolation:isolate;
+  contain:layout paint style;
+  will-change:opacity;
+  transform:translateZ(0);
+}
+.screensaver-backdrop.open{
+  opacity:1;
+  pointer-events:auto;
+}
+.screensaver-bg{
+  position:absolute;
+  inset:-34px;
+  background:
+    linear-gradient(180deg, rgba(3,7,13,.46), rgba(3,7,13,.88)),
+    var(--screensaver-art-url, none) center/cover no-repeat;
+  filter:blur(22px) saturate(1.18);
+  transform:scale(1.08);
+  animation:screensaverBreath 16s ease-in-out infinite;
+  z-index:-1;
+}
+.screensaver-backdrop.empty-mode{
+  background:
+    radial-gradient(circle at 18% 14%, rgba(var(--dynamic-accent-rgb,245 166 35) / .18), transparent 34%),
+    radial-gradient(circle at 82% 22%, rgba(83,141,255,.16), transparent 30%),
+    linear-gradient(135deg, #02060d, #070a12 52%, #02050a);
+}
+.screensaver-backdrop.empty-mode .screensaver-bg{
+  background:
+    radial-gradient(circle at 18% 24%, rgba(var(--dynamic-accent-rgb,245 166 35) / .34), transparent 30%),
+    radial-gradient(circle at 72% 38%, rgba(91,141,255,.22), transparent 34%),
+    radial-gradient(circle at 48% 78%, rgba(255,255,255,.08), transparent 28%),
+    linear-gradient(135deg, #050914, #080b10);
+  filter:blur(30px) saturate(1.18);
+  opacity:.92;
+  animation:screensaverEmptyDrift 18s ease-in-out infinite;
+}
+.screensaver-brand{
+  display:none;
+  position:absolute;
+  left:clamp(34px, 4.8vw, 76px);
+  bottom:clamp(26px, 4.4vh, 54px);
+  width:clamp(94px, 9vw, 148px);
+  color:rgba(255,255,255,.34);
+  opacity:.74;
+  filter:drop-shadow(0 12px 28px rgba(0,0,0,.34)) saturate(.9);
+  pointer-events:none;
+}
+.screensaver-shell{
+  width:min(100%, 760px);
+  display:grid;
+  grid-template-columns:minmax(150px, 260px) minmax(0, 1fr);
+  gap:28px;
+  align-items:end;
+}
+.screensaver-art{
+  aspect-ratio:1;
+  width:100%;
+  border-radius:30px;
+  overflow:hidden;
+  background:rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.16);
+  box-shadow:0 28px 70px rgba(0,0,0,.36);
+}
+.screensaver-art img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+  opacity:.9;
+  animation:screensaverImageIn .32s ease-out;
+}
+.screensaver-backdrop.empty-mode .screensaver-art{
+  display:grid;
+  place-items:center;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255,255,255,.08), transparent 58%),
+    linear-gradient(145deg, rgba(255,255,255,.10), rgba(255,255,255,.035));
+  border-color:rgba(255,255,255,.14);
+}
+.screensaver-empty-logo{
+  width:68%;
+  max-width:260px;
+  height:auto;
+  color:rgba(255,255,255,.58);
+  opacity:.88;
+  filter:drop-shadow(0 18px 34px rgba(0,0,0,.34));
+}
+.screensaver-backdrop.empty-mode .screensaver-artist:empty{
+  display:none;
+}
+.screensaver-info{
+  min-width:0;
+  color:#fff;
+  text-shadow:0 10px 36px rgba(0,0,0,.48);
+  align-self:end;
+}
+.screensaver-clock{
+  font-size:96px;
+  line-height:.9;
+  font-weight:950;
+  font-variant-numeric:tabular-nums;
+}
+.screensaver-track{
+  margin-top:28px;
+  display:grid;
+  gap:5px;
+}
+.screensaver-title{
+  font-size:24px;
+  line-height:1.1;
+  font-weight:950;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.screensaver-artist{
+  color:rgba(255,255,255,.72);
+  font-size:15px;
+  font-weight:750;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.screensaver-message{
+  margin-top:22px;
+  max-width:30rem;
+  padding:13px 16px;
+  border-radius:18px;
+  background:rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.16);
+  color:rgba(255,255,255,.9);
+  font-size:15px;
+  font-weight:800;
+  line-height:1.35;
+}
+.screensaver-next{
+  margin-top:18px;
+  width:min(100%, 24rem);
+  padding:0;
+  border-radius:0;
+  background:transparent;
+  border:0;
+  box-shadow:none;
+  backdrop-filter:none;
+  text-shadow:0 10px 28px rgba(0,0,0,.42);
+}
+.screensaver-next[hidden]{display:none!important;}
+.screensaver-next-label{
+  display:block;
+  margin:0 0 7px;
+  color:rgba(255,255,255,.54);
+  font-size:10px;
+  font-weight:950;
+  letter-spacing:0;
+  text-transform:uppercase;
+}
+.screensaver-next-main{
+  display:grid;
+  grid-template-columns:40px minmax(0, 1fr);
+  gap:10px;
+  align-items:center;
+}
+.screensaver-next-art{
+  width:40px;
+  aspect-ratio:1;
+  border-radius:12px;
+  overflow:hidden;
+  display:grid;
+  place-items:center;
+  color:rgba(255,255,255,.82);
+  opacity:.86;
+  background:transparent;
+  border:0;
+}
+.screensaver-next-art img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+  animation:screensaverImageIn .28s ease-out;
+}
+.screensaver-next-art svg{
+  width:22px;
+  height:22px;
+}
+.screensaver-next-copy{
+  min-width:0;
+  display:grid;
+  gap:3px;
+}
+.screensaver-next-title,
+.screensaver-next-artist{
+  display:block;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.screensaver-next-title{
+  color:#fff;
+  font-size:14px;
+  font-weight:950;
+}
+.screensaver-next-artist{
+  color:rgba(255,255,255,.66);
+  font-size:12px;
+  font-weight:800;
+}
+.screensaver-analog-clock{
+  width:190px;
+  aspect-ratio:1;
+  border-radius:999px;
+  display:none;
+  position:relative;
+  border:2px solid rgba(255,255,255,.32);
+  background:radial-gradient(circle, rgba(255,255,255,.16), rgba(255,255,255,.05));
+  box-shadow:inset 0 0 0 10px rgba(255,255,255,.05), 0 24px 60px rgba(0,0,0,.28);
+}
+.screensaver-hand{
+  position:absolute;
+  left:50%;
+  bottom:50%;
+  width:4px;
+  border-radius:999px;
+  transform:translateX(-50%) rotate(var(--hand-rotation, 0deg));
+  transform-origin:50% 100%;
+  background:#fff;
+}
+.screensaver-hand.hour{height:30%;}
+.screensaver-hand.minute{height:40%;opacity:.9;}
+.screensaver-hand.second{height:43%;width:2px;background:var(--ma-accent);}
+.screensaver-pin{
+  position:absolute;
+  width:12px;
+  height:12px;
+  border-radius:999px;
+  left:50%;
+  top:50%;
+  transform:translate(-50%, -50%);
+  background:#fff;
+  box-shadow:0 0 0 4px rgba(255,255,255,.18);
+}
+.screensaver-backdrop.analog-mode .screensaver-clock{display:none;}
+.screensaver-backdrop.analog-mode .screensaver-analog-clock{display:block;}
+.card.layout-tablet .screensaver-backdrop{
+  padding:clamp(44px, 5.4vw, 76px);
+}
+.card.layout-tablet .screensaver-brand{
+  display:block;
+}
+.card.layout-tablet .screensaver-shell{
+  width:min(92vw, 1180px);
+  grid-template-columns:minmax(320px, 430px) minmax(0, 1fr);
+  gap:clamp(48px, 6.2vw, 86px);
+}
+.card.layout-tablet .screensaver-art{
+  border-radius:36px;
+  box-shadow:0 34px 90px rgba(0,0,0,.4);
+}
+.card.layout-tablet .screensaver-info{
+  max-width:610px;
+}
+.card.layout-tablet .screensaver-clock{
+  font-size:clamp(94px, 11.6vw, 190px);
+  line-height:.84;
+}
+.card.layout-tablet .screensaver-analog-clock{
+  width:clamp(236px, 27vw, 380px);
+}
+.card.layout-tablet .screensaver-track{
+  margin-top:22px;
+  gap:7px;
+}
+.card.layout-tablet .screensaver-title{
+  font-size:clamp(30px, 3vw, 42px);
+}
+.card.layout-tablet .screensaver-artist{
+  font-size:19px;
+}
+.card.layout-tablet .screensaver-message,
+.card.layout-tablet .screensaver-next{
+  max-width:clamp(310px, 31vw, 430px);
+}
+.card.layout-tablet .screensaver-next{
+  position:static;
+  width:min(100%, 390px);
+  margin-top:clamp(18px, 2.2vh, 26px);
+  padding:0;
+  border-radius:0;
+  background:transparent;
+  border:0;
+  box-shadow:none;
+  backdrop-filter:none;
+  text-shadow:0 10px 28px rgba(0,0,0,.46);
+}
+.card.layout-tablet .screensaver-next-main{
+  grid-template-columns:40px minmax(0, 1fr);
+  gap:10px;
+}
+.card.layout-tablet .screensaver-next-art{
+  width:40px;
+  border-radius:12px;
+  opacity:.84;
+  background:transparent;
+  border:0;
+}
+.card.layout-tablet .screensaver-next-title{
+  font-size:15px;
+}
+.card.layout-tablet .screensaver-next-artist{
+  font-size:12px;
+}
+@media (min-width: 760px) and (min-height: 620px){
+  .screensaver-backdrop{
+    padding:clamp(44px, 5.4vw, 76px);
+  }
+  .screensaver-brand{
+    display:block;
+  }
+  .screensaver-shell{
+    width:min(92vw, 1180px);
+    grid-template-columns:minmax(320px, 430px) minmax(0, 1fr);
+    gap:clamp(48px, 6.2vw, 86px);
+    align-items:end;
+  }
+  .screensaver-art{
+    border-radius:36px;
+    box-shadow:0 34px 90px rgba(0,0,0,.4);
+  }
+  .screensaver-info{
+    max-width:560px;
+    align-self:end;
+    padding-block-end:clamp(6px, 1.2vw, 18px);
+  }
+  .screensaver-clock,
+  .screensaver-analog-clock{
+    position:absolute;
+    top:var(--screensaver-clock-y, 24%);
+    left:var(--screensaver-clock-x, 82%);
+    right:auto;
+    z-index:2;
+    transform:translate(-50%, -50%) scale(var(--screensaver-clock-scale, 1));
+    transform-origin:center;
+  }
+  .screensaver-clock{
+    font-size:clamp(78px, 7.4vw, 128px);
+    line-height:.9;
+    text-align:center;
+    white-space:nowrap;
+  }
+  .screensaver-analog-clock{
+    width:clamp(204px, 20.4vw, 292px);
+  }
+  .screensaver-track{
+    margin-top:18px;
+    gap:7px;
+  }
+  .screensaver-title{
+    font-size:clamp(30px, 3vw, 44px);
+  }
+  .screensaver-artist{
+    font-size:19px;
+  }
+  .screensaver-message,
+  .screensaver-next{
+    max-width:clamp(310px, 31vw, 430px);
+  }
+  .screensaver-next{
+    position:static;
+    width:min(100%, 390px);
+    margin-top:clamp(18px, 2.2vh, 26px);
+    padding:0;
+    border-radius:0;
+    background:transparent;
+    border:0;
+    box-shadow:none;
+    backdrop-filter:none;
+    text-shadow:0 10px 28px rgba(0,0,0,.46);
+  }
+  .screensaver-next-main{
+    grid-template-columns:40px minmax(0, 1fr);
+    gap:10px;
+  }
+  .screensaver-next-art{
+    width:40px;
+    border-radius:12px;
+    opacity:.84;
+    background:transparent;
+    border:0;
+  }
+  .screensaver-next-title{
+    font-size:15px;
+  }
+  .screensaver-next-artist{
+    font-size:12px;
+  }
+}
+.theme-light .screensaver-brand{
+  color:rgba(20,26,38,.34);
+  filter:drop-shadow(0 12px 28px rgba(255,255,255,.22)) saturate(.86);
+}
+.theme-light .screensaver-backdrop.empty-mode{
+  background:
+    radial-gradient(circle at 18% 14%, rgba(var(--dynamic-accent-rgb,245 166 35) / .16), transparent 34%),
+    radial-gradient(circle at 82% 22%, rgba(80,127,220,.14), transparent 30%),
+    linear-gradient(135deg, #f4f7fb, #e7edf6 52%, #f8fafc);
+}
+.theme-light .screensaver-backdrop.empty-mode .screensaver-bg{
+  background:
+    radial-gradient(circle at 18% 24%, rgba(var(--dynamic-accent-rgb,245 166 35) / .24), transparent 30%),
+    radial-gradient(circle at 72% 38%, rgba(80,127,220,.18), transparent 34%),
+    radial-gradient(circle at 48% 78%, rgba(25,34,48,.08), transparent 28%),
+    linear-gradient(135deg, #f8fafc, #e7edf6);
+}
+.theme-light .screensaver-empty-logo{
+  color:rgba(20,26,38,.52);
+  filter:drop-shadow(0 18px 34px rgba(255,255,255,.24));
+}
+@keyframes screensaverBreath{
+  0%,100%{transform:scale(1.08);filter:blur(22px) saturate(1.12);}
+  50%{transform:scale(1.14);filter:blur(28px) saturate(1.26);}
+}
+@keyframes screensaverEmptyDrift{
+  0%,100%{transform:scale(1.08) translate3d(0,0,0);}
+  50%{transform:scale(1.14) translate3d(2%, -1%, 0);}
+}
+@keyframes screensaverImageIn{
+  from{opacity:.38;transform:scale(1.015);}
+  to{opacity:1;transform:scale(1);}
+}
+@media (max-width: 620px){
+  .screensaver-shell{
+    grid-template-columns:1fr;
+    justify-items:center;
+    text-align:center;
+    gap:20px;
+  }
+  .screensaver-art{
+    width:min(62vw, 230px);
+  }
+  .screensaver-clock{
+    font-size:64px;
+  }
+  .screensaver-analog-clock{
+    width:150px;
+  }
+  .screensaver-title,
+  .screensaver-artist{
+    white-space:normal;
+  }
+  .screensaver-next{
+    width:min(90vw, 340px);
+  }
+  .screensaver-next-main{
+    grid-template-columns:46px minmax(0, 1fr);
+    gap:10px;
+  }
+  .screensaver-next-art{
+    width:46px;
+    border-radius:14px;
+  }
+}
+
 </style>
-      <div class="card ${rtl ? "rtl" : ""} theme-${visualTheme} layout-${layoutMode}${performanceMode ? " performance-lite" : ""}${compactTileMode ? " compact-mode compact-collapsed" : compactMode ? " compact-expanded" : ""}${hasHomeShortcutFab ? " has-home-shortcut" : ""}${compactTransitionClass}${nightActive ? " night-mode" : ""}${showNightRow ? " night-mode-enabled" : ""}${tabletAutoFit ? " tablet-auto-fit" : ""}${tabletDenseUi ? " tablet-fit-dense" : ""}${showNightRow ? " tablet-fit-night" : ""}${showUpNextInline ? " tablet-fit-up-next" : ""}${this._tabletStabilityModeEnabled() ? " tablet-stable" : ""}${this._state.controlRoomOpen ? " control-room-open" : ""}">
+      <div class="card ${rtl ? "rtl" : ""} theme-${visualTheme} layout-${layoutMode}${layoutProfileClass ? ` ${layoutProfileClass}` : ""}${performanceMode ? " performance-lite" : ""}${compactTileMode ? " compact-mode compact-collapsed" : compactMode ? " compact-expanded" : ""}${hasHomeShortcutFab ? " has-home-shortcut" : ""}${compactTransitionClass}${nightActive ? " night-mode" : ""}${showNightRow ? " night-mode-enabled" : ""}${tabletAutoFit ? " tablet-auto-fit" : ""}${tabletDenseUi ? " tablet-fit-dense" : ""}${showNightRow ? " tablet-fit-night" : ""}${showUpNextInline ? " tablet-fit-up-next" : ""}${mobileDenseContent ? " mobile-content-dense" : ""}${this._tabletStabilityModeEnabled() ? " tablet-stable" : ""}${this._state.controlRoomOpen ? " control-room-open" : ""}${this._state.screensaverOpen ? " screensaver-active" : ""}" style="${layoutProfileStyle}--screensaver-clock-scale:${this._esc(screensaverClockSize.toFixed(2))};--screensaver-clock-x:${this._esc(screensaverClockX.toFixed(1))}%;--screensaver-clock-y:${this._esc(screensaverClockY.toFixed(1))}%;">
         <div class="bg" id="mobileBg"></div><div class="shade"></div><div class="glow"></div>
         ${compactCollapseFabHtml}
         ${homeShortcutFabHtml}
@@ -28349,13 +31790,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             <div class="history-drawer-title-row">
               <div class="history-drawer-title-main">
                 <div class="history-drawer-brand" aria-hidden="true">${this._tabletBrandSignatureHtml("queue-action-logo")}</div>
-                <div class="history-drawer-title">${this._esc(this._m("Recently played", "נוגן לאחרונה"))}</div>
+                <div class="history-drawer-title">${this._esc(this._i18n("ui.recently_played_2"))}</div>
               </div>
-              <button class="history-drawer-close" id="historyDrawerCloseBtn" title="${this._esc(this._m("Close", "סגור"))}">${this._iconSvg("close")}</button>
+              <button class="history-drawer-close" id="historyDrawerCloseBtn" title="${this._esc(this._i18n("ui.close"))}">${this._iconSvg("close")}</button>
             </div>
-            <div class="history-drawer-tabs" role="tablist" aria-label="${this._esc(this._m("History tabs", "טאבי היסטוריה"))}">
-              <button class="history-tab active" data-history-tab="recent" role="tab" aria-selected="true">${this._esc(this._m("Recent", "אחרונים"))}</button>
-              <button class="history-tab" data-history-tab="recommendations" role="tab" aria-selected="false">${this._esc(this._m("Recommended", "המלצות"))}</button>
+            <div class="history-drawer-tabs" role="tablist" aria-label="${this._esc(this._i18n("ui.history_tabs"))}">
+              <button class="history-tab active" data-history-tab="recent" role="tab" aria-selected="true">${this._esc(this._i18n("ui.recent"))}</button>
+              <button class="history-tab" data-history-tab="recommendations" role="tab" aria-selected="false">${this._esc(this._i18n("ui.recommended"))}</button>
             </div>
           </div>
           <div class="history-drawer-body" id="historyDrawerBody"></div>
@@ -28364,10 +31805,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         <div class="menu-backdrop" id="mobileMenu">
           <div class="menu-sheet">
             <div class="menu-head">
-              <button id="mobileMenuBackBtn" hidden title="${this._m("Back", "חזור")}">‹</button>
-              <div class="menu-title" id="mobileMenuTitle"><span class="menu-title-brand" aria-hidden="true">${this._tabletBrandSignatureHtml("menu-title-logo")}</span><span class="menu-title-main"><span class="menu-title-text">${this._m("Menu", "תפריט")}</span></span></div>
-              <button id="mobileMenuAuxBtn" class="menu-aux-btn" hidden title="${this._m("Liked", "אהבתי")}">${this._iconSvg("heart_outline")}</button>
-              <button id="mobileMenuCloseBtn" title="${this._m("Close", "סגור")}">×</button>
+              <button id="mobileMenuBackBtn" hidden title="${this._i18n("ui.back_2")}">‹</button>
+              <div class="menu-title" id="mobileMenuTitle"><span class="menu-title-brand" aria-hidden="true">${this._tabletBrandSignatureHtml("menu-title-logo")}</span><span class="menu-title-main"><span class="menu-title-text">${this._i18n("ui.menu")}</span></span></div>
+              <button id="mobileMenuAuxBtn" class="menu-aux-btn" hidden title="${this._i18n("ui.liked")}">${this._iconSvg("heart_outline")}</button>
+              <button id="mobileMenuCloseBtn" title="${this._i18n("ui.close")}">×</button>
             </div>
             <div class="menu-body" id="mobileMenuBody"></div>
           </div>
@@ -28376,14 +31817,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           <div class="menu-sheet confirm-sheet">
             <div class="menu-head">
               <div></div>
-              <div class="menu-title"><span class="menu-title-brand" aria-hidden="true">${this._tabletBrandSignatureHtml("menu-title-logo")}</span><span class="menu-title-main"><span class="menu-title-text">${this._t("Open Music Assistant?")}</span></span></div>
-              <button id="maConfirmCloseBtn" title="${this._m("Close", "סגור")}">×</button>
+              <div class="menu-title"><span class="menu-title-brand" aria-hidden="true">${this._tabletBrandSignatureHtml("menu-title-logo")}</span><span class="menu-title-main"><span class="menu-title-text">${this._i18n("ui.open_music_assistant_2")}</span></span></div>
+              <button id="maConfirmCloseBtn" title="${this._i18n("ui.close")}">×</button>
             </div>
             <div class="menu-body">
-              <div class="confirm-copy">${this._t("Open the full Music Assistant interface?")}</div>
+              <div class="confirm-copy">${this._i18n("ui.open_the_full_music_assistant_interface")}</div>
               <div class="confirm-actions">
-                <button class="menu-item" id="maConfirmContinueBtn">${this._t("Continue")}</button>
-                <button class="menu-item" id="maConfirmCancelBtn">${this._t("Cancel")}</button>
+                <button class="menu-item" id="maConfirmContinueBtn">${this._i18n("ui.continue")}</button>
+                <button class="menu-item" id="maConfirmCancelBtn">${this._i18n("ui.cancel")}</button>
               </div>
             </div>
           </div>
@@ -28400,6 +31841,37 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         <div class="hidden-tools"><select id="playerSel"></select><button id="themeToggleBtn"></button><button id="langBtn"></button><button id="maOpenBtn"></button><div id="content"></div></div>
         <audio id="homeiiLocalAudio" class="homeii-local-audio" playsinline aria-hidden="true"></audio>
         <div class="lyrics-backdrop" id="lyricsBackdrop"></div>
+        <div class="screensaver-backdrop digital-mode" id="screensaverBackdrop" aria-hidden="true">
+          <div class="screensaver-bg"></div>
+          <div class="screensaver-brand" aria-hidden="true">${this._tabletBrandSignatureHtml("screensaver-brand-logo")}</div>
+          <div class="screensaver-shell">
+            <div class="screensaver-art" id="screensaverArt"></div>
+            <div class="screensaver-info">
+              <div class="screensaver-clock" id="screensaverClock">00:00</div>
+              <div class="screensaver-analog-clock" aria-hidden="true">
+                <span class="screensaver-hand hour" id="screensaverHour"></span>
+                <span class="screensaver-hand minute" id="screensaverMinute"></span>
+                <span class="screensaver-hand second" id="screensaverSecond"></span>
+                <span class="screensaver-pin"></span>
+              </div>
+              <div class="screensaver-track">
+                <div class="screensaver-title" id="screensaverTitle">${this._esc(this._i18n("ui.nothing_playing"))}</div>
+                <div class="screensaver-artist" id="screensaverArtist"></div>
+              </div>
+              <div class="screensaver-next" id="screensaverNext" hidden>
+                <span class="screensaver-next-label" id="screensaverNextLabel">${this._esc(this._i18n("ui.up_next_2"))}</span>
+                <span class="screensaver-next-main">
+                  <span class="screensaver-next-art" id="screensaverNextArt"></span>
+                  <span class="screensaver-next-copy">
+                    <span class="screensaver-next-title" id="screensaverNextTitle"></span>
+                    <span class="screensaver-next-artist" id="screensaverNextArtist"></span>
+                  </span>
+                </span>
+              </div>
+              <div class="screensaver-message" id="screensaverMessage" hidden></div>
+            </div>
+          </div>
+        </div>
         <div class="toast-wrap" id="toastWrap"></div>
         <div class="surprise-popup" id="surprisePopup"></div>
       </div>
@@ -28411,6 +31883,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._syncRecentHistoryUi(true);
     this._syncSleepTimerChip();
     this._syncControlRoomUi();
+    const cardEl = this.shadowRoot.querySelector(".card");
+    cardEl?.addEventListener("pointerdown", this._boundScreensaverActivity, { passive: false });
+    cardEl?.addEventListener("keydown", this._boundScreensaverActivity);
+    this.$("screensaverBackdrop")?.addEventListener("click", this._boundScreensaverActivity);
+    if (this._screensaverPageEntryPending) {
+      this._screensaverPageEntryPending = false;
+      this._resetScreensaverTimer({ hide: true, activity: true });
+    } else {
+      this._resetScreensaverTimer();
+      this._restoreScreensaverIfOpen();
+    }
     this.$("btnPlay")?.addEventListener("click", () => this._togglePlay());
     this.$("btnPrev")?.addEventListener("click", () => this._playerCmd("previous"));
     this.$("btnNext")?.addEventListener("click", () => this._playerCmd("next"));
@@ -28453,6 +31936,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this.$("mobileInfoBtn")?.addEventListener("click", (e) => {
       if (!this._pressUiButton(e.currentTarget)) return;
       this._openSelectedPlayerMoreInfo();
+    });
+    this.$("mobilePowerBtn")?.addEventListener("click", async (e) => {
+      if (!this._pressUiButton(e.currentTarget, [12, 18])) return;
+      await this._runPowerButtonAction();
     });
     this.shadowRoot.querySelectorAll("[data-up-next-inline]").forEach((btn) => btn.addEventListener("click", async (e) => {
       if (!this._pressUiButton(e.currentTarget)) return;
@@ -28553,7 +32040,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         const result = this._toggleControlRoomPlayerSelection(entityId);
         const name = this._controlRoomPlayerName(entityId);
         if (result === "kept") {
-          this._toast(this._m("At least one player must stay selected", "נגן אחד חייב להישאר נבחר"));
+          this._toast(this._i18n("ui.at_least_one_player_must_stay_selected"));
         } else {
           this._toastSuccess(result === "removed"
             ? this._m(`${name} removed from studio selection`, `${name} הוסר מבחירת הסטודיו`)
@@ -28588,7 +32075,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             : this._m(`${this._controlRoomPlayerName(entityId)} started playing`, `${this._controlRoomPlayerName(entityId)} התחיל לנגן`));
           setTimeout(() => this._updateNowPlayingState(), 250);
         } catch (error) {
-          this._toastError(error?.message || this._m("Playback command failed", "פקודת הניגון נכשלה"));
+          this._toastError(error?.message || this._i18n("ui.playback_command_failed_2"));
         }
         return;
       }
@@ -28603,7 +32090,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           this._toastSuccess(this._m(`${this._controlRoomPlayerName(entityId)} skipped to next`, `${this._controlRoomPlayerName(entityId)} עבר לשיר הבא`));
           setTimeout(() => this._updateNowPlayingState(), 250);
         } catch (error) {
-          this._toastError(error?.message || this._m("Next track failed", "מעבר לשיר הבא נכשל"));
+          this._toastError(error?.message || this._i18n("ui.next_track_failed"));
         }
         return;
       }
@@ -28621,7 +32108,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             : this._m(`${this._controlRoomPlayerName(entityId)} muted`, `${this._controlRoomPlayerName(entityId)} הושתק`));
           setTimeout(() => this._updateNowPlayingState(), 160);
         } catch (error) {
-          this._toastError(error?.message || this._m("Mute command failed", "פקודת ההשתקה נכשלה"));
+          this._toastError(error?.message || this._i18n("ui.mute_command_failed"));
         }
         return;
       }
@@ -28662,8 +32149,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         this._pressUiButton(transferBtn);
         const ok = await this._transferQueueBetween(this._state.controlRoomTransferSource, this._state.controlRoomTransferTarget, { silent: true });
         if (ok) this._state.controlRoomPanel = "";
-        if (ok) this._toastSuccess(this._m("Queue transferred", "התור הועבר"));
-        else this._toastError(this._m("Could not transfer the queue", "לא הצלחתי להעביר את התור"));
+        if (ok) this._toastSuccess(this._i18n("ui.queue_transferred"));
+        else this._toastError(this._i18n("ui.could_not_transfer_the_queue"));
         setTimeout(() => this._updateNowPlayingState(), 300);
         return;
       }
@@ -28673,8 +32160,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         e.stopPropagation();
         this._pressUiButton(cloneBtn);
         const ok = await this._cloneQueueBetween(this._state.controlRoomTransferSource, this._state.controlRoomTransferTarget, { silent: true });
-        if (ok) this._toastSuccess(this._m("Queue cloned", "התור הועתק"));
-        else this._toastError(this._m("Could not clone the queue", "לא הצלחתי להעתיק את התור"));
+        if (ok) this._toastSuccess(this._i18n("ui.queue_cloned"));
+        else this._toastError(this._i18n("ui.could_not_clone_the_queue"));
         setTimeout(() => this._updateNowPlayingState(), 300);
         return;
       }
@@ -28688,7 +32175,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           this._state.controlRoomTransferTarget,
           ...this._controlRoomSelectedPlayerIds(),
         ].filter(Boolean));
-        this._toastSuccess(this._m("Queues refreshed", "התורים רועננו"));
+        this._toastSuccess(this._i18n("ui.queues_refreshed"));
         return;
       }
       const clearQueueBtn = e.target.closest("[data-room-clear-queue]");
@@ -28700,7 +32187,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         if (!entityId) return;
         await this._clearQueueForPlayer(entityId);
         await this._loadControlRoomQueues([entityId]);
-        this._toastSuccess(this._m("Queue cleared", "התור נוקה"));
+        this._toastSuccess(this._i18n("ui.queue_cleared"));
         return;
       }
       const libraryActionBtn = e.target.closest("[data-room-library-action]");
@@ -28726,15 +32213,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           }
           const messages = {
             play: this._m(`Started ${entry.name || "media"} in Studio`, `${entry.name || "מדיה"} הופעל בסטודיו`),
-            next: this._m("Will play next in Studio", "ינוגן הבא בסטודיו"),
-            add: this._m("Added to Studio queue", "נוסף לתור הסטודיו"),
-            radio_mode: this._m("Radio mode started", "Radio הופעל"),
-            like: this._m("Favorite updated", "אהבתי עודכן"),
+            next: this._i18n("ui.will_play_next_in_studio"),
+            add: this._i18n("ui.added_to_studio_queue"),
+            radio_mode: this._i18n("ui.radio_mode_started"),
+            like: this._i18n("ui.favorite_updated"),
           };
           this._toastSuccess(messages[action] || messages.play);
           setTimeout(() => this._updateNowPlayingState(), 350);
         } else {
-          this._toastError(this._m("Studio media action failed", "פעולת המדיה בסטודיו נכשלה"));
+          this._toastError(this._i18n("ui.studio_media_action_failed"));
         }
         return;
       }
@@ -28757,7 +32244,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           this._toastSuccess(this._m(`Started ${entry.name || "media"} in Studio`, `${entry.name || "מדיה"} הופעל בסטודיו`));
           setTimeout(() => this._updateNowPlayingState(), 350);
         } else {
-          this._toastError(this._m("Could not start playback in Studio", "לא הצלחתי להפעיל ניגון בסטודיו"));
+          this._toastError(this._i18n("ui.could_not_start_playback_in_studio"));
         }
         return;
       }
@@ -28830,7 +32317,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         const entityId = selectionToggleBtn.dataset.roomSelectionToggle;
         const result = this._toggleControlRoomPlayerSelection(entityId);
         if (result === "kept") {
-          this._toast(this._m("At least one player must stay selected", "נגן אחד חייב להישאר נבחר"));
+          this._toast(this._i18n("ui.at_least_one_player_must_stay_selected"));
         } else {
           this._toastSuccess(result === "removed"
             ? this._m(`${this._controlRoomPlayerName(entityId)} removed from selection`, `${this._controlRoomPlayerName(entityId)} הוסר מהבחירה`)
@@ -28859,7 +32346,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         const selectedIds = this._controlRoomActionTargetIds();
         if (action === "browse_library") {
           this._pressUiButton(dockBtn);
-          this._toast(this._m("Opening Studio library", "פותח את ספריית הסטודיו"));
+          this._toast(this._i18n("ui.opening_studio_library"));
           this._openControlRoomLibrary("library_playlists");
           return;
         }
@@ -28871,13 +32358,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             browse_tracks: "library_tracks",
             browse_radio: "library_radio",
           };
-          this._toast(this._m("Opening Studio library", "פותח את ספריית הסטודיו"));
+          this._toast(this._i18n("ui.opening_studio_library"));
           this._openControlRoomLibrary(pageMap[action] || "library_playlists");
           return;
         }
         if (action === "timers") {
           this._pressUiButton(dockBtn);
-          this._toast(this._m("Opening timers", "פותח טיימרים"));
+          this._toast(this._i18n("ui.opening_timers"));
           this._openControlRoomLibrary("sleep_timer");
           return;
         }
@@ -28907,7 +32394,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
               : this._m(`${this._controlRoomPlayerName(primaryId)} started playing`, `${this._controlRoomPlayerName(primaryId)} התחיל לנגן`));
             setTimeout(() => this._updateNowPlayingState(), 250);
           } catch (error) {
-            this._toastError(error?.message || this._m("Playback command failed", "פקודת הניגון נכשלה"));
+            this._toastError(error?.message || this._i18n("ui.playback_command_failed_2"));
           }
           return;
         }
@@ -28919,7 +32406,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             this._toastSuccess(this._m(`${this._controlRoomPlayerName(primaryId)} skipped to next`, `${this._controlRoomPlayerName(primaryId)} עבר לשיר הבא`));
             setTimeout(() => this._updateNowPlayingState(), 250);
           } catch (error) {
-            this._toastError(error?.message || this._m("Next track failed", "מעבר לשיר הבא נכשל"));
+            this._toastError(error?.message || this._i18n("ui.next_track_failed"));
           }
           return;
         }
@@ -28934,7 +32421,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
               : this._m(`${this._controlRoomPlayerName(primaryId)} muted`, `${this._controlRoomPlayerName(primaryId)} הושתק`));
             setTimeout(() => this._updateNowPlayingState(), 160);
           } catch (error) {
-            this._toastError(error?.message || this._m("Mute command failed", "פקודת ההשתקה נכשלה"));
+            this._toastError(error?.message || this._i18n("ui.mute_command_failed"));
           }
           return;
         }
@@ -28946,12 +32433,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             this._toastSuccess(this._m(`${this._controlRoomPlayerName(primaryId)} stopped`, `${this._controlRoomPlayerName(primaryId)} נעצר`));
             setTimeout(() => this._updateNowPlayingState(), 250);
           } catch (error) {
-            this._toastError(error?.message || this._m("Stop command failed", "פקודת העצירה נכשלה"));
+            this._toastError(error?.message || this._i18n("ui.stop_command_failed"));
           }
           return;
         }
         if (!selectedIds.length) {
-          this._toastError(this._m("Select at least one Studio player", "בחר לפחות נגן אחד בסטודיו"));
+          this._toastError(this._i18n("ui.select_at_least_one_studio_player"));
           return;
         }
         if (action === "playpause") {
@@ -29006,18 +32493,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           const groupPrimaryId = selectedIds[0];
           const members = selectedIds.slice(1);
           if (members.length < 1) {
-            this._toastError(this._m("Select at least two players to create a group", "בחר לפחות שני נגנים כדי ליצור קבוצה"));
+            this._toastError(this._i18n("ui.select_at_least_two_players_to_create_a_group"));
             return;
           }
           await this._applySpeakerGroupFor(groupPrimaryId, members);
-          this._toastSuccess(this._m("Group updated", "הקבוצה עודכנה"));
+          this._toastSuccess(this._i18n("ui.group_updated"));
           setTimeout(() => this._updateNowPlayingState(), 350);
           return;
         }
         if (action === "ungroup") {
           this._pressUiButton(dockBtn);
           await Promise.allSettled(selectedIds.map((entityId) => this._clearSpeakerGroupFor(entityId)));
-          this._toastSuccess(this._m("Group cleared", "הקבוצה נותקה"));
+          this._toastSuccess(this._i18n("ui.group_cleared_2"));
           setTimeout(() => this._updateNowPlayingState(), 350);
         }
       }
@@ -29114,7 +32601,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this.$("activePlayerChip")?.addEventListener("click", () => {
       if (Number(this._state.activePlayerSwipeLockUntil || 0) > Date.now()) return;
       if (this._hasPinnedPlayer() && this._pinnedPlayerCount() <= 1) {
-        this._toast(this._m("Player is pinned from settings", "הנגן מקובע מתוך ההגדרות"));
+        this._toast(this._i18n("ui.player_is_pinned_from_settings"));
         return;
       }
       this._openMobileMenu("players");
@@ -29222,6 +32709,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       await this._ensureQueueSnapshot();
       this._renderCurrentView();
       this._startLoops();
+      if (!this._screensaverPageEntryPending) this._restoreScreensaverIfOpen();
     } catch (e) {
       this._renderError(e);
     }
@@ -29248,7 +32736,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const thumb = this.$("selectedPlayerThumb");
     const tags = this.$("selectedPlayerTags");
     if (chip) chip.classList.toggle("is-playing", player?.state === "playing");
-    if (title) title.textContent = player?.attributes?.friendly_name || this._m("Selected Player", "נגן נבחר");
+    if (title) title.textContent = player?.attributes?.friendly_name || this._i18n("ui.selected_player");
     if (sub) sub.textContent = "";
     if (tags) {
       const groupCount = this._playerGroupCount(player);
@@ -29257,13 +32745,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const nightActive = this._isNightModeActive();
       tags.innerHTML = [
         pinned
-          ? `<span class="player-focus-pill pinned"><span>${this._esc(this._m("Pinned", "מקובע"))}</span></span>`
+          ? `<span class="player-focus-pill pinned"><span>${this._esc(this._i18n("ui.pinned"))}</span></span>`
           : ``,
         nightMode !== "off"
-          ? `<span class="player-focus-pill ${nightActive ? "night active" : "night"}"><span>${this._esc(this._m("Night", "לילה"))}</span></span>`
+          ? `<span class="player-focus-pill ${nightActive ? "night active" : "night"}"><span>${this._esc(this._i18n("ui.night"))}</span></span>`
           : ``,
         player?.state === "playing"
-          ? `<span class="player-focus-pill playing"><span class="eq-icon" aria-hidden="true"><span></span><span></span><span></span></span><span>${this._esc(this._m("Playing", "מנגן"))}</span></span>`
+          ? `<span class="player-focus-pill playing"><span class="eq-icon" aria-hidden="true"><span></span><span></span><span></span></span><span>${this._esc(this._i18n("ui.playing"))}</span></span>`
           : ``,
         groupCount
           ? `<span class="player-group-badge player-focus-badge">${this._esc(groupCount)}</span>`
@@ -29306,7 +32794,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         data-queue-item-id="${this._esc(queueItemId)}"
         data-queue-uri="${this._esc(uri)}"
         data-queue-sort-index="${this._esc(sortIndex)}"
-        aria-label="${this._esc(this._m("Move to position", "העבר למיקום"))}">
+        aria-label="${this._esc(this._i18n("ui.move_to_position"))}">
         ${options}
       </select>
     `;
@@ -29318,7 +32806,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const value = Math.round(Number(input?.value));
     const total = Math.max(1, this._getNowPlayingQueueItems().length || (this._state.queueItems || []).length || Number(this._state.maQueueState?.items || 1));
     if (!Number.isFinite(value) || value < 1) {
-      this._toastError(this._m("Choose a queue position", "בחר מיקום בתור"));
+      this._toastError(this._i18n("ui.choose_a_queue_position"));
       input?.focus?.();
       return null;
     }
@@ -29357,18 +32845,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         <div class="queue-action-header">
           <div class="queue-action-brand" aria-hidden="true">${this._tabletBrandSignatureHtml("queue-action-logo")}</div>
           <div class="queue-action-player">${this._esc(this._selectedPlayerName())}</div>
-          <div class="queue-action-title">${this._esc(entry.name || currentInfo.title || this._m("Queue actions", "פעולות תור"))}</div>
+          <div class="queue-action-title">${this._esc(entry.name || currentInfo.title || this._i18n("ui.queue_actions"))}</div>
         </div>
         <div class="queue-move-control">
           <label>
-            <span>${this._esc(this._m("Move to position", "העבר למיקום"))}</span>
+            <span>${this._esc(this._i18n("ui.move_to_position"))}</span>
             ${this._queueMoveSelectHtml(queueCount, currentPosition, entry)}
           </label>
         </div>
-        <button class="queue-action-item" data-queue-popup="next">${this._iconSvg("next")}<span>${this._esc(this._m("Play next", "נגן הבא"))}</span></button>
-        <button class="queue-action-item" data-queue-popup="remove">${this._iconSvg("trash")}<span>${this._esc(this._m("Remove", "הסר"))}</span></button>
-        <button class="queue-action-item" data-queue-popup="like">${this._iconSvg(liked ? "heart_filled" : "heart_outline")}<span>${this._esc(this._m("Like", "סמן אהבתי"))}</span></button>
-        <button class="queue-action-item warn" data-queue-popup="close">${this._iconSvg("close")}<span>${this._esc(this._m("Close", "סגור"))}</span></button>
+        <button class="queue-action-item" data-queue-popup="next">${this._iconSvg("next")}<span>${this._esc(this._i18n("ui.play_next"))}</span></button>
+        <button class="queue-action-item" data-queue-popup="remove">${this._iconSvg("trash")}<span>${this._esc(this._i18n("ui.remove"))}</span></button>
+        <button class="queue-action-item" data-queue-popup="like">${this._iconSvg(liked ? "heart_filled" : "heart_outline")}<span>${this._esc(this._i18n("ui.like_3"))}</span></button>
+        <button class="queue-action-item warn" data-queue-popup="close">${this._iconSvg("close")}<span>${this._esc(this._i18n("ui.close"))}</span></button>
       `;
     }
     this.$("mobileQueueActionModal")?.classList.add("open");
@@ -29387,16 +32875,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         <div class="queue-action-header">
           <div class="queue-action-brand" aria-hidden="true">${this._tabletBrandSignatureHtml("queue-action-logo")}</div>
           <div class="queue-action-player">${this._esc(this._selectedPlayerName())}</div>
-          <div class="queue-action-title">${this._esc(entry.name || currentInfo.title || this._m("Media actions", "פעולות מדיה"))}</div>
+          <div class="queue-action-title">${this._esc(entry.name || currentInfo.title || this._i18n("ui.media_actions"))}</div>
         </div>
-        <button class="queue-action-item" data-media-popup="play">${this._iconSvg("play")}<span>${this._esc(this._m("Play", "נגן"))}</span></button>
-        <button class="queue-action-item" data-media-popup="play_clear">${this._iconSvg("play")}<span>${this._esc(this._m("Play now and clear queue", "נגן עכשיו נקה תור"))}</span></button>
-        <button class="queue-action-item" data-media-popup="next">${this._iconSvg("next")}<span>${this._esc(this._m("Play next", "נגן הבא"))}</span></button>
-        <button class="queue-action-item" data-media-popup="next_clear">${this._iconSvg("next")}<span>${this._esc(this._m("Play next and clear queue", "נגן הבא ונקה תור"))}</span></button>
-        <button class="queue-action-item" data-media-popup="add">${this._iconSvg("queue")}<span>${this._esc(this._m("Add to queue", "הוסף לתור"))}</span></button>
-        ${radioMode ? `<button class="queue-action-item" data-media-popup="radio_mode">${this._iconSvg("radio")}<span>${this._esc(this._m("Start radio mode", "הפעל Radio"))}</span></button>` : ``}
+        <button class="queue-action-item" data-media-popup="play">${this._iconSvg("play")}<span>${this._esc(this._i18n("ui.play"))}</span></button>
+        <button class="queue-action-item" data-media-popup="play_clear">${this._iconSvg("play")}<span>${this._esc(this._i18n("ui.play_now_and_clear_queue"))}</span></button>
+        <button class="queue-action-item" data-media-popup="next">${this._iconSvg("next")}<span>${this._esc(this._i18n("ui.play_next"))}</span></button>
+        <button class="queue-action-item" data-media-popup="next_clear">${this._iconSvg("next")}<span>${this._esc(this._i18n("ui.play_next_and_clear_queue"))}</span></button>
+        <button class="queue-action-item" data-media-popup="add">${this._iconSvg("queue")}<span>${this._esc(this._i18n("ui.add_to_queue"))}</span></button>
+        ${radioMode ? `<button class="queue-action-item" data-media-popup="radio_mode">${this._iconSvg("radio")}<span>${this._esc(this._i18n("ui.start_radio_mode"))}</span></button>` : ``}
         <button class="queue-action-item" data-media-popup="like">${this._iconSvg(liked ? "heart_filled" : "heart_outline")}<span>${this._esc(this._m(liked ? "Remove like" : "Like", liked ? "בטל אהבתי" : "סמן אהבתי"))}</span></button>
-        <button class="queue-action-item warn" data-media-popup="close">${this._iconSvg("close")}<span>${this._esc(this._m("Close", "סגור"))}</span></button>
+        <button class="queue-action-item warn" data-media-popup="close">${this._iconSvg("close")}<span>${this._esc(this._i18n("ui.close"))}</span></button>
       `;
     }
     this.$("mobileQueueActionModal")?.classList.add("open");
@@ -29415,7 +32903,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const wasLiked = this._isEntryLiked(entry);
       await this._toggleLikeEntry(entry);
       if (!this._useMaLikedMode()) {
-        this._toastSuccess(wasLiked ? this._m("Removed from liked", "הוסר מאהבתי") : this._m("Added to liked", "נוסף לאהבתי"));
+        this._toastSuccess(wasLiked ? this._i18n("ui.removed_from_liked") : this._i18n("ui.added_to_liked"));
       }
       return;
     }
@@ -29425,27 +32913,27 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
     if (action === "next") {
       const ok = await this._playMedia(entry.uri, entry.media_type || "album", "next", { label, silent: true });
-      if (ok) this._toastSuccess(this._m("Will play next", "ינוגן הבא"));
+      if (ok) this._toastSuccess(this._i18n("ui.will_play_next"));
       return;
     }
     if (action === "next_clear") {
       await this._clearQueueForPlayer(this._state.selectedPlayer);
       const ok = await this._playMedia(entry.uri, entry.media_type || "album", "next", { label, silent: true });
-      if (ok) this._toastSuccess(this._m("Queue cleared and item moved next", "התור נוקה והפריט הוגדר לבא בתור"));
+      if (ok) this._toastSuccess(this._i18n("ui.queue_cleared_and_item_moved_next"));
       return;
     }
     if (action === "add") {
       const ok = await this._playMedia(entry.uri, entry.media_type || "album", "add", { label, silent: true });
-      if (ok) this._toastSuccess(this._m("Added to queue", "נוסף לתור"));
+      if (ok) this._toastSuccess(this._i18n("ui.added_to_queue"));
     }
     if (action === "radio_mode") {
       const mediaType = entry.media_type || "album";
       if (!this._supportsMusicAssistantRadioMode(mediaType)) {
-        this._toastError(this._m("Radio mode is not available for this media type", "Radio לא זמין לסוג המדיה הזה"));
+        this._toastError(this._i18n("ui.radio_mode_is_not_available_for_this_media_type"));
         return;
       }
       const ok = await this._playMedia(entry.uri, mediaType, "play", { label, radioMode: true, silent: true });
-      if (ok) this._toastSuccess(this._m("Radio mode started", "Radio הופעל"));
+      if (ok) this._toastSuccess(this._i18n("ui.radio_mode_started"));
     }
   }
 
@@ -29458,7 +32946,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     host.innerHTML = `
       <div class="queue-action-header">
         <div class="queue-action-brand" aria-hidden="true">${this._tabletBrandSignatureHtml("queue-action-logo")}</div>
-        <div class="queue-action-title">${this._esc(this._m("Volume presets", "בחירת ווליום"))}</div>
+        <div class="queue-action-title">${this._esc(this._i18n("ui.volume_presets"))}</div>
       </div>
       ${values.map((value) => `
       <button class="queue-action-item ${value === current ? "active" : ""}" data-volume-preset="${value}">
@@ -29503,10 +32991,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _emptyQuickSuggestionLabel(mediaType = "album") {
     const type = String(mediaType || "album").toLowerCase();
-    if (type === "playlist") return this._m("Playlist", "פלייליסט");
-    if (type === "radio") return this._m("Radio", "רדיו");
-    if (type === "track") return this._m("Track", "שיר");
-    return this._m("Album", "אלבום");
+    if (type === "playlist") return this._i18n("ui.playlist");
+    if (type === "radio") return this._i18n("ui.radio");
+    if (type === "track") return this._i18n("ui.track");
+    return this._i18n("ui.album");
   }
 
   _pickRandomItems(items = [], limit = 5) {
@@ -29527,7 +33015,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (fixedItems.length) {
       host.innerHTML = fixedItems.map((item) => {
         const art = this._artUrl(item) || item?.image || item?.media_item?.image || item?.media_item?.album?.image || "";
-        const title = item?.name || item?.title || this._m("Quick play", "ניגון מהיר");
+        const title = item?.name || item?.title || this._i18n("ui.quick_play");
         const mediaType = item?.media_type || "album";
         return `
           <button class="empty-quick-card" data-empty-media-uri="${this._esc(item.uri)}" data-empty-media-type="${this._esc(mediaType)}" title="${this._esc(title)}">
@@ -29619,7 +33107,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._state.emptyQuickShelfItems = picks;
       host.innerHTML = picks.map((item) => {
         const art = this._artUrl(item) || item?.image || item?.media_item?.image || item?.media_item?.album?.image || "";
-        const title = item?.name || item?.title || this._m("Quick play", "ניגון מהיר");
+        const title = item?.name || item?.title || this._i18n("ui.quick_play");
         const mediaType = item?.media_type || "album";
         return `
           <button class="empty-quick-card" data-empty-media-uri="${this._esc(item.uri)}" data-empty-media-type="${this._esc(mediaType)}" title="${this._esc(title)}">
@@ -29651,7 +33139,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
   }
 
-  _renderEmpty(text = this._m("No active media", "אין מדיה פעילה"), options = {}) {
+  _renderEmpty(text = this._i18n("ui.no_active_media"), options = {}) {
     const notice = this.$("mobileNotice");
     if (notice) {
       notice.classList.remove("open");
@@ -29667,13 +33155,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
     this.$("mobileArtActions")?.setAttribute("hidden", "");
     if (this.$("npTitle")) this.$("npTitle").textContent = text;
-    if (this.$("npSub")) this.$("npSub").textContent = options.subtitle || this._m("Choose something from the quick shelf or tap the wand for a random playlist.", "בחר משהו מהמדף המהיר או לחץ על השרביט לפלייליסט אקראי.");
+    if (this.$("npSub")) this.$("npSub").textContent = options.subtitle || this._i18n("ui.choose_something_from_the_quick_shelf_or_tap_the_wand_for_a_random_playl");
     if (this.$("bigCurTime")) this.$("bigCurTime").textContent = "0:00";
     if (this.$("bigTotalTime")) this.$("bigTotalTime").textContent = "0:00";
     if (this.$("progressFill")) this.$("progressFill").style.width = "0%";
     if (!wasEmpty || !this.$("surpriseMeBtn")) {
       if (this.$("npArt")) this.$("npArt").innerHTML = `
-        <button class="surprise-me-card compact magic-empty" id="surpriseMeBtn" aria-label="${this._esc(options.artLabel || this._m("Surprise me", "תפתיע אותי"))}">
+        <button class="surprise-me-card compact magic-empty" id="surpriseMeBtn" aria-label="${this._esc(options.artLabel || this._i18n("ui.surprise_me"))}">
           <span class="surprise-me-glow"></span>
           <span class="surprise-me-wand">${this._iconSvg(options.artIcon || "wand")}</span>
         </button>
@@ -29718,24 +33206,24 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .filter((item) => item?.uri)
         .filter((item, index, list) => list.findIndex((candidate) => candidate?.uri === item?.uri) === index);
       if (!playlists.length) {
-        this._toastError(this._m("No playlists found", "לא נמצאה מוזיקה אקראית"));
+        this._toastError(this._i18n("ui.no_playlists_found"));
         return;
       }
       const pick = playlists[Math.floor(Math.random() * playlists.length)];
       if (!pick?.uri) {
-        this._toastError(this._m("Could not choose media", "לא ניתן לבחור מדיה"));
+        this._toastError(this._i18n("ui.could_not_choose_media"));
         return;
       }
       const ok = await this._playMedia(pick.uri, pick.media_type || "playlist", "play", {
-        label: pick.name || this._m("Random playlist", "פלייליסט אקראי"),
+        label: pick.name || this._i18n("ui.random_playlist"),
         silent: true,
       });
       if (ok) {
         this._showSurprisePopup(pick);
-        this._toastSuccess(this._m("Playing a random playlist", "מנגן פלייליסט אקראי"));
+        this._toastSuccess(this._i18n("ui.playing_a_random_playlist"));
       }
     } catch (error) {
-      this._toastError(error?.message || this._m("Could not start playback", "לא ניתן להתחיל ניגון"));
+      this._toastError(error?.message || this._i18n("ui.could_not_start_playback_2"));
     }
   }
 
@@ -29755,17 +33243,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .filter((item) => String(item?.uri || "").trim() && String(item?.media_type || "radio").toLowerCase() === "radio")
         .filter((item, index, list) => list.findIndex((candidate) => String(candidate?.uri || "").trim() === String(item?.uri || "").trim()) === index);
       if (!stations.length) {
-        this._toastError(this._m("No radio stations found", "לא נמצאו תחנות רדיו"));
+        this._toastError(this._i18n("ui.no_radio_stations_found"));
         return;
       }
       const pick = stations[Math.floor(Math.random() * stations.length)];
       const ok = await this._playMedia(pick.uri, "radio", "play", {
-        label: pick.name || this._m("Random radio", "רדיו אקראי"),
+        label: pick.name || this._i18n("ui.random_radio"),
         silent: true,
       });
-      if (ok) this._toastSuccess(this._m("Playing a random radio station", "מנגן תחנת רדיו אקראית"));
+      if (ok) this._toastSuccess(this._i18n("ui.playing_a_random_radio_station"));
     } catch (error) {
-      this._toastError(error?.message || this._m("Could not start radio playback", "לא ניתן להתחיל ניגון רדיו"));
+      this._toastError(error?.message || this._i18n("ui.could_not_start_radio_playback"));
     }
   }
 
@@ -29777,7 +33265,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         <span class="radio-stage-card radio-stage-card-side"></span>
         <span class="radio-stage-card radio-stage-card-main"></span>
         <span class="radio-stage-card radio-stage-card-side radio-stage-card-side-end"></span>
-        <button class="radio-stage-fab" id="radioHeroBtn" aria-label="${this._esc(this._m("Random radio", "רדיו אקראי"))}">
+        <button class="radio-stage-fab" id="radioHeroBtn" aria-label="${this._esc(this._i18n("ui.random_radio"))}">
           ${this._iconSvg("radio")}
         </button>
       </div>
@@ -29806,6 +33294,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _syncNowPlayingUI() {
     this._syncSleepTimerState();
     this._syncNightModeUi();
+    if (this._state.screensaverOpen) {
+      this._syncScreensaverUi();
+      this._syncAmbientLightForCurrentMedia("screensaver");
+      return;
+    }
     const player = this._getSelectedPlayer();
     if (!player) {
       this._syncControlRoomUi();
@@ -29834,15 +33327,19 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const compactCoverAura = this.$("compactCoverAura");
       const bg = this.$("mobileBg");
       const browseStack = this._mobileArtStackItems();
-      const browsePreviewArt = this._queueItemImageUrl(browseStack.current, 420)
-        || browseStack.current?.media_image
-        || browseStack.current?.image
-        || browseStack.current?.image_url
-        || browseStack.current?.media_item?.image
-        || browseStack.current?.media_item?.image_url
-        || browseStack.current?.media_item?.album?.image
-        || browseStack.current?.media_item?.album?.image_url
-        || "";
+      const browsePreviewArt = this._bestArtworkUrl([
+        this._queueItemImageUrl(browseStack.current, 420),
+        browseStack.current?.media_image,
+        browseStack.current?.image,
+        browseStack.current?.image_url,
+        browseStack.current?.media_item?.image,
+        browseStack.current?.media_item?.image_url,
+        browseStack.current?.media_item?.album?.image,
+        browseStack.current?.media_item?.album?.image_url,
+      ], {
+        size: 420,
+        cacheKey: this._currentArtworkCacheKey(player, browseStack.current),
+      });
       const effectiveArt = (this._mobileSwipeMode() === "browse" && Number(browseStack.offset || 0) !== 0)
         ? (browsePreviewArt || art)
         : art;
@@ -29860,13 +33357,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       if (artImage) {
         if (displayArt) artImage.src = displayArt;
         else artImage.removeAttribute("src");
-        artImage.alt = title || this._m("Artwork", "עטיפה");
+        artImage.alt = title || this._i18n("ui.artwork");
       }
-      this._syncDynamicThemeArtwork(effectiveArt || "").catch(() => {});
+      this._syncDynamicThemeArtwork(displayArt || effectiveArt || "").catch(() => {});
       if (compactBackdrop) compactBackdrop.style.backgroundImage = displayArt ? `url("${this._esc(displayArt)}")` : "";
       if (compactCoverAura) compactCoverAura.style.backgroundImage = displayArt ? `url("${this._esc(displayArt)}")` : "";
       if (bg) bg.style.backgroundImage = displayArt ? `${overlay}, url("${this._esc(displayArt)}")` : "";
-      if (this.$("npTitle")) this.$("npTitle").textContent = title || this._m("Nothing playing", "לא מתנגן");
+      if (this.$("npTitle")) this.$("npTitle").textContent = title || this._i18n("ui.nothing_playing");
       if (this.$("npSub")) this.$("npSub").textContent = subtitle || "—";
       this._syncMobileUpNextUi(upNextItem);
       this._syncSourceBadgesUi(player, sourceQueueItem);
@@ -29889,8 +33386,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         shelf.innerHTML = "";
       }
       if (renderCompactTile({
-        title: this._m("No player selected", "לא נבחר נגן"),
-        subtitle: this._m("Use expand to open the full player", "השתמש בהרחבה כדי לפתוח את הנגן המלא"),
+        title: this._i18n("ui.no_player_selected"),
+        subtitle: this._i18n("ui.use_expand_to_open_the_full_player"),
         art: "",
         emptyAction: "random",
       })) return;
@@ -29940,8 +33437,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const queueUri = String(this._getQueueItemUri(currentQueueItem) || "").trim();
     const queueTitle = currentMedia?.name || currentQueueItem?.name || "";
     const currentTitle = hasPendingPlay
-      ? (queueTitle || player.attributes.media_title || this._m("Nothing playing", "לא מתנגן"))
-      : (player.attributes.media_title || queueTitle || this._m("Nothing playing", "לא מתנגן"));
+      ? (queueTitle || player.attributes.media_title || this._i18n("ui.nothing_playing"))
+      : (player.attributes.media_title || queueTitle || this._i18n("ui.nothing_playing"));
     const currentArtist = Array.isArray(currentMedia?.artists)
       ? currentMedia.artists.map((artist) => artist?.name).filter(Boolean).join(", ")
       : "";
@@ -29965,7 +33462,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._state.quickMixPendingEntry = null;
     }
     if (!hasPlayableMedia && quickMixPending) {
-      const pendingTitle = quickMixPending.name || this._m("Quick mix", "מיקס מהיר");
+      const pendingTitle = quickMixPending.name || this._i18n("ui.quick_mix");
       const pendingArt = this._normalizeArtworkUrl(quickMixPending.image || this._currentArtworkUrl(player, currentQueueItem, 420, { preferPlayerArtwork: true }), {
         size: 420,
         cacheKey: `quick-mix:${quickMixPending.uri || pendingTitle}`,
@@ -29975,7 +33472,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._setMobileRandomFabDisabled(true);
       if (renderCompactTile({
         title: pendingTitle,
-        subtitle: this._m("Starting Quick Mix...", "מפעיל מיקס מהיר..."),
+        subtitle: this._i18n("ui.starting_quick_mix"),
         art: pendingArt,
         icon: "radio",
         duration: 0,
@@ -29987,7 +33484,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         return;
       }
       if (this.$("npTitle")) this.$("npTitle").textContent = pendingTitle;
-      if (this.$("npSub")) this.$("npSub").textContent = this._m("Starting Quick Mix...", "מפעיל מיקס מהיר...");
+      if (this.$("npSub")) this.$("npSub").textContent = this._i18n("ui.starting_quick_mix");
       if (this.$("npArt")) this.$("npArt").innerHTML = pendingArt ? `<img src="${this._esc(pendingArt)}" alt="">` : this._artPlaceholderHtml("radio");
       if (this.$("progressFill")) this.$("progressFill").style.width = "0%";
       this._syncDynamicThemeArtwork(pendingArt || "").catch(() => {});
@@ -30000,8 +33497,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._syncSourceBadgesUi(null, null);
       this._syncRecentHistoryUi();
       if (renderCompactTile({
-        title: this._m("Player is ready", "הנגן מוכן"),
-        subtitle: player.attributes?.friendly_name || this._m("Nothing is playing right now", "לא מתנגן כרגע"),
+        title: this._i18n("ui.player_is_ready"),
+        subtitle: player.attributes?.friendly_name || this._i18n("ui.nothing_is_playing_right_now"),
         art: this._currentArtworkUrl(player, currentQueueItem, 420, { preferPlayerArtwork: true }),
         duration: 0,
         position: 0,
@@ -30013,7 +33510,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         syncMobileVolumeControls();
         return;
       }
-      this._renderEmpty(this._m("Player is ready - nothing is playing right now", "הנגן זמין – לא מתנגן כרגע כלום"));
+      this._renderEmpty(this._i18n("ui.player_is_ready_nothing_is_playing_right_now"));
       this._syncMobileUpNextUi(null);
       this.$("btnPlay")?.classList.remove("is-playing");
       this._renderPlayerSummary();
@@ -30031,7 +33528,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const radioDuration = this._getCurrentDuration();
       const radioPosition = this._getCurrentPosition();
       if (renderCompactTile({
-        title: currentTitle || this._m("Radio", "רדיו"),
+        title: currentTitle || this._i18n("ui.radio"),
         subtitle: [currentArtist || player.attributes.media_artist || "", currentAlbum].filter(Boolean).join(" · ") || "—",
         art: this._currentArtworkUrl(player, currentQueueItem, 420, { preferPlayerArtwork: true }),
         icon: "radio",
@@ -30044,10 +33541,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         this.$("btnPlay")?.classList.toggle("is-playing", player.state === "playing");
         return;
       }
-      this._renderEmpty(currentTitle || this._m("Radio", "רדיו"), {
+      this._renderEmpty(currentTitle || this._i18n("ui.radio"), {
         subtitle: [currentArtist || player.attributes.media_artist || "", currentAlbum].filter(Boolean).join(" · ") || "—",
         shelfMode: "radio",
-        artLabel: this._m("Random radio", "רדיו אקראי"),
+        artLabel: this._i18n("ui.random_radio"),
         artIcon: "radio",
         artAction: "radio",
       });
@@ -30069,6 +33566,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._syncStatus();
       this._syncLikeButtons();
       this._updateActivePlayersBubble();
+      if (this._state.screensaverOpen) this._syncScreensaverUi();
       this._syncLocalSendspinMediaSession(player, currentQueueItem);
       return;
     }
@@ -30088,10 +33586,20 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._syncSourceBadgesUi(player, currentQueueItem);
     this._syncMobileUpNextUi(upNextItem);
     const playingArt = this._currentArtworkUrl(player, currentQueueItem, 420, { preferPlayerArtwork: true });
-    const previewArt = this._queueItemImageUrl(stack.current, 420)
-      || stack.current?.media_item?.image
-      || stack.current?.media_item?.album?.image
-      || playingArt;
+    const stackArtCacheKey = this._currentArtworkCacheKey(player, stack.current || currentQueueItem);
+    const previewArt = this._bestArtworkUrl([
+      this._queueItemImageUrl(stack.current, 420),
+      stack.current?.media_image,
+      stack.current?.image,
+      stack.current?.image_url,
+      stack.current?.media_item?.image,
+      stack.current?.media_item?.image_url,
+      stack.current?.media_item?.album?.image,
+      stack.current?.media_item?.album?.image_url,
+    ], {
+      size: 420,
+      cacheKey: stackArtCacheKey,
+    }) || playingArt;
     const art = (this._mobileSwipeMode() === "browse" && stack.offset !== 0)
       ? playingArt
       : ((Number(stack.offset || 0) !== 0 && previewArt) ? previewArt : playingArt);
@@ -30139,6 +33647,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._syncLikeButtons();
     this._updateActivePlayersBubble();
     this._syncControlRoomUi();
+    if (this._state.screensaverOpen) this._syncScreensaverUi();
     this._syncLocalSendspinMediaSession(player, currentQueueItem);
   }
 
@@ -30234,7 +33743,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _openMobileMenu(page = "main", options = {}) {
     if (page === "settings" && this._usesVisualSettings()) {
-      this._toastSuccess(this._m("Card settings are managed from the visual editor", "הגדרות הכרטיס מנוהלות מתוך העורך הוויזואלי"));
+      this._toastSuccess(this._i18n("ui.card_settings_are_managed_from_the_visual_editor"));
       return;
     }
     const nextPage = page || "main";
@@ -30272,7 +33781,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.menuStack = [];
     this._closeMobileQueueActionMenu();
     this._closeSmartVoiceConfirm();
-    this.$("mobileMenu")?.classList.remove("open", "search-open");
+    this.$("mobileMenu")?.classList.remove("open", "search-open", "discovery-open", "action-fullscreen-open", "library-fullscreen-open");
+    this.$("homeShortcutFab")?.removeAttribute("hidden");
     this.$("mobileMenuBody")?.classList.remove("search-mode", "library-mode");
     if (this._state.controlRoomRestoreAfterMenu && this._controlRoomEnabled()) {
       this._state.controlRoomRestoreAfterMenu = false;
@@ -30298,6 +33808,22 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._state.mobileMediaLayout = "grid";
     }
     this._renderMobileMenu();
+  }
+
+  _isPhoneActionFullscreenMenuPage(page = "") {
+    return new Set([
+      "simple_wizard",
+      "players",
+      "players_active",
+      "library_liked",
+      "sleep_timer",
+      "announcements",
+      "queue",
+      "transfer",
+      "group",
+      "ungroup_all",
+      "stop_all",
+    ]).has(String(page || ""));
   }
 
   _navMenuItem(page, icon, title, subtitle = "", tone = "default") {
@@ -30377,22 +33903,22 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _simpleWizardGenres() {
     return [
-      { id: "calm", icon: "moon", label: this._m("Calm", "רגוע"), subtitle: this._m("Soft and relaxed", "רך ונעים"), queries: ["calm chill relax רגוע", "lounge acoustic relax"] },
-      { id: "energetic", icon: "stats", label: this._m("Energetic", "קצבי"), subtitle: this._m("Upbeat and moving", "קצב ותנועה"), queries: ["upbeat dance energetic קצבי", "party pop workout"] },
-      { id: "morning", icon: "timer", label: this._m("Morning", "בוקר"), subtitle: this._m("Fresh start", "פתיחה קלילה"), queries: ["morning coffee happy בוקר", "good morning playlist"] },
-      { id: "night", icon: "moon", label: this._m("Night", "לילה"), subtitle: this._m("Low light listening", "שקט לערב"), queries: ["night chill sleep לילה", "late night calm"] },
-      { id: "kids", icon: "heart_filled", label: this._m("Kids", "ילדים"), subtitle: this._m("Friendly and simple", "שמח וברור"), queries: ["kids children songs ילדים", "family music kids"] },
-      { id: "israeli", icon: "music_note", label: this._m("Israeli", "ישראלי"), subtitle: this._m("Local favorites", "מוזיקה ישראלית"), queries: ["ישראלי עברית פלייליסט", "israeli music hebrew"] },
-      { id: "custom", icon: "search", label: this._m("Free style", "סגנון חופשי"), subtitle: this._m("Type anything", "כתוב מה שבא לך"), queries: [] },
+      { id: "calm", icon: "moon", label: this._i18n("ui.calm"), subtitle: this._i18n("ui.soft_and_relaxed"), queries: ["calm chill relax רגוע", "lounge acoustic relax"] },
+      { id: "energetic", icon: "stats", label: this._i18n("ui.energetic"), subtitle: this._i18n("ui.upbeat_and_moving"), queries: ["upbeat dance energetic קצבי", "party pop workout"] },
+      { id: "morning", icon: "timer", label: this._i18n("ui.morning"), subtitle: this._i18n("ui.fresh_start_2"), queries: ["morning coffee happy בוקר", "good morning playlist"] },
+      { id: "night", icon: "moon", label: this._i18n("ui.night"), subtitle: this._i18n("ui.low_light_listening"), queries: ["night chill sleep לילה", "late night calm"] },
+      { id: "kids", icon: "heart_filled", label: this._i18n("ui.kids"), subtitle: this._i18n("ui.friendly_and_simple"), queries: ["kids children songs ילדים", "family music kids"] },
+      { id: "israeli", icon: "music_note", label: this._i18n("ui.israeli"), subtitle: this._i18n("ui.local_favorites_2"), queries: ["ישראלי עברית פלייליסט", "israeli music hebrew"] },
+      { id: "custom", icon: "search", label: this._i18n("ui.free_style"), subtitle: this._i18n("ui.type_anything"), queries: [] },
     ];
   }
 
   _simpleWizardContentTypes() {
     return [
-      { id: "playlist", icon: "playlist", label: this._m("Playlist", "פלייליסט"), subtitle: this._m("Play a saved list", "רשימה מוכנה") },
-      { id: "artist", icon: "artist", label: this._m("Artist", "אמן"), subtitle: this._m("Play an artist", "ניגון אמן") },
-      { id: "artist_radio", icon: "radio", label: this._m("Artist radio", "רדיו אמן"), subtitle: this._m("Songs around an artist", "מוזיקה סביב אמן") },
-      { id: "library_radio", icon: "radio", label: this._m("Library radio", "רדיו מהספריה"), subtitle: this._m("A radio station", "תחנה זמינה") },
+      { id: "playlist", icon: "playlist", label: this._i18n("ui.playlist"), subtitle: this._i18n("ui.play_a_saved_list") },
+      { id: "artist", icon: "artist", label: this._i18n("ui.artist"), subtitle: this._i18n("ui.play_an_artist") },
+      { id: "artist_radio", icon: "radio", label: this._i18n("ui.artist_radio"), subtitle: this._i18n("ui.songs_around_an_artist") },
+      { id: "library_radio", icon: "radio", label: this._i18n("ui.library_radio"), subtitle: this._i18n("ui.a_radio_station") },
     ];
   }
 
@@ -30405,9 +33931,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _simpleWizardProgressHtml(step = "players") {
     const current = this._simpleWizardStepIndex(step);
     const steps = [
-      this._m("Players", "נגנים"),
-      this._m("Music", "מוזיקה"),
-      this._m("Play", "ניגון"),
+      this._i18n("ui.players"),
+      this._i18n("ui.music"),
+      this._i18n("ui.play_2"),
     ];
     return `
       <div class="simple-wizard-progress" aria-hidden="true">
@@ -30425,7 +33951,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const ids = Array.isArray(entityIds) ? entityIds : [];
     if (ids.length > 1) return this._m(`${ids.length} players`, `${ids.length} נגנים`);
     const player = this._playerByEntityId(ids[0]);
-    return player?.attributes?.friendly_name || ids[0] || this._m("Selected player", "הנגן הנבחר");
+    return player?.attributes?.friendly_name || ids[0] || this._i18n("ui.selected_player_3");
   }
 
   _simpleWizardPlayersHtml(state) {
@@ -30435,19 +33961,19 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (!players.length) {
       return `
         <div class="simple-wizard-panel">
-          <div class="notice open">${this._esc(this._m("No players found yet", "עדיין לא נמצאו נגנים"))}</div>
+          <div class="notice open">${this._esc(this._i18n("ui.no_players_found_yet"))}</div>
         </div>
       `;
     }
     return `
       <div class="simple-wizard-panel">
-        <div class="simple-wizard-title">${this._esc(this._m("Choose where to play", "איפה לנגן?"))}</div>
+        <div class="simple-wizard-title">${this._esc(this._i18n("ui.choose_where_to_play"))}</div>
         <div class="simple-wizard-player-grid">
           <button class="simple-wizard-player ${allSelected ? "active" : ""}" data-simple-all-players="1">
             <span class="simple-wizard-player-icon">${this._iconSvg("speaker")}</span>
             <span class="simple-wizard-player-copy">
-              <span class="simple-wizard-option-title">${this._esc(this._m("All players", "כל הנגנים"))}</span>
-              <span class="simple-wizard-option-sub">${this._esc(this._m("Play everywhere", "ניגון בכל הבית"))}</span>
+              <span class="simple-wizard-option-title">${this._esc(this._i18n("ui.all_players"))}</span>
+              <span class="simple-wizard-option-sub">${this._esc(this._i18n("ui.play_everywhere"))}</span>
             </span>
             <span class="simple-wizard-check">${this._iconSvg(allSelected ? "check" : "plus")}</span>
           </button>
@@ -30470,7 +33996,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           }).join("")}
         </div>
         <div class="simple-wizard-footer single">
-          <button class="simple-wizard-primary" data-simple-next="source" ${selected.size ? "" : "disabled"}>${this._esc(this._m("Continue", "המשך"))}</button>
+          <button class="simple-wizard-primary" data-simple-next="source" ${selected.size ? "" : "disabled"}>${this._esc(this._i18n("ui.continue_2"))}</button>
         </div>
       </div>
     `;
@@ -30483,15 +34009,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const customGenre = String(state.customGenre || "").trim();
     return `
       <div class="simple-wizard-panel">
-        <div class="simple-wizard-title">${this._esc(this._m("Choose the music", "איזו מוזיקה?"))}</div>
+        <div class="simple-wizard-title">${this._esc(this._i18n("ui.choose_the_music"))}</div>
         <div class="simple-wizard-source-grid">
           <button class="simple-wizard-source ${source === "genre" ? "active" : ""}" data-simple-source="genre">
             <span>${this._iconSvg("wand")}</span>
-            <strong>${this._esc(this._m("By mood", "לפי סגנון"))}</strong>
+            <strong>${this._esc(this._i18n("ui.by_mood"))}</strong>
           </button>
           <button class="simple-wizard-source ${source === "content" ? "active" : ""}" data-simple-source="content">
             <span>${this._iconSvg("library_music")}</span>
-            <strong>${this._esc(this._m("Existing content", "תוכן קיים"))}</strong>
+            <strong>${this._esc(this._i18n("ui.existing_content"))}</strong>
           </button>
         </div>
         ${source === "genre" ? `
@@ -30508,8 +34034,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           </div>
           ${selectedGenre === "custom" ? `
             <label class="simple-wizard-search simple-wizard-free-style">
-              <span>${this._esc(this._m("Free style", "סגנון חופשי"))}</span>
-              <input id="simpleWizardCustomGenreInput" type="text" value="${this._esc(customGenre)}" placeholder="${this._esc(this._m("Example: quiet jazz, Greek music, workout", "לדוגמה: ג'אז רגוע, מוזיקה יוונית, אימון"))}">
+              <span>${this._esc(this._i18n("ui.free_style"))}</span>
+              <input id="simpleWizardCustomGenreInput" type="text" value="${this._esc(customGenre)}" placeholder="${this._esc(this._i18n("ui.example_quiet_jazz_greek_music_workout"))}">
             </label>
           ` : ""}
         ` : `
@@ -30525,13 +34051,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             `).join("")}
           </div>
           <label class="simple-wizard-search">
-            <span>${this._esc(this._m("Name or keyword", "שם או מילת חיפוש"))}</span>
-            <input id="simpleWizardQueryInput" type="text" value="${this._esc(state.query || "")}" placeholder="${this._esc(this._m("Optional", "לא חובה"))}">
+            <span>${this._esc(this._i18n("ui.name_or_keyword"))}</span>
+            <input id="simpleWizardQueryInput" type="text" value="${this._esc(state.query || "")}" placeholder="${this._esc(this._i18n("ui.optional_2"))}">
           </label>
         `}
         <div class="simple-wizard-footer">
-          <button class="simple-wizard-secondary" data-simple-back="players">${this._esc(this._m("Back", "חזור"))}</button>
-          <button class="simple-wizard-primary" data-simple-build="1">${this._esc(this._m("Find music", "מצא מוזיקה"))}</button>
+          <button class="simple-wizard-secondary" data-simple-back="players">${this._esc(this._i18n("ui.back_2"))}</button>
+          <button class="simple-wizard-primary" data-simple-build="1">${this._esc(this._i18n("ui.find_music"))}</button>
         </div>
       </div>
     `;
@@ -30542,7 +34068,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       return `
         <div class="simple-wizard-panel simple-wizard-loading">
           <div class="simple-wizard-loader">${this._iconSvg("wand")}</div>
-          <div class="simple-wizard-title">${this._esc(this._m("Finding music", "מחפש מוזיקה"))}</div>
+          <div class="simple-wizard-title">${this._esc(this._i18n("ui.finding_music"))}</div>
         </div>
       `;
     }
@@ -30550,10 +34076,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (!candidates.length) {
       return `
         <div class="simple-wizard-panel">
-          <div class="notice open">${this._esc(state.error || this._m("No matching content was found", "לא נמצא תוכן מתאים"))}</div>
+          <div class="notice open">${this._esc(state.error || this._i18n("ui.no_matching_content_was_found"))}</div>
           <div class="simple-wizard-footer">
-            <button class="simple-wizard-secondary" data-simple-back="source">${this._esc(this._m("Back", "חזור"))}</button>
-            <button class="simple-wizard-primary" data-simple-build="1">${this._esc(this._m("Try again", "נסה שוב"))}</button>
+            <button class="simple-wizard-secondary" data-simple-back="source">${this._esc(this._i18n("ui.back_2"))}</button>
+            <button class="simple-wizard-primary" data-simple-build="1">${this._esc(this._i18n("ui.try_again"))}</button>
           </div>
         </div>
       `;
@@ -30563,18 +34089,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const art = candidate.image || "";
     return `
       <div class="simple-wizard-panel">
-        <div class="simple-wizard-title">${this._esc(this._m("Ready to play", "מוכן לניגון"))}</div>
+        <div class="simple-wizard-title">${this._esc(this._i18n("ui.ready_to_play"))}</div>
         <div class="simple-wizard-review-card">
           <span class="simple-wizard-review-art">${art ? `<img src="${this._esc(art)}" alt="">` : this._iconSvg(candidate.media_type === "radio" ? "radio" : "playlist")}</span>
           <span class="simple-wizard-review-copy">
             <span class="simple-wizard-review-kicker">${this._esc(this._simpleWizardSelectedPlayerNames(state.selectedPlayers))}</span>
-            <span class="simple-wizard-review-title">${this._esc(candidate.name || this._m("Selected music", "מוזיקה נבחרת"))}</span>
+            <span class="simple-wizard-review-title">${this._esc(candidate.name || this._i18n("ui.selected_music"))}</span>
             <span class="simple-wizard-review-sub">${this._esc(candidate.subtitle || this._simpleWizardMediaTypeLabel(candidate.media_type))}</span>
           </span>
         </div>
         <div class="simple-wizard-section-head">
-          <span>${this._esc(this._m("Results", "תוצאות"))}</span>
-          <small>${this._esc(this._m("Choose one clear option", "בחר אפשרות אחת ברורה"))}</small>
+          <span>${this._esc(this._i18n("ui.results"))}</span>
+          <small>${this._esc(this._i18n("ui.choose_one_clear_option"))}</small>
         </div>
         <div class="simple-wizard-result-grid">
           ${candidates.slice(0, 8).map((item, itemIndex) => {
@@ -30585,7 +34111,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
               <span class="simple-wizard-result-art">${itemArt ? `<img src="${this._esc(itemArt)}" alt="">` : this._iconSvg(item.media_type === "radio" ? "radio" : item.media_type === "artist" ? "artist" : "playlist")}</span>
               <span class="simple-wizard-result-copy">
                 <span class="simple-wizard-result-kicker">${this._esc(itemType)}</span>
-                <span class="simple-wizard-result-title">${this._esc(item.name || this._m("Option", "אפשרות"))}</span>
+                <span class="simple-wizard-result-title">${this._esc(item.name || this._i18n("ui.option"))}</span>
                 <span class="simple-wizard-result-sub">${this._esc(item.subtitle || itemType)}</span>
               </span>
               <span class="simple-wizard-result-check">${this._iconSvg(itemIndex === index ? "check" : "plus")}</span>
@@ -30593,9 +34119,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           `; }).join("")}
         </div>
         <div class="simple-wizard-footer triple">
-          <button class="simple-wizard-secondary" data-simple-back="source">${this._esc(this._m("Back", "חזור"))}</button>
-          <button class="simple-wizard-secondary" data-simple-build="1">${this._esc(this._m("Refresh", "רענן"))}</button>
-          <button class="simple-wizard-primary" data-simple-play="1">${this._esc(this._m("Play now", "נגן עכשיו"))}</button>
+          <button class="simple-wizard-secondary" data-simple-back="source">${this._esc(this._i18n("ui.back_2"))}</button>
+          <button class="simple-wizard-secondary" data-simple-build="1">${this._esc(this._i18n("ui.refresh"))}</button>
+          <button class="simple-wizard-primary" data-simple-play="1">${this._esc(this._i18n("ui.play_now"))}</button>
         </div>
       </div>
     `;
@@ -30613,7 +34139,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       <div class="simple-wizard-shell" data-simple-step="${this._esc(step)}">
         ${this._simpleWizardProgressHtml(step)}
         <div class="simple-wizard-toolbar">
-          <button class="simple-wizard-reset-btn" data-simple-reset="1">${this._esc(this._m("Reset", "איפוס"))}</button>
+          <button class="simple-wizard-reset-btn" data-simple-reset="1">${this._esc(this._i18n("ui.reset"))}</button>
         </div>
         ${body}
       </div>
@@ -30622,11 +34148,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _simpleWizardMediaTypeLabel(mediaType = "") {
     const type = String(mediaType || "").toLowerCase();
-    if (type === "artist") return this._m("Artist", "אמן");
-    if (type === "radio") return this._m("Radio", "רדיו");
-    if (type === "track") return this._m("Track", "שיר");
-    if (type === "album") return this._m("Album", "אלבום");
-    return this._m("Playlist", "פלייליסט");
+    if (type === "artist") return this._i18n("ui.artist");
+    if (type === "radio") return this._i18n("ui.radio");
+    if (type === "track") return this._i18n("ui.track");
+    if (type === "album") return this._i18n("ui.album");
+    return this._i18n("ui.playlist");
   }
 
   _simpleWizardCandidateFromItem(item = {}, fallbackType = "playlist", options = {}) {
@@ -30738,7 +34264,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         try {
           const results = await this._search(query);
           addGroup(results.artists, "artist", {
-            subtitle: type === "artist_radio" ? this._m("Artist radio", "רדיו אמן") : this._m("Artist", "אמן"),
+            subtitle: type === "artist_radio" ? this._i18n("ui.artist_radio") : this._i18n("ui.artist"),
             radioMode: type === "artist_radio",
             mediaType: "artist",
           });
@@ -30747,7 +34273,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         try {
           const artists = await this._fetchLibrary("artist", "sort_name", 80, false);
           addGroup(artists, "artist", {
-            subtitle: type === "artist_radio" ? this._m("Artist radio", "רדיו אמן") : this._m("Artist", "אמן"),
+            subtitle: type === "artist_radio" ? this._i18n("ui.artist_radio") : this._i18n("ui.artist"),
             radioMode: type === "artist_radio",
             mediaType: "artist",
           });
@@ -30782,13 +34308,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (customGenreInput) state.customGenre = customGenreInput.value || "";
     if (!state.selectedPlayers?.length) {
       state.step = "players";
-      this._toastError(this._m("Choose at least one player", "בחר לפחות נגן אחד"));
+      this._toastError(this._i18n("ui.choose_at_least_one_player"));
       await this._renderMobileMenu();
       return;
     }
     if (state.source !== "content" && state.genre === "custom" && !String(state.customGenre || "").trim()) {
       state.step = "source";
-      this._toastError(this._m("Type a free style first", "כתוב קודם סגנון חופשי"));
+      this._toastError(this._i18n("ui.type_a_free_style_first"));
       await this._renderMobileMenu();
       return;
     }
@@ -30804,11 +34330,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const candidates = await this._simpleWizardFindCandidates(state);
       if (token !== this._simpleWizardToken) return;
       state.candidates = candidates;
-      state.error = candidates.length ? "" : this._m("No matching content was found", "לא נמצא תוכן מתאים");
+      state.error = candidates.length ? "" : this._i18n("ui.no_matching_content_was_found");
     } catch (error) {
       if (token !== this._simpleWizardToken) return;
       state.candidates = [];
-      state.error = error?.message || this._m("Could not find music", "לא הצלחתי למצוא מוזיקה");
+      state.error = error?.message || this._i18n("ui.could_not_find_music");
     } finally {
       if (token === this._simpleWizardToken) {
         state.loading = false;
@@ -30824,9 +34350,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const art = candidate.image || "";
     host.innerHTML = `
       <div class="surprise-popup-card simple-wizard-popup-card">
-        <div class="surprise-popup-player">${this._esc(this._m("Playing on", "מנגן ב"))}: ${this._esc(targetName)}</div>
+        <div class="surprise-popup-player">${this._esc(this._i18n("ui.playing_on_2"))}: ${this._esc(targetName)}</div>
         <div class="surprise-popup-art">${art ? `<img src="${this._esc(art)}" alt="">` : this._iconSvg("wand")}</div>
-        <div class="surprise-popup-title">${this._esc(candidate.name || this._m("Selected music", "מוזיקה נבחרת"))}</div>
+        <div class="surprise-popup-title">${this._esc(candidate.name || this._i18n("ui.selected_music"))}</div>
       </div>
     `;
     host.classList.add("open", "simple-wizard-popup");
@@ -30849,7 +34375,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (!targets.length) {
       state.step = "players";
       await this._renderMobileMenu();
-      this._toastError(this._m("Choose at least one player", "בחר לפחות נגן אחד"));
+      this._toastError(this._i18n("ui.choose_at_least_one_player"));
       return;
     }
     if (sourceEl) this._flashInteraction(sourceEl);
@@ -30859,7 +34385,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       radioMode: !!candidate.radioMode,
     });
     if (!ok) {
-      this._toastError(this._m("Could not start playback", "לא הצלחתי להתחיל ניגון"));
+      this._toastError(this._i18n("ui.could_not_start_playback"));
       return;
     }
     this._selectPlayer(targets[0], true);
@@ -30897,7 +34423,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const selected = new Set(state.selectedPlayers || []);
       if (selected.has(entityId)) {
         if (selected.size <= 1) {
-          this._toastError(this._m("Choose at least one player", "בחר לפחות נגן אחד"));
+          this._toastError(this._i18n("ui.choose_at_least_one_player"));
           return true;
         }
         selected.delete(entityId);
@@ -30909,7 +34435,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
     if (button.dataset.simpleNext) {
       if (button.dataset.simpleNext === "source" && !state.selectedPlayers?.length) {
-        this._toastError(this._m("Choose at least one player", "בחר לפחות נגן אחד"));
+        this._toastError(this._i18n("ui.choose_at_least_one_player"));
         return true;
       }
       state.step = button.dataset.simpleNext;
@@ -30965,7 +34491,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           <span class="menu-item-ico">${this._iconSvg("timer")}</span>
           <span style="min-width:0;flex:1;">
             <span class="menu-item-title">${this._esc(label)}</span>
-            <span class="menu-item-sub">${this._esc(this._m("Set sleep timer", "הפעל טיימר שינה"))}</span>
+            <span class="menu-item-sub">${this._esc(this._i18n("ui.set_sleep_timer"))}</span>
           </span>
         </span>
       </button>
@@ -30978,7 +34504,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const active = this._sleepTimerRemainingMs() > 0;
     const status = active
       ? this._m(`Active for ${remaining}`, `פעיל לעוד ${remaining}`)
-      : this._m("No sleep timer is active", "אין כרגע טיימר שינה פעיל");
+      : this._i18n("ui.no_sleep_timer_is_active");
     const schedules = this._scheduledStartSchedules();
     const editSchedule = schedules.find((schedule) => schedule.id === this._state.mobileStartScheduleEditId) || null;
     const showWakeEditor = !!editSchedule || this._state.mobileStartScheduleEditId === "__new__";
@@ -31009,10 +34535,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       <div class="schedule-list">
         ${schedules.map((schedule) => {
           const player = this._playerByEntityId(this._scheduledStartPlayerId(schedule));
-          const playerName = player?.attributes?.friendly_name || this._m("Selected player", "הנגן הנבחר");
+          const playerName = player?.attributes?.friendly_name || this._i18n("ui.selected_player_3");
           const afterRunLabel = schedule.afterRun === "disable"
-            ? this._m("Turns off after run", "נכבה אחרי הפעלה")
-            : this._m("Stays active", "נשאר פעיל");
+            ? this._i18n("ui.turns_off_after_run")
+            : this._i18n("ui.stays_active");
           const days = this._nightModeDayOptions()
             .filter(([value]) => this._normalizeNightModeDays(schedule.days).includes(value))
             .map(([, label]) => label)
@@ -31027,69 +34553,69 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
                 </span>
               </button>
               <div class="schedule-row-actions">
-                <button class="settings-pill ${schedule.enabled !== false ? "active" : ""}" data-start-schedule-toggle="${this._esc(schedule.id)}">${this._esc(schedule.enabled !== false ? this._m("On", "פעיל") : this._m("Off", "כבוי"))}</button>
+                <button class="settings-pill ${schedule.enabled !== false ? "active" : ""}" data-start-schedule-toggle="${this._esc(schedule.id)}">${this._esc(schedule.enabled !== false ? this._i18n("ui.on") : this._i18n("ui.off"))}</button>
                 <button class="settings-pill" data-start-schedule-delete="${this._esc(schedule.id)}">${this._iconSvg("trash")}</button>
               </div>
             </div>
           `;
         }).join("")}
       </div>
-    ` : `<div class="notice open">${this._m("No wake schedules yet", "עדיין אין תזמוני השכמה")}</div>`;
+    ` : `<div class="notice open">${this._i18n("ui.no_wake_schedules_yet")}</div>`;
     const timersHtml = `
       <div class="settings-group scheduled-start-card schedule-panel-card schedule-timers-card">
-        <div class="settings-label">${this._esc(this._m("Sleep Timer", "טיימר שינה"))}</div>
+        <div class="settings-label">${this._esc(this._i18n("ui.sleep_timer_2"))}</div>
         <div class="settings-hint">${this._esc(status)}</div>
-        <div class="sleep-timer-action-row ${active ? "with-cancel" : ""}" aria-label="${this._esc(this._m("Sleep timer presets", "בחירת זמן טיימר שינה"))}">
+        <div class="sleep-timer-action-row ${active ? "with-cancel" : ""}" aria-label="${this._esc(this._i18n("ui.sleep_timer_presets"))}">
           <button class="sleep-timer-action-btn" data-sleep-timer-start="15">+15</button>
           <button class="sleep-timer-action-btn" data-sleep-timer-start="30">+30</button>
           <button class="sleep-timer-action-btn" data-sleep-timer-start="60">+60</button>
-          ${active ? `<button class="sleep-timer-action-btn danger" data-sleep-timer-cancel>${this._esc(this._m("Cancel", "בטל"))}</button>` : ``}
+          ${active ? `<button class="sleep-timer-action-btn danger" data-sleep-timer-cancel>${this._esc(this._i18n("ui.cancel_2"))}</button>` : ``}
         </div>
       </div>
     `;
     const wakeHtml = `
       <div class="wake-schedule-layout">
         <div class="settings-group scheduled-start-card wake-schedule-list-card">
-          <div class="settings-label">${this._esc(this._m("Wake schedules", "תזמוני השכמה"))}</div>
+          <div class="settings-label">${this._esc(this._i18n("ui.wake_schedules"))}</div>
           <div class="settings-hint">${this._esc(this._scheduledStartStatusLabel())}</div>
           ${scheduleRows}
           <div class="settings-actions">
-            <button class="settings-pill" data-start-schedule-new>${this._esc(this._m("New schedule", "תזמון חדש"))}</button>
+            <button class="settings-pill" data-start-schedule-new>${this._esc(this._i18n("ui.new_schedule"))}</button>
           </div>
         </div>
         ${showWakeEditor ? `<div class="settings-group scheduled-start-card wake-schedule-editor-card">
-          <div class="settings-label">${this._esc(editSchedule ? this._m("Edit schedule", "עריכת תזמון") : this._m("New wake schedule", "תזמון השכמה חדש"))}</div>
+          <div class="settings-label">${this._esc(editSchedule ? this._i18n("ui.edit_schedule") : this._i18n("ui.new_wake_schedule"))}</div>
           <div class="scheduled-start-grid">
             <label class="night-time-card" for="scheduledStartTimeInput">
-              <span class="night-time-label">${this._esc(this._m("Start time", "שעת הפעלה"))}</span>
-              <input class="night-time-input" id="scheduledStartTimeInput" data-schedule-form-control type="time" value="${this._esc(scheduledTime)}" step="60" aria-label="${this._esc(this._m("Start time", "שעת הפעלה"))}">
+              <span class="night-time-label">${this._esc(this._i18n("ui.start_time"))}</span>
+              <input class="night-time-input" id="scheduledStartTimeInput" data-schedule-form-control type="time" value="${this._esc(scheduledTime)}" step="60" aria-label="${this._esc(this._i18n("ui.start_time"))}">
             </label>
             <label class="scheduled-start-field" for="scheduledStartPlayerSelect">
-              <span class="settings-label">${this._esc(this._m("Player", "נגן"))}</span>
-              <select class="media-sort-select settings-select" id="scheduledStartPlayerSelect" data-schedule-form-control aria-label="${this._esc(this._m("Player", "נגן"))}">
-                ${playerOptions || `<option value="">${this._esc(this._m("No players found", "לא נמצאו נגנים"))}</option>`}
+              <span class="settings-label">${this._esc(this._i18n("ui.player_2"))}</span>
+              <select class="media-sort-select settings-select" id="scheduledStartPlayerSelect" data-schedule-form-control aria-label="${this._esc(this._i18n("ui.player_2"))}">
+                ${playerOptions || `<option value="">${this._esc(this._i18n("ui.no_players_found"))}</option>`}
               </select>
             </label>
             <label class="scheduled-start-field" for="scheduledStartPlaylistSelect">
-              <span class="settings-label">${this._esc(this._m("Playlist", "פלייליסט"))}</span>
-              <select class="media-sort-select settings-select" id="scheduledStartPlaylistSelect" data-schedule-form-control aria-label="${this._esc(this._m("Playlist", "פלייליסט"))}">
+              <span class="settings-label">${this._esc(this._i18n("ui.playlist"))}</span>
+              <select class="media-sort-select settings-select" id="scheduledStartPlaylistSelect" data-schedule-form-control aria-label="${this._esc(this._i18n("ui.playlist"))}">
                 ${this._scheduledStartPlaylistOptionsHtml(wakeDraftSchedule)}
               </select>
             </label>
             <label class="scheduled-start-field" for="scheduledStartAfterRunSelect">
-              <span class="settings-label">${this._esc(this._m("After run", "אחרי הפעלה"))}</span>
-              <select class="media-sort-select settings-select" id="scheduledStartAfterRunSelect" data-schedule-form-control aria-label="${this._esc(this._m("After run", "אחרי הפעלה"))}">
-                <option value="keep" ${scheduledAfterRun === "keep" ? "selected" : ""}>${this._esc(this._m("Stay active", "יישאר פעיל"))}</option>
-                <option value="disable" ${scheduledAfterRun === "disable" ? "selected" : ""}>${this._esc(this._m("Turn off", "יכבה"))}</option>
+              <span class="settings-label">${this._esc(this._i18n("ui.after_run"))}</span>
+              <select class="media-sort-select settings-select" id="scheduledStartAfterRunSelect" data-schedule-form-control aria-label="${this._esc(this._i18n("ui.after_run"))}">
+                <option value="keep" ${scheduledAfterRun === "keep" ? "selected" : ""}>${this._esc(this._i18n("ui.stay_active"))}</option>
+                <option value="disable" ${scheduledAfterRun === "disable" ? "selected" : ""}>${this._esc(this._i18n("ui.turn_off"))}</option>
               </select>
             </label>
           </div>
           <div class="settings-range scheduled-volume-field">
-            <div class="settings-label">${this._esc(this._m("Volume", "ווליום"))}</div>
+            <div class="settings-label">${this._esc(this._i18n("ui.volume"))}</div>
             <input id="scheduledStartVolumeInput" data-schedule-form-control type="range" min="0" max="100" step="1" value="${this._esc(String(scheduledVolume))}">
             <div class="settings-value">${this._esc(String(scheduledVolume))}%</div>
           </div>
-          <div class="settings-label">${this._esc(this._m("Active days", "ימים פעילים"))}</div>
+          <div class="settings-label">${this._esc(this._i18n("ui.active_days"))}</div>
           <div class="settings-check-grid">
             ${this._nightModeDayOptions().map(([value, label]) => `
               <label class="settings-check-pill">
@@ -31098,8 +34624,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
               </label>`).join("")}
           </div>
           <div class="settings-actions">
-            <button class="settings-pill active" data-start-timer-save>${this._esc(editSchedule ? this._m("Save schedule", "שמור תזמון") : this._m("Create schedule", "צור תזמון"))}</button>
-            ${editSchedule ? `<button class="settings-pill" data-start-timer-clear>${this._esc(this._m("Delete schedule", "מחק תזמון"))}</button>` : ``}
+            <button class="settings-pill active" data-start-timer-save>${this._esc(editSchedule ? this._i18n("ui.save_schedule") : this._i18n("ui.create_schedule"))}</button>
+            ${editSchedule ? `<button class="settings-pill" data-start-timer-clear>${this._esc(this._i18n("ui.delete_schedule"))}</button>` : ``}
           </div>
         </div>` : ``}
       </div>
@@ -31108,15 +34634,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       ? `
         <div class="scheduled-start-grid two-col">
           <label class="night-time-card" for="mobileNightStartInput">
-            <span class="night-time-label">${this._esc(this._m("Start time", "שעת התחלה"))}</span>
-            <input class="night-time-input" id="mobileNightStartInput" data-schedule-form-control type="time" value="${this._esc(nightWindow.start)}" step="60" aria-label="${this._esc(this._m("Start time", "שעת התחלה"))}">
+            <span class="night-time-label">${this._esc(this._i18n("ui.start_time_2"))}</span>
+            <input class="night-time-input" id="mobileNightStartInput" data-schedule-form-control type="time" value="${this._esc(nightWindow.start)}" step="60" aria-label="${this._esc(this._i18n("ui.start_time_2"))}">
           </label>
           <label class="night-time-card" for="mobileNightEndInput">
-            <span class="night-time-label">${this._esc(this._m("End time", "שעת סיום"))}</span>
-            <input class="night-time-input" id="mobileNightEndInput" data-schedule-form-control type="time" value="${this._esc(nightWindow.end)}" step="60" aria-label="${this._esc(this._m("End time", "שעת סיום"))}">
+            <span class="night-time-label">${this._esc(this._i18n("ui.end_time"))}</span>
+            <input class="night-time-input" id="mobileNightEndInput" data-schedule-form-control type="time" value="${this._esc(nightWindow.end)}" step="60" aria-label="${this._esc(this._i18n("ui.end_time"))}">
           </label>
         </div>
-        <div class="settings-label">${this._esc(this._m("Active days", "ימים פעילים"))}</div>
+        <div class="settings-label">${this._esc(this._i18n("ui.active_days"))}</div>
         <div class="settings-check-grid">
           ${this._nightModeDayOptions().map(([value, label]) => `
             <label class="settings-check-pill">
@@ -31125,29 +34651,29 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             </label>`).join("")}
         </div>
         <div class="settings-actions">
-          <button class="settings-pill active" data-setting-night-window-save>${this._esc(this._m("Apply schedule", "אישור"))}</button>
+          <button class="settings-pill active" data-setting-night-window-save>${this._esc(this._i18n("ui.apply_schedule"))}</button>
         </div>
       `
       : `<div class="notice open">${this._esc(nightMode === "on"
-          ? this._m("Night mode stays on until you choose another mode.", "מצב לילה יישאר פעיל עד שתבחר מצב אחר.")
-          : this._m("Night mode is off until you choose another mode.", "מצב לילה כבוי עד שתבחר מצב אחר."))}</div>`;
+          ? this._i18n("ui.night_mode_stays_on_until_you_choose_another_mode")
+          : this._i18n("ui.night_mode_is_off_until_you_choose_another_mode"))}</div>`;
     const nightHtml = `
       <div class="settings-group scheduled-start-card schedule-panel-card schedule-night-card">
-        <div class="settings-label">${this._esc(this._m("Night mode", "מצב לילה"))}</div>
+        <div class="settings-label">${this._esc(this._i18n("ui.night_mode"))}</div>
         <div class="settings-pills">
-          ${this._settingsPill(this._m("Off", "כבוי"), "off", nightMode, "data-setting-night-mode")}
+          ${this._settingsPill(this._i18n("ui.off"), "off", nightMode, "data-setting-night-mode")}
           ${this._settingsPill("Auto", "auto", nightMode, "data-setting-night-mode")}
-          ${this._settingsPill(this._m("On", "פעיל"), "on", nightMode, "data-setting-night-mode")}
+          ${this._settingsPill(this._i18n("ui.on"), "on", nightMode, "data-setting-night-mode")}
         </div>
         ${nightScheduleControlsHtml}
       </div>
     `;
     return `
       <div class="settings-shell">
-        <div class="schedule-tabs" role="tablist" aria-label="${this._esc(this._m("Schedules", "תזמונים"))}">
-          <button class="settings-pill ${activeTab === "timers" ? "active" : ""}" data-schedule-tab="timers">${this._esc(this._m("Timers", "טיימרים"))}</button>
-          <button class="settings-pill ${activeTab === "wake" ? "active" : ""}" data-schedule-tab="wake">${this._esc(this._m("Wake", "השכמה"))}</button>
-          <button class="settings-pill ${activeTab === "night" ? "active" : ""}" data-schedule-tab="night">${this._esc(this._m("Night", "לילה"))}</button>
+        <div class="schedule-tabs" role="tablist" aria-label="${this._esc(this._i18n("ui.schedules"))}">
+          <button class="settings-pill ${activeTab === "timers" ? "active" : ""}" data-schedule-tab="timers">${this._esc(this._i18n("ui.timers"))}</button>
+          <button class="settings-pill ${activeTab === "wake" ? "active" : ""}" data-schedule-tab="wake">${this._esc(this._i18n("ui.wake"))}</button>
+          <button class="settings-pill ${activeTab === "night" ? "active" : ""}" data-schedule-tab="night">${this._esc(this._i18n("ui.night"))}</button>
         </div>
         <div class="schedule-content">
           ${activeTab === "wake" ? wakeHtml : activeTab === "night" ? nightHtml : timersHtml}
@@ -31159,11 +34685,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _mainMenuHtml() {
     return `
       <div class="action-grid">
-        ${this._navMenuItem("simple_wizard", this._iconSvg("wand"), "FLOW", this._m("A guided music wizard", "אשף מוזיקה ברור ומהיר"), "simple")}
-        ${this._navMenuItem("players", this._iconSvg("speaker"), this._m("Players", "נגנים"), this._m("Players, queue and groups", "נגנים, תור וקבוצות"), "players")}
-        ${this._navMenuItem("library_liked", this._iconSvg("heart_filled"), this._m("Liked", "אהבתי"), this._m("Open saved songs", "פתח שירים שמורים"), "liked")}
-        ${this._navMenuItem("sleep_timer", this._iconSvg("timer"), this._m("Schedules", "תזמונים"), this._m("Sleep timer and morning playback", "טיימר שינה ותזמון הפעלה"), "announcement")}
-        ${this._navMenuItem("announcements", this._iconSvg("announcement"), this._m("Announcements", "כריזה"), this._m("Send a voice message", "שלח כריזה קולית"), "announcement")}
+        ${this._navMenuItem("simple_wizard", this._iconSvg("wand"), "FLOW", this._i18n("ui.a_guided_music_wizard"), "simple")}
+        ${this._discoveryModeEnabled() ? this._navMenuItem("discovery", this._iconSvg("grid"), this._i18n("ui.discover_music", {}, this._m("Discover", "גלה מוזיקה")), this._i18n("ui.music_by_mood_and_genre"), "discovery") : ""}
+        ${this._navMenuItem("players", this._iconSvg("speaker"), this._i18n("ui.players"), this._i18n("ui.players_queue_and_groups"), "players")}
+        ${this._navMenuItem("library_liked", this._iconSvg("heart_filled"), this._i18n("ui.liked"), this._i18n("ui.open_saved_songs"), "liked")}
+        ${this._navMenuItem("sleep_timer", this._iconSvg("timer"), this._i18n("ui.schedules"), this._i18n("ui.sleep_timer_and_morning_playback"), "announcement")}
+        ${this._navMenuItem("announcements", this._iconSvg("announcement"), this._i18n("ui.announcements"), this._i18n("ui.send_a_voice_message"), "announcement")}
       </div>
     `;
   }
@@ -31185,7 +34712,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _playersActionHubHtml(options = {}) {
     const queueCount = this._getNowPlayingQueueItems().length || Number(this._state.maQueueState?.items || 0) || 0;
-    const thisDeviceTitle = options.thisDeviceTitle || this._m("Player on this device", "נגן במכשיר זה");
+    const thisDeviceTitle = options.thisDeviceTitle || this._i18n("ui.player_on_this_device");
     const thisDeviceActionName = options.thisDeviceActionName || "connect_this_device";
     const thisDeviceActive = !!options.connectedThisDevice || !!options.startingThisDevice;
     const thisDeviceClass = [
@@ -31199,32 +34726,536 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       <div class="players-action-bar">
         <div class="players-action-shell">
           <div class="players-action-hub">
-            <button class="players-action-chip" data-menu-nav="queue" title="${this._esc(this._m("Queue", "תור"))}">
+            <button class="players-action-chip" data-menu-nav="queue" title="${this._esc(this._i18n("ui.queue_2"))}">
               <span class="players-action-icon">${this._iconSvg("queue")}</span>
-              <span class="players-action-label">${this._esc(this._m("Queue", "תור"))}</span>
+              <span class="players-action-label">${this._esc(this._i18n("ui.queue_2"))}</span>
               ${queueCount ? `<strong class="players-action-badge">${this._esc(String(queueCount))}</strong>` : ``}
             </button>
-            <button class="players-action-chip" data-menu-nav="transfer" title="${this._esc(this._m("Transfer queue", "העבר תור"))}">
+            <button class="players-action-chip" data-menu-nav="transfer" title="${this._esc(this._i18n("ui.transfer_queue_2"))}">
               <span class="players-action-icon">${this._iconSvg("repeat")}</span>
-              <span class="players-action-label">${this._esc(this._m("Transfer queue", "העבר תור"))}</span>
+              <span class="players-action-label">${this._esc(this._i18n("ui.transfer_queue_2"))}</span>
             </button>
-            <button class="players-action-chip" data-menu-nav="group" title="${this._esc(this._m("Group Speakers", "קבוצת נגנים"))}">
+            <button class="players-action-chip" data-menu-nav="group" title="${this._esc(this._i18n("ui.group_speakers_2"))}">
               <span class="players-action-icon">${this._iconSvg("speaker_group")}</span>
-              <span class="players-action-label">${this._esc(this._m("Group", "קבוצה"))}</span>
+              <span class="players-action-label">${this._esc(this._i18n("ui.group"))}</span>
             </button>
             <button class="${this._esc(thisDeviceClass)}" data-menu-action="${this._esc(thisDeviceActionName)}" aria-pressed="${thisDeviceActive ? "true" : "false"}" title="${this._esc(thisDeviceTitle)}" aria-label="${this._esc(thisDeviceTitle)}">
               <span class="players-action-icon">${this._iconSvg("speaker")}</span>
-              <span class="players-action-label">${this._esc(this._m("This device", "מכשיר זה"))}</span>
+              <span class="players-action-label">${this._esc(this._i18n("ui.this_device_2"))}</span>
               <span class="players-action-dot" aria-hidden="true"></span>
             </button>
           </div>
         </div>
-        <button class="players-action-stop" data-menu-nav="stop_all" title="${this._esc(this._m("Stop all players", "עצור את כל הנגנים"))}">
+        <button class="players-action-stop" data-menu-nav="stop_all" title="${this._esc(this._i18n("ui.stop_all_players"))}">
           <span class="players-action-stop-icon">${this._iconSvg("stop")}</span>
-          <span>${this._esc(this._m("Disconnect all", "נתק הכל"))}</span>
+          <span>${this._esc(this._i18n("ui.disconnect_all"))}</span>
         </button>
       </div>
     `;
+  }
+
+  _discoveryCategoryOptions() {
+    return [
+      { key: "fresh", icon: "shuffle", label: this._i18n("ui.random"), subtitle: this._i18n("ui.new_and_recommended"), fresh: true, queries: ["new music playlists", "fresh finds playlist", "discover weekly playlist", "new releases playlist"] },
+      { key: "calm", icon: "album", label: this._i18n("ui.calm"), subtitle: this._i18n("ui.soft_and_relaxed"), queries: ["calm chill playlist", "acoustic chill playlist", "soft relaxed music playlist"] },
+      { key: "energy", icon: "tracks", label: this._i18n("ui.energetic"), subtitle: this._i18n("ui.energy_and_rhythm"), queries: ["energy upbeat playlist", "workout hits playlist", "dance pop playlist"] },
+      { key: "morning", icon: "timer", label: this._i18n("ui.morning"), subtitle: this._i18n("ui.fresh_start"), queries: ["morning coffee playlist", "good morning playlist", "feel good morning playlist"] },
+      { key: "night", icon: "moon", label: this._i18n("ui.night"), subtitle: this._i18n("ui.low_light_listening"), queries: ["night lounge playlist", "late night chill playlist", "ambient evening playlist"] },
+      { key: "israeli", icon: "radio", label: this._i18n("ui.israeli"), subtitle: this._i18n("ui.music_by_mood_and_genre"), queries: ["israeli hebrew playlist", "מוזיקה ישראלית פלייליסט", "israeli hits playlist"] },
+      { key: "kids", icon: "heart_filled", label: this._i18n("ui.kids"), subtitle: this._i18n("ui.family_friendly"), queries: ["kids family playlist", "children songs playlist", "family music playlist"] },
+    ];
+  }
+
+  _discoveryGenreFallbackOptions() {
+    return [
+      { key: "all", label: this._i18n("ui.all", {}, this._discoveryGenreLabel("All", "הכל", "Alle")), query: "" },
+    ];
+  }
+
+  _discoveryCategory() {
+    const categories = this._discoveryCategoryOptions();
+    return categories.find((entry) => entry.key === this._state.discoveryCategoryKey) || categories[0];
+  }
+
+  _discoveryGenreKey(value = "") {
+    const normalized = String(value || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[^\p{L}\p{N}]+/gu, "-")
+      .replace(/^-+|-+$/g, "");
+    return normalized || "genre";
+  }
+
+  _discoveryGenreOptionFromItem(item = {}, index = 0) {
+    const mediaItem = item?.media_item || item?.item || item;
+    const label = String(mediaItem?.name || mediaItem?.title || item?.name || item?.title || mediaItem?.item_id || mediaItem?.uri || "").trim();
+    if (!label) return null;
+    const itemId = String(mediaItem?.item_id || item?.item_id || mediaItem?.id || item?.id || "").trim();
+    const uri = String(mediaItem?.uri || item?.uri || "").trim();
+    const keySeed = itemId ? `genre-${itemId}` : (uri || label);
+    return {
+      key: this._discoveryGenreKey(keySeed) || `genre-${index}`,
+      label,
+      query: label,
+      item_id: itemId,
+      uri,
+    };
+  }
+
+  _discoveryGenreLabel(en, he, de = en) {
+    const lang = this._language();
+    if (lang === "he") return he;
+    if (lang === "de") return de;
+    return en;
+  }
+
+  _discoveryPopularGenreProfiles() {
+    return [
+      { key: "pop", label: this._discoveryGenreLabel("Pop", "פופ", "Pop"), query: "pop", aliases: ["pop", "pop music", "afropop", "synthpop", "synth pop", "k-pop", "kpop", "j-pop", "jpop", "israeli pop"], children: [
+        { key: "dance-pop", label: this._discoveryGenreLabel("Dance Pop", "דאנס פופ", "Dance-Pop"), query: "dance pop" },
+        { key: "k-pop", label: this._discoveryGenreLabel("K-Pop", "קיי־פופ", "K-Pop"), query: "k-pop" },
+        { key: "indie-pop", label: this._discoveryGenreLabel("Indie Pop", "אינדי פופ", "Indie-Pop"), query: "indie pop" },
+        { key: "israeli-pop", label: this._discoveryGenreLabel("Israeli Pop", "פופ ישראלי", "Israelischer Pop"), query: "israeli pop" },
+      ] },
+      { key: "hip-hop", label: this._discoveryGenreLabel("Hip-Hop", "היפ־הופ", "Hip-Hop"), query: "hip hop", aliases: ["hip hop", "hip-hop", "hiphop", "rap", "trap"], children: [
+        { key: "rap", label: this._discoveryGenreLabel("Rap", "ראפ", "Rap"), query: "rap" },
+        { key: "trap", label: this._discoveryGenreLabel("Trap", "טראפ", "Trap"), query: "trap" },
+        { key: "old-school", label: this._discoveryGenreLabel("Old School", "אולד סקול", "Old School"), query: "old school hip hop" },
+        { key: "israeli-rap", label: this._discoveryGenreLabel("Israeli Rap", "ראפ ישראלי", "Israelischer Rap"), query: "israeli rap" },
+      ] },
+      { key: "rock", label: this._discoveryGenreLabel("Rock", "רוק", "Rock"), query: "rock", aliases: ["rock", "classic rock", "alt rock", "alternative rock", "hard rock", "soft rock", "punk"], children: [
+        { key: "classic-rock", label: this._discoveryGenreLabel("Classic Rock", "רוק קלאסי", "Classic Rock"), query: "classic rock" },
+        { key: "alternative-rock", label: this._discoveryGenreLabel("Alternative Rock", "רוק אלטרנטיבי", "Alternative Rock"), query: "alternative rock" },
+        { key: "indie-rock", label: this._discoveryGenreLabel("Indie Rock", "אינדי רוק", "Indie-Rock"), query: "indie rock" },
+        { key: "punk", label: this._discoveryGenreLabel("Punk", "פאנק רוק", "Punk"), query: "punk rock" },
+      ] },
+      { key: "electronic", label: this._discoveryGenreLabel("Electronic", "אלקטרוני", "Elektronisch"), query: "electronic", aliases: ["electronic", "electronica", "edm", "house", "deep house", "tech house", "afro house", "afro tech", "techno", "trance", "dubstep", "drum and bass", "dnb"], children: [
+        { key: "house", label: this._discoveryGenreLabel("House", "האוס", "House"), query: "house music" },
+        { key: "techno", label: this._discoveryGenreLabel("Techno", "טכנו", "Techno"), query: "techno" },
+        { key: "trance", label: this._discoveryGenreLabel("Trance", "טראנס", "Trance"), query: "trance" },
+        { key: "edm", label: this._discoveryGenreLabel("EDM", "EDM", "EDM"), query: "edm" },
+      ] },
+      { key: "dance", label: this._discoveryGenreLabel("Dance", "דאנס", "Dance"), query: "dance", aliases: ["dance", "club", "disco", "dance pop", "party"], children: [
+        { key: "party", label: this._discoveryGenreLabel("Party", "מסיבה", "Party"), query: "party hits" },
+        { key: "club", label: this._discoveryGenreLabel("Club", "קלאב", "Club"), query: "club dance" },
+        { key: "disco", label: this._discoveryGenreLabel("Disco", "דיסקו", "Disco"), query: "disco" },
+        { key: "workout", label: this._discoveryGenreLabel("Workout", "אימון", "Training"), query: "workout dance" },
+      ] },
+      { key: "rnb", label: this._discoveryGenreLabel("R&B", "R&B", "R&B"), query: "r&b", aliases: ["r&b", "rnb", "rhythm and blues", "afro r&b"], children: [
+        { key: "contemporary", label: this._discoveryGenreLabel("Contemporary", "עכשווי", "Zeitgenoessisch"), query: "contemporary r&b" },
+        { key: "slow-jams", label: this._discoveryGenreLabel("Slow Jams", "סלואו ג׳אם", "Slow Jams"), query: "slow jams" },
+        { key: "rnb-hits", label: this._discoveryGenreLabel("R&B Hits", "להיטי R&B", "R&B-Hits"), query: "r&b hits" },
+      ] },
+      { key: "soul", label: this._discoveryGenreLabel("Soul", "סול", "Soul"), query: "soul", aliases: ["soul", "neo soul", "afro soul"], children: [
+        { key: "neo-soul", label: this._discoveryGenreLabel("Neo Soul", "נאו סול", "Neo Soul"), query: "neo soul" },
+        { key: "funk", label: this._discoveryGenreLabel("Funk", "פאנק", "Funk"), query: "funk soul" },
+        { key: "motown", label: this._discoveryGenreLabel("Motown", "מוטאון", "Motown"), query: "motown soul" },
+      ] },
+      { key: "jazz", label: this._discoveryGenreLabel("Jazz", "ג׳אז", "Jazz"), query: "jazz", aliases: ["jazz", "smooth jazz", "vocal jazz", "bebop"], children: [
+        { key: "smooth", label: this._discoveryGenreLabel("Smooth Jazz", "ג׳אז חלק", "Smooth Jazz"), query: "smooth jazz" },
+        { key: "vocal", label: this._discoveryGenreLabel("Vocal Jazz", "ג׳אז ווקאלי", "Vocal Jazz"), query: "vocal jazz" },
+        { key: "fusion", label: this._discoveryGenreLabel("Fusion", "פיוז׳ן", "Fusion"), query: "jazz fusion" },
+      ] },
+      { key: "israeli", label: this._i18n("ui.israeli"), query: "israeli hebrew", aliases: ["israeli", "israel", "hebrew", "עברית", "ישראלי", "מזרחית"], children: [
+        { key: "mizrahi", label: this._discoveryGenreLabel("Mizrahi", "מזרחית", "Mizrahi"), query: "מוזיקה מזרחית" },
+        { key: "hebrew-hits", label: this._discoveryGenreLabel("Hebrew Hits", "להיטים בעברית", "Hebraeische Hits"), query: "להיטים בעברית" },
+        { key: "israeli-rock", label: this._discoveryGenreLabel("Israeli Rock", "רוק ישראלי", "Israelischer Rock"), query: "רוק ישראלי" },
+      ] },
+      { key: "chill", label: this._discoveryGenreLabel("Chill", "צ׳יל", "Chill"), query: "chill", aliases: ["chill", "chillout", "chill out", "lofi", "lo-fi", "lounge", "relax", "relaxing"], children: [
+        { key: "lofi", label: this._discoveryGenreLabel("Lo-Fi", "לו־פיי", "Lo-Fi"), query: "lo-fi chill" },
+        { key: "lounge", label: this._discoveryGenreLabel("Lounge", "לאונג׳", "Lounge"), query: "lounge chill" },
+        { key: "acoustic", label: this._discoveryGenreLabel("Acoustic", "אקוסטי", "Akustisch"), query: "acoustic chill" },
+        { key: "sleep", label: this._discoveryGenreLabel("Sleep", "שינה", "Schlaf"), query: "sleep music" },
+      ] },
+      { key: "classical", label: this._discoveryGenreLabel("Classical", "קלאסי", "Klassik"), query: "classical", aliases: ["classical", "classical music", "orchestra", "orchestral", "piano", "opera"], children: [
+        { key: "piano", label: this._discoveryGenreLabel("Piano", "פסנתר", "Klavier"), query: "classical piano" },
+        { key: "orchestra", label: this._discoveryGenreLabel("Orchestra", "תזמורת", "Orchester"), query: "orchestra classical" },
+        { key: "opera", label: this._discoveryGenreLabel("Opera", "אופרה", "Oper"), query: "opera" },
+      ] },
+      { key: "latin", label: this._discoveryGenreLabel("Latin", "לטיני", "Latin"), query: "latin", aliases: ["latin", "reggaeton", "salsa", "bachata", "bossa nova", "latino"], children: [
+        { key: "reggaeton", label: this._discoveryGenreLabel("Reggaeton", "רגאטון", "Reggaeton"), query: "reggaeton" },
+        { key: "salsa", label: this._discoveryGenreLabel("Salsa", "סלסה", "Salsa"), query: "salsa" },
+        { key: "bachata", label: this._discoveryGenreLabel("Bachata", "בצ׳אטה", "Bachata"), query: "bachata" },
+        { key: "latin-pop", label: this._discoveryGenreLabel("Latin Pop", "פופ לטיני", "Latin Pop"), query: "latin pop" },
+      ] },
+      { key: "afro", label: this._discoveryGenreLabel("Afro", "אפרו", "Afro"), query: "afro", aliases: ["afro", "afrobeats", "afrobeat", "afropop", "afropiano", "amapiano", "afro house", "afro tech", "afro soul", "afro r&b", "afroswing"], children: [
+        { key: "afrobeats", label: this._discoveryGenreLabel("Afrobeats", "אפרוביטס", "Afrobeats"), query: "afrobeats" },
+        { key: "amapiano", label: this._discoveryGenreLabel("Amapiano", "אמאפיאנו", "Amapiano"), query: "amapiano" },
+        { key: "afro-house", label: this._discoveryGenreLabel("Afro House", "אפרו האוס", "Afro House"), query: "afro house" },
+        { key: "afropop", label: this._discoveryGenreLabel("Afropop", "אפרו פופ", "Afropop"), query: "afropop" },
+      ] },
+      { key: "indie", label: this._discoveryGenreLabel("Indie", "אינדי", "Indie"), query: "indie", aliases: ["indie", "indie pop", "indie rock"], children: [
+        { key: "indie-pop", label: this._discoveryGenreLabel("Indie Pop", "אינדי פופ", "Indie-Pop"), query: "indie pop" },
+        { key: "indie-rock", label: this._discoveryGenreLabel("Indie Rock", "אינדי רוק", "Indie-Rock"), query: "indie rock" },
+        { key: "alternative", label: this._discoveryGenreLabel("Alternative", "אלטרנטיבי", "Alternative"), query: "alternative music" },
+      ] },
+      { key: "metal", label: this._discoveryGenreLabel("Metal", "מטאל", "Metal"), query: "metal", aliases: ["metal", "heavy metal", "death metal", "black metal"], children: [
+        { key: "heavy", label: this._discoveryGenreLabel("Heavy Metal", "הבי מטאל", "Heavy Metal"), query: "heavy metal" },
+        { key: "alternative", label: this._discoveryGenreLabel("Alternative Metal", "מטאל אלטרנטיבי", "Alternative Metal"), query: "alternative metal" },
+      ] },
+      { key: "country", label: this._discoveryGenreLabel("Country", "קאנטרי", "Country"), query: "country", aliases: ["country", "americana", "bluegrass"] },
+      { key: "reggae", label: this._discoveryGenreLabel("Reggae", "רגאיי", "Reggae"), query: "reggae", aliases: ["reggae", "dancehall", "dub"] },
+      { key: "folk", label: this._discoveryGenreLabel("Folk", "פולק", "Folk"), query: "folk", aliases: ["folk", "singer songwriter", "singer-songwriter", "acoustic"] },
+      { key: "ambient", label: this._discoveryGenreLabel("Ambient", "אמביינט", "Ambient"), query: "ambient", aliases: ["ambient", "new age", "soundscape"] },
+      { key: "kids", label: this._i18n("ui.kids"), query: "kids", aliases: ["kids", "children", "childrens", "family", "ילדים"] },
+    ];
+  }
+
+  _discoveryGenreMatchText(value = "") {
+    return ` ${this._discoveryGenreKey(value).replace(/-/g, " ")} `;
+  }
+
+  _discoveryGenreProfileScore(genre = {}, profile = {}) {
+    const haystack = this._discoveryGenreMatchText(genre.label || genre.query || genre.key || "");
+    const compactHaystack = haystack.replace(/\s+/g, "");
+    return [profile.key, profile.query, profile.label, ...(profile.aliases || [])].reduce((score, alias) => {
+      const needle = this._discoveryGenreMatchText(alias).trim();
+      if (!needle) return score;
+      if (haystack.trim() === needle) return Math.max(score, 8);
+      if (haystack.includes(` ${needle} `)) return Math.max(score, 5);
+      if (compactHaystack.includes(needle.replace(/\s+/g, ""))) return Math.max(score, 2);
+      return score;
+    }, 0);
+  }
+
+  _discoveryGenreOptionsFlat(genres = []) {
+    return (Array.isArray(genres) ? genres : []).flatMap((genre) => [
+      genre,
+      ...(Array.isArray(genre?.children) ? genre.children : []),
+    ]);
+  }
+
+  _discoveryResponseItems(raw) {
+    const candidates = [];
+    const addCandidate = (value) => {
+      if (!value) return;
+      candidates.push(value);
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        candidates.push(value.response, value.result, value.items, value.genres);
+      }
+    };
+    addCandidate(raw);
+    addCandidate(raw?.response);
+    addCandidate(raw?.result);
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) return candidate;
+      if (Array.isArray(candidate?.items)) return candidate.items;
+      if (Array.isArray(candidate?.genres)) return candidate.genres;
+    }
+    return [];
+  }
+
+  _normalizeDiscoveryGenreOptions(genreItems = [], limit = 20) {
+    const rawGenres = (Array.isArray(genreItems) ? genreItems : [])
+      .map((item, index) => this._discoveryGenreOptionFromItem(item, index))
+      .filter(Boolean);
+    const profiles = this._discoveryPopularGenreProfiles();
+    return profiles
+      .map((profile, index) => {
+        const score = rawGenres.reduce((best, genre) => Math.max(best, this._discoveryGenreProfileScore(genre, profile)), 0);
+        const children = (Array.isArray(profile.children) ? profile.children : []).map((child) => ({
+          ...child,
+          key: `${profile.key}:${child.key}`,
+          parent_key: profile.key,
+          parent_label: profile.label,
+        }));
+        return {
+          key: profile.key,
+          label: profile.label,
+          query: profile.query,
+          children,
+          score,
+          index,
+        };
+      })
+      .filter((genre) => genre.score > 0 || genre.index < limit)
+      .sort((a, b) => a.index - b.index)
+      .slice(0, limit);
+  }
+
+  async _loadDiscoveryGenresFromMusicAssistant() {
+    if (!this._hasDirectMAConnection()) return this._normalizeDiscoveryGenreOptions([]);
+    const requests = [
+      { limit: 120, order_by: "sort_name", hide_empty: true },
+      { limit: 120, order_by: "sort_name", media_type: "playlist" },
+      { limit: 120, order_by: "sort_name", media_type: "album" },
+      { limit: 120, order_by: "sort_name", media_type: "track" },
+    ];
+    const results = await Promise.allSettled(
+      requests.map((args) => this._callDirectMaCommand("music/genres/library_items", args)),
+    );
+    const genreItems = results.flatMap((result) => (
+      result.status === "fulfilled" ? this._discoveryResponseItems(result.value) : []
+    ));
+    return this._normalizeDiscoveryGenreOptions(genreItems);
+  }
+
+  _discoveryGenre(genres = []) {
+    const options = Array.isArray(genres) && genres.length ? genres : this._discoveryGenreFallbackOptions();
+    const flatOptions = this._discoveryGenreOptionsFlat(options);
+    return flatOptions.find((entry) => entry.key === this._state.discoveryGenreKey) || options[0];
+  }
+
+  async _loadDiscoveryGenres() {
+    const fallback = this._discoveryGenreFallbackOptions();
+    const cacheKey = "discovery:genres:music-assistant";
+    const ttl = Number(this._config.cache_ttl || 300000);
+    const cached = this._cache.library.get(cacheKey);
+    if (cached && Date.now() - cached.ts < ttl) return cached.items;
+    let genres = [];
+    try {
+      genres = await this._loadDiscoveryGenresFromMusicAssistant();
+    } catch {
+      genres = this._normalizeDiscoveryGenreOptions([]);
+    }
+    const items = genres.length ? [fallback[0], ...genres] : fallback;
+    this._cache.library.set(cacheKey, { ts: Date.now(), items });
+    return items;
+  }
+
+  _discoveryQueryWithGenre(query = "", genre = null) {
+    const baseQuery = String(query || "").trim();
+    const genreQuery = String(genre?.key === "all" ? "" : (genre?.query || genre?.label || "")).trim();
+    if (!genreQuery) return baseQuery;
+    if (!baseQuery) return `${genreQuery} playlist`;
+    if (baseQuery.toLowerCase().includes(genreQuery.toLowerCase())) return baseQuery;
+    return `${genreQuery} ${baseQuery}`;
+  }
+
+  _discoveryUniqueItems(items = [], fallbackType = "playlist") {
+    const seen = new Set();
+    const unique = [];
+    (Array.isArray(items) ? items : []).forEach((item) => {
+      const normalized = this._normalizeMediaItem({ ...item, media_type: item?.media_type || fallbackType });
+      const uri = String(normalized?.uri || "").trim();
+      const name = String(normalized?.name || normalized?.title || "").trim().toLowerCase();
+      const provider = String(normalized?.provider || normalized?.provider_domain || normalized?.provider_instance || "").trim().toLowerCase();
+      const key = uri || `${provider}:${name}`;
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      unique.push(normalized);
+    });
+    return unique;
+  }
+
+  async _searchDiscoveryProviderResults(query = "") {
+    const q = String(query || "").trim();
+    if (!q) return this._emptySearchResults();
+    let results = this._emptySearchResults();
+    try {
+      results = this._normalizeSearchResponse(await this._callService("search", { query: q, limit: 30 }));
+    } catch {
+      try {
+        results = this._normalizeSearchResponse(await this._callService("search", { name: q, limit: 30, media_type: ["playlist", "album", "track", "radio", "genre"] }));
+      } catch {}
+    }
+    return results;
+  }
+
+  async _loadDiscoveryCategoryPlaylists(category = this._discoveryCategory(), genre = this._discoveryGenre()) {
+    const queries = (Array.isArray(category?.queries) ? category.queries : [category?.query])
+      .map((query) => String(query || "").trim())
+      .filter(Boolean);
+    const scopedQueries = (queries.length ? queries : ["recommended playlist"])
+      .map((query) => this._discoveryQueryWithGenre(query, genre))
+      .filter(Boolean);
+    const genreScoped = String(genre?.key || "all") !== "all";
+    const searchResults = genreScoped
+      ? await Promise.allSettled(queries.map((query) =>
+        category?.fresh ? this._searchDiscoveryProviderResults(query) : this._search(query)
+      ))
+      : [];
+    const scopedSearchResults = await Promise.allSettled(scopedQueries.map((query) =>
+      category?.fresh ? this._searchDiscoveryProviderResults(query) : this._search(query)
+    ));
+    const providerPlaylists = searchResults.flatMap((result) =>
+      result.status === "fulfilled" && Array.isArray(result.value?.playlists)
+        ? result.value.playlists
+        : []
+    );
+    const scopedProviderPlaylists = scopedSearchResults.flatMap((result) =>
+      result.status === "fulfilled" && Array.isArray(result.value?.playlists)
+        ? result.value.playlists
+        : []
+    );
+    const libraryResults = category?.fresh
+      ? []
+      : await Promise.allSettled(scopedQueries.slice(0, 2).map((query) => this._fetchLibrary("playlist", "sort_name", 14, false, query)));
+    const libraryPlaylists = libraryResults.flatMap((result) =>
+      result.status === "fulfilled" && Array.isArray(result.value) ? result.value : []
+    );
+    return this._discoveryUniqueItems([...scopedProviderPlaylists, ...providerPlaylists, ...libraryPlaylists], "playlist").slice(0, 30);
+  }
+
+  async _loadDiscoverySections() {
+    const categories = this._discoveryCategoryOptions();
+    const activeCategory = this._discoveryCategory();
+    const genres = await this._loadDiscoveryGenres();
+    const activeGenre = this._discoveryGenre(genres);
+    const genreSearch = activeGenre?.key === "all" ? "" : String(activeGenre?.query || activeGenre?.label || "").trim();
+    const results = await Promise.allSettled([
+      this._loadDiscoveryCategoryPlaylists(activeCategory, activeGenre),
+      this._fetchRecentlyPlayed(14),
+      this._fetchLibrary("album", genreSearch ? "sort_name" : "random", 18, false, genreSearch),
+      this._fetchLibrary("radio", "sort_name", 14, false, genreSearch),
+    ]);
+    const [categoryPlaylists, recent, albums, radios] = results.map((result) =>
+      result.status === "fulfilled" && Array.isArray(result.value)
+        ? result.value.map((item) => this._normalizeMediaItem(item))
+        : []
+    );
+    return { categories, genres, activeCategory, activeGenre, categoryPlaylists, recent, albums, radios };
+  }
+
+  _discoveryEndlessItems({ categoryPlaylists = [], recent = [], albums = [], radios = [] } = {}) {
+    const sources = [
+      { items: categoryPlaylists, type: "playlist", label: this._i18n("ui.provider_playlists") },
+      { items: albums, type: "album", label: this._i18n("ui.discover_albums") },
+      { items: recent, type: "track", label: this._i18n("ui.recently_played_2") },
+      { items: radios, type: "radio", label: this._i18n("ui.favorite_radio") },
+    ];
+    const seen = new Set();
+    const endless = [];
+    sources.forEach((source) => {
+      (Array.isArray(source.items) ? source.items : []).forEach((item) => {
+        const normalized = this._normalizeMediaItem({ ...item, media_type: item?.media_type || source.type });
+        const uri = String(normalized?.uri || "").trim();
+        const name = String(normalized?.name || normalized?.title || "").trim().toLowerCase();
+        const key = uri || `${source.type}:${name}`;
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        endless.push({ ...normalized, media_type: normalized?.media_type || source.type, _homeiiDiscoveryLabel: source.label });
+      });
+    });
+    return endless.slice(0, 58);
+  }
+
+  _discoveryOrbStyle(item = {}, index = 0) {
+    const text = `${item?.uri || ""}|${item?.name || item?.title || ""}|${index}`;
+    let hash = 0;
+    for (let i = 0; i < text.length; i += 1) {
+      hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+    }
+    const seed = Math.abs(hash || index + 1);
+    const delays = [0, -1.2, -2.4, -3.6, -4.8, -6];
+    return `--orb-size:156px;--orb-shift:0px;--orb-lift:0px;--orb-delay:${delays[seed % delays.length]}s;`;
+  }
+
+  _syncDiscoveryOrbSelection(activeUri = "") {
+    const uri = String(activeUri || "");
+    Array.from(this.shadowRoot?.querySelectorAll?.(".discovery-orb-field") || []).forEach((field) => {
+      field.classList.toggle("has-active", !!uri);
+    });
+    Array.from(this.shadowRoot?.querySelectorAll?.(".discovery-orb[data-media-uri]") || []).forEach((button) => {
+      const active = !!uri && button.dataset.mediaUri === uri;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+  }
+
+  _discoveryOrbCloudHtml(items = [], activeCategory = null, activeGenre = null) {
+    const playable = (Array.isArray(items) ? items : [])
+      .filter((item) => String(item?.uri || "").trim())
+      .slice(0, 58);
+    if (!playable.length) return "";
+    const genreLabel = activeGenre?.key && activeGenre.key !== "all" ? activeGenre.label : this._i18n("ui.all_genres");
+    const activeUri = String(this._state.discoveryExpandedUri || "");
+    const hasActive = !!activeUri && playable.some((item) => String(item?.uri || "") === activeUri);
+    return `
+      <section class="discovery-endless">
+        <div class="discovery-endless-head">
+          <div>
+            <div class="discovery-endless-title">${this._esc(activeCategory?.label || this._i18n("ui.recommended"))}</div>
+            <div class="discovery-endless-sub">${this._esc(`${this._i18n("ui.genre")}: ${genreLabel}`)}</div>
+          </div>
+        </div>
+        <div class="discovery-orb-field ${hasActive ? "has-active" : ""}">
+          ${playable.map((item, index) => {
+            const mediaType = item?.media_type || "album";
+            const titleText = item?.name || item?.title || this._i18n("ui.discover");
+            const subText = this._artistName(item) || item?.artist || item?.album?.name || item?._homeiiDiscoveryLabel || this._emptyQuickSuggestionLabel(mediaType);
+            const art = this._artUrl(item) || item?.image || item?.image_url || item?.album?.image || "";
+            const active = String(this._state.discoveryExpandedUri || "") === String(item.uri || "");
+            return `
+              <button class="discovery-orb orb-${index % 7} ${active ? "is-active" : ""}" style="${this._esc(this._discoveryOrbStyle(item, index))}" data-media-uri="${this._esc(item.uri)}" data-media-type="${this._esc(mediaType)}" aria-pressed="${active ? "true" : "false"}" title="${this._esc(titleText)}">
+                <span class="discovery-orb-art">
+                  ${art ? `<img src="${this._esc(art)}" alt="">` : this._iconSvg(mediaType === "radio" ? "radio" : "album")}
+                  <span class="discovery-orb-play" aria-hidden="true">${this._iconSvg("play")}</span>
+                </span>
+                <span class="discovery-orb-copy">
+                  <span class="discovery-orb-title">${this._esc(titleText)}</span>
+                  <span class="discovery-orb-sub">${this._esc(subText)}</span>
+                </span>
+              </button>
+            `;
+          }).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  _discoveryMenuHtml({ categories = [], genres = [], activeCategory = null, activeGenre = null, categoryPlaylists = [], recent = [], albums = [], radios = [] } = {}) {
+    const genreOptions = genres.length ? genres : this._discoveryGenreFallbackOptions();
+    const activeGenreKey = activeGenre?.key || this._discoveryGenre(genreOptions)?.key || "all";
+    const activeParentKey = activeGenre?.parent_key || activeGenreKey;
+    const activeParentGenre = genreOptions.find((genre) => genre.key === activeParentKey) || null;
+    const subgenreOptions = activeParentGenre && activeParentKey !== "all" && Array.isArray(activeParentGenre.children) ? activeParentGenre.children : [];
+    const endlessItems = this._discoveryEndlessItems({ categoryPlaylists, recent, albums, radios });
+    const cloud = this._discoveryOrbCloudHtml(endlessItems, activeCategory, activeGenre);
+    const activeIsSubgenre = !!activeGenre?.parent_key && activeGenre.key !== activeGenre.parent_key;
+    const allLabel = this._i18n("ui.all", {}, this._discoveryGenreLabel("All", "הכל", "Alle"));
+    const selectedTitle = activeGenreKey !== "all"
+      ? (activeParentGenre?.label || activeGenre?.parent_label || activeGenre?.label)
+      : this._discoveryGenreLabel("Genres", "ז׳אנרים", "Genres");
+    const selectedSub = activeGenreKey !== "all"
+      ? (activeIsSubgenre ? activeGenre?.label : allLabel)
+      : this._discoveryGenreLabel("Choose a genre to browse provider playlists.", "בחר ז׳אנר כדי לגלות פלייליסטים מהספקים.", "Waehle ein Genre, um Provider-Playlists zu entdecken.");
+    const visibleGenreOptions = genreOptions.length > 1 ? genreOptions : [];
+    return `
+      <div class="discovery-shell">
+        <div class="discovery-hero">
+          <div class="discovery-hero-copy">
+            <div class="discovery-hero-title">${this._esc(selectedTitle)}</div>
+            <div class="discovery-hero-sub">${this._esc(selectedSub)}</div>
+          </div>
+          <div class="discovery-filter-panel">
+            <div class="discovery-filter-rail" aria-label="${this._esc(this._i18n("ui.genre"))}">
+              ${visibleGenreOptions.map((genre) => `
+                <button class="discovery-filter-chip discovery-filter-chip-genre ${genre.key === activeParentKey ? "active" : ""}" data-discovery-genre="${this._esc(genre.key)}" aria-pressed="${genre.key === activeParentKey ? "true" : "false"}">
+                  <span class="discovery-filter-dot" aria-hidden="true"></span>
+                  <span>${this._esc(genre.label)}</span>
+                </button>
+              `).join("")}
+            </div>
+            ${subgenreOptions.length ? `
+              <div class="discovery-subgenre-rail" aria-label="${this._esc(activeParentGenre?.label || this._i18n("ui.genre"))}">
+                <button class="discovery-subgenre-chip ${activeGenreKey === activeParentKey ? "active" : ""}" data-discovery-genre="${this._esc(activeParentKey)}" aria-pressed="${activeGenreKey === activeParentKey ? "true" : "false"}">${this._esc(allLabel)}</button>
+                ${subgenreOptions.map((genre) => `
+                  <button class="discovery-subgenre-chip ${genre.key === activeGenreKey ? "active" : ""}" data-discovery-genre="${this._esc(genre.key)}" aria-pressed="${genre.key === activeGenreKey ? "true" : "false"}">${this._esc(genre.label)}</button>
+                `).join("")}
+              </div>
+            ` : ""}
+          </div>
+        </div>
+        ${cloud || `<div class="notice open">${this._esc(this._i18n("ui.no_content_found"))}</div>`}
+      </div>
+    `;
+  }
+
+  async _selectDiscoveryCategory(categoryKey = "") {
+    const categories = this._discoveryCategoryOptions();
+    const next = categories.find((entry) => entry.key === categoryKey) || categories[0];
+    if (!next) return;
+    this._state.discoveryCategoryKey = next.key;
+    this._state.discoveryExpandedUri = "";
+    await this._renderMobileMenu();
+  }
+
+  async _selectDiscoveryGenre(genreKey = "") {
+    this._state.discoveryGenreKey = String(genreKey || "all").trim() || "all";
+    this._state.discoveryExpandedUri = "";
+    await this._renderMobileMenu();
   }
 
   _playerRowHtml(p, attrs = "", active = false, options = {}) {
@@ -31234,7 +35265,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const vol = Math.round((p.attributes?.volume_level || 0) * 100);
     const friendlyName = p.attributes?.friendly_name || p.entity_id;
     const track = p.attributes?.media_title || p.attributes?.media_artist || "";
-    const activityIcon = `<span class="player-premium-bars eq-icon ${activePlayback ? "is-active" : "is-static"}" aria-label="${this._esc(activePlayback ? this._m("Playing", "מנגן") : this._m("Idle", "פנוי"))}"><span></span><span></span><span></span></span>`;
+    const activityIcon = `<span class="player-premium-bars eq-icon ${activePlayback ? "is-active" : "is-static"}" aria-label="${this._esc(activePlayback ? this._i18n("ui.playing") : this._i18n("ui.idle"))}"><span></span><span></span><span></span></span>`;
     const body = `
       <button class="player-premium-head ${active ? "active" : ""} ${activePlayback ? "is-playing" : ""}" ${attrs}>
         <span class="player-premium-art">
@@ -31260,7 +35291,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       <div class="player-menu-card ${active ? "active" : ""}">
         ${body}
         <div class="player-volume-row">
-          <button class="player-mini-mute ${this._isMuted(p) ? "active" : ""}" data-player-mute="${this._esc(p.entity_id)}" title="${this._esc(this._t("Mute"))}">${this._iconSvg(this._volumeIconName(p))}</button>
+          <button class="player-mini-mute ${this._isMuted(p) ? "active" : ""}" data-player-mute="${this._esc(p.entity_id)}" title="${this._esc(this._i18n("ui.mute"))}">${this._iconSvg(this._volumeIconName(p))}</button>
           <input class="player-mini-volume" data-player-volume="${this._esc(p.entity_id)}" type="range" min="0" max="100" value="${vol}" style="--vol-pct:${vol}%">
           <span class="player-mini-value">${vol}%</span>
         </div>
@@ -31284,18 +35315,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const startingThisDevice = !connectedThisDevice && !disconnectingThisDevice && (connectingThisDevice || waitingThisDevice || desiredThisDevice || ["connecting", "reconnecting", "suspended"].includes(localStatus));
     const disconnectedThisDevice = !connectedThisDevice && !startingThisDevice && localStatus === "disconnected";
     const thisDeviceAction = disconnectingThisDevice
-      ? this._m("Disconnecting", "מתנתק")
+      ? this._i18n("ui.disconnecting")
       : connectedThisDevice
-        ? this._m("Connected", "מחובר")
+        ? this._i18n("ui.connected")
         : startingThisDevice
-          ? this._m("Connecting", "מתחבר")
+          ? this._i18n("ui.connecting")
           : disconnectedThisDevice
-            ? this._m("Disconnected", "מנותק")
-            : this._m("Enable", "הפעל");
+            ? this._i18n("ui.disconnected")
+            : this._i18n("ui.enable");
     const thisDeviceActionName = (connectedThisDevice || startingThisDevice || desiredThisDevice || connectingThisDevice || waitingThisDevice)
       ? "disconnect_this_device"
       : "connect_this_device";
-    const thisDeviceLabel = this._m("Player on this device", "נגן במכשיר זה");
+    const thisDeviceLabel = this._i18n("ui.player_on_this_device");
     const thisDeviceTitle = `${thisDeviceLabel} · ${thisDeviceAction}`;
     const thisDeviceHtml = rememberedThisDevice
       ? `
@@ -31306,7 +35337,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       : ``;
     const visiblePlayers = players.filter((p) => !this._isLikelyBrowserPlayer(p) && (!pinnedEntities.size || pinnedEntities.has(p.entity_id)));
     const filteredPlayers = options.activeOnly ? visiblePlayers.filter((p) => p.state === "playing") : visiblePlayers;
-    if (options.activeOnly && !filteredPlayers.length) return `<div class="notice open">${this._m("No active players", "אין נגנים פעילים")}</div>`;
+    if (options.activeOnly && !filteredPlayers.length) return `<div class="notice open">${this._i18n("ui.no_active_players")}</div>`;
     const otherPlayersHtml = filteredPlayers.map((p) => this._playerRowHtml(p, `data-menu-player="${this._esc(p.entity_id)}"`, p.entity_id === selected, { controls: true })).join("");
     const browserPlayersHtml = browserPlayers
       .filter((player) => !pinnedEntities.size || pinnedEntities.has(player.entity_id))
@@ -31322,19 +35353,19 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         disconnectingThisDevice,
       })}
       ${options.activeOnly ? "" : thisDeviceHtml}
-      ${!players.length && !options.activeOnly ? `<div class="notice open">${this._m("No players found yet", "עדיין לא נמצאו נגנים")}</div>` : ""}
+      ${!players.length && !options.activeOnly ? `<div class="notice open">${this._i18n("ui.no_players_found_yet")}</div>` : ""}
       ${otherPlayersHtml ? `<div class="players-premium-grid">${otherPlayersHtml}</div>` : ""}
-      ${browserPlayersHtml ? `<div class="media-section-title">${this._esc(this._t("Browser Players"))}</div><div class="players-premium-grid">${browserPlayersHtml}</div>` : ""}
+      ${browserPlayersHtml ? `<div class="media-section-title">${this._esc(this._i18n("ui.browser_players"))}</div><div class="players-premium-grid">${browserPlayersHtml}</div>` : ""}
     `;
   }
 
   _transferMenuHtml() {
     if (this._hasPinnedPlayer()) {
-      return `<div class="notice open">${this._m("Transfer is unavailable while a pinned player is configured", "העברת ניגון אינה זמינה כשמוגדר נגן מקובע")}</div>`;
+      return `<div class="notice open">${this._i18n("ui.transfer_is_unavailable_while_a_pinned_player_is_configured")}</div>`;
     }
     const current = this._getSelectedPlayer();
     const others = (this._state.players || []).filter((p) => p.entity_id !== current?.entity_id);
-    if (!others.length) return `<div class="notice open">${this._m("No target players available", "אין נגני יעד זמינים")}</div>`;
+    if (!others.length) return `<div class="notice open">${this._i18n("ui.no_target_players_available_2")}</div>`;
     return `<div class="players-premium-grid">${others.map((p) => this._playerRowHtml(p, `data-menu-transfer="${this._esc(p.entity_id)}"`)).join("")}</div>`;
   }
 
@@ -31358,22 +35389,22 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const studioShortcut = this._mobileStudioShortcutEnabled();
     const likedMode = this._useMaLikedMode() ? "ma" : "local";
     const mainBarOptions = [
-      ["search", this._m("Search", "חיפוש")],
-      ["library", this._m("Library", "ספריה")],
-      ["players", this._m("Players", "נגנים")],
-      ["actions", this._m("Actions", "פעולות")],
-      ["settings", this._m("Settings", "הגדרות")],
-      ["theme", this._m("Theme toggle", "מצב כהה/בהיר")],
+      ["search", this._i18n("ui.search")],
+      ["library", this._i18n("ui.library")],
+      ["players", this._i18n("ui.players")],
+      ["actions", this._i18n("ui.actions_2")],
+      ["settings", this._i18n("ui.settings")],
+      ["theme", this._i18n("ui.theme_toggle")],
     ];
     const tabOptions = [
-      ["library_playlists", this._m("Playlists", "פלייליסטים")],
-      ["library_artists", this._m("Artists", "אמנים")],
-      ["library_albums", this._m("Albums", "אלבומים")],
-      ["library_tracks", this._m("Tracks", "שירים")],
-      ["library_radio", this._m("Radio", "רדיו")],
-      ["library_podcasts", this._m("Podcasts", "פודקאסטים")],
-      ["library_liked", this._m("Liked", "אהבתי")],
-      ["library_search", this._m("Search", "חיפוש")],
+      ["library_playlists", this._i18n("ui.playlists")],
+      ["library_artists", this._i18n("ui.artists")],
+      ["library_albums", this._i18n("ui.albums")],
+      ["library_tracks", this._i18n("ui.tracks")],
+      ["library_radio", this._i18n("ui.radio")],
+      ["library_podcasts", this._i18n("ui.podcasts")],
+      ["library_liked", this._i18n("ui.liked")],
+      ["library_search", this._i18n("ui.search")],
     ];
     const selectedTabs = new Set(this._mobileLibraryTabs());
     const selectedMainBar = new Set(this._mobileMainBarItems());
@@ -31389,102 +35420,103 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const announcementLanguage = this._announcementLanguageSetting();
     const announcementLanguageOptions = this._announcementLanguageOptions();
     const settingsMainBarLocked = !this._usesVisualSettings();
+    const ambientEntitiesText = this._ambientLightEntities().join(", ");
+    const ambientPlayerMapText = this._ambientLightPlayerMap().join("\n");
+    const screensaverClockMode = this._screensaverClockMode();
+    const powerButtonAction = this._powerButtonAction();
     return `
       <div class="settings-shell">
         <div class="settings-group">
-          <div class="settings-label">${this._m("Language", "שפה")}</div>
-          <div class="settings-pills">
-            ${this._settingsPill("EN", "en", this._state.lang, "data-setting-lang")}
-            ${this._settingsPill("עב", "he", this._state.lang, "data-setting-lang")}
-          </div>
+          <div class="settings-label">${this._i18n("ui.language")}</div>
+          ${this._settingsLanguageSelectHtml()}
         </div>
         <div class="settings-group">
-          <div class="settings-label">${this._m("Theme", "ערכת נושא")}</div>
+          <div class="settings-label">${this._i18n("ui.theme_2")}</div>
           <div class="settings-pills">
-            ${this._settingsPill(this._m("Dark", "כהה"), "dark", theme, "data-setting-theme")}
-            ${this._settingsPill(this._m("Light", "בהיר"), "light", theme, "data-setting-theme")}
-            ${this._settingsPill(this._m("Custom", "אישי"), "custom", theme, "data-setting-theme")}
+            ${this._settingsPill(this._i18n("ui.dark"), "dark", theme, "data-setting-theme")}
+            ${this._settingsPill(this._i18n("ui.light"), "light", theme, "data-setting-theme")}
+            ${this._settingsPill(this._i18n("ui.custom"), "custom", theme, "data-setting-theme")}
           </div>
-          <div class="settings-label">${this._m("Performance mode", "מצב ביצועים")}</div>
+          <div class="settings-label">${this._i18n("ui.performance_mode")}</div>
           <div class="settings-pills">
-            ${this._settingsPill(this._m("Enabled", "פעיל"), "on", performanceMode ? "on" : "off", "data-setting-performance-mode")}
-            ${this._settingsPill(this._m("Disabled", "כבוי"), "off", performanceMode ? "on" : "off", "data-setting-performance-mode")}
+            ${this._settingsPill(this._i18n("ui.enabled"), "on", performanceMode ? "on" : "off", "data-setting-performance-mode")}
+            ${this._settingsPill(this._i18n("ui.disabled"), "off", performanceMode ? "on" : "off", "data-setting-performance-mode")}
           </div>
-          <div class="settings-hint">${this._m("For weaker displays: turns off heavy blur, animations, dynamic theme extraction, and background motion.", "למסכים חלשים: מכבה טשטושים כבדים, אנימציות, חילוץ צבעים מהעטיפה ותנועת רקע.")}</div>
-          <div class="settings-label">${this._m("Dynamic theme", "ערכת נושא דינמית")}</div>
+          <div class="settings-hint">${this._i18n("ui.for_weaker_displays_turns_off_heavy_blur_animations_dynamic_theme_extrac")}</div>
+          <div class="settings-label">${this._i18n("ui.dynamic_theme")}</div>
           <div class="settings-pills">
-            ${this._settingsPill(this._m("Off", "כבוי"), "off", dynamicThemeMode, "data-setting-dynamic-theme")}
+            ${this._settingsPill(this._i18n("ui.off"), "off", dynamicThemeMode, "data-setting-dynamic-theme")}
             ${this._settingsPill("Auto", "auto", dynamicThemeMode, "data-setting-dynamic-theme")}
-            ${this._settingsPill(this._m("Strong", "חזק"), "strong", dynamicThemeMode, "data-setting-dynamic-theme")}
+            ${this._settingsPill(this._i18n("ui.strong"), "strong", dynamicThemeMode, "data-setting-dynamic-theme")}
           </div>
-          <div class="settings-hint">${this._m("Auto extracts colors from the current artwork and keeps the effect subtle. Strong makes the palette richer and brighter.", "מצב Auto מחלץ צבעים מהעטיפה הפעילה ושומר על מראה עדין. מצב Strong נותן נוכחות עשירה ובולטת יותר.")}</div>
-          <div class="settings-label">${this._m("Background motion", "תנועת רקע")}</div>
+          <div class="settings-hint">${this._i18n("ui.auto_extracts_colors_from_the_current_artwork_and_keeps_the_effect_subtl")}</div>
+          <div class="settings-label">${this._i18n("ui.background_motion")}</div>
           <div class="settings-pills">
-            ${this._settingsPill(this._m("Off", "כבוי"), "off", backgroundMotionMode, "data-setting-background-motion")}
-            ${this._settingsPill(this._m("Subtle", "עדין"), "subtle", backgroundMotionMode, "data-setting-background-motion")}
-            ${this._settingsPill(this._m("Strong", "חזק"), "strong", backgroundMotionMode, "data-setting-background-motion")}
-            ${this._settingsPill(this._m("Extreme", "אקסטרים"), "extreme", backgroundMotionMode, "data-setting-background-motion")}
+            ${this._settingsPill(this._i18n("ui.off"), "off", backgroundMotionMode, "data-setting-background-motion")}
+            ${this._settingsPill(this._i18n("ui.subtle"), "subtle", backgroundMotionMode, "data-setting-background-motion")}
+            ${this._settingsPill(this._i18n("ui.strong"), "strong", backgroundMotionMode, "data-setting-background-motion")}
+            ${this._settingsPill(this._i18n("ui.extreme"), "extreme", backgroundMotionMode, "data-setting-background-motion")}
           </div>
-          <div class="settings-hint">${this._m("Adds motion to the background layers. Subtle keeps it calm, Strong is noticeable, and Extreme is the boldest animated look.", "מוסיף תנועה לשכבות הרקע. מצב עדין שומר על מראה רגוע, מצב חזק כבר מורגש, ואקסטרים נותן את התנועה הכי נועזת.")}</div>
+          <div class="settings-hint">${this._i18n("ui.adds_motion_to_the_background_layers_subtle_keeps_it_calm_strong_is_noti")}</div>
           <div class="settings-color-wrap">
-            <div class="settings-label">${this._m("Accent color", "צבע מוביל")}</div>
+            <div class="settings-label">${this._i18n("ui.accent_color")}</div>
             <div class="settings-color-row">
               <input class="settings-color-picker" id="mobileCustomColorPicker" type="color" value="${this._esc(this._state.mobileCustomColor || "#f5a623")}">
               <div class="settings-value">${this._esc(String(this._state.mobileCustomColor || "#f5a623").toUpperCase())}</div>
             </div>
           </div>
           <div class="settings-range">
-            <div class="settings-label">${this._m("Font size", "גודל פונט")}</div>
+            <div class="settings-label">${this._i18n("ui.font_size")}</div>
             <input id="mobileFontScaleRange" type="range" min="0.5" max="1.5" step="0.05" value="${this._esc(fontScale)}">
             <div class="settings-value">${this._esc(fontScale)}x</div>
           </div>
-          <div class="settings-label">${this._m("Compact mode", "מצב קומפקטי")}</div>
+          <div class="settings-label">${this._i18n("ui.compact_mode")}</div>
           <div class="settings-pills">
-            ${this._settingsPill(this._m("Enabled", "פעיל"), "on", compactMode ? "on" : "off", "data-setting-compact-mode")}
-            ${this._settingsPill(this._m("Disabled", "כבוי"), "off", compactMode ? "on" : "off", "data-setting-compact-mode")}
+            ${this._settingsPill(this._i18n("ui.enabled"), "on", compactMode ? "on" : "off", "data-setting-compact-mode")}
+            ${this._settingsPill(this._i18n("ui.disabled"), "off", compactMode ? "on" : "off", "data-setting-compact-mode")}
           </div>
-          <div class="settings-label">${this._m("Show Up Next", "הצג הבא בתור")}</div>
+          <div class="settings-label">${this._i18n("ui.show_up_next")}</div>
           <div class="settings-pills">
-            ${this._settingsPill(this._m("Enabled", "פעיל"), "on", showUpNext ? "on" : "off", "data-setting-show-up-next")}
-            ${this._settingsPill(this._m("Disabled", "כבוי"), "off", showUpNext ? "on" : "off", "data-setting-show-up-next")}
+            ${this._settingsPill(this._i18n("ui.enabled"), "on", showUpNext ? "on" : "off", "data-setting-show-up-next")}
+            ${this._settingsPill(this._i18n("ui.disabled"), "off", showUpNext ? "on" : "off", "data-setting-show-up-next")}
           </div>
-          <div class="settings-label">${this._m("Artwork swipe", "סוויפ על עטיפה")}</div>
+          <div class="settings-label">${this._i18n("ui.artwork_swipe")}</div>
           <div class="settings-pills">
-            ${this._settingsPill(this._m("Change song", "מעביר שיר"), "play", this._mobileSwipeMode(), "data-setting-swipe-mode")}
-            ${this._settingsPill(this._m("Browse covers", "מדפדף עטיפות"), "browse", this._mobileSwipeMode(), "data-setting-swipe-mode")}
+            ${this._settingsPill(this._i18n("ui.change_song"), "play", this._mobileSwipeMode(), "data-setting-swipe-mode")}
+            ${this._settingsPill(this._i18n("ui.browse_covers"), "browse", this._mobileSwipeMode(), "data-setting-swipe-mode")}
           </div>
-          <div class="settings-label">${this._m("Microphone", "שימוש במיקרופון")}</div>
+          <div class="settings-label">${this._i18n("ui.microphone")}</div>
           <div class="settings-pills">
-            ${this._settingsPill(this._m("On", "פעיל"), "on", micMode, "data-setting-mic-mode")}
-            ${this._settingsPill(this._m("Off", "מנותק"), "off", micMode, "data-setting-mic-mode")}
-            ${this._settingsPill(this._m("Smart", "חכם"), "smart", micMode, "data-setting-mic-mode")}
+            ${this._settingsPill(this._i18n("ui.on"), "on", micMode, "data-setting-mic-mode")}
+            ${this._settingsPill(this._i18n("ui.off_2"), "off", micMode, "data-setting-mic-mode")}
+            ${this._settingsPill(this._i18n("ui.smart"), "smart", micMode, "data-setting-mic-mode")}
           </div>
-          <div class="settings-label">${this._m("Footer style", "מראה פוטר")}</div>
+          <div class="settings-label">${this._i18n("ui.footer_style")}</div>
           <div class="settings-pills">
-            ${this._settingsPill(this._m("Icon only", "אייקון בלבד"), "icon", footerMode, "data-setting-footer-mode")}
-            ${this._settingsPill(this._m("Text only", "מלל בלבד"), "text", footerMode, "data-setting-footer-mode")}
-            ${this._settingsPill(this._m("Icon and text", "אייקון ומלל"), "both", footerMode, "data-setting-footer-mode")}
+            ${this._settingsPill(this._i18n("ui.icon_only"), "icon", footerMode, "data-setting-footer-mode")}
+            ${this._settingsPill(this._i18n("ui.text_only"), "text", footerMode, "data-setting-footer-mode")}
+            ${this._settingsPill(this._i18n("ui.icon_and_text"), "both", footerMode, "data-setting-footer-mode")}
           </div>
-          <div class="settings-label">${this._m("Home shortcut", "כפתור בית")}</div>
+          <div class="settings-label">${this._i18n("ui.home_shortcut")}</div>
           <div class="settings-pills">
-            ${this._settingsPill(this._m("Enabled", "פעיל"), "on", homeShortcut ? "on" : "off", "data-setting-home-shortcut")}
-            ${this._settingsPill(this._m("Disabled", "כבוי"), "off", homeShortcut ? "on" : "off", "data-setting-home-shortcut")}
+            ${this._settingsPill(this._i18n("ui.enabled"), "on", homeShortcut ? "on" : "off", "data-setting-home-shortcut")}
+            ${this._settingsPill(this._i18n("ui.disabled"), "off", homeShortcut ? "on" : "off", "data-setting-home-shortcut")}
           </div>
-          <div class="settings-label">${this._m("Home path", "נתיב הבית")}</div>
-          <input class="media-sort-select settings-select" id="mobileHomeShortcutPathInput" type="text" value="${this._esc(this._mobileHomeShortcutPath())}" placeholder="/lovelace/home" aria-label="${this._esc(this._m("Home path", "נתיב הבית"))}">
-          <div class="settings-hint">${this._m("Use any Home Assistant path. Example: /lovelace/home", "אפשר להשתמש בכל נתיב ב-Home Assistant. לדוגמה: /lovelace/home")}</div>
-          <div class="settings-label">${this._m("Pinned players", "נגנים מקובעים")}</div>
+          <div class="settings-label">${this._i18n("ui.home_path")}</div>
+          <input class="media-sort-select settings-select" id="mobileHomeShortcutPathInput" type="text" value="${this._esc(this._mobileHomeShortcutPath())}" placeholder="/lovelace/home" aria-label="${this._esc(this._i18n("ui.home_path"))}">
+          <div class="settings-hint">${this._i18n("ui.use_any_home_assistant_path_example_lovelace_home")}</div>
+          <div class="settings-label">${this._i18n("ui.pinned_players")}</div>
           <div class="settings-check-grid">
             ${playerOptions.length ? playerOptions.map(([value, label]) => `
               <label class="settings-check-pill">
                 <input type="checkbox" data-setting-pinned-player="${this._esc(value)}" ${pinnedPlayers.has(value) ? "checked" : ""}>
                 <span>${this._esc(label)}</span>
-              </label>`).join("") : `<div class="settings-hint">${this._m("No Music Assistant players were found for pinning.", "לא נמצאו נגני Music Assistant לקיבוע.")}</div>`}
+              </label>`).join("") : `<div class="settings-hint">${this._i18n("ui.no_music_assistant_players_were_found_for_pinning")}</div>`}
           </div>
-          <div class="settings-hint">${this._m("Only Music Assistant players are shown here. Browser and local Sendspin players are hidden to avoid confusion.", "מוצגים כאן רק נגני Music Assistant. נגני דפדפן ו-Sendspin מקומי מוסתרים כדי למנוע בלבול.")}</div>
+          <div class="settings-hint">${this._i18n("ui.only_music_assistant_players_are_shown_here_browser_and_local_sendspin_p")}</div>
         </div>
         <div class="settings-group quick-actions-settings-card">
-          <div class="settings-label">${this._m("Quick actions", "פעולות מהירות")}</div>
+          <div class="settings-label">${this._i18n("ui.quick_actions")}</div>
           <div class="settings-check-grid quick-actions-grid">
             ${quickActionOptions.map(({ value, label, icon }) => `
               <label class="settings-check-pill quick-action-pill">
@@ -31493,10 +35525,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
                 <span>${this._esc(label)}</span>
               </label>`).join("")}
           </div>
-          <div class="settings-hint">${this._m("Choose the small buttons shown under the song title. Timer appears first in Hebrew so it sits on the right side.", "בחר אילו כפתורים קטנים יופיעו מתחת לשם השיר. הטיימר מופיע ראשון בעברית כדי לשבת בצד ימין.")}</div>
+          <div class="settings-hint">${this._i18n("ui.choose_the_small_buttons_shown_under_the_song_title_timer_appears_first")}</div>
         </div>
         <div class="settings-group">
-          <div class="settings-label">${this._m("Main bar items", "פריטים בסרגל הראשי")}</div>
+          <div class="settings-label">${this._i18n("ui.main_bar_items")}</div>
           <div class="settings-check-grid">
             ${showStudioMainBarOption ? `
               <label class="settings-check-pill">
@@ -31510,28 +35542,28 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
               <label class="settings-check-pill ${locked ? "is-locked" : ""}">
                 <input type="checkbox" data-setting-main-bar-item="${this._esc(value)}" ${selectedMainBar.has(value) || locked ? "checked" : ""} ${locked ? "disabled" : ""}>
                 <span>${this._esc(label)}</span>
-                ${locked ? `<span class="settings-fixed-badge">${this._esc(this._m("Fixed", "קבוע"))}</span>` : ""}
+                ${locked ? `<span class="settings-fixed-badge">${this._esc(this._i18n("ui.fixed"))}</span>` : ""}
               </label>`;
             }).join("")}
           </div>
-          <div class="settings-label">${this._m("Volume control (large screen only)", "בקרת ווליום (זמין רק במסך גדול)")}</div>
+          <div class="settings-label">${this._i18n("ui.volume_control_large_screen_only")}</div>
           <div class="settings-pills">
-            ${this._settingsPill(this._m("Always visible", "פעיל תמיד"), "always", volumeMode, "data-setting-volume-mode")}
-            ${this._settingsPill(this._m("Button", "כפתור"), "button", volumeMode, "data-setting-volume-mode")}
+            ${this._settingsPill(this._i18n("ui.always_visible"), "always", volumeMode, "data-setting-volume-mode")}
+            ${this._settingsPill(this._i18n("ui.button"), "button", volumeMode, "data-setting-volume-mode")}
           </div>
-          <div class="settings-label">${this._m("Liked sync", "סנכרון אהבתי")}</div>
+          <div class="settings-label">${this._i18n("ui.liked_sync")}</div>
           <div class="settings-pills">
             ${this._settingsPill("Music Assistant", "ma", likedMode, "data-setting-liked-mode")}
-            ${this._config?.allow_local_likes === true ? this._settingsPill(this._m("Local", "מקומי"), "local", likedMode, "data-setting-liked-mode") : ""}
+            ${this._config?.allow_local_likes === true ? this._settingsPill(this._i18n("ui.local"), "local", likedMode, "data-setting-liked-mode") : ""}
           </div>
           <div class="settings-label">Radio Browser</div>
-          <select class="media-sort-select settings-select" id="mobileRadioCountrySelect" aria-label="${this._esc(this._m("Radio Browser country", "מדינת Radio Browser"))}">
+          <select class="media-sort-select settings-select" id="mobileRadioCountrySelect" aria-label="${this._esc(this._i18n("ui.radio_browser_country"))}">
             ${radioCountryOptions.map(([value, label]) => `<option value="${this._esc(value)}" ${value === radioCountry ? "selected" : ""}>${this._esc(label)}</option>`).join("")}
           </select>
-          <div class="settings-hint">${this._m("Choose a country, or All countries to browse every country inside the Radio tab.", "בחר מדינה, או כל המדינות כדי לדפדף בכל המדינות מתוך טאב הרדיו.")}</div>
+          <div class="settings-hint">${this._i18n("ui.choose_a_country_or_all_countries_to_browse_every_country_inside_the_rad")}</div>
         </div>
         <div class="settings-group">
-          <div class="settings-label">${this._m("Library pages", "דפי ספריה")}</div>
+          <div class="settings-label">${this._i18n("ui.library_pages")}</div>
           <div class="settings-check-grid">
             ${tabOptions.map(([value, label]) => `
               <label class="settings-check-pill">
@@ -31543,21 +35575,83 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         <div class="settings-group">
           <div class="settings-label">Music Assistant</div>
           <div class="settings-actions">
-            <button class="settings-pill active" data-menu-action="open_app">${this._m("Open full interface", "פתיחת ממשק מלא")}</button>
+            <button class="settings-pill active" data-menu-action="open_app">${this._i18n("ui.open_full_interface")}</button>
+          </div>
+        </div>
+        <div class="settings-group smart-home-settings-card">
+          <div class="settings-label">${this._i18n("ui.smart_home")}</div>
+          <div class="settings-label">${this._i18n("ui.ambient_light")}</div>
+          <div class="settings-pills">
+            ${this._settingsPill(this._i18n("ui.enabled"), "on", this._ambientLightEnabled() ? "on" : "off", "data-setting-ambient-light")}
+            ${this._settingsPill(this._i18n("ui.disabled"), "off", this._ambientLightEnabled() ? "on" : "off", "data-setting-ambient-light")}
+          </div>
+          <input class="settings-text-input" id="ambientLightEntitiesInput" type="text" value="${this._esc(ambientEntitiesText)}" placeholder="light.living_room, light.tv">
+          <div class="settings-hint">${this._i18n("ui.choose_only_the_lights_that_should_follow_the_music")}</div>
+          <div class="settings-label">${this._i18n("ui.ambient_light_player_map")}</div>
+          <textarea class="settings-text-input ambient-map-input" id="ambientLightPlayerMapInput" rows="3" placeholder="media_player.kitchen = light.kitchen">${this._esc(ambientPlayerMapText)}</textarea>
+          <div class="settings-hint">${this._i18n("ui.ambient_light_player_map_helper")}</div>
+          <div class="settings-range">
+            <div class="settings-label">${this._i18n("ui.ambient_light_brightness")}</div>
+            <input id="ambientLightBrightnessInput" type="range" min="1" max="100" step="1" value="${this._esc(String(this._ambientLightBrightness()))}">
+            <div class="settings-value">${this._esc(String(Math.round(this._ambientLightBrightness())))}%</div>
+          </div>
+          <div class="scheduled-start-grid two-col">
+            <label class="scheduled-start-field" for="ambientLightTransitionInput">
+              <span class="settings-label">${this._i18n("ui.ambient_light_transition")}</span>
+              <input class="media-sort-select settings-select" id="ambientLightTransitionInput" type="number" min="0" max="120" step="1" value="${this._esc(String(this._ambientLightTransition()))}">
+            </label>
+            <label class="scheduled-start-field" for="ambientLightCooldownInput">
+              <span class="settings-label">${this._i18n("ui.ambient_light_cooldown")}</span>
+              <input class="media-sort-select settings-select" id="ambientLightCooldownInput" type="number" min="0" max="120" step="1" value="${this._esc(String(this._ambientLightCooldown()))}">
+            </label>
+          </div>
+          <div class="settings-label">${this._i18n("ui.screensaver")}</div>
+          <div class="settings-pills">
+            ${this._settingsPill(this._i18n("ui.enabled"), "on", this._screensaverEnabled() ? "on" : "off", "data-setting-screensaver")}
+            ${this._settingsPill(this._i18n("ui.disabled"), "off", this._screensaverEnabled() ? "on" : "off", "data-setting-screensaver")}
+          </div>
+          <select class="media-sort-select settings-select" id="screensaverClockModeSelect" aria-label="${this._esc(this._i18n("ui.screensaver_clock_mode"))}">
+            <option value="digital" ${screensaverClockMode === "digital" ? "selected" : ""}>${this._esc(this._i18n("ui.digital"))}</option>
+            <option value="analog" ${screensaverClockMode === "analog" ? "selected" : ""}>${this._esc(this._i18n("ui.analog"))}</option>
+          </select>
+          <input class="settings-text-input" id="screensaverMessageInput" type="text" value="${this._esc(this._screensaverMessage())}" placeholder="${this._esc(this._i18n("ui.screensaver_message"))}">
+          <div class="settings-range">
+            <div class="settings-label">${this._i18n("ui.screensaver_timeout")}</div>
+            <input id="screensaverTimeoutInput" type="range" min="15" max="600" step="5" value="${this._esc(String(this._screensaverTimeoutSeconds()))}">
+            <div class="settings-value">${this._esc(String(Math.round(this._screensaverTimeoutSeconds())))}s</div>
+          </div>
+          <div class="settings-label">${this._i18n("ui.power_button")}</div>
+          <div class="settings-pills">
+            ${this._settingsPill(this._i18n("ui.enabled"), "on", this._powerButtonEnabled() ? "on" : "off", "data-setting-power-button")}
+            ${this._settingsPill(this._i18n("ui.disabled"), "off", this._powerButtonEnabled() ? "on" : "off", "data-setting-power-button")}
+          </div>
+          <select class="media-sort-select settings-select" id="powerButtonActionSelect" aria-label="${this._esc(this._i18n("ui.power_button_action"))}">
+            <option value="stop_player" ${powerButtonAction === "stop_player" ? "selected" : ""}>${this._esc(this._i18n("ui.stop_player"))}</option>
+            <option value="toggle" ${powerButtonAction === "toggle" ? "selected" : ""}>${this._esc(this._i18n("ui.toggle"))}</option>
+            <option value="turn_on" ${powerButtonAction === "turn_on" ? "selected" : ""}>${this._esc(this._i18n("ui.turn_on"))}</option>
+            <option value="turn_off" ${powerButtonAction === "turn_off" ? "selected" : ""}>${this._esc(this._i18n("ui.turn_off"))}</option>
+            <option value="scene" ${powerButtonAction === "scene" ? "selected" : ""}>${this._esc(this._i18n("ui.scene"))}</option>
+            <option value="script" ${powerButtonAction === "script" ? "selected" : ""}>${this._esc(this._i18n("ui.script"))}</option>
+          </select>
+          <input class="settings-text-input" id="powerButtonEntityInput" type="text" value="${this._esc(this._powerButtonEntity())}" placeholder="script.movie_time">
+          <div class="settings-label">${this._i18n("ui.discovery_mode")}</div>
+          <div class="settings-pills">
+            ${this._settingsPill(this._i18n("ui.enabled"), "on", this._discoveryModeEnabled() ? "on" : "off", "data-setting-discovery-mode")}
+            ${this._settingsPill(this._i18n("ui.disabled"), "off", this._discoveryModeEnabled() ? "on" : "off", "data-setting-discovery-mode")}
           </div>
         </div>
         <div class="settings-group">
-          <div class="settings-label">${this._m("Announcement presets", "משפטי כריזה")}</div>
+          <div class="settings-label">${this._i18n("ui.announcement_presets")}</div>
           ${(this._state.mobileAnnouncementPresets || []).slice(0, 3).map((preset, index) => `
-            <input class="settings-text-input" data-announcement-preset-index="${this._esc(index)}" type="text" value="${this._esc(preset || "")}" placeholder="${this._esc(this._m("Preset message", "משפט מוגדר מראש"))}">
+            <input class="settings-text-input" data-announcement-preset-index="${this._esc(index)}" type="text" value="${this._esc(preset || "")}" placeholder="${this._esc(this._i18n("ui.preset_message"))}">
           `).join("")}
-          <div class="settings-label">${this._m("TTS entity", "ישות TTS")}</div>
+          <div class="settings-label">${this._i18n("ui.tts_entity")}</div>
           <input class="settings-text-input" id="mobileAnnouncementTtsEntity" type="text" value="${this._esc(this._state.mobileAnnouncementTtsEntity || "")}" placeholder="tts.home_assistant_cloud">
-          <div class="settings-label">${this._m("TTS language", "שפת TTS")}</div>
-          <select class="media-sort-select settings-select" id="mobileAnnouncementTtsLanguageSelect" aria-label="${this._esc(this._m("TTS language", "שפת TTS"))}">
+          <div class="settings-label">${this._i18n("ui.tts_language")}</div>
+          <select class="media-sort-select settings-select" id="mobileAnnouncementTtsLanguageSelect" aria-label="${this._esc(this._i18n("ui.tts_language"))}">
             ${announcementLanguageOptions.map(([value, label]) => `<option value="${this._esc(value)}" ${value === announcementLanguage ? "selected" : ""}>${this._esc(label)}</option>`).join("")}
           </select>
-          <div class="settings-hint">${this._m("Text announcements use Home Assistant TTS into the selected Music Assistant player. URL announcements use Music Assistant announcement playback.", "כריזה מטקסט משתמשת ב־TTS של Home Assistant אל נגן Music Assistant שנבחר. כריזה מקישור משתמשת בניגון הכרזה של Music Assistant.")}</div>
+          <div class="settings-hint">${this._i18n("ui.text_announcements_use_home_assistant_tts_into_the_selected_music_assist")}</div>
         </div>
                 <div class="settings-version">Version ${HOMEII_CARD_VERSION}</div>
       </div>
@@ -31566,14 +35660,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _libraryTabMeta(tab) {
     const map = {
-      library_liked: { icon: "heart_filled", type: "liked", title: this._m("Liked", "אהבתי") },
-      library_playlists: { icon: "playlist", type: "playlist", title: this._m("Playlists", "פלייליסטים") },
-      library_artists: { icon: "artist", type: "artist", title: this._m("Artists", "אמנים") },
-      library_albums: { icon: "album", type: "album", title: this._m("Albums", "אלבומים") },
-      library_tracks: { icon: "tracks", type: "track", title: this._m("Tracks", "שירים") },
-      library_radio: { icon: "radio", type: "radio", title: this._m("Radio", "רדיו") },
-      library_podcasts: { icon: "podcast", type: "podcast", title: this._m("Podcasts", "פודקאסטים") },
-      library_search: { icon: "search", type: "search", title: this._m("Search", "חיפוש") },
+      library_liked: { icon: "heart_filled", type: "liked", title: this._i18n("ui.liked") },
+      library_playlists: { icon: "playlist", type: "playlist", title: this._i18n("ui.playlists") },
+      library_artists: { icon: "artist", type: "artist", title: this._i18n("ui.artists") },
+      library_albums: { icon: "album", type: "album", title: this._i18n("ui.albums") },
+      library_tracks: { icon: "tracks", type: "track", title: this._i18n("ui.tracks") },
+      library_radio: { icon: "radio", type: "radio", title: this._i18n("ui.radio") },
+      library_podcasts: { icon: "podcast", type: "podcast", title: this._i18n("ui.podcasts") },
+      library_search: { icon: "search", type: "search", title: this._i18n("ui.search") },
     };
     return map[tab] || map.library_playlists;
   }
@@ -31592,7 +35686,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _libraryPlayerFocusHtml() {
     const player = this._getSelectedPlayer();
-    const playerName = player?.attributes?.friendly_name || this._m("Choose Player", "בחר נגן");
+    const playerName = player?.attributes?.friendly_name || this._i18n("ui.choose_player");
     const isPlaying = player?.state === "playing";
     const groupCount = this._playerGroupCount(player);
     const art = this._playerArtworkUrl(player, 120);
@@ -31601,7 +35695,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         <span class="library-player-art">${art ? `<img src="${this._esc(art)}" alt="">` : this._iconSvg("speaker")}</span>
         <span class="library-player-copy">
           <span class="library-player-name">${this._esc(playerName)}</span>
-          <span class="library-player-state">${this._esc(isPlaying ? (player?.attributes?.media_title || this._m("Playing", "מנגן")) : this._m("Ready", "מוכן"))}</span>
+          <span class="library-player-state">${this._esc(isPlaying ? (player?.attributes?.media_title || this._i18n("ui.playing")) : this._i18n("ui.ready"))}</span>
         </span>
         ${groupCount ? `<span class="player-group-badge library-focus-badge">${this._esc(groupCount)}</span>` : ``}
         <span class="eq-icon" aria-hidden="true"><span></span><span></span><span></span></span>
@@ -31626,9 +35720,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         <div class="media-search-zone">
           <div class="media-search-shell">
             <span>${this._iconSvg("search")}</span>
-            <input id="mobileMediaSearchInput" type="text" value="${this._esc(q)}" placeholder="${this._m("What would you like to listen to?", "לאיזה תוכן תרצו להאזין? ")}">
-            <button class="media-voice-btn ${voiceSupported ? "" : "unsupported"}" id="mobileVoiceSearchBtn" title="${this._esc(this._m("Voice search", "חיפוש קולי"))}">${this._iconSvg("mic")}</button>
-            <button class="media-search-clear ${q ? "visible" : ""}" id="mobileMediaSearchClear" style="display:${q ? "" : "none"};" title="${this._esc(this._m("Clear search", "נקה חיפוש"))}">×</button>
+            <input id="mobileMediaSearchInput" type="text" value="${this._esc(q)}" placeholder="${this._i18n("ui.what_would_you_like_to_listen_to")}">
+            <button class="media-voice-btn ${voiceSupported ? "" : "unsupported"}" id="mobileVoiceSearchBtn" title="${this._esc(this._i18n("ui.voice_search"))}">${this._iconSvg("mic")}</button>
+            <button class="media-search-clear ${q ? "visible" : ""}" id="mobileMediaSearchClear" style="display:${q ? "" : "none"};" title="${this._esc(this._i18n("ui.clear_search"))}">×</button>
           </div>
         </div>
         <div id="mobileMediaSearchResults"></div>
@@ -31703,19 +35797,19 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       host.innerHTML = `
       <div class="smart-voice-head">
         <div class="smart-voice-brand" aria-hidden="true">${this._tabletBrandSignatureHtml("smart-voice-logo")}</div>
-        <div class="smart-voice-title">${this._esc(this._m("Smart voice selection", "בחירה קולית חכמה"))}</div>
-        <div class="smart-voice-target">${this._esc(this._m("Player", "נגן"))}: ${this._esc(targetName)}</div>
+        <div class="smart-voice-title">${this._esc(this._i18n("ui.smart_voice_selection"))}</div>
+        <div class="smart-voice-target">${this._esc(this._i18n("ui.player_2"))}: ${this._esc(targetName)}</div>
       </div>
       <div class="smart-voice-card">
         <div class="smart-voice-chip">${this._iconSvg("mic")}<span>${this._esc(state.query || "")}</span></div>
         <div class="smart-voice-name">${this._esc(candidate.name || "")}</div>
-        <div class="smart-voice-sub">${this._esc(subtitle || this._m("Ready to play", "מוכן לניגון"))}</div>
+        <div class="smart-voice-sub">${this._esc(subtitle || this._i18n("ui.ready_to_play"))}</div>
         <div class="smart-voice-countdown"><span>${this._esc(String(state.countdown || 0))}</span></div>
       </div>
       <div class="confirm-actions smart-voice-actions">
-        <button class="menu-item" id="smartVoicePlayNowBtn">${this._esc(this._m("Play", "נגן"))}</button>
-        <button class="menu-item" id="smartVoiceOtherBtn">${this._esc(this._m("Other", "אחר"))}</button>
-        <button class="menu-item" id="smartVoiceCancelBtn">${this._esc(this._m("Cancel", "בטל"))}</button>
+        <button class="menu-item" id="smartVoicePlayNowBtn">${this._esc(this._i18n("ui.play"))}</button>
+        <button class="menu-item" id="smartVoiceOtherBtn">${this._esc(this._i18n("ui.other"))}</button>
+        <button class="menu-item" id="smartVoiceCancelBtn">${this._esc(this._i18n("ui.cancel_2"))}</button>
       </div>
     `;
     host.querySelector("#smartVoiceCancelBtn")?.addEventListener("click", () => this._closeSmartVoiceConfirm());
@@ -31725,7 +35819,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _openSmartVoiceConfirm(query = "", candidates = []) {
     if (!Array.isArray(candidates) || !candidates.length) {
-      this._toastError(this._m("No matching content was found", "לא נמצא תוכן מתאים"));
+      this._toastError(this._i18n("ui.no_matching_content_was_found"));
       return;
     }
     this._state.mobileSmartVoice = {
@@ -31785,7 +35879,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.mediaQuery = query;
     const input = this.$("mobileMediaSearchInput");
     if (input) input.value = query;
-    this._toast(this._m("Searching smart selection...", "מחפש בחירה חכמה..."));
+    this._toast(this._i18n("ui.searching_smart_selection"));
     const results = await this._search(query);
     const candidates = this._normalizeSmartVoiceCandidates(results);
     this._openSmartVoiceConfirm(query, candidates);
@@ -31797,11 +35891,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const micBtn = this.$("mobileVoiceSearchBtn");
     const micMode = this._mobileMicMode();
     if (!SpeechRecognition) {
-      this._toastError(this._m("Voice search is not supported on this device", "חיפוש קולי לא נתמך במכשיר הזה"));
+      this._toastError(this._i18n("ui.voice_search_is_not_supported_on_this_device"));
       return;
     }
     if (micMode === "off") {
-      this._toastError(this._m("Microphone is disabled", "המיקרופון מנותק"));
+      this._toastError(this._i18n("ui.microphone_is_disabled"));
       return;
     }
     try {
@@ -31815,7 +35909,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     recognition.maxAlternatives = 1;
     micBtn?.classList.add("listening");
     this._hapticTap([8, 18, 8]);
-    this._toast(this._m("Listening...", "מקשיב..."));
+    this._toast(this._i18n("ui.listening"));
     recognition.onresult = (event) => {
       const transcript = Array.from(event.results || [])
         .map((result) => result?.[0]?.transcript || "")
@@ -31830,7 +35924,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       }
       if (micMode === "smart" && finalized) {
         this._handleSmartVoiceTranscript(transcript).catch((error) => {
-          this._toastError(error?.message || this._m("Voice search failed", "החיפוש הקולי נכשל"));
+          this._toastError(error?.message || this._i18n("ui.voice_search_failed"));
         });
         return;
       }
@@ -31838,7 +35932,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._searchTimer = setTimeout(() => this._renderMobileMediaResults(), 120);
     };
     recognition.onerror = () => {
-      this._toastError(this._m("Voice search failed", "החיפוש הקולי נכשל"));
+      this._toastError(this._i18n("ui.voice_search_failed"));
     };
     recognition.onend = () => {
       micBtn?.classList.remove("listening");
@@ -31848,16 +35942,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       recognition.start();
     } catch (_) {
       micBtn?.classList.remove("listening");
-      this._toastError(this._m("Voice search failed", "החיפוש הקולי נכשל"));
+      this._toastError(this._i18n("ui.voice_search_failed"));
     }
   }
 
   _mobileSortOptions() {
     return [
-      { value: "name_asc", label: `${this._m("Ascending", "סדר עולה")} ↑` },
-      { value: "name_desc", label: `${this._m("Descending", "סדר יורד")} ↓` },
-      { value: "date_desc", label: this._m("Newest", "הכי חדש") },
-      { value: "date_asc", label: this._m("Oldest", "הכי ישן") },
+      { value: "name_asc", label: `${this._i18n("ui.ascending")} ↑` },
+      { value: "name_desc", label: `${this._i18n("ui.descending")} ↓` },
+      { value: "date_desc", label: this._i18n("ui.newest") },
+      { value: "date_asc", label: this._i18n("ui.oldest") },
     ];
   }
 
@@ -31927,14 +36021,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     return `
       <div class="media-toolbar library-toolbar">
         <div class="library-toolbar-actions">
-          <select class="media-sort-select" id="mobileLibrarySortSelect" aria-label="${this._esc(this._m("Sort", "מיון"))}">
+          <select class="media-sort-select" id="mobileLibrarySortSelect" aria-label="${this._esc(this._i18n("ui.sort"))}">
             ${this._mobileSortOptions().map((opt) => `<option value="${this._esc(opt.value)}" ${opt.value === sort ? "selected" : ""}>${this._esc(opt.label)}</option>`).join("")}
           </select>
-          <div class="media-layout-toggle" role="tablist" aria-label="${this._esc(this._m("Media layout", "תצוגת מדיה"))}">
-            ${!isSearch ? `<button class="media-layout-btn subtle-heart ${this._state.menuPage === "library_liked" ? "active" : ""}" data-menu-nav="library_liked" title="${this._esc(this._m("Liked", "אהבתי"))}">${this._iconSvg("heart_filled")}</button>` : ``}
-            ${!isSearch ? `<button class="media-layout-btn" data-media-surprise="1" title="${this._esc(this._m("Surprise me", "תפתיע אותי"))}">${this._iconSvg("wand")}</button>` : ``}
-            <button class="media-layout-btn ${layout === "grid" ? "active" : ""}" data-media-layout="grid" title="${this._esc(this._m("Grid", "גריד"))}">${this._iconSvg("grid")}</button>
-            <button class="media-layout-btn ${layout === "list" ? "active" : ""}" data-media-layout="list" title="${this._esc(this._m("List", "רשימה"))}">${this._iconSvg("list")}</button>
+          <div class="media-layout-toggle" role="tablist" aria-label="${this._esc(this._i18n("ui.media_layout"))}">
+            ${!isSearch ? `<button class="media-layout-btn subtle-heart ${this._state.menuPage === "library_liked" ? "active" : ""}" data-menu-nav="library_liked" title="${this._esc(this._i18n("ui.liked"))}">${this._iconSvg("heart_filled")}</button>` : ``}
+            ${!isSearch ? `<button class="media-layout-btn" data-media-surprise="1" title="${this._esc(this._i18n("ui.surprise_me"))}">${this._iconSvg("wand")}</button>` : ``}
+            <button class="media-layout-btn ${layout === "grid" ? "active" : ""}" data-media-layout="grid" title="${this._esc(this._i18n("ui.grid"))}">${this._iconSvg("grid")}</button>
+            <button class="media-layout-btn ${layout === "list" ? "active" : ""}" data-media-layout="list" title="${this._esc(this._i18n("ui.list"))}">${this._iconSvg("list")}</button>
           </div>
         </div>
         ${this._libraryPlayerFocusHtml()}
@@ -31943,7 +36037,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
 
   _mediaItemsListHtml(items = [], mediaType, options = {}) {
-    if (!items.length) return `<div class="notice open">${this._m("No results found", "לא נמצאו תוצאות")}</div>`;
+    if (!items.length) return `<div class="notice open">${this._i18n("ui.no_results_found")}</div>`;
     const layout = options.layout || this._state.mobileMediaLayout || this._defaultMobileMediaLayout();
     const iconMap = { track: "tracks", radio: "radio", album: "album", artist: "artist", podcast: "podcast", playlist: "playlist" };
     return `<div class="media-items-list layout-${this._esc(layout)}">${items.map((item) => {
@@ -31954,7 +36048,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         : `<span class="menu-thumb">${this._iconSvg(fallbackIcon)}</span>`;
       const artistName = this._artistName(item) || "";
       const sub = mediaType === "artist"
-        ? this._m("Artist", "אמן")
+        ? this._i18n("ui.artist")
         : mediaType === "radio"
           ? (item.metadata?.description || "")
           : artistName || item.album?.name || item.publisher || "";
@@ -31967,7 +36061,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
               <span class="menu-item-sub">${this._esc(sub || "—")}</span>
             </span>
           </button>
-          <button class="chip-btn queue-more-btn media-more-btn" data-media-more="${this._esc(item.uri || "")}" data-media-type="${this._esc(mediaType)}" data-media-name="${this._esc(item.name || "")}" data-media-artist="${this._esc(artistName)}" data-media-album="${this._esc(item.album?.name || "")}" data-media-image="${this._esc(art || "")}" title="${this._esc(this._m("Actions", "פעולות"))}">${this._iconSvg("more")}</button>
+          <button class="chip-btn queue-more-btn media-more-btn" data-media-more="${this._esc(item.uri || "")}" data-media-type="${this._esc(mediaType)}" data-media-name="${this._esc(item.name || "")}" data-media-artist="${this._esc(artistName)}" data-media-album="${this._esc(item.album?.name || "")}" data-media-image="${this._esc(art || "")}" title="${this._esc(this._i18n("ui.actions_2"))}">${this._iconSvg("more")}</button>
         </div>
       `;
     }).join("")}</div>`;
@@ -31980,7 +36074,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
 
   _radioBrowserCountriesHtml(countries = []) {
-    if (!countries.length) return `<div class="notice open">${this._m("No Radio Browser countries found", "לא נמצאו מדינות Radio Browser")}</div>`;
+    if (!countries.length) return `<div class="notice open">${this._i18n("ui.no_radio_browser_countries_found")}</div>`;
     return `<div class="media-items-list layout-list radio-country-list">${countries.map((country) => {
       const flag = this._countryFlagEmoji(country.code);
       return `
@@ -31989,7 +36083,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           <span class="menu-thumb flag-thumb">${flag ? `<span class="flag-emoji">${this._esc(flag)}</span>` : this._iconSvg("radio")}</span>
           <span style="min-width:0;flex:1;">
             <span class="menu-item-title">${this._esc(country.name)}</span>
-            <span class="menu-item-sub">${this._esc(`${country.stationcount} ${this._m("stations", "תחנות")}`)}</span>
+            <span class="menu-item-sub">${this._esc(`${country.stationcount} ${this._i18n("ui.stations")}`)}</span>
           </span>
         </span>
       </button>
@@ -32000,21 +36094,21 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _radioBrowserCountryBackHtml(label = "") {
     return `
       <div class="radio-browser-country-head">
-        <button class="media-layout-btn" data-radio-countries-back title="${this._esc(this._m("Back to countries", "חזרה למדינות"))}">${this._iconSvg("previous")}</button>
-        <div class="media-section-title">${this._esc(label || this._m("Radio Browser", "Radio Browser"))}</div>
+        <button class="media-layout-btn" data-radio-countries-back title="${this._esc(this._i18n("ui.back_to_countries"))}">${this._iconSvg("previous")}</button>
+        <div class="media-section-title">${this._esc(label || this._i18n("ui.radio_browser"))}</div>
       </div>
     `;
   }
 
   _likedMediaEntriesHtml(entries = []) {
-    if (!entries.length) return `<div class="notice open">${this._m("No liked media yet", "עדיין לא נשמרו מועדפים")}</div>`;
+    if (!entries.length) return `<div class="notice open">${this._i18n("ui.no_liked_media_yet")}</div>`;
     const selectedSet = new Set(Array.isArray(this._state.likedSelectedUris) ? this._state.likedSelectedUris : []);
     const playableCount = this._likedPlayableEntries(entries, true).length;
     return `
       <div class="liked-toolbar">
-        <button class="chip-btn" data-liked-play-all>${this._esc(this._m("Play all", "נגן הכל"))}</button>
-        <button class="chip-btn" data-liked-selection-toggle>${this._esc(this._state.likedSelectionMode ? this._m("Cancel selection", "בטל בחירה") : this._m("Select", "בחירה"))}</button>
-        ${this._state.likedSelectionMode ? `<button class="chip-btn accent" data-liked-play-selected>${this._esc(this._m("Play selected", "נגן נבחרים"))}${playableCount ? ` (${this._esc(String(playableCount))})` : ``}</button>` : ``}
+        <button class="chip-btn" data-liked-play-all>${this._esc(this._i18n("ui.play_all"))}</button>
+        <button class="chip-btn" data-liked-selection-toggle>${this._esc(this._state.likedSelectionMode ? this._i18n("ui.cancel_selection") : this._i18n("ui.select_2"))}</button>
+        ${this._state.likedSelectionMode ? `<button class="chip-btn accent" data-liked-play-selected>${this._esc(this._i18n("ui.play_selected"))}${playableCount ? ` (${this._esc(String(playableCount))})` : ``}</button>` : ``}
       </div>
       <div class="media-items-list layout-list">${entries.map((entry) => {
         const uri = String(entry?.uri || "").trim();
@@ -32030,7 +36124,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
               </span>
             </button>
             <div class="media-entry-actions">
-              <button class="chip-btn queue-more-btn media-more-btn" data-media-more="${this._esc(uri)}" data-media-type="${this._esc(entry.media_type || "track")}" data-media-name="${this._esc(entry.name || "")}" data-media-artist="${this._esc(entry.artist || "")}" data-media-album="${this._esc(entry.album || "")}" data-media-image="${this._esc(entry.image || "")}" title="${this._esc(this._m("Actions", "פעולות"))}">${this._iconSvg("more")}</button>
+              <button class="chip-btn queue-more-btn media-more-btn" data-media-more="${this._esc(uri)}" data-media-type="${this._esc(entry.media_type || "track")}" data-media-name="${this._esc(entry.name || "")}" data-media-artist="${this._esc(entry.artist || "")}" data-media-album="${this._esc(entry.album || "")}" data-media-image="${this._esc(entry.image || "")}" title="${this._esc(this._i18n("ui.actions_2"))}">${this._iconSvg("more")}</button>
             </div>
           </div>
         `;
@@ -32040,15 +36134,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _mediaSearchSectionsHtml(results = {}) {
     const sections = [
-      ["radio", this._m("Radio", "רדיו"), results.radio || []],
-      ["playlists", this._m("Playlists", "פלייליסטים"), results.playlists || []],
-      ["albums", this._m("Albums", "אלבומים"), results.albums || []],
-      ["artists", this._m("Artists", "אמנים"), results.artists || []],
-      ["tracks", this._m("Tracks", "שירים"), results.tracks || []],
-      ["podcasts", this._m("Podcasts", "פודקאסטים"), results.podcasts || []],
+      ["radio", this._i18n("ui.radio"), results.radio || []],
+      ["playlists", this._i18n("ui.playlists"), results.playlists || []],
+      ["albums", this._i18n("ui.albums"), results.albums || []],
+      ["artists", this._i18n("ui.artists"), results.artists || []],
+      ["tracks", this._i18n("ui.tracks"), results.tracks || []],
+      ["podcasts", this._i18n("ui.podcasts"), results.podcasts || []],
     ];
     const used = sections.filter(([, , items]) => Array.isArray(items) && items.length);
-    if (!used.length) return `<div class="notice open">${this._m("No results found", "לא נמצאו תוצאות")}</div>`;
+    if (!used.length) return `<div class="notice open">${this._i18n("ui.no_results_found")}</div>`;
     return `<div class="media-results">${used.map(([type, title, items]) => `
       <div>
         <div class="media-section-title">${this._esc(title)}</div>
@@ -32112,7 +36206,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     let hasInterimResults = this._hasSearchResults(cachedResults);
     resultsHost.innerHTML = hasInterimResults
       ? this._mediaSearchSectionsHtml(cachedResults)
-      : `<div class="notice open">${this._m("Searching...", "מחפש...")}</div>`;
+      : this._loadingStateHtml(this._i18n("ui.searching"), { notice: true });
     if (hasInterimResults) this._hydrateImages(body);
     if (!hasInterimResults) {
       this._withTimeout(this._searchPreviewResults(query, 8), 1800, "Preview search timed out")
@@ -32130,7 +36224,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     } catch (_) {
       if (!isCurrentSearch()) return;
       if (hasInterimResults) return;
-      resultsHost.innerHTML = `<div class="notice open">${this._m("Search failed", "החיפוש נכשל")}</div>`;
+      resultsHost.innerHTML = `<div class="notice open">${this._i18n("ui.search_failed")}</div>`;
       return;
     }
     if (!isCurrentSearch()) return;
@@ -32146,7 +36240,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const announcementVolume = this._announcementVolumePct();
     const announcementLanguage = this._announcementLanguageSetting();
     const targetOptions = [
-      ["all", this._m("Announce to all players", "כרוז לכולם")],
+      ["all", this._i18n("ui.announce_to_all_players")],
       ...this._announcementEligiblePlayers().map((player) => [player.entity_id, player.attributes?.friendly_name || player.entity_id]),
     ];
     const languageOptions = this._announcementLanguageOptions();
@@ -32154,19 +36248,19 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       <div class="announcements-shell">
         <div class="announcement-target">
           <span class="announcement-target-icon">${this._iconSvg("speaker")}</span>
-          <select class="media-sort-select announcement-target-select" id="mobileAnnouncementTargetSelect" aria-label="${this._esc(this._m("Announcement target", "יעד כריזה"))}">
+          <select class="media-sort-select announcement-target-select" id="mobileAnnouncementTargetSelect" aria-label="${this._esc(this._i18n("ui.announcement_target"))}">
             ${targetOptions.map(([value, label]) => `<option value="${this._esc(value)}" ${value === targetValue ? "selected" : ""}>${this._esc(label)}</option>`).join("")}
           </select>
         </div>
         <div class="announcement-target announcement-language-target">
           <span class="announcement-target-icon">${this._iconSvg("announcement")}</span>
-          <select class="media-sort-select announcement-target-select" id="mobileAnnouncementTtsLanguageSelect" aria-label="${this._esc(this._m("Announcement language", "שפת כריזה"))}">
+          <select class="media-sort-select announcement-target-select" id="mobileAnnouncementTtsLanguageSelect" aria-label="${this._esc(this._i18n("ui.announcement_language"))}">
             ${languageOptions.map(([value, label]) => `<option value="${this._esc(value)}" ${value === announcementLanguage ? "selected" : ""}>${this._esc(label)}</option>`).join("")}
           </select>
         </div>
         <div class="announcement-input-wrap">
-          <textarea id="mobileAnnouncementText" class="announcement-textarea" rows="4" placeholder="${this._esc(this._m("Type an announcement...", "הקלד הודעת כריזה..."))}">${this._esc(text)}</textarea>
-          <button class="announcement-voice-btn" data-announcement-voice title="${this._esc(this._m("Dictate", "הכתבה קולית"))}">${this._iconSvg("mic")}</button>
+          <textarea id="mobileAnnouncementText" class="announcement-textarea" rows="4" placeholder="${this._esc(this._i18n("ui.type_an_announcement"))}">${this._esc(text)}</textarea>
+          <button class="announcement-voice-btn" data-announcement-voice title="${this._esc(this._i18n("ui.dictate"))}">${this._iconSvg("mic")}</button>
         </div>
         <div class="announcement-presets">
           ${presets.map((preset, index) => preset ? `
@@ -32174,13 +36268,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           ` : ``).join("")}
         </div>
         <div class="settings-range announcement-volume-field">
-          <div class="settings-label">${this._esc(this._m("Announcement volume boost", "תוספת ווליום כריזה"))}</div>
+          <div class="settings-label">${this._esc(this._i18n("ui.announcement_volume_boost"))}</div>
           <input id="mobileAnnouncementVolumeInput" type="range" min="20" max="50" step="1" value="${this._esc(String(announcementVolume))}">
           <div class="settings-value">+${this._esc(String(announcementVolume))}%</div>
         </div>
         <button class="action-btn announcement-send-btn" data-announcement-send>
           ${this._iconSvg("announcement")}
-          <span>${this._esc(this._m("Announce", "כרוז"))}</span>
+          <span>${this._esc(this._i18n("ui.announce"))}</span>
         </button>
       </div>
     `;
@@ -32195,10 +36289,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _announcementLanguageOptions() {
     return [
-      ["auto", this._m("Auto / Cloud default", "אוטומטי / ברירת מחדל בענן")],
+      ["auto", this._i18n("ui.auto_cloud_default")],
       ["en-US", "English (US)"],
       ["en-GB", "English (UK)"],
-      ["he-IL", this._m("Hebrew", "עברית")],
+      ["he-IL", this._i18n("ui.hebrew")],
       ["de-DE", "Deutsch"],
       ["fr-FR", "Français"],
       ["es-ES", "Español"],
@@ -32332,22 +36426,23 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       : eligiblePlayers.filter((player) => player.entity_id === targetValue);
     const isHebrewMessage = /[\u0590-\u05FF]/.test(message);
     if (!message) {
-      this._toastError(this._m("Enter an announcement first", "קודם צריך להזין הודעת כריזה"));
+      this._toastError(this._i18n("ui.enter_an_announcement_first"));
       return;
     }
     if (!targets.length) {
-      this._toastError(this._t("Select a player first"));
+      this._toastError(this._i18n("ui.select_a_player_first"));
       return;
     }
     this._hapticTap([12, 24, 12]);
     const playerName = targetValue === "all"
-      ? this._m("all players", "כל הנגנים")
+      ? this._i18n("ui.all_players_2")
       : (targets[0]?.attributes?.friendly_name || targets[0]?.entity_id || this._selectedPlayerName());
     const preview = message.length > 72 ? `${message.slice(0, 69)}...` : message;
     const language = this._announcementLanguageCode(message);
-    this._toast(this._isHebrew()
-      ? `כריזה אל ${playerName}: ${preview}`
-      : `Announcement to ${playerName}: ${preview}`);
+    this._toast(this._i18n("ui.announcement_to_player_preview", {
+      player: playerName,
+      preview,
+    }));
     const volumeSnapshots = this._prepareAnnouncementVolumes(targets);
     let sentAny = false;
     try {
@@ -32432,16 +36527,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           await trySpeak();
           sentAny = true;
         } else {
-          throw new Error(this._m("No TTS service or entity is configured", "לא הוגדר שירות או ישות TTS"));
+          throw new Error(this._i18n("ui.no_tts_service_or_entity_is_configured"));
         }
       }
-      this._toastSuccess(this._isHebrew()
-        ? `הכריזה נשלחה אל ${playerName}`
-        : `Announcement sent to ${playerName}`);
+      this._toastSuccess(this._i18n("ui.announcement_sent_to_player", { player: playerName }));
     } catch (error) {
-      this._toastError(this._isHebrew()
-        ? `הכריזה נכשלה${error?.message ? `: ${error.message}` : ""}`
-        : `Announcement failed${error?.message ? `: ${error.message}` : ""}`);
+      this._toastError(this._i18n("ui.announcement_failed_with_error", {
+        error: error?.message ? `: ${error.message}` : "",
+      }));
     } finally {
       this._scheduleAnnouncementVolumeRestore(volumeSnapshots, sentAny ? this._announcementRestoreDelayMs(message) : 0);
     }
@@ -32451,7 +36544,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const SpeechRecognition = this._speechRecognitionCtor();
     const input = this.$("mobileAnnouncementText");
     if (!SpeechRecognition) {
-      this._toastError(this._m("Voice input is not supported on this device", "הכתבה קולית לא נתמכת במכשיר הזה"));
+      this._toastError(this._i18n("ui.voice_input_is_not_supported_on_this_device"));
       return;
     }
     try { this._voiceRecognition?.abort?.(); } catch (_) {}
@@ -32463,7 +36556,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     recognition.maxAlternatives = 1;
     let capturedTranscript = false;
     let recognitionFailed = false;
-    this._toast(this._m("Listening...", "מקשיב..."));
+    this._toast(this._i18n("ui.listening"));
     recognition.onresult = (event) => {
       const transcript = Array.from(event.results || [])
         .map((result) => result?.[0]?.transcript || "")
@@ -32479,36 +36572,36 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     };
     recognition.onnomatch = () => {
       recognitionFailed = true;
-      this._toastError(this._m("No speech was captured", "לא נקלט דיבור"));
+      this._toastError(this._i18n("ui.no_speech_was_captured"));
     };
     recognition.onerror = () => {
       recognitionFailed = true;
-      this._toastError(this._m("Voice input failed", "הכתבה קולית נכשלה"));
+      this._toastError(this._i18n("ui.voice_input_failed"));
     };
     recognition.onend = () => {
-      if (!capturedTranscript && !recognitionFailed) this._toastError(this._m("No speech was captured", "לא נקלט דיבור"));
+      if (!capturedTranscript && !recognitionFailed) this._toastError(this._i18n("ui.no_speech_was_captured"));
       if (this._voiceRecognition === recognition) this._voiceRecognition = null;
     };
-    try { recognition.start(); } catch (_) { this._toastError(this._m("Voice input failed", "הכתבה קולית נכשלה")); }
+    try { recognition.start(); } catch (_) { this._toastError(this._i18n("ui.voice_input_failed")); }
   }
 
   _groupMenuHtml() {
     const players = this._getAvailableGroupPlayers();
-    if (!players.length) return `<div class="notice open">${this._m("No extra MA players", "אין נגנים נוספים")}</div>`;
+    if (!players.length) return `<div class="notice open">${this._i18n("ui.no_extra_ma_players_2")}</div>`;
     const selected = this._getSelectedPlayer();
     const connectedNames = this._playerGroupMemberNames(selected);
     const groupCount = this._playerGroupCount(selected);
     const groupVol = this._groupAverageVolume(selected);
     const connectedRow = connectedNames.length > 1
-      ? `<div class="group-connected-row"><span>${this._esc(this._m("Connected", "מחוברים"))}</span><strong>${this._esc(connectedNames.join(" · "))}</strong></div>`
+      ? `<div class="group-connected-row"><span>${this._esc(this._i18n("ui.connected_2"))}</span><strong>${this._esc(connectedNames.join(" · "))}</strong></div>`
       : "";
     return `
       ${connectedRow}
       ${groupCount ? `
         <div class="group-volume-card">
-          <div class="group-volume-title">${this._esc(this._m("Group volume", "ווליום קבוצה"))}<span>${this._esc(String(groupCount))}</span></div>
+          <div class="group-volume-title">${this._esc(this._i18n("ui.group_volume"))}<span>${this._esc(String(groupCount))}</span></div>
           <div class="player-volume-row">
-            <button class="player-mini-mute ${this._isGroupMuted(selected) ? "active" : ""}" data-group-mute="${this._esc(selected?.entity_id || "")}" title="${this._esc(this._t("Mute"))}">${this._iconSvg(this._isGroupMuted(selected) ? "volume_mute" : this._volumeIconName(selected))}</button>
+            <button class="player-mini-mute ${this._isGroupMuted(selected) ? "active" : ""}" data-group-mute="${this._esc(selected?.entity_id || "")}" title="${this._esc(this._i18n("ui.mute"))}">${this._iconSvg(this._isGroupMuted(selected) ? "volume_mute" : this._volumeIconName(selected))}</button>
             <input class="player-mini-volume" data-group-volume="${this._esc(selected?.entity_id || "")}" type="range" min="0" max="100" value="${groupVol}" style="--vol-pct:${groupVol}%">
           </div>
         </div>
@@ -32532,14 +36625,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
                 <span class="player-premium-title-row group-player-title-row">
                   <span class="player-premium-name">${this._esc(p.attributes?.friendly_name || p.entity_id)}</span>
                   <span class="group-player-toggle ${checked ? "checked" : ""}" aria-hidden="true">${this._iconSvg(checked ? "minus" : "plus")}</span>
-                  <span class="player-premium-bars eq-icon ${activePlayback ? "is-active" : "is-static"}" aria-label="${this._esc(activePlayback ? this._m("Playing", "מנגן") : this._m("Idle", "פנוי"))}"><span></span><span></span><span></span></span>
+                  <span class="player-premium-bars eq-icon ${activePlayback ? "is-active" : "is-static"}" aria-label="${this._esc(activePlayback ? this._i18n("ui.playing") : this._i18n("ui.idle"))}"><span></span><span></span><span></span></span>
                 </span>
                 ${track ? `<span class="player-premium-track">${this._esc(track)}</span>` : ``}
               </span>
               <input class="group-player-check" type="checkbox" data-menu-group-player="${this._esc(p.entity_id)}" ${checked ? "checked" : ""}>
             </label>
             <div class="player-volume-row group-inline-volume">
-              <button class="player-mini-mute ${this._isMuted(p) ? "active" : ""}" data-player-mute="${this._esc(p.entity_id)}" title="${this._esc(this._t("Mute"))}">${this._iconSvg(this._volumeIconName(p))}</button>
+              <button class="player-mini-mute ${this._isMuted(p) ? "active" : ""}" data-player-mute="${this._esc(p.entity_id)}" title="${this._esc(this._i18n("ui.mute"))}">${this._iconSvg(this._volumeIconName(p))}</button>
               <input class="player-mini-volume" data-player-volume="${this._esc(p.entity_id)}" type="range" min="0" max="100" value="${vol}" style="--vol-pct:${vol}%">
             </div>
           </div>
@@ -32547,15 +36640,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       }).join("")}
       </div>
       <div class="group-actions">
-        <button class="action-btn" data-menu-action="apply_group">${this._m("Apply Group", "חבר קבוצה")}</button>
-        <button class="action-btn warn" data-menu-action="clear_group">${this._m("Ungroup", "נתק קבוצה")}</button>
+        <button class="action-btn" data-menu-action="apply_group">${this._i18n("ui.apply_group")}</button>
+        <button class="action-btn warn" data-menu-action="clear_group">${this._i18n("ui.ungroup")}</button>
       </div>
     `;
   }
 
   _queueMenuHtml() {
     const queueItems = this._getNowPlayingQueueItems();
-    if (!queueItems.length) return `<div class="notice open">${this._m("Queue is empty", "התור ריק")}</div>`;
+    if (!queueItems.length) return `<div class="notice open">${this._i18n("ui.queue_is_empty")}</div>`;
     return `<div class="queue-list">${queueItems.map((item, index) => {
       const key = this._getQueueItemKey(item);
       const img = this._queueItemImageUrl(item, 120);
@@ -32574,7 +36667,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             <div class="queue-sub">${this._esc(artist)}</div>
           </div>
           <div class="queue-actions">
-            <button class="chip-btn queue-more-btn" data-queue-menu="${this._esc(key)}" data-queue-uri="${this._esc(media.uri || "")}" data-queue-sort-index="${this._esc(item.sort_index ?? "")}" data-queue-position="${this._esc(String(displayPosition))}" data-queue-name="${this._esc(media.name || item.name || "")}" data-queue-artist="${this._esc(artist)}" data-queue-album="${this._esc(media.album?.name || "")}" data-queue-image="${this._esc(img || media.image || media.album?.image || "")}" title="${this._esc(this._m("Actions", "פעולות"))}" aria-expanded="${expanded ? "true" : "false"}">${this._iconSvg("more")}</button>
+            <button class="chip-btn queue-more-btn" data-queue-menu="${this._esc(key)}" data-queue-uri="${this._esc(media.uri || "")}" data-queue-sort-index="${this._esc(item.sort_index ?? "")}" data-queue-position="${this._esc(String(displayPosition))}" data-queue-name="${this._esc(media.name || item.name || "")}" data-queue-artist="${this._esc(artist)}" data-queue-album="${this._esc(media.album?.name || "")}" data-queue-image="${this._esc(img || media.image || media.album?.image || "")}" title="${this._esc(this._i18n("ui.actions_2"))}" aria-expanded="${expanded ? "true" : "false"}">${this._iconSvg("more")}</button>
           </div>
           ${this._renderQueueInlineActions(item, displayPosition, queueItems.length)}
         </div>
@@ -32588,12 +36681,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const currentPosition = Math.max(1, Math.min(queueCount, Math.round(Number(displayPosition)) || this._queueDisplayPositionForEntry(item, Math.round(Number(item?.sort_index || 0)) + 1 || 1)));
     return `
       <div class="queue-inline-actions">
-        <button class="chip-btn primary text-action" data-queue-action="next" data-queue-item-id="${this._esc(key)}"><span>${this._esc(this._m("Play next", "נגן הבא"))}</span></button>
-        <button class="chip-btn secondary text-action" data-queue-action="play" data-queue-item-id="${this._esc(key)}" title="${this._esc(this._m("Play now", "נגן עכשיו"))}"><span>${this._esc(this._m("Play now", "נגן עכשיו"))}</span></button>
+        <button class="chip-btn primary text-action" data-queue-action="next" data-queue-item-id="${this._esc(key)}"><span>${this._esc(this._i18n("ui.play_next"))}</span></button>
+        <button class="chip-btn secondary text-action" data-queue-action="play" data-queue-item-id="${this._esc(key)}" title="${this._esc(this._i18n("ui.play_now"))}"><span>${this._esc(this._i18n("ui.play_now"))}</span></button>
         <label class="queue-inline-move">
           ${this._queueMoveSelectHtml(queueCount, currentPosition, { ...item, key, position: currentPosition })}
         </label>
-        <button class="chip-btn warn icon-only" data-queue-action="remove" data-queue-item-id="${this._esc(key)}" title="${this._esc(this._m("Remove", "הסר"))}">${this._iconSvg("trash")}</button>
+        <button class="chip-btn warn icon-only" data-queue-action="remove" data-queue-item-id="${this._esc(key)}" title="${this._esc(this._i18n("ui.remove"))}">${this._iconSvg("trash")}</button>
       </div>`;
   }
 
@@ -32634,12 +36727,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       return true;
     };
     const hasBackTarget = Array.isArray(this._state.menuStack) && this._state.menuStack.length > 0;
+    const isLibraryPage = page.startsWith("library_");
+    const isTabletLibraryPage = isLibraryPage && this._layoutModeConfig() === "tablet";
     back.hidden = !hasBackTarget;
     aux.hidden = true;
     close.hidden = false;
-    body.classList.toggle("library-mode", page.startsWith("library_"));
+    body.classList.toggle("library-mode", isLibraryPage);
     body.classList.toggle("search-mode", page === "library_search");
     this.$("mobileMenu")?.classList.toggle("search-open", page === "library_search");
+    this.$("mobileMenu")?.classList.toggle("discovery-open", page === "discovery");
+    this.$("mobileMenu")?.classList.toggle("action-fullscreen-open", this._isPhoneActionFullscreenMenuPage(page));
+    this.$("mobileMenu")?.classList.toggle("library-fullscreen-open", isTabletLibraryPage);
+    this.$("homeShortcutFab")?.toggleAttribute("hidden", page === "discovery" || isTabletLibraryPage);
     const menu = this.$("mobileMenu");
     const sheet = menu?.querySelector(".menu-sheet");
     const menuArt = this._currentArtworkUrl(this._getSelectedPlayer(), this._state.maQueueState?.current_item || null, 720);
@@ -32664,21 +36763,24 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       "sheet-announcements",
       "sheet-settings",
       "sheet-schedules",
+      "sheet-discovery",
     ];
     body.classList.remove(...sheetClasses);
     sheet?.classList.remove(...sheetClasses);
     const sheetClass =
       page === "main"
         ? "sheet-actions"
-        : page === "simple_wizard"
-          ? "sheet-simple"
-          : page === "players" || page === "players_active"
+        : page === "discovery"
+          ? "sheet-discovery"
+          : page === "simple_wizard"
+            ? "sheet-simple"
+            : page === "players" || page === "players_active"
           ? "sheet-players"
           : page === "queue"
             ? "sheet-queue"
             : page === "library_search"
               ? "sheet-search"
-              : page.startsWith("library_")
+              : isLibraryPage
                 ? "sheet-library"
                 : page === "group"
                   ? "sheet-group"
@@ -32697,7 +36799,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
 
     if (page === "main") {
-      this._setMobileMenuHeader(this._m("Actions", "פעולות"), this._menuPageIcon(page));
+      this._setMobileMenuHeader(this._i18n("ui.actions_2"), this._menuPageIcon(page));
       body.innerHTML = this._mainMenuHtml();
       finishMenuRender();
       return;
@@ -32708,8 +36810,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       finishMenuRender();
       return;
     }
+    if (page === "discovery") {
+      this._setMobileMenuHeader(this._i18n("ui.discover_music", {}, this._m("Discover", "גלה מוזיקה")), this._menuPageIcon(page));
+      body.innerHTML = this._loadingStateHtml(this._i18n("ui.loading"), { notice: true });
+      const discovery = await this._loadDiscoverySections();
+      if (!isCurrentRender()) return;
+      body.innerHTML = this._discoveryMenuHtml(discovery);
+      finishMenuRender();
+      return;
+    }
     if (page === "settings") {
-      this._setMobileMenuHeader(this._m("Settings", "הגדרות"), this._menuPageIcon(page));
+      this._setMobileMenuHeader(this._i18n("ui.settings"), this._menuPageIcon(page));
       body.innerHTML = this._settingsMenuHtml();
       finishMenuRender();
       return;
@@ -32742,7 +36853,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const ttl = Number(this._config.cache_ttl || 300000);
       const cachedLibrary = this._cache.library.get(cacheKey);
       if (!cachedLibrary || Date.now() - cachedLibrary.ts >= ttl) {
-        body.innerHTML = `<div class="notice open">${this._m("Loading...", "טוען...")}</div>`;
+        body.innerHTML = this._loadingStateHtml(this._i18n("ui.loading"), { notice: true });
       }
       const items = await this._getLibrary(meta.type, orderBy, limit);
       if (!isCurrentRender()) return;
@@ -32784,11 +36895,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
                     ${this._mediaItemsListHtml(sortedItems, meta.type)}
                   </div>
                   <div>
-                    <div class="media-section-title">${this._esc(this._m("Radio Browser countries", "מדינות Radio Browser"))}</div>
+                    <div class="media-section-title">${this._esc(this._i18n("ui.radio_browser_countries"))}</div>
                     ${this._radioBrowserCountriesHtml(countries)}
                   </div>
                   <div>
-                    <div class="media-section-title">${this._esc(this._m("Worldwide popular", "פופולרי בעולם"))}</div>
+                    <div class="media-section-title">${this._esc(this._i18n("ui.worldwide_popular"))}</div>
                     ${this._mediaItemsListHtml(browserStations, meta.type)}
                   </div>
                 </div>
@@ -32805,20 +36916,20 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     aux.hidden = true;
 
     const titles = {
-      queue: this._m("Queue", "תור"),
-      players: this._m("Players", "נגנים"),
-      players_active: this._m("Active Players", "נגנים פעילים"),
-      transfer: this._m("Transfer Queue", "העבר תור"),
-      group: this._m("Group Speakers", "קבוצת נגנים"),
-      sleep_timer: this._m("Schedules", "תזמונים"),
-      announcements: this._m("Announcements", "כריזה"),
+      queue: this._i18n("ui.queue_2"),
+      players: this._i18n("ui.players"),
+      players_active: this._i18n("ui.active_players"),
+      transfer: this._i18n("ui.transfer_queue"),
+      group: this._i18n("ui.group_speakers_2"),
+      sleep_timer: this._i18n("ui.schedules"),
+      announcements: this._i18n("ui.announcements"),
       simple_wizard: "FLOW",
-      ungroup_all: this._m("Disconnect player groups", "נתק קבוצות נגנים"),
-      stop_all: this._m("Stop all players", "עצור את כל הנגנים"),
+      ungroup_all: this._i18n("ui.disconnect_player_groups"),
+      stop_all: this._i18n("ui.stop_all_players"),
     };
-    this._setMobileMenuHeader(titles[page] || this._m("Menu", "תפריט"), this._menuPageIcon(page));
+    this._setMobileMenuHeader(titles[page] || this._i18n("ui.menu"), this._menuPageIcon(page));
     if (page === "queue") {
-      body.innerHTML = `<div class="notice open">${this._m("Loading...", "טוען...")}</div>`;
+      body.innerHTML = this._loadingStateHtml(this._i18n("ui.loading"), { notice: true });
       await this._ensureQueueSnapshot(true);
       if (!isCurrentRender()) return;
       const queueCount = this._getNowPlayingQueueItems().length;
@@ -32828,9 +36939,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             ${this._iconSvg("queue")}
             <strong>${this._esc(String(queueCount))}</strong>
           </div>
-          <button class="queue-head-transfer-btn" data-menu-nav="transfer" title="${this._esc(this._m("Transfer queue", "העבר תור"))}">
+          <button class="queue-head-transfer-btn" data-menu-nav="transfer" title="${this._esc(this._i18n("ui.transfer_queue_2"))}">
             ${this._iconSvg("repeat")}
-            <span class="queue-head-transfer-label">${this._esc(this._m("Transfer queue", "העברת התור"))}</span>
+            <span class="queue-head-transfer-label">${this._esc(this._i18n("ui.transfer_queue_3"))}</span>
           </button>
         </div>
         ${this._queueMenuHtml()}
@@ -32841,7 +36952,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (page === "players") body.innerHTML = this._playersMenuHtml();
     else if (page === "players_active") body.innerHTML = this._playersMenuHtml({ activeOnly: true });
     else if (page === "sleep_timer") {
-      body.innerHTML = `<div class="notice open">${this._m("Loading schedules...", "טוען תזמונים...")}</div>`;
+      body.innerHTML = this._loadingStateHtml(this._i18n("ui.loading_schedules"), { notice: true });
       await this._loadScheduledStartPlaylists();
       if (!isCurrentRender()) return;
       body.innerHTML = this._sleepTimerMenuHtml();
@@ -32850,13 +36961,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     else if (page === "group") body.innerHTML = this._groupMenuHtml();
     else if (page === "announcements") body.innerHTML = this._announcementsMenuHtml();
     else if (page === "ungroup_all") {
-      body.innerHTML = `<div class="notice open">${this._m("Disconnecting player groups...", "מנתק קבוצות נגנים...")}</div>`;
+      body.innerHTML = this._loadingStateHtml(this._i18n("ui.disconnecting_player_groups"), { notice: true });
       await this._ungroupAllPlayers();
       if (!isCurrentRender()) return;
       this._closeMobileMenu();
     }
     else if (page === "stop_all") {
-      body.innerHTML = `<div class="notice open">${this._m("Stop all players", "עצור את כל הנגנים")}</div>`;
+      body.innerHTML = this._loadingStateHtml(this._i18n("ui.stop_all_players"), { notice: true });
       await this._stopAllPlayers();
       if (!isCurrentRender()) return;
       this._closeMobileMenu();
@@ -32906,6 +37017,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       await this._sendMobileAnnouncement();
       return;
     }
+    const discoveryGenreBtn = e.target.closest("[data-discovery-genre]");
+    if (discoveryGenreBtn?.dataset.discoveryGenre) {
+      e.preventDefault();
+      e.stopPropagation();
+      this._flashInteraction(discoveryGenreBtn);
+      await this._selectDiscoveryGenre(discoveryGenreBtn.dataset.discoveryGenre);
+      return;
+    }
     const volumePresetBtn = e.target.closest("[data-volume-preset]");
     if (volumePresetBtn) {
       const pct = Math.max(0, Math.min(100, Number(volumePresetBtn.dataset.volumePreset) || 0));
@@ -32935,7 +37054,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._flashInteraction(likedPlayAllBtn);
       const playable = this._likedPlayableEntries(this._likedEntries(), false);
       if (!playable.length) {
-        this._toastError(this._m("No liked tracks to play", "אין שירים מועדפים לנגן"));
+        this._toastError(this._i18n("ui.no_liked_tracks_to_play"));
         return;
       }
       await this._playAll(playable, false);
@@ -32959,7 +37078,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._flashInteraction(likedPlaySelectedBtn);
       const playable = this._likedPlayableEntries(this._likedEntries(), true);
       if (!playable.length) {
-        this._toastError(this._m("No selected tracks to play", "אין שירים נבחרים לנגן"));
+        this._toastError(this._i18n("ui.no_selected_tracks_to_play"));
         return;
       }
       await this._playAll(playable, false);
@@ -33133,10 +37252,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._flashInteraction(playerFavoriteBtn);
       try {
         await this._pressFavoriteButtonEntity(playerFavoriteBtn.dataset.playerFavorite);
-        this._toastSuccess(this._m("Favorite action sent", "פעולת אהבתי נשלחה"));
+        this._toastSuccess(this._i18n("ui.favorite_action_sent"));
         [300, 900, 1800].forEach((delay) => setTimeout(() => this._refreshFavoriteState(true).catch(() => {}), delay));
       } catch (error) {
-        this._toastError(this._m("Favorite action failed", "פעולת אהבתי נכשלה") + (error?.message ? `: ${error.message}` : ""));
+        this._toastError(this._i18n("ui.favorite_action_failed") + (error?.message ? `: ${error.message}` : ""));
       }
       return;
     }
@@ -33204,6 +37323,40 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._reopenSettingsMenuPreservingScroll();
       return;
     }
+    const ambientLightBtn = e.target.closest("[data-setting-ambient-light]");
+    if (ambientLightBtn?.dataset.settingAmbientLight) {
+      this._flashInteraction(ambientLightBtn);
+      this._state.ambientLightEnabled = ambientLightBtn.dataset.settingAmbientLight === "on";
+      this._persistMobileAppearance();
+      this._syncAmbientLightForCurrentMedia("settings");
+      this._reopenSettingsMenuPreservingScroll();
+      return;
+    }
+    const screensaverBtn = e.target.closest("[data-setting-screensaver]");
+    if (screensaverBtn?.dataset.settingScreensaver) {
+      this._flashInteraction(screensaverBtn);
+      this._state.screensaverEnabled = screensaverBtn.dataset.settingScreensaver === "on";
+      this._persistMobileAppearance();
+      this._resetScreensaverTimer({ hide: true });
+      this._reopenSettingsMenuPreservingScroll();
+      return;
+    }
+    const powerButtonBtn = e.target.closest("[data-setting-power-button]");
+    if (powerButtonBtn?.dataset.settingPowerButton) {
+      this._flashInteraction(powerButtonBtn);
+      this._state.powerButtonEnabled = powerButtonBtn.dataset.settingPowerButton === "on";
+      this._persistMobileAppearance();
+      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      return;
+    }
+    const discoveryModeBtn = e.target.closest("[data-setting-discovery-mode]");
+    if (discoveryModeBtn?.dataset.settingDiscoveryMode) {
+      this._flashInteraction(discoveryModeBtn);
+      this._state.discoveryModeEnabled = discoveryModeBtn.dataset.settingDiscoveryMode === "on";
+      this._persistMobileAppearance();
+      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      return;
+    }
     const nightModeBtn = e.target.closest("[data-setting-night-mode]");
     if (nightModeBtn?.dataset.settingNightMode) {
       this._state.mobileScheduleControlActiveUntil = 0;
@@ -33228,7 +37381,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._state.mobileNightModeEnd = this._normalizeClockTime(endInput?.value || "06:00", "06:00");
       this._state.mobileNightModeDays = this._normalizeNightModeDays(checkedDays);
       this._persistMobileAppearance();
-      this._toastSuccess(this._m("Night schedule updated", "לוח הזמנים של מצב לילה עודכן"));
+      this._toastSuccess(this._i18n("ui.night_schedule_updated"));
       this._build();
       this._init();
       this._openMobileMenu(this._state.menuPage || "sleep_timer");
@@ -33329,6 +37482,31 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       await this._playRandomFromPlaylists();
       return;
     }
+    const discoveryOrbBtn = e.target.closest(".discovery-orb[data-media-uri]");
+    if (this._state.menuPage === "discovery" && discoveryOrbBtn?.dataset.mediaUri) {
+      const uri = discoveryOrbBtn.dataset.mediaUri;
+      if (this._state.discoveryExpandedUri !== uri || !discoveryOrbBtn.classList.contains("is-active")) {
+        e.preventDefault();
+        e.stopPropagation();
+        this._state.discoveryExpandedUri = uri;
+        this._syncDiscoveryOrbSelection(uri);
+        this._flashInteraction(discoveryOrbBtn);
+        this._hapticTap([6]);
+        return;
+      }
+      discoveryOrbBtn.classList.add("is-launching");
+      discoveryOrbBtn.setAttribute("aria-busy", "true");
+      this._hapticTap([10, 24, 10]);
+    }
+    const discoveryBlank = e.target.closest(".discovery-shell, .discovery-endless, .discovery-orb-field");
+    if (this._state.menuPage === "discovery" && this._state.discoveryExpandedUri && discoveryBlank && !e.target.closest("button, a, input, textarea, select")) {
+      e.preventDefault();
+      e.stopPropagation();
+      this._state.discoveryExpandedUri = "";
+      this._syncDiscoveryOrbSelection("");
+      this._hapticTap([4]);
+      return;
+    }
     const radioBackBtn = e.target.closest("[data-radio-countries-back]");
     if (radioBackBtn) {
       e.preventDefault();
@@ -33381,7 +37559,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
     const mediaBtn = e.target.closest("[data-media-uri]");
     if (mediaBtn?.dataset.mediaUri) {
-      const label = mediaBtn.querySelector(".menu-item-title")?.textContent?.trim() || "";
+      const label = mediaBtn.querySelector(".menu-item-title, .discovery-orb-title")?.textContent?.trim() || "";
       await this._playMedia(mediaBtn.dataset.mediaUri, mediaBtn.dataset.mediaType || "album", "play", {
         label,
         sourceEl: mediaBtn,
@@ -33410,11 +37588,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const pinnedEntities = this._resolvedPinnedPlayerEntities();
       const targetEntity = this._playerByEntityId(playerBtn.dataset.menuPlayer);
       if (pinnedEntities.length && !pinnedEntities.includes(playerBtn.dataset.menuPlayer) && !this._isLocalSendspinPlayer(targetEntity)) {
-        this._toast(this._m("Player is pinned from settings", "הנגן מקובע מתוך ההגדרות"));
+        this._toast(this._i18n("ui.player_is_pinned_from_settings"));
         return;
       }
       this._selectPlayer(playerBtn.dataset.menuPlayer, true);
-      this._toast(this._m("Player selected", "הנגן נבחר"));
+      this._toast(this._i18n("ui.player_selected"));
       const previousPage = this._state.menuStack[this._state.menuStack.length - 1];
       if (String(previousPage || "").startsWith("library_")) {
         this._state.menuPage = this._state.menuStack.pop();
@@ -33543,8 +37721,77 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._persistMobileAppearance();
       return;
     }
+    if (e.target?.id === "mobileLanguageSelect") {
+      this._state.lang = e.target.value || "en";
+      try { localStorage.setItem("homeii_music_flow_lang", this._state.lang); } catch (_) {}
+      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      return;
+    }
     if (e.target?.id === "mobileAnnouncementTtsLanguageSelect") {
       this._state.mobileAnnouncementTtsLanguage = this._normalizeAnnouncementLanguage(e.target.value || "auto");
+      this._persistMobileAppearance();
+      return;
+    }
+    if (e.target?.id === "ambientLightEntitiesInput") {
+      this._state.ambientLightEntities = HomeiiMobileSettingsFoundation.normalizeEntityList(e.target.value || "");
+      this._persistMobileAppearance();
+      this._syncAmbientLightForCurrentMedia("settings");
+      return;
+    }
+    if (e.target?.id === "ambientLightPlayerMapInput") {
+      this._state.ambientLightPlayerMap = HomeiiMobileSettingsFoundation.normalizeStringArray(
+        String(e.target.value || "").split(/[\n,]+/),
+      );
+      this._persistMobileAppearance();
+      this._syncAmbientLightForCurrentMedia("settings");
+      return;
+    }
+    if (e.target?.id === "ambientLightBrightnessInput") {
+      const pct = HomeiiMobileSettingsFoundation.clampPercent(e.target.value || 35, 35, { min: 1, max: 100 });
+      this._state.ambientLightBrightness = pct;
+      const valueEl = e.target.closest(".settings-range")?.querySelector(".settings-value");
+      if (valueEl) valueEl.textContent = `${Math.round(pct)}%`;
+      this._persistMobileAppearance();
+      this._syncAmbientLightForCurrentMedia("settings");
+      return;
+    }
+    if (e.target?.id === "ambientLightTransitionInput") {
+      this._state.ambientLightTransition = HomeiiMobileSettingsFoundation.clampSeconds(e.target.value || 3, 3, { min: 0, max: 120 });
+      this._persistMobileAppearance();
+      return;
+    }
+    if (e.target?.id === "ambientLightCooldownInput") {
+      this._state.ambientLightCooldown = HomeiiMobileSettingsFoundation.clampSeconds(e.target.value || 8, 8, { min: 0, max: 120 });
+      this._persistMobileAppearance();
+      return;
+    }
+    if (e.target?.id === "screensaverClockModeSelect") {
+      this._state.screensaverClockMode = HomeiiMobileSettingsFoundation.normalizeScreensaverClockMode(e.target.value || "digital");
+      this._persistMobileAppearance();
+      this._syncScreensaverUi();
+      return;
+    }
+    if (e.target?.id === "screensaverMessageInput") {
+      this._state.screensaverMessage = e.target.value || "";
+      this._persistMobileAppearance();
+      return;
+    }
+    if (e.target?.id === "screensaverTimeoutInput") {
+      const seconds = HomeiiMobileSettingsFoundation.clampSeconds(e.target.value || 90, 90, { min: 15, max: 3600 });
+      this._state.screensaverTimeoutSeconds = seconds;
+      const valueEl = e.target.closest(".settings-range")?.querySelector(".settings-value");
+      if (valueEl) valueEl.textContent = `${Math.round(seconds)}s`;
+      this._persistMobileAppearance();
+      this._resetScreensaverTimer({ hide: true });
+      return;
+    }
+    if (e.target?.id === "powerButtonActionSelect") {
+      this._state.powerButtonAction = HomeiiMobileSettingsFoundation.normalizePowerButtonAction(e.target.value || "stop_player");
+      this._persistMobileAppearance();
+      return;
+    }
+    if (e.target?.id === "powerButtonEntityInput") {
+      this._state.powerButtonEntity = String(e.target.value || "").trim();
       this._persistMobileAppearance();
       return;
     }

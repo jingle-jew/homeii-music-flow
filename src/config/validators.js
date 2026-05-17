@@ -43,12 +43,29 @@ export function validateBaseCardEditorConfig(config) {
   assertNumberIfDefined(config.main_opacity, "main_opacity");
   assertNumberIfDefined(config.popup_opacity, "popup_opacity");
   assertNumberIfDefined(config.cache_ttl, "cache_ttl");
-  assertValueInList(config.language, "language", ["auto", "he", "en"]);
+  assertStringIfDefined(config.language, "language");
   assertValueInList(config.theme_mode, "theme_mode", ["auto", "dark", "light"]);
   assertBooleanIfDefined(config.rtl, "rtl");
   assertBooleanIfDefined(config.performance_mode, "performance_mode");
   assertBooleanIfDefined(config.show_ma_button, "show_ma_button");
   assertBooleanIfDefined(config.show_theme_toggle, "show_theme_toggle");
+  assertBooleanIfDefined(config.ambient_light_enabled, "ambient_light_enabled");
+  assertStringArrayIfDefined(config.ambient_light_entities, "ambient_light_entities");
+  assertStringArrayIfDefined(config.ambient_light_player_map, "ambient_light_player_map");
+  assertNumberIfDefined(config.ambient_light_brightness, "ambient_light_brightness");
+  assertNumberIfDefined(config.ambient_light_transition, "ambient_light_transition");
+  assertNumberIfDefined(config.ambient_light_cooldown, "ambient_light_cooldown");
+  assertBooleanIfDefined(config.screensaver_enabled, "screensaver_enabled");
+  assertValueInList(config.screensaver_clock_mode, "screensaver_clock_mode", ["digital", "analog"]);
+  assertNumberIfDefined(config.screensaver_timeout_seconds, "screensaver_timeout_seconds");
+  assertStringIfDefined(config.screensaver_message, "screensaver_message");
+  assertNumberIfDefined(config.screensaver_clock_size, "screensaver_clock_size");
+  assertNumberIfDefined(config.screensaver_clock_x, "screensaver_clock_x");
+  assertNumberIfDefined(config.screensaver_clock_y, "screensaver_clock_y");
+  assertBooleanIfDefined(config.power_button_enabled, "power_button_enabled");
+  assertValueInList(config.power_button_action, "power_button_action", ["stop_player", "toggle", "turn_on", "turn_off", "scene", "script"]);
+  assertStringIfDefined(config.power_button_entity, "power_button_entity");
+  assertBooleanIfDefined(config.discovery_mode_enabled, "discovery_mode_enabled");
 }
 
 export function validateMobileCardEditorConfig(config) {

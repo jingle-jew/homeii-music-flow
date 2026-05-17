@@ -9,6 +9,8 @@ const rootDir = path.resolve(scriptDir, "..");
 
 const srcMainPath = path.join(rootDir, "src", "homeii-music-flow.js");
 const distMainPath = path.join(rootDir, "dist", "homeii-music-flow.js");
+const srcLocalizationPath = path.join(rootDir, "src", "localization");
+const distLocalizationPath = path.join(rootDir, "dist", "localization");
 const srcSendspinPath = path.join(rootDir, "src", "sendspin-js");
 const distSendspinPath = path.join(rootDir, "dist", "sendspin-js");
 const vendorEmblaPath = path.join(rootDir, "vendor", "embla-carousel.umd.js");
@@ -21,6 +23,8 @@ const version = extractCardVersion(sourceText);
 
 await mkdir(path.dirname(distMainPath), { recursive: true });
 await copyFile(srcMainPath, distMainPath);
+await rm(distLocalizationPath, { recursive: true, force: true });
+await cp(srcLocalizationPath, distLocalizationPath, { recursive: true });
 await rm(distSendspinPath, { recursive: true, force: true });
 await cp(srcSendspinPath, distSendspinPath, { recursive: true });
 

@@ -6,8 +6,11 @@ const MOBILE_VOLUME_MODES = ["always", "button"];
 const MOBILE_MIC_MODES = ["on", "off", "smart"];
 const MOBILE_LIKED_MODES = ["ma", "local"];
 const MOBILE_SWIPE_MODES = ["play", "browse"];
+const SCREENSAVER_CLOCK_MODES = ["digital", "analog"];
+const POWER_BUTTON_ACTIONS = ["stop_player", "toggle", "turn_on", "turn_off", "scene", "script"];
 const MOBILE_MAIN_BAR_ITEMS = ["search", "library", "players", "actions", "settings", "theme"];
 const MOBILE_LIBRARY_TABS = ["library_playlists", "library_artists", "library_albums", "library_tracks", "library_radio", "library_podcasts", "library_liked", "library_search"];
+const COLOR_LIGHT_MODES = ["hs", "xy", "rgb", "rgbw", "rgbww"];
 
 function normalizeEnum(value, allowedValues, fallbackValue) {
   const normalized = String(value || "").trim().toLowerCase();
@@ -16,6 +19,82 @@ function normalizeEnum(value, allowedValues, fallbackValue) {
 
 function normalizeStringArray(value) {
   return Array.isArray(value) ? value.map((entry) => String(entry || "").trim()).filter(Boolean) : [];
+}
+
+export function normalizeEntityList(value) {
+  const source = Array.isArray(value)
+    ? value
+    : String(value || "").split(/[\s,]+/);
+  const next = [];
+  source.map((entry) => String(entry || "").trim()).filter(Boolean).forEach((entityId) => {
+    if (!next.includes(entityId)) next.push(entityId);
+  });
+  return next;
+}
+
+export function parseAmbientLightPlayerMap(value) {
+  const groups = [];
+  const byPlayer = new Map();
+  normalizeStringArray(value).forEach((mapping) => {
+    const parts = String(mapping || "").split(/\s*(?:=>|=|:)\s*/);
+    const player = String(parts[0] || "").trim();
+    const lights = normalizeEntityList(parts.slice(1).join(",")).filter((entityId) => entityId.startsWith("light."));
+    if (!player.startsWith("media_player.") || !lights.length) return;
+    if (!byPlayer.has(player)) {
+      const group = { player, lights: [] };
+      byPlayer.set(player, group);
+      groups.push(group);
+    }
+    const group = byPlayer.get(player);
+    lights.forEach((entityId) => {
+      if (!group.lights.includes(entityId)) group.lights.push(entityId);
+    });
+  });
+  return groups;
+}
+
+export function formatAmbientLightPlayerMapEntry(player, lights = []) {
+  const playerId = String(player || "").trim();
+  const lightIds = normalizeEntityList(lights).filter((entityId) => entityId.startsWith("light."));
+  return playerId && lightIds.length ? `${playerId} = ${lightIds.join(", ")}` : "";
+}
+
+export function isColorCapableLightEntity(entity) {
+  if (!entity?.entity_id?.startsWith?.("light.")) return false;
+  const attributes = entity.attributes || {};
+  const supportedModes = Array.isArray(attributes.supported_color_modes)
+    ? attributes.supported_color_modes.map((mode) => String(mode || "").toLowerCase())
+    : [];
+  if (supportedModes.some((mode) => COLOR_LIGHT_MODES.includes(mode))) return true;
+  if (COLOR_LIGHT_MODES.includes(String(attributes.color_mode || "").toLowerCase())) return true;
+  const supportedFeatures = Number(attributes.supported_features);
+  return Number.isFinite(supportedFeatures) && (supportedFeatures & 16) === 16;
+}
+
+export function clampPercent(value, fallback = 35, { min = 1, max = 100 } = {}) {
+  const number = Number(value);
+  const safe = Number.isFinite(number) ? number : fallback;
+  return Math.max(min, Math.min(max, safe));
+}
+
+export function clampSeconds(value, fallback = 3, { min = 0, max = 300 } = {}) {
+  const number = Number(value);
+  const safe = Number.isFinite(number) ? number : fallback;
+  return Math.max(min, Math.min(max, safe));
+}
+
+export function clampNumber(value, fallback = 1, { min = 0, max = 1 } = {}) {
+  const number = Number(value);
+  const safe = Number.isFinite(number) ? number : fallback;
+  return Math.max(min, Math.min(max, safe));
+}
+
+export function normalizeScreensaverClockMode(value) {
+  return normalizeEnum(value, SCREENSAVER_CLOCK_MODES, "digital");
+}
+
+export function normalizePowerButtonAction(value) {
+  return normalizeEnum(value, POWER_BUTTON_ACTIONS, "stop_player");
 }
 
 export function clampMobileFontScale(value) {
@@ -132,5 +211,22 @@ export function normalizeVisualMobileState(config = {}, {
     mobileAnnouncementTtsEntity: String(config.announcement_tts_entity || ""),
     mobileAnnouncementTtsLanguage: String(config.announcement_tts_language || "auto"),
     pinnedPlayerEntities: normalizePinnedPlayerEntities(config),
+    ambientLightEnabled: config.ambient_light_enabled === true,
+    ambientLightEntities: normalizeEntityList(config.ambient_light_entities),
+    ambientLightPlayerMap: normalizeStringArray(config.ambient_light_player_map),
+    ambientLightBrightness: clampPercent(config.ambient_light_brightness, 35, { min: 1, max: 100 }),
+    ambientLightTransition: clampSeconds(config.ambient_light_transition, 3, { min: 0, max: 120 }),
+    ambientLightCooldown: clampSeconds(config.ambient_light_cooldown, 8, { min: 0, max: 120 }),
+    screensaverEnabled: config.screensaver_enabled === true,
+    screensaverClockMode: normalizeScreensaverClockMode(config.screensaver_clock_mode),
+    screensaverTimeoutSeconds: clampSeconds(config.screensaver_timeout_seconds, 90, { min: 15, max: 3600 }),
+    screensaverMessage: String(config.screensaver_message || ""),
+    screensaverClockSize: clampNumber(config.screensaver_clock_size, 1, { min: 0.75, max: 1.45 }),
+    screensaverClockX: clampNumber(config.screensaver_clock_x, 82, { min: 8, max: 92 }),
+    screensaverClockY: clampNumber(config.screensaver_clock_y, 24, { min: 8, max: 70 }),
+    powerButtonEnabled: config.power_button_enabled === true,
+    powerButtonAction: normalizePowerButtonAction(config.power_button_action),
+    powerButtonEntity: String(config.power_button_entity || "").trim(),
+    discoveryModeEnabled: config.discovery_mode_enabled !== false,
   };
 }

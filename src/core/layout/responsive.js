@@ -12,16 +12,66 @@ export function resolveLayoutMode(layoutMode, {
 } = {}, tabletBreakpoint = TABLET_BREAKPOINT) {
   const normalized = normalizeLayoutMode(layoutMode);
   if (normalized === "mobile" || normalized === "tablet") return normalized;
-  const width = Math.max(
+  const cardWidth = Math.max(
     Number(rectWidth || 0),
     Number(hostWidth || 0),
-    Number(viewportWidth || 0),
   );
+  const width = cardWidth > 0 ? cardWidth : Number(viewportWidth || 0);
   return width >= tabletBreakpoint ? "tablet" : "mobile";
 }
 
 export function defaultMobileMediaLayout(layoutMode) {
   return layoutMode === "tablet" ? "grid" : "list";
+}
+
+export function resolveLayoutProfile({
+  width = 0,
+  height = 0,
+  layoutMode = "mobile",
+} = {}) {
+  const measuredWidth = Math.max(0, Number(width || 0));
+  const measuredHeight = Math.max(0, Number(height || 0));
+  const size = measuredWidth < 380
+    ? "xs"
+    : measuredWidth < 520
+      ? "sm"
+      : measuredWidth < 760
+        ? "md"
+        : measuredWidth < 1100
+          ? "lg"
+          : "xl";
+  const heightSize = measuredHeight > 0 && measuredHeight < 620
+    ? "short"
+    : measuredHeight >= 900
+      ? "tall"
+      : "normal";
+  const aspect = measuredHeight > 0 && measuredWidth / measuredHeight >= 1.08
+    ? "wide"
+    : measuredWidth > 0 && measuredHeight / measuredWidth >= 1.18
+      ? "portrait"
+      : "balanced";
+  const tight = measuredHeight > 0 && measuredHeight < 560;
+  const compact = size === "xs" || heightSize === "short";
+  const roomy = size === "xl" && heightSize === "tall";
+  return {
+    width: measuredWidth,
+    height: measuredHeight,
+    layoutMode,
+    size,
+    heightSize,
+    aspect,
+    tight,
+    compact,
+    roomy,
+    classes: [
+      `size-${size}`,
+      `height-${heightSize}`,
+      `aspect-${aspect}`,
+      tight ? "height-tight" : "",
+      compact ? "profile-compact" : "profile-comfort",
+      roomy ? "profile-roomy" : "",
+    ].filter(Boolean),
+  };
 }
 
 export function tabletAutoFitEnabled(layoutMode) {

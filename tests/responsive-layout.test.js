@@ -4,6 +4,7 @@ import {
   defaultMobileMediaLayout,
   detectKeyboardLikeResize,
   resolveLayoutMode,
+  resolveLayoutProfile,
   resolveResizeStrategy,
   resolveTabletAutoFitFlags,
   tabletAutoFitDense,
@@ -17,6 +18,8 @@ describe("responsive layout foundation", () => {
     expect(resolveLayoutMode("mobile", { rectWidth: 1200 })).toBe("mobile");
     expect(resolveLayoutMode("auto", { rectWidth: 860, hostWidth: 870, viewportWidth: 880 })).toBe("mobile");
     expect(resolveLayoutMode("auto", { rectWidth: 860, hostWidth: 920, viewportWidth: 880 })).toBe("tablet");
+    expect(resolveLayoutMode("auto", { rectWidth: 400, hostWidth: 0, viewportWidth: 1440 })).toBe("mobile");
+    expect(resolveLayoutMode("auto", { rectWidth: 0, hostWidth: 0, viewportWidth: 920 })).toBe("tablet");
   });
 
   it("normalizes tablet auto-fit flags", () => {
@@ -33,6 +36,36 @@ describe("responsive layout foundation", () => {
       showNight: false,
       showUpNext: true,
       dense: true,
+    });
+  });
+
+  it("resolves layout profile classes without changing layout mode", () => {
+    expect(resolveLayoutProfile({ width: 360, height: 700, layoutMode: "mobile" })).toMatchObject({
+      layoutMode: "mobile",
+      size: "xs",
+      heightSize: "normal",
+      aspect: "portrait",
+      compact: true,
+      classes: ["size-xs", "height-normal", "aspect-portrait", "profile-compact"],
+    });
+    expect(resolveLayoutProfile({ width: 920, height: 580, layoutMode: "tablet" })).toMatchObject({
+      layoutMode: "tablet",
+      size: "lg",
+      heightSize: "short",
+      aspect: "wide",
+      tight: false,
+      compact: true,
+    });
+    expect(resolveLayoutProfile({ width: 920, height: 520, layoutMode: "tablet" })).toMatchObject({
+      heightSize: "short",
+      tight: true,
+      classes: ["size-lg", "height-short", "aspect-wide", "height-tight", "profile-compact"],
+    });
+    expect(resolveLayoutProfile({ width: 1280, height: 940, layoutMode: "tablet" })).toMatchObject({
+      size: "xl",
+      heightSize: "tall",
+      aspect: "wide",
+      roomy: true,
     });
   });
 

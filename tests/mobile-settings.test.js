@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  clampPercent,
   clampMobileFontScale,
+  clampSeconds,
+  formatAmbientLightPlayerMapEntry,
+  isColorCapableLightEntity,
+  normalizeEntityList,
   normalizeHomeShortcutPath,
   normalizeMobileFooterMode,
   normalizeMobileLibraryTabs,
@@ -9,7 +14,10 @@ import {
   normalizeMobileMicMode,
   normalizeMobileVolumeMode,
   normalizePinnedPlayerEntities,
+  normalizePowerButtonAction,
+  normalizeScreensaverClockMode,
   normalizeVisualMobileState,
+  parseAmbientLightPlayerMap,
 } from "../src/core/state/mobile-settings.js";
 
 describe("mobile settings foundation", () => {
@@ -44,6 +52,23 @@ describe("mobile settings foundation", () => {
       announcement_tts_entity: "tts.living_room",
       announcement_tts_language: "en-GB",
       pinned_player_entities: ["media_player.kitchen", " media_player.kitchen ", "media_player.office"],
+      ambient_light_enabled: true,
+      ambient_light_entities: ["light.living_room", " light.living_room ", "light.tv"],
+      ambient_light_player_map: ["media_player.kitchen = light.kitchen", " media_player.office: light.office "],
+      ambient_light_brightness: 150,
+      ambient_light_transition: -4,
+      ambient_light_cooldown: "soon",
+      screensaver_enabled: true,
+      screensaver_clock_mode: "ANALOG",
+      screensaver_timeout_seconds: 4,
+      screensaver_message: "Enjoy the music",
+      screensaver_clock_size: 3,
+      screensaver_clock_x: 120,
+      screensaver_clock_y: -10,
+      power_button_enabled: true,
+      power_button_action: "SCENE",
+      power_button_entity: " scene.movie_time ",
+      discovery_mode_enabled: false,
     }, {
       normalizeClockTime: (value, fallback) => String(value || fallback),
       normalizeNightModeDays: (value) => Array.isArray(value) ? value : [],
@@ -81,6 +106,23 @@ describe("mobile settings foundation", () => {
     expect(state.mobileAnnouncementTtsEntity).toBe("tts.living_room");
     expect(state.mobileAnnouncementTtsLanguage).toBe("en-GB");
     expect(state.pinnedPlayerEntities).toEqual(["media_player.kitchen", "media_player.office"]);
+    expect(state.ambientLightEnabled).toBe(true);
+    expect(state.ambientLightEntities).toEqual(["light.living_room", "light.tv"]);
+    expect(state.ambientLightPlayerMap).toEqual(["media_player.kitchen = light.kitchen", "media_player.office: light.office"]);
+    expect(state.ambientLightBrightness).toBe(100);
+    expect(state.ambientLightTransition).toBe(0);
+    expect(state.ambientLightCooldown).toBe(8);
+    expect(state.screensaverEnabled).toBe(true);
+    expect(state.screensaverClockMode).toBe("analog");
+    expect(state.screensaverTimeoutSeconds).toBe(15);
+    expect(state.screensaverMessage).toBe("Enjoy the music");
+    expect(state.screensaverClockSize).toBe(1.45);
+    expect(state.screensaverClockX).toBe(92);
+    expect(state.screensaverClockY).toBe(8);
+    expect(state.powerButtonEnabled).toBe(true);
+    expect(state.powerButtonAction).toBe("scene");
+    expect(state.powerButtonEntity).toBe("scene.movie_time");
+    expect(state.discoveryModeEnabled).toBe(false);
   });
 
   it("normalizes main bar and library tab selections", () => {
@@ -127,5 +169,41 @@ describe("mobile settings foundation", () => {
     expect(normalizePinnedPlayerEntities({
       pinned_player_entities: ["media_player.office", "", "media_player.office", "media_player.kitchen"],
     })).toEqual(["media_player.office", "media_player.kitchen"]);
+  });
+
+  it("normalizes smart-home controls", () => {
+    expect(normalizeEntityList(" light.a, light.b  light.a ")).toEqual(["light.a", "light.b"]);
+    expect(clampPercent(0, 35, { min: 1, max: 100 })).toBe(1);
+    expect(clampSeconds(999, 3, { min: 0, max: 120 })).toBe(120);
+    expect(normalizeScreensaverClockMode("clock")).toBe("digital");
+    expect(normalizePowerButtonAction("scene")).toBe("scene");
+    expect(normalizePowerButtonAction("bad")).toBe("stop_player");
+  });
+
+  it("parses player to light mappings with multiple lights", () => {
+    expect(parseAmbientLightPlayerMap([
+      "media_player.kitchen = light.kitchen, light.counter",
+      "media_player.kitchen = light.table",
+      "bad = light.ignored",
+    ])).toEqual([
+      { player: "media_player.kitchen", lights: ["light.kitchen", "light.counter", "light.table"] },
+    ]);
+    expect(formatAmbientLightPlayerMapEntry("media_player.kitchen", ["light.kitchen", " light.counter "]))
+      .toBe("media_player.kitchen = light.kitchen, light.counter");
+  });
+
+  it("detects color capable light entities", () => {
+    expect(isColorCapableLightEntity({
+      entity_id: "light.rgb_strip",
+      attributes: { supported_color_modes: ["brightness", "rgb"] },
+    })).toBe(true);
+    expect(isColorCapableLightEntity({
+      entity_id: "light.legacy_color",
+      attributes: { supported_features: 16 },
+    })).toBe(true);
+    expect(isColorCapableLightEntity({
+      entity_id: "light.dimmer",
+      attributes: { supported_color_modes: ["brightness"] },
+    })).toBe(false);
   });
 });

@@ -29,15 +29,23 @@ describe("config validators", () => {
   it("rejects invalid base config values", () => {
     expect(() =>
       validateBaseCardEditorConfig({
-        language: "de",
-      })
-    ).toThrow("language must be one of: auto, he, en");
-
-    expect(() =>
-      validateBaseCardEditorConfig({
         performance_mode: "on",
       })
     ).toThrow("performance_mode must be a boolean");
+  });
+
+  it("accepts future language codes and rejects non-string language values", () => {
+    expect(() =>
+      validateBaseCardEditorConfig({
+        language: "fr",
+      })
+    ).not.toThrow();
+
+    expect(() =>
+      validateBaseCardEditorConfig({
+        language: 7,
+      })
+    ).toThrow("language must be a string");
   });
 
   it("accepts a valid mobile-only config", () => {
@@ -60,6 +68,23 @@ describe("config validators", () => {
         mobile_announcement_presets: ["hello"],
         mobile_compact_mode: true,
         mobile_show_up_next: false,
+        ambient_light_enabled: true,
+        ambient_light_entities: ["light.living_room", "light.tv"],
+        ambient_light_player_map: ["media_player.kitchen = light.kitchen"],
+        ambient_light_brightness: 35,
+        ambient_light_transition: 3,
+        ambient_light_cooldown: 8,
+        screensaver_enabled: true,
+        screensaver_clock_mode: "analog",
+        screensaver_timeout_seconds: 90,
+        screensaver_message: "Dinner is ready",
+        screensaver_clock_size: 1.15,
+        screensaver_clock_x: 80,
+        screensaver_clock_y: 24,
+        power_button_enabled: true,
+        power_button_action: "script",
+        power_button_entity: "script.movie_time",
+        discovery_mode_enabled: true,
       })
     ).not.toThrow();
   });
@@ -70,6 +95,38 @@ describe("config validators", () => {
         mobile_volume_mode: "slider-only",
       })
     ).toThrow("mobile_volume_mode must be one of: always, button");
+  });
+
+  it("rejects invalid smart-home config values", () => {
+    expect(() =>
+      validateMobileCardEditorConfig({
+        screensaver_clock_mode: "binary",
+      })
+    ).toThrow("screensaver_clock_mode must be one of: digital, analog");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        power_button_action: "explode",
+      })
+    ).toThrow("power_button_action must be one of: stop_player, toggle, turn_on, turn_off, scene, script");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        ambient_light_entities: "light.living_room",
+      })
+    ).toThrow("ambient_light_entities must be an array of strings");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        ambient_light_player_map: "media_player.kitchen = light.kitchen",
+      })
+    ).toThrow("ambient_light_player_map must be an array of strings");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        screensaver_clock_size: "large",
+      })
+    ).toThrow("screensaver_clock_size must be a number");
   });
 
   it("rejects non-string array members", () => {

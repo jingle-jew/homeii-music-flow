@@ -26,7 +26,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/r11a/homeii-music-flow"><img alt="version" src="https://img.shields.io/badge/version-5.4.1-gold"></a>
+  <a href="https://github.com/r11a/homeii-music-flow"><img alt="version" src="https://img.shields.io/badge/version-5.5.0-gold"></a>
   <img alt="Home Assistant" src="https://img.shields.io/badge/Home%20Assistant-Dashboard-41BDF5">
   <img alt="Music Assistant" src="https://img.shields.io/badge/Music%20Assistant-required-7C5CFF">
   <img alt="Sendspin" src="https://img.shields.io/badge/Sendspin-browser%20player-18B6FF">
@@ -50,8 +50,20 @@ HOMEii Flow started from my own daily use of Home Assistant and Music Assistant.
 - **Studio / Control Room:** choose players, group rooms, control volumes, move playback, and manage multi-room listening.
 - **Mobile-first workflow:** queue, search, library, FLOW, actions, timers, announcements, settings, and player switching are designed for touch.
 - **Real Music Assistant library flow:** playlists, albums, artists, tracks, radio, favorites, recent listening, and recommendations.
+- **Smart-home aware listening:** optional Home Assistant light sync, screensaver display, and POWER actions let the card participate in the room without becoming mandatory setup.
 - **Hebrew and RTL ready:** layout, labels, alignment, and interaction patterns are built for Hebrew as a first-class use case.
 - **Release-ready package:** HACS-ready `dist/` output includes the card, Sendspin files, Embla swipe support, and the brand asset.
+
+## What's New In 5.5.0
+
+- **Commercial-grade responsive fit:** the card now measures its actual dashboard/container size, reacts to Home Assistant grid/sidebar/editor changes, and adapts by width, height, and aspect ratio instead of relying only on the browser viewport.
+- **Better phone, tablet, kiosk, and desktop layouts:** artwork, metadata, progress, actions, transport controls, volume, footer buttons, Up Next, and Night mode now use tighter fit budgets to avoid content overlapping or escaping its container.
+- **No fixed default height:** the old `850` default is no longer part of the stub config. The card prefers the space Home Assistant allocates to it, while the optional `height` setting remains available as a fallback/manual override.
+- **Ambient light sync:** selected `light.*` entities can follow the current artwork color with brightness, transition, cooldown, and optional per-player mappings.
+- **Artwork screensaver:** an optional idle display shows the current cover, digital or analog clock, date, track info, and a short local message. The idle timer now starts when the card page becomes visible.
+- **POWER button:** player controls can show an optional POWER action for stopping the active player or calling a selected Home Assistant entity.
+- **Discovery mode:** a fullscreen recommendation view adds cover orbs, provider-backed category selectors, fresh/random playlist discovery, albums, radio, and recent music.
+- **Editor and language coverage:** the new settings are available in the visual editor, in-card settings, and English/Hebrew localization dictionaries.
 
 ## What's New In 5.4.1
 
@@ -178,7 +190,7 @@ If HACS does not add the resource automatically, add:
 3. Add this Dashboard resource:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.4.1
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.5.0
 ```
 
 4. Add the card:
@@ -488,7 +500,7 @@ Notes:
 - In-card settings panels
 - Language, theme, layout, color, motion, footer, volume, mic, swipe, liked, night mode, and shortcut settings
 - Announcement preset and TTS entity settings
-- Current defaults: height `850`, night mode `off`, up-next `off`, mic `smart`, settings source `visual editor`, dynamic theme `auto`, background motion `subtle`, footer `icon+text`, font scale `1`, artwork swipe `browse`, home shortcut `off`, liked mode `Music Assistant`
+- Current defaults: auto-fit card height, night mode `off`, up-next `off`, mic `smart`, settings source `visual editor`, dynamic theme `auto`, background motion `subtle`, footer `icon+text`, font scale `1`, artwork swipe `browse`, home shortcut `off`, liked mode `Music Assistant`
 - Config validation and tested state helpers
 
 ## Full Feature Map
@@ -771,6 +783,15 @@ Notes:
 - Hebrew announcement flow
 - Editor locale helpers
 
+### Adding A Language
+
+- Start from `src/localization/en.js` and translate values only.
+- Register the new file in `src/localization/index.js`.
+- Add the language to `LANGUAGE_OPTIONS`.
+- Add the language code to `RTL_LANGUAGE_CODES` only for right-to-left languages.
+- Run `npm test`, `npm run build`, and `node scripts/release.mjs`.
+- Use `TRANSLATING.md` for the full string glossary and `HOW_TO_ADD_A_LANGUAGE.md` for the step-by-step release checklist.
+
 ### Reliability And Release Foundation
 
 - Structured `src/core` foundation helpers
@@ -846,7 +867,7 @@ npm run lint
 npm test
 ```
 
-Current packaged version: `5.4.1`
+Current packaged version: `5.5.0`
 
 ## Release Readiness
 

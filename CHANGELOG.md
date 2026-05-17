@@ -1,5 +1,25 @@
 # Changelog
 
+## 5.5.0 - 2026-05-17
+
+Released update from 5.4.2.
+
+- Adds optional Home Assistant ambient light sync that maps the current artwork palette to selected `light.*` entities with brightness, transition, cooldown, and optional per-player light mappings.
+- Adds an optional artwork screensaver with digital/analog clock modes, current cover, date, track metadata, configurable message, clock size, and clock position controls.
+- Fixes the screensaver idle timer so it starts from the moment the card page becomes visible instead of inheriting idle time from a previous dashboard page.
+- Adds an optional POWER button in the player controls that can stop the active player or call `toggle`, `turn_on`, `turn_off`, `scene`, or `script` actions on a selected Home Assistant entity.
+- Adds fullscreen Discovery mode with cover-orb browsing, provider-backed mood/genre selectors, fresh/random playlist discovery, recent music, albums, and radio sections.
+- Adds optional inline Up Next display and Night mode controls without forcing them into existing layouts when space is tight.
+- Reworks responsive sizing around the actual card/container width and allocated height instead of only `window.innerWidth`.
+- Adds ResizeObserver-driven layout recovery for dashboard column changes, sidebar changes, visual-editor open/close cycles, mobile rotation, kiosk views, and tablet/desktop resizes.
+- Expands layout profiling with width, height, and aspect-aware classes so phone, phone-landscape, tablet, desktop, and short-height modes get different spacing and artwork budgets.
+- Improves mobile/tablet/kiosk fit by tightening vertical budgets, preventing content overlap, containing artwork inside its frame, preserving larger artwork when space allows, and reducing accidental page scroll.
+- Removes the old fixed `850` height from the default card config. The optional `height` config still works as a fallback/manual override, but the card now prefers the space Home Assistant actually gives it.
+- Adds English and Hebrew localization dictionaries backed by shared translation helpers, visual-editor labels, and tests.
+- Adds `HOW_TO_ADD_A_LANGUAGE.md` and `TRANSLATING.md` so future languages can be added by copying the English dictionary, translating values, registering the language, and rebuilding release artifacts.
+- Improves the visual editor for ambient-light player mappings by using friendly field labels instead of internal helper names.
+- Updates validators, mobile settings state, responsive layout tests, localization tests, and the release sync script so `src/localization/` is packaged into `dist/localization/`.
+
 ## 5.4.2 - 2026-05-14
 
 Released update from 5.4.1.

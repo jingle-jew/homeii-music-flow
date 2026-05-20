@@ -2,7 +2,7 @@
 
 This glossary lists every localization key currently used by the card. Translate the values in `src/localization/en.js` into a new language file, keep the keys unchanged, and use the context below to understand where each string appears.
 
-Generated for target version 5.5.0. Total strings: 758.
+Generated for target version 5.6.0. Total strings: 879.
 
 | Key | English | Description | Context |
 | --- | --- | --- | --- |

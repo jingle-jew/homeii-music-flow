@@ -1,5 +1,48 @@
 # Changelog
 
+## 5.6.0 - 2026-05-20
+
+Release focus: Flow Assistant voice commands, richer library browsing, radio artwork reliability, cleaner tablet/saver controls, and a full bug-fix rollup from the local 5.5.1 test cycle.
+
+Highlights:
+
+- Adds the experimental **Flow Assistant** voice command layer. It can be opened from the player, the empty-state music screen, and the screensaver. Voice commands are still experimental; failed examples, browser/device details, and community feedback are welcome so the matching can keep improving.
+- Renames the voice dialog from `Voice assistant` to **Flow Assistant** and adds HOMEii Flow branding inside the assistant panel.
+- Adds elegant microphone entry points in the empty-state player and screensaver, with better click feedback and guards against repeated delayed actions.
+- Keeps the screensaver active while Flow Assistant is open, so touching the assistant dialog does not leave the idle display. The screensaver exits only when the user taps the empty background area.
+- Adds optional previous/next controls to the screensaver when screensaver media controls are enabled.
+- Adds library drill-in for playlists and albums: tapping an item can open its track list first, while a small `Play` button starts the whole item directly.
+- Adds clearer tap feedback to library and recommendation content, including subtle loading feedback while playback starts.
+- Adds `Clear all` as a selectable Quick Action with a red-toned icon and a small confirmation popup that explains it disconnects all active players before running.
+- Improves media control states so shuffle, repeat-one, and repeat-all are visually clearer when active.
+- Improves the empty-state wand area with calmer animation, spacing, and visual feedback.
+- Bundles Simplified Chinese localization. Thank you to [@gao19970120](https://github.com/gao19970120) for the Chinese translation contribution.
+
+Bug fixes:
+
+- Fixes `_getAllocatedCardHeight` shrinking the card when Home Assistant reported a positive `getBoundingClientRect().top` during initial layout. The card now avoids losing height just because it is rendered lower on the page.
+- Restores cleaner card fit after the height fix so the player does not create unnecessary page scrolling on normal tablet/desktop dashboards.
+- Fixes rounded-corner leaks by clipping the host/card surface consistently and keeping internal layers aligned to the same radius treatment.
+- Fixes radio playback cover art in the normal player. Radio stations that expose live `entity_picture` artwork now show that dynamic artwork in the main player, not only in the screensaver.
+- Fixes the broken/empty radio cover slot by using safer artwork fallbacks and HOMEii branding when a station image cannot be loaded.
+- Fixes radio layout spacing so the radio artwork, microphone action, metadata, and side actions no longer crowd or float in awkward positions on wide tablet views.
+- Avoids false radio handling for normal songs or playlists that merely contain the word `radio` in their title or URI.
+- Expands the radio country selector in the visual editor and in-card settings so users can choose from the full country list instead of a small sample list.
+- Fixes visual-editor labels in the Flow Assistant section so they use readable text instead of underscore-style internal keys.
+- Fixes visual-editor labels for assistant icon sizing and related controls.
+- Renames the Quick Actions assistant option to **Flow Assistant** so it matches the user-facing feature name.
+- Fixes repeat button ambiguity by distinguishing repeat-one from repeat-all in the active UI state.
+- Fixes empty-player controls that sometimes required multiple taps before opening a panel or starting an action.
+- Prevents stacked delayed actions from repeated taps on the empty-state wand/microphone area.
+- Restores reliable Hebrew Flow Assistant matching for commands such as playing a song by artist and playing a playlist by artist/name after the local matching regression.
+- Adds regression coverage for Flow Assistant command matching so common Hebrew play requests do not silently break again.
+- Improves assistant failure handling so unsupported speech-service/browser failures are surfaced cleanly instead of looking like a successful command with an unrelated response.
+- Fixes the screensaver Flow Assistant button so it opens the assistant without changing the clean screensaver layout or forcing an unwanted exit.
+- Fixes library/recommendation click behavior so feedback appears immediately while Music Assistant starts playback.
+- Tightens radio and missing-artwork fallback behavior across player and screensaver surfaces so both views resolve artwork from the same safer priority chain.
+- Updates localization tests to include the new Simplified Chinese dictionary and language option.
+- Updates release packaging so `src/localization/zh.js` is synced into `dist/localization/zh.js`.
+
 ## 5.5.0 - 2026-05-17
 
 Released update from 5.4.2.

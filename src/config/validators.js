@@ -56,6 +56,7 @@ export function validateBaseCardEditorConfig(config) {
   assertNumberIfDefined(config.ambient_light_transition, "ambient_light_transition");
   assertNumberIfDefined(config.ambient_light_cooldown, "ambient_light_cooldown");
   assertBooleanIfDefined(config.screensaver_enabled, "screensaver_enabled");
+  assertBooleanIfDefined(config.screensaver_controls_enabled, "screensaver_controls_enabled");
   assertValueInList(config.screensaver_clock_mode, "screensaver_clock_mode", ["digital", "analog"]);
   assertNumberIfDefined(config.screensaver_timeout_seconds, "screensaver_timeout_seconds");
   assertStringIfDefined(config.screensaver_message, "screensaver_message");
@@ -84,6 +85,7 @@ export function validateMobileCardEditorConfig(config) {
   assertValueInList(config.mobile_background_motion_mode, "mobile_background_motion_mode", ["off", "subtle", "strong", "extreme"]);
   assertValueInList(config.mobile_custom_text_tone, "mobile_custom_text_tone", ["light", "dark"]);
   assertNumberIfDefined(config.mobile_font_scale, "mobile_font_scale");
+  assertNumberIfDefined(config.mobile_icon_scale, "mobile_icon_scale");
   assertBooleanIfDefined(config.mobile_footer_search_enabled, "mobile_footer_search_enabled");
   assertValueInList(config.mobile_footer_mode, "mobile_footer_mode", ["icon", "text", "both"]);
   assertBooleanIfDefined(config.mobile_studio_shortcut, "mobile_studio_shortcut");
@@ -91,8 +93,13 @@ export function validateMobileCardEditorConfig(config) {
   assertStringIfDefined(config.mobile_home_shortcut_path, "mobile_home_shortcut_path");
   assertValueInList(config.mobile_volume_mode, "mobile_volume_mode", ["always", "button"]);
   assertValueInList(config.mobile_mic_mode, "mobile_mic_mode", ["on", "off", "smart"]);
+  assertBooleanIfDefined(config.voice_assistant_enabled, "voice_assistant_enabled");
+  assertValueInList(config.voice_assistant_mode, "voice_assistant_mode", ["hybrid", "music", "assist"]);
+  assertStringIfDefined(config.voice_assistant_agent_id, "voice_assistant_agent_id");
+  assertBooleanIfDefined(config.voice_assistant_speak_feedback, "voice_assistant_speak_feedback");
   assertStringArrayIfDefined(config.mobile_library_tabs, "mobile_library_tabs");
   assertStringArrayIfDefined(config.mobile_main_bar_items, "mobile_main_bar_items");
+  assertStringArrayIfDefined(config.mobile_quick_actions, "mobile_quick_actions");
   assertValueInList(config.mobile_liked_mode, "mobile_liked_mode", ["ma", "local"]);
   assertValueInList(config.mobile_swipe_mode, "mobile_swipe_mode", ["play", "browse"]);
   assertStringIfDefined(config.mobile_radio_browser_country, "mobile_radio_browser_country");

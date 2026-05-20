@@ -31,6 +31,8 @@ export function createBaseBrowserState() {
     forceRadioHero: false,
     likedSelectionMode: false,
     likedSelectedUris: [],
+    mobileLibraryDetail: null,
+    mobileLibraryDetailParentPage: "",
     controlRoomOpen: false,
     controlRoomSelectedPlayers: [],
     controlRoomLibraryQuery: "",

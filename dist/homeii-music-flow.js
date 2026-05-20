@@ -6,6 +6,110 @@
   translateText as homeiiTranslateText,
 } from "./localization/index.js";
 
+const HOMEII_RADIO_BROWSER_COUNTRY_CODES = Object.freeze(
+  "AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS XK YE YT ZA ZM ZW"
+    .split(" ")
+    .filter((code, index, list) => code && list.indexOf(code) === index),
+);
+
+const HOMEII_RADIO_BROWSER_COUNTRY_I18N_KEYS = Object.freeze({
+  AU: "ui.australia",
+  CA: "ui.canada",
+  DE: "ui.germany",
+  ES: "ui.spain",
+  FR: "ui.france",
+  GB: "ui.united_kingdom",
+  GR: "ui.greece",
+  IL: "ui.israel",
+  IT: "ui.italy",
+  NL: "ui.netherlands",
+  TR: "ui.turkey",
+  US: "ui.united_states",
+});
+
+const HOMEII_VOICE_ASSISTANT_MUSIC_STOP_WORDS = Object.freeze([
+  "a",
+  "an",
+  "and",
+  "by",
+  "for",
+  "from",
+  "hey",
+  "home",
+  "listen",
+  "music",
+  "of",
+  "on",
+  "play",
+  "please",
+  "put",
+  "song",
+  "songs",
+  "start",
+  "the",
+  "to",
+  "track",
+  "tracks",
+  "את",
+  "אלבום",
+  "אמן",
+  "בבקשה",
+  "האלבום",
+  "השיר",
+  "הום",
+  "הפעל",
+  "השמע",
+  "זמר",
+  "זמרת",
+  "ל",
+  "לי",
+  "מאת",
+  "מוזיקה",
+  "מוסיקה",
+  "נגן",
+  "נגני",
+  "פלייליסט",
+  "רצועה",
+  "שים",
+  "שימי",
+  "של",
+  "שיר",
+  "שירים",
+  "תנגן",
+  "תנגני",
+  "תפעיל",
+  "תפעילי",
+  "תשמיע",
+  "תשמיעי",
+]);
+
+const HOMEII_REGION_DISPLAY_NAMES_CACHE = new Map();
+
+function homeiiRegionDisplayName(code = "", language = "en") {
+  const normalized = String(code || "").trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(normalized)) return normalized;
+  const lang = String(language || "en").trim() || "en";
+  const cacheKey = `${lang}:${normalized}`;
+  if (HOMEII_REGION_DISPLAY_NAMES_CACHE.has(cacheKey)) return HOMEII_REGION_DISPLAY_NAMES_CACHE.get(cacheKey);
+  let label = normalized;
+  try {
+    const displayNames = new Intl.DisplayNames([lang], { type: "region" });
+    label = displayNames.of(normalized) || normalized;
+  } catch {}
+  HOMEII_REGION_DISPLAY_NAMES_CACHE.set(cacheKey, label);
+  return label;
+}
+
+function homeiiRadioBrowserCountryLabel(code = "", translateFn = null, language = "en") {
+  const normalized = String(code || "").trim().toUpperCase();
+  const i18nKey = HOMEII_RADIO_BROWSER_COUNTRY_I18N_KEYS[normalized];
+  if (i18nKey && typeof translateFn === "function") {
+    const translated = translateFn(i18nKey);
+    if (translated && translated !== i18nKey) return translated;
+  }
+  return homeiiRegionDisplayName(normalized, language);
+}
+
 class HomeiiBaseMusicCard extends HTMLElement {
   constructor() {
     super();
@@ -199,12 +303,17 @@ class HomeiiBaseMusicCard extends HTMLElement {
 
   _getAllocatedCardHeight(fallback = 0) {
     const fallbackHeight = Number(fallback || 0);
+    const configuredHeight = Number(this._config?.height);
+    const manualHeight = Number.isFinite(configuredHeight) && configuredHeight > 0
+      ? Math.round(Math.max(280, Math.min(1800, configuredHeight)))
+      : 0;
     const viewportHeight = this._getViewportHeight(fallbackHeight);
     const hostRect = this.getBoundingClientRect?.() || null;
     const top = Number(hostRect?.top || 0);
+    const shellTopOffset = top > 0 && top <= 160 ? top : 0;
     const viewportSafety = viewportHeight >= 900 ? 28 : viewportHeight >= 700 ? 20 : 12;
     const viewportAvailable = viewportHeight > 0
-      ? Math.max(0, viewportHeight - Math.max(0, top) - viewportSafety)
+      ? Math.max(0, viewportHeight - shellTopOffset - Math.max(0, -top) - viewportSafety)
       : 0;
     const viewportLimit = viewportAvailable > 240 ? viewportAvailable : viewportHeight;
     const parentHeights = [
@@ -218,9 +327,12 @@ class HomeiiBaseMusicCard extends HTMLElement {
     if (viewportLimit > 0) {
       const shouldFillViewport = parentHeight <= 0 || viewportLimit > parentHeight + 96;
       const targetHeight = shouldFillViewport ? viewportLimit : Math.min(parentHeight, viewportLimit);
-      return Math.round(Math.max(Math.min(280, viewportLimit), targetHeight));
+      const resolvedHeight = Math.round(Math.max(Math.min(280, viewportLimit), targetHeight));
+      if (manualHeight > resolvedHeight && manualHeight <= viewportLimit) return manualHeight;
+      return resolvedHeight;
     }
     if (parentHeight > 0) return Math.round(Math.max(280, parentHeight));
+    if (manualHeight > 0) return manualHeight;
     return Number.isFinite(fallbackHeight) && fallbackHeight > 0 ? Math.round(fallbackHeight) : 0;
   }
 
@@ -424,12 +536,24 @@ class HomeiiBaseMusicCard extends HTMLElement {
     this._renderPlayerSummary();
     this._syncBrandPlayingState();
     this._syncNowPlayingUI();
+    if (this._state?.voiceAssistantDialogOpen) this._syncVoiceAssistantDialog();
   }
 
   getCardSize() {
     const fallbackHeight = this._configuredCardHeightFallback(this._getViewportHeight(760) || 760);
     const height = this._getAllocatedCardHeight(fallbackHeight) || fallbackHeight;
     return Math.max(4, Math.ceil(height / 50));
+  }
+
+  getGridOptions() {
+    const fallbackHeight = this._configuredCardHeightFallback(this._getViewportHeight(760) || 760);
+    const height = this._getAllocatedCardHeight(fallbackHeight) || fallbackHeight;
+    return {
+      columns: 12,
+      rows: Math.max(6, Math.ceil(height / 56)),
+      min_columns: 4,
+      min_rows: 4,
+    };
   }
 
   static getStubConfig() {
@@ -741,7 +865,7 @@ class HomeiiBaseMusicCard extends HTMLElement {
   _versionedAssetUrl(url) {
     const value = String(url || "").trim();
     if (!value || /^data:/i.test(value) || /[?&]v=/.test(value)) return value;
-    const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.5.0";
+    const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.6.0";
     return `${value}${value.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
   }
 
@@ -792,7 +916,19 @@ class HomeiiBaseMusicCard extends HTMLElement {
 
   _handleBrandLogoError(event) {
     const img = event?.target;
-    if (!img?.dataset || img.dataset.homeiiBrandLogo !== "1") return;
+    if (!img?.dataset) return;
+    if (img.dataset.homeiiArtFallback === "1") {
+      const current = img.getAttribute("src") || "";
+      if (current) this._imageFailed?.add?.(current);
+      const fallback = img.dataset.homeiiArtFallbackIcon || "music_note";
+      const host = img.closest?.(".art-stack-card");
+      if (host) {
+        host.classList.add("placeholder");
+        host.innerHTML = this._mobileArtFallbackHtml(fallback);
+      }
+      return;
+    }
+    if (img.dataset.homeiiBrandLogo !== "1") return;
     const current = img.getAttribute("src") || "";
     const fallbacks = String(img.dataset.homeiiLogoFallbacks || "")
       .split("|")
@@ -831,7 +967,6 @@ class HomeiiBaseMusicCard extends HTMLElement {
       this._imgObserverRoot = null;
     }
     this._cache.library.clear();
-    this._imageFailed.clear();
     this._imageBlobCache.clear();
     const rtl = this._isHebrew();
     const theme = this._effectiveTheme();
@@ -867,9 +1002,10 @@ class HomeiiBaseMusicCard extends HTMLElement {
           background:transparent !important;
           border:none !important;
           box-shadow:none !important;
-          overflow:visible !important;
           --ma-accent: var(--accent-color, #e0a11b);
           --ma-radius-xl: 22px;
+          overflow:hidden !important;
+          border-radius:var(--ma-radius-xl);
           --ma-card-height: ${Math.round(allocatedHeight || effectiveHeight)}px;
           --ma-effective-height: ${effectiveHeight}px;
           --ma-ui-scale: ${uiScale.toFixed(3)};
@@ -890,7 +1026,8 @@ class HomeiiBaseMusicCard extends HTMLElement {
           background:transparent !important;
           border:none !important;
           box-shadow:none !important;
-          overflow:visible !important;
+          overflow:hidden !important;
+          border-radius:var(--ma-radius-xl);
         }
         .card.rtl,
         .card.rtl button,
@@ -3382,7 +3519,6 @@ class HomeiiBaseMusicCard extends HTMLElement {
     this._state.hasAutoSelectedPlayer = hadAutoSelected;
     this._state.cardTheme = currentTheme;
     this._state.immersiveNowPlayingOpen = false;
-    this._imageFailed = new Set();
     this._imageBlobCache.clear();
 
     this._build();
@@ -4660,6 +4796,44 @@ class HomeiiBaseMusicCard extends HTMLElement {
   _confirmMusicAssistantOpen() {
     this._closeMaConfirm();
     this._launchMusicAssistant();
+  }
+
+  _flowAssistantLabel() {
+    return this._i18n("ui.flow_assistant", {}, "FLOW ASSISTANT") || "FLOW ASSISTANT";
+  }
+
+  _cleanAllLabel() {
+    return this._i18n("ui.clean_all", {}, this._m("Clean all", "נקה הכל")) || this._m("Clean all", "נקה הכל");
+  }
+
+  _cleanAllConfirmTitle() {
+    return this._i18n("ui.clean_all_confirm_title", {}, this._m("Clean all players?", "לנקות את כל הנגנים?"));
+  }
+
+  _cleanAllConfirmCopy() {
+    return this._i18n(
+      "ui.clean_all_confirm_copy",
+      {},
+      this._m(
+        "This will disconnect all active players, stop playback and clear their queues. Continue?",
+        "הפעולה תנתק את כל הנגנים הפעילים, תעצור נגינה ותנקה את התורים שלהם. להמשיך?",
+      ),
+    );
+  }
+
+  _openCleanAllConfirm() {
+    this.$("cleanAllConfirmModal")?.classList.add("open");
+  }
+
+  _closeCleanAllConfirm() {
+    this.$("cleanAllConfirmModal")?.classList.remove("open");
+  }
+
+  async _confirmCleanAllPlayers() {
+    this._closeCleanAllConfirm();
+    this._closeMobileMenu();
+    await this._stopAllPlayers();
+    setTimeout(() => this._updateNowPlayingState(), 350);
   }
 
   _launchMusicAssistant() {
@@ -6129,7 +6303,7 @@ class HomeiiBaseMusicCard extends HTMLElement {
       this._toastError(this._i18n("ui.voice_input_is_not_supported_on_this_device"));
       return;
     }
-    try { this._voiceRecognition?.abort?.(); } catch (_) {}
+    try { this._voiceRecognition?.abort?.(); } catch {}
     const recognition = new SpeechRecognition();
     this._voiceRecognition = recognition;
     recognition.lang = this._isHebrew() ? "he-IL" : "en-US";
@@ -8061,6 +8235,9 @@ class HomeiiBaseMusicCard extends HTMLElement {
     const repeatBtn = backdrop.querySelector("#immersiveRepeatBtn");
     if (repeatBtn) {
       repeatBtn.classList.toggle("active", repeat !== "off");
+      repeatBtn.dataset.repeatMode = repeat;
+      repeatBtn.title = this._repeatModeLabel(repeat);
+      repeatBtn.setAttribute("aria-label", this._repeatModeLabel(repeat));
     }
     const mute = backdrop.querySelector("#immersiveMuteBtn");
     this._setButtonIcon(repeatBtn, repeat === "one" ? "repeat_one" : "repeat");
@@ -9581,25 +9758,274 @@ class HomeiiBaseMusicCard extends HTMLElement {
     return items;
   }
 
+  _mediaTypeCanOpenDetails(mediaType = "") {
+    return ["album", "playlist"].includes(String(mediaType || "").toLowerCase());
+  }
+
+  _libraryDetailParentPageForType(mediaType = "") {
+    const type = String(mediaType || "").toLowerCase();
+    if (type === "album") return "library_albums";
+    if (type === "playlist") return "library_playlists";
+    return "library_playlists";
+  }
+
+  _libraryMediaDetailCommandArgs(entry = {}, mediaType = "album") {
+    const type = String(mediaType || entry?.media_type || entry?.type || "album").toLowerCase();
+    const mediaItem = entry?.media_item || {};
+    const mapping = this._searchItemProviderMapping(entry);
+    const uri = String(entry?.uri || mediaItem?.uri || "").trim();
+    const parsed = this._parseMediaReference(uri, type);
+    const itemId = String(
+      entry?.item_id
+      || entry?.id
+      || mediaItem?.item_id
+      || mediaItem?.id
+      || mapping?.item_id
+      || mapping?.provider_item_id
+      || parsed?.item_id
+      || ""
+    ).trim();
+    const provider = String(
+      entry?.provider_instance
+      || entry?.provider_domain
+      || entry?.provider_id
+      || entry?.provider
+      || mediaItem?.provider_instance
+      || mediaItem?.provider_domain
+      || mediaItem?.provider_id
+      || mediaItem?.provider
+      || mapping?.provider_instance
+      || mapping?.provider_domain
+      || mapping?.provider_id
+      || mapping?.provider
+      || parsed?.provider
+      || ""
+    ).trim();
+    if (!itemId || !provider) return null;
+    return { item_id: itemId, provider };
+  }
+
+  _normalizeLibraryDetailTrack(raw = {}, forceTrack = false) {
+    if (!raw || typeof raw !== "object") return null;
+    const mediaItem = raw.media_item || raw.item || raw;
+    if (!mediaItem || typeof mediaItem !== "object") return null;
+    const rawType = String(
+      mediaItem.media_type
+      || mediaItem.type
+      || mediaItem.media_content_type
+      || mediaItem.media_class
+      || raw.media_type
+      || raw.type
+      || raw.media_content_type
+      || raw.media_class
+      || ""
+    ).toLowerCase();
+    if (rawType && !["track", "song", "music"].includes(rawType)) return null;
+    if (!forceTrack && !rawType && !mediaItem.uri && !mediaItem.media_content_id && !mediaItem.item_id) return null;
+    const normalized = this._normalizeSearchItem(mediaItem, "track");
+    const uri = String(normalized?.uri || mediaItem.uri || mediaItem.media_content_id || raw.uri || raw.media_content_id || "").trim();
+    const name = normalized?.name || mediaItem.name || mediaItem.title || raw.name || raw.title || raw.media_title || "";
+    if (!uri && !name) return null;
+    const artists = Array.isArray(normalized?.artists)
+      ? normalized.artists
+      : (Array.isArray(mediaItem.artists) ? mediaItem.artists : (Array.isArray(raw.artists) ? raw.artists : []));
+    const artistStr = normalized?.artist_str
+      || mediaItem.artist_str
+      || mediaItem.artist
+      || raw.artist_str
+      || raw.artist
+      || raw.media_artist
+      || artists.map((artist) => artist?.name || artist).filter(Boolean).join(", ");
+    const albumValue = normalized?.album || mediaItem.album || raw.album || {};
+    const album = typeof albumValue === "string" ? { name: albumValue } : albumValue;
+    const image = this._artUrl(normalized) || this._artUrl(mediaItem) || this._artUrl(raw) || "";
+    return {
+      ...normalized,
+      media_type: "track",
+      uri,
+      name,
+      artists,
+      artist_str: artistStr,
+      album,
+      image: normalized?.image || normalized?.image_url || mediaItem.image || mediaItem.image_url || mediaItem.thumbnail || raw.image || raw.image_url || raw.thumbnail || image,
+      image_url: normalized?.image_url || normalized?.image || mediaItem.image_url || mediaItem.image || mediaItem.thumbnail || raw.image_url || raw.image || raw.thumbnail || image,
+    };
+  }
+
+  _libraryMediaDetailTracksFromPayload(payload, options = {}) {
+    const tracks = [];
+    const seen = new Set();
+    const addTrack = (raw, forceTrack = false) => {
+      const track = this._normalizeLibraryDetailTrack(raw, forceTrack);
+      if (!track) return false;
+      const key = String(track.uri || `${track.name}:${track.artist_str || ""}`).trim().toLowerCase();
+      if (!key || seen.has(key)) return true;
+      seen.add(key);
+      tracks.push(track);
+      return true;
+    };
+    const collect = (value, forceTrack = false, depth = 0) => {
+      if (value === null || value === undefined || depth > 5) return;
+      if (Array.isArray(value)) {
+        value.forEach((item) => {
+          if (!addTrack(item, forceTrack)) collect(item, forceTrack, depth + 1);
+        });
+        return;
+      }
+      if (typeof value !== "object") return;
+      if (addTrack(value, forceTrack)) return;
+      ["tracks", "playlist_tracks", "album_tracks", "items", "media_items", "children", "contents", "result", "response"].forEach((key) => {
+        if (!(key in value)) return;
+        collect(value[key], forceTrack || key.includes("track"), depth + 1);
+      });
+    };
+    collect(payload?.result ?? payload?.response ?? payload, !!options.forceTrackItems, 0);
+    return tracks;
+  }
+
+  async _loadLibraryMediaDetailTracksViaHaBrowse(entry = {}) {
+    const player = this._getSelectedPlayer();
+    const entityId = this._selectedPlayerMoreInfoEntityId?.(player) || player?.entity_id || this._state.selectedPlayer || "";
+    const uri = String(entry?.uri || "").trim();
+    if (!this._hass?.connection || !entityId || !uri || this._isDirectMaEntityId?.(entityId)) return [];
+    const raw = await this._hass.connection.sendMessagePromise({
+      type: "media_player/browse_media",
+      entity_id: entityId,
+      media_content_id: uri,
+      media_content_type: entry.media_type || entry.type || "album",
+    });
+    return this._libraryMediaDetailTracksFromPayload(raw, { forceTrackItems: false });
+  }
+
+  async _loadLibraryMediaDetailTracks(entry = {}) {
+    const type = String(entry?.media_type || entry?.type || "album").toLowerCase();
+    const uri = String(entry?.uri || "").trim();
+    const cacheKey = `media-detail:${type}:${uri}`;
+    const ttl = Number(this._config.cache_ttl || 300000);
+    const cached = this._cache.library.get(cacheKey);
+    if (cached && Date.now() - cached.ts < ttl) return cached.items;
+    const attempts = [];
+    if (uri) attempts.push({ command: "music/item_by_uri", args: { uri }, forceTrackItems: false });
+    const commandArgs = this._libraryMediaDetailCommandArgs(entry, type);
+    if (commandArgs) {
+      if (type === "album") {
+        attempts.push({
+          command: "music/albums/album_tracks",
+          args: { item_id: commandArgs.item_id, provider_instance_id_or_domain: commandArgs.provider, in_library_only: false },
+          forceTrackItems: true,
+        });
+        attempts.push({
+          command: "music/albums/album_tracks",
+          args: { item_id: commandArgs.item_id, provider_instance_or_domain: commandArgs.provider, in_library_only: false },
+          forceTrackItems: true,
+        });
+      } else if (type === "playlist") {
+        attempts.push({
+          command: "music/playlists/playlist_tracks",
+          args: { item_id: commandArgs.item_id, provider_instance_or_domain: commandArgs.provider, force_refresh: false },
+          forceTrackItems: true,
+        });
+        attempts.push({
+          command: "music/playlists/playlist_tracks",
+          args: { item_id: commandArgs.item_id, provider_instance_id_or_domain: commandArgs.provider, force_refresh: false },
+          forceTrackItems: true,
+        });
+      }
+    }
+    let lastError = null;
+    for (const attempt of attempts) {
+      try {
+        const raw = await this._callDirectMaCommand(attempt.command, attempt.args);
+        const tracks = this._libraryMediaDetailTracksFromPayload(raw, { forceTrackItems: attempt.forceTrackItems });
+        if (tracks.length) {
+          this._cache.library.set(cacheKey, { ts: Date.now(), items: tracks });
+          return tracks;
+        }
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    try {
+      const tracks = await this._loadLibraryMediaDetailTracksViaHaBrowse(entry);
+      if (tracks.length) {
+        this._cache.library.set(cacheKey, { ts: Date.now(), items: tracks });
+        return tracks;
+      }
+    } catch (_) {}
+    if (type === "album" && entry?.name) {
+      try {
+        const albumName = HomeiiMediaQueueFoundation.normalizeComparableText(entry.name);
+        const rawTracks = await this._fetchLibrary("track", "sort_name", 200, false, entry.name);
+        const tracks = (Array.isArray(rawTracks) ? rawTracks : [])
+          .map((item) => this._normalizeLibraryDetailTrack(item, true))
+          .filter((track) => {
+            const trackAlbum = HomeiiMediaQueueFoundation.normalizeComparableText(track?.album?.name || track?.album || "");
+            return track?.uri && (!trackAlbum || trackAlbum === albumName);
+          });
+        if (tracks.length) {
+          this._cache.library.set(cacheKey, { ts: Date.now(), items: tracks });
+          return tracks;
+        }
+      } catch (_) {}
+    }
+    if (lastError && !attempts.length) throw lastError;
+    this._cache.library.set(cacheKey, { ts: Date.now(), items: [] });
+    return [];
+  }
+
+  _openLibraryMediaDetail(entry = {}, sourceEl = null) {
+    const mediaType = String(entry?.media_type || entry?.type || "album").toLowerCase();
+    const uri = String(entry?.uri || "").trim();
+    if (!uri || !this._mediaTypeCanOpenDetails(mediaType)) return false;
+    if (sourceEl) this._flashInteraction(sourceEl);
+    const token = `${mediaType}:${uri}:${Date.now()}`;
+    const parentPage = String(this._state.menuPage || "").startsWith("library_")
+      ? this._state.menuPage
+      : this._libraryDetailParentPageForType(mediaType);
+    this._state.mobileLibraryDetailParentPage = parentPage;
+    this._state.mobileLibraryDetail = {
+      ...entry,
+      uri,
+      media_type: mediaType,
+      name: entry.name || "",
+      artist: entry.artist || "",
+      album: entry.album || "",
+      image: entry.image || entry.image_url || "",
+      tracks: [],
+      loading: true,
+      error: "",
+      token,
+    };
+    this._pushMobileMenu("media_detail");
+    this._loadLibraryMediaDetailTracks(this._state.mobileLibraryDetail)
+      .then((tracks) => {
+        const current = this._state.mobileLibraryDetail;
+        if (!current || current.token !== token) return;
+        current.tracks = tracks;
+        current.loading = false;
+        current.error = tracks.length ? "" : this._m("No tracks were returned. You can still play it.", "לא נטענו שירים. עדיין אפשר לנגן.");
+        if (this._state.menuOpen && this._state.menuPage === "media_detail") this._renderMobileMenu().catch(() => {});
+      })
+      .catch((error) => {
+        const current = this._state.mobileLibraryDetail;
+        if (!current || current.token !== token) return;
+        current.tracks = [];
+        current.loading = false;
+        current.error = error?.message || this._m("Could not load tracks. You can still play it.", "לא הצלחתי לטעון שירים. עדיין אפשר לנגן.");
+        if (this._state.menuOpen && this._state.menuPage === "media_detail") this._renderMobileMenu().catch(() => {});
+      });
+    return true;
+  }
+
   _radioBrowserCountryOptions() {
-    const base = [
-      ["all", this._i18n("ui.all_countries")],
-      ["IL", this._i18n("ui.israel")],
-      ["US", this._i18n("ui.united_states")],
-      ["GB", this._i18n("ui.united_kingdom")],
-      ["DE", this._i18n("ui.germany")],
-      ["FR", this._i18n("ui.france")],
-      ["IT", this._i18n("ui.italy")],
-      ["ES", this._i18n("ui.spain")],
-      ["NL", this._i18n("ui.netherlands")],
-      ["GR", this._i18n("ui.greece")],
-      ["TR", this._i18n("ui.turkey")],
-      ["CA", this._i18n("ui.canada")],
-      ["AU", this._i18n("ui.australia")],
-    ];
+    const language = this._language?.() || this._state.lang || this._config?.language || "en";
+    const base = getRadioBrowserCountrySelectorOptions(
+      (key, params = {}, fallback = "") => this._i18n(key, params, fallback),
+      language,
+    ).map((option) => [option.value, option.label]);
     const current = this._mobileRadioBrowserCountry();
     if (current !== "all" && !base.some(([code]) => code === current)) {
-      base.push([current, current]);
+      base.push([current, homeiiRadioBrowserCountryLabel(current, (key) => this._i18n(key), language)]);
     }
     return base;
   }
@@ -9716,15 +10142,21 @@ class HomeiiBaseMusicCard extends HTMLElement {
       currentQueueItem?.provider_id,
       currentMedia?.radio_browser_id,
       currentQueueItem?.radio_browser_id,
+      currentMedia?.stationuuid,
+      currentQueueItem?.stationuuid,
       currentMedia?.metadata?.radio_browser_id,
       currentQueueItem?.metadata?.radio_browser_id,
+      currentMedia?.metadata?.stationuuid,
+      currentQueueItem?.metadata?.stationuuid,
       currentMedia?.metadata?.stream_url,
       currentQueueItem?.metadata?.stream_url,
     ]
       .map((value) => String(value || "").toLowerCase())
       .filter(Boolean)
       .join(" | ");
-    return /(radiobrowser|radio_browser|stationuuid|tunein|streamurl|stream url|icy|webradio|(^|[/:._-])radio([/:._-]|$))/.test(haystack);
+    if (/(radiobrowser|radio_browser|stationuuid|tunein|streamurl|stream url|icy|webradio)/.test(haystack)) return true;
+    if (["track", "song", "album", "playlist", "artist"].includes(mediaType)) return false;
+    return /(^|[/:._-])radio([/:._-]|$)/.test(haystack);
   }
 
   async _playAdjacentRadioStation(direction = "next") {
@@ -10617,6 +11049,13 @@ class HomeiiBaseMusicCard extends HTMLElement {
     this._hass.callService("media_player", "shuffle_set", { entity_id: player.entity_id, shuffle: !player.attributes.shuffle });
   }
 
+  _repeatModeLabel(mode = "off") {
+    const normalized = String(mode || "off").toLowerCase();
+    if (normalized === "one") return this._i18n("ui.repeat_one");
+    if (normalized === "all") return this._i18n("ui.repeat_all");
+    return this._i18n("ui.repeat_off");
+  }
+
   _toggleRepeat() {
     const player = this._getSelectedPlayer();
     if (!player) return;
@@ -10885,6 +11324,9 @@ class HomeiiBaseMusicCard extends HTMLElement {
     const bigRepeat = this.$("bigRepeatBtn");
     if (bigRepeat) {
       bigRepeat.classList.toggle("active", repeat !== "off");
+      bigRepeat.dataset.repeatMode = repeat;
+      bigRepeat.title = this._repeatModeLabel(repeat);
+      bigRepeat.setAttribute("aria-label", this._repeatModeLabel(repeat));
     }
     this._setButtonIcon(bigRepeat, repeat === "one" ? "repeat_one" : "repeat");
     const bigMute = this.$("bigMuteBtn");
@@ -11820,11 +12262,17 @@ class HomeiiBaseMusicCard extends HTMLElement {
     clearTimeout(this._surprisePopupTimer);
     clearTimeout(this._simpleWizardPopupTimer);
     clearTimeout(this._maReconnectTimer);
+    clearTimeout(this._voiceAssistantDialogCloseTimer);
     clearTimeout(this._screensaverTimer);
     clearInterval(this._screensaverClockTimer);
     this._screensaverTimer = null;
     this._screensaverClockTimer = null;
     this._state.screensaverOpen = false;
+    this._stopVoiceAssistantRecognition();
+    this._state.voiceAssistantDialogOpen = false;
+    this._state.voiceAssistantKeepScreensaver = false;
+    try { this._voiceRecognition?.abort?.(); } catch {}
+    this._voiceRecognition = null;
     this._stopScreensaverVisibilityTracking();
     this._maReconnectTimer = null;
     clearInterval(this._mobileSmartVoiceTimer);
@@ -11880,9 +12328,9 @@ function ensureHaEditorComponents() {
   } catch (_) {}
 }
 
-const HOMEII_CARD_VERSION = "5.5.0";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v550";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v550";
+const HOMEII_CARD_VERSION = "5.6.0";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v560";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v560";
 const AMBIENT_LIGHT_PAIR_PLAYER_PREFIX = "__homeii_ambient_light_pair_player_";
 const AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX = "__homeii_ambient_light_pair_lights_";
 
@@ -11915,6 +12363,31 @@ const HomeiiEditorLocale = Object.freeze({
 function homeiiEditorI18n(key, params = {}, fallback = "") {
   const language = HomeiiEditorLocale.detectEditorHebrew() ? "he" : "en";
   return homeiiTranslate(language, key, params, fallback);
+}
+
+function homeiiEditorSchemaName(schema = {}) {
+  if (typeof schema === "string") return schema;
+  if (Array.isArray(schema)) return String(schema[schema.length - 1] || schema.join(".") || "");
+  if (schema && typeof schema === "object") {
+    return String(schema.name || schema.key || schema.path || "");
+  }
+  return "";
+}
+
+function homeiiHumanizeEditorName(name = "") {
+  const text = String(name || "").trim().replace(/_/g, " ").replace(/\s+/g, " ");
+  if (!text) return "";
+  return text.replace(/\b[a-z]/g, (match) => match.toUpperCase());
+}
+
+function homeiiEditorLabelFor(schema = {}, labels = {}) {
+  const name = homeiiEditorSchemaName(schema);
+  return labels?.[name] || schema?.label || schema?.title || homeiiHumanizeEditorName(name);
+}
+
+function homeiiEditorHelperFor(schema = {}, helpers = {}) {
+  const name = homeiiEditorSchemaName(schema);
+  return helpers?.[name] || schema?.helper || "";
 }
 
 const HomeiiConfigValidators = Object.freeze({
@@ -11972,6 +12445,7 @@ const HomeiiConfigValidators = Object.freeze({
     HomeiiConfigValidators.assertNumberIfDefined(config.ambient_light_transition, "ambient_light_transition");
     HomeiiConfigValidators.assertNumberIfDefined(config.ambient_light_cooldown, "ambient_light_cooldown");
     HomeiiConfigValidators.assertBooleanIfDefined(config.screensaver_enabled, "screensaver_enabled");
+    HomeiiConfigValidators.assertBooleanIfDefined(config.screensaver_controls_enabled, "screensaver_controls_enabled");
     HomeiiConfigValidators.assertValueInList(config.screensaver_clock_mode, "screensaver_clock_mode", ["digital", "analog"]);
     HomeiiConfigValidators.assertNumberIfDefined(config.screensaver_timeout_seconds, "screensaver_timeout_seconds");
     HomeiiConfigValidators.assertStringIfDefined(config.screensaver_message, "screensaver_message");
@@ -11999,6 +12473,7 @@ const HomeiiConfigValidators = Object.freeze({
     HomeiiConfigValidators.assertValueInList(config.mobile_background_motion_mode, "mobile_background_motion_mode", ["off", "subtle", "strong", "extreme"]);
     HomeiiConfigValidators.assertValueInList(config.mobile_custom_text_tone, "mobile_custom_text_tone", ["light", "dark"]);
     HomeiiConfigValidators.assertNumberIfDefined(config.mobile_font_scale, "mobile_font_scale");
+    HomeiiConfigValidators.assertNumberIfDefined(config.mobile_icon_scale, "mobile_icon_scale");
     HomeiiConfigValidators.assertBooleanIfDefined(config.mobile_footer_search_enabled, "mobile_footer_search_enabled");
     HomeiiConfigValidators.assertValueInList(config.mobile_footer_mode, "mobile_footer_mode", ["icon", "text", "both"]);
     HomeiiConfigValidators.assertBooleanIfDefined(config.mobile_studio_shortcut, "mobile_studio_shortcut");
@@ -12006,6 +12481,10 @@ const HomeiiConfigValidators = Object.freeze({
     HomeiiConfigValidators.assertStringIfDefined(config.mobile_home_shortcut_path, "mobile_home_shortcut_path");
     HomeiiConfigValidators.assertValueInList(config.mobile_volume_mode, "mobile_volume_mode", ["always", "button"]);
     HomeiiConfigValidators.assertValueInList(config.mobile_mic_mode, "mobile_mic_mode", ["on", "off", "smart"]);
+    HomeiiConfigValidators.assertBooleanIfDefined(config.voice_assistant_enabled, "voice_assistant_enabled");
+    HomeiiConfigValidators.assertValueInList(config.voice_assistant_mode, "voice_assistant_mode", ["hybrid", "music", "assist"]);
+    HomeiiConfigValidators.assertStringIfDefined(config.voice_assistant_agent_id, "voice_assistant_agent_id");
+    HomeiiConfigValidators.assertBooleanIfDefined(config.voice_assistant_speak_feedback, "voice_assistant_speak_feedback");
     HomeiiConfigValidators.assertStringArrayIfDefined(config.mobile_library_tabs, "mobile_library_tabs");
     HomeiiConfigValidators.assertStringArrayIfDefined(config.mobile_main_bar_items, "mobile_main_bar_items");
     HomeiiConfigValidators.assertStringArrayIfDefined(config.mobile_quick_actions, "mobile_quick_actions");
@@ -12062,6 +12541,8 @@ const HomeiiStateFoundation = Object.freeze({
       quickMixRecommendationItems: [],
       likedSelectionMode: false,
       likedSelectedUris: [],
+      mobileLibraryDetail: null,
+      mobileLibraryDetailParentPage: "",
       controlRoomOpen: false,
       controlRoomSelectedPlayers: [],
       controlRoomLibraryQuery: "",
@@ -12124,6 +12605,9 @@ const HomeiiStateFoundation = Object.freeze({
 const HomeiiMobileSettingsFoundation = Object.freeze({
   clampMobileFontScale(value) {
     return Math.max(0.5, Math.min(1.5, Number(value || 1) || 1));
+  },
+  clampMobileIconScale(value) {
+    return Math.max(0.8, Math.min(1.25, Number(value || 1) || 1));
   },
   normalizeEnum(value, allowedValues, fallbackValue) {
     const normalized = String(value || "").trim().toLowerCase();
@@ -12216,6 +12700,9 @@ const HomeiiMobileSettingsFoundation = Object.freeze({
   normalizeMobileMicMode(value) {
     return HomeiiMobileSettingsFoundation.normalizeEnum(value, ["on", "off", "smart"], "smart");
   },
+  normalizeVoiceAssistantMode(value) {
+    return HomeiiMobileSettingsFoundation.normalizeEnum(value, ["hybrid", "music", "assist"], "hybrid");
+  },
   normalizeMobileVolumeMode(value) {
     return HomeiiMobileSettingsFoundation.normalizeEnum(value, ["always", "button"], "button");
   },
@@ -12253,7 +12740,7 @@ const HomeiiMobileSettingsFoundation = Object.freeze({
     return normalized;
   },
   normalizeMobileQuickActions(items, fallbackItems = []) {
-    const allowed = new Set(["timer", "like", "lyrics", "queue", "radio", "history", "info"]);
+    const allowed = new Set(["timer", "like", "lyrics", "queue", "radio", "voice", "history", "info", "disconnect_all"]);
     const fallback = HomeiiMobileSettingsFoundation.normalizeStringArray(fallbackItems).filter((item) => allowed.has(item));
     const source = Array.isArray(items) && items.length ? items : fallback;
     const cleaned = [];
@@ -12289,6 +12776,7 @@ const HomeiiMobileSettingsFoundation = Object.freeze({
       mobileBackgroundMotionMode: HomeiiMobileSettingsFoundation.normalizeEnum(config.mobile_background_motion_mode, ["off", "subtle", "strong", "extreme"], "subtle"),
       mobileCustomTextTone: String(config.mobile_custom_text_tone || "light") === "dark" ? "dark" : "light",
       mobileFontScale: HomeiiMobileSettingsFoundation.clampMobileFontScale(config.mobile_font_scale),
+      mobileIconScale: HomeiiMobileSettingsFoundation.clampMobileIconScale(config.mobile_icon_scale),
       mobileNightMode: HomeiiMobileSettingsFoundation.normalizeEnum(config.night_mode, ["off", "auto", "on"], "off"),
       mobileNightModeStart: normalizeClockTime(config.night_mode_auto_start || "22:00", "22:00"),
       mobileNightModeEnd: normalizeClockTime(config.night_mode_auto_end || "06:00", "06:00"),
@@ -12302,6 +12790,10 @@ const HomeiiMobileSettingsFoundation = Object.freeze({
       mobileHomeShortcutPath: HomeiiMobileSettingsFoundation.normalizeHomeShortcutPath(config.mobile_home_shortcut_path),
       mobileVolumeMode: HomeiiMobileSettingsFoundation.normalizeMobileVolumeMode(config.mobile_volume_mode),
       mobileMicMode: HomeiiMobileSettingsFoundation.normalizeMobileMicMode(config.mobile_mic_mode),
+      voiceAssistantEnabled: config.voice_assistant_enabled === true,
+      voiceAssistantMode: HomeiiMobileSettingsFoundation.normalizeVoiceAssistantMode(config.voice_assistant_mode),
+      voiceAssistantAgentId: String(config.voice_assistant_agent_id || "").trim(),
+      voiceAssistantSpeakFeedback: config.voice_assistant_speak_feedback === true,
       mobileLikedMode: HomeiiMobileSettingsFoundation.normalizeEnum(config.mobile_liked_mode, ["ma", "local"], "ma"),
       mobileSwipeMode: HomeiiMobileSettingsFoundation.normalizeEnum(config.mobile_swipe_mode, ["play", "browse"], "browse"),
       mobileRadioBrowserCountry: String(config.mobile_radio_browser_country || "all"),
@@ -12331,6 +12823,7 @@ const HomeiiMobileSettingsFoundation = Object.freeze({
       ambientLightTransition: HomeiiMobileSettingsFoundation.clampSeconds(config.ambient_light_transition, 3, { min: 0, max: 120 }),
       ambientLightCooldown: HomeiiMobileSettingsFoundation.clampSeconds(config.ambient_light_cooldown, 8, { min: 0, max: 120 }),
       screensaverEnabled: config.screensaver_enabled === true,
+      screensaverControlsEnabled: config.screensaver_controls_enabled === true,
       screensaverClockMode: HomeiiMobileSettingsFoundation.normalizeScreensaverClockMode(config.screensaver_clock_mode),
       screensaverTimeoutSeconds: HomeiiMobileSettingsFoundation.clampSeconds(config.screensaver_timeout_seconds, 90, { min: 15, max: 3600 }),
       screensaverMessage: String(config.screensaver_message || ""),
@@ -13894,6 +14387,38 @@ const HomeiiMediaHistoryFoundation = Object.freeze({
 });
 
 function getBaseCardConfigForm() {
+  const labels = {
+    config_entry_id: "Config Entry ID",
+    ma_url: homeiiEditorI18n("ui.music_assistant_url"),
+    ma_token: homeiiEditorI18n("ui.music_assistant_token"),
+    active_player_helper_entity: homeiiEditorI18n("ui.active_player_helper"),
+    ma_interface_url: homeiiEditorI18n("ui.ma_interface_path"),
+    ma_interface_target: homeiiEditorI18n("ui.open_interface_in"),
+    show_ma_button: homeiiEditorI18n("ui.show_ma_button"),
+    show_theme_toggle: homeiiEditorI18n("ui.show_theme_toggle"),
+    cache_ttl: homeiiEditorI18n("ui.cache_ttl"),
+    language: homeiiEditorI18n("ui.language"),
+    theme_mode: homeiiEditorI18n("ui.theme_mode"),
+    performance_mode: homeiiEditorI18n("ui.performance_mode_for_weak_devices"),
+    night_mode: homeiiEditorI18n("ui.night_mode"),
+    night_mode_auto_start: homeiiEditorI18n("ui.night_start_time"),
+    night_mode_auto_end: homeiiEditorI18n("ui.night_end_time"),
+    mobile_show_up_next: homeiiEditorI18n("ui.show_up_next_2"),
+    rtl: "RTL",
+    main_opacity: homeiiEditorI18n("ui.main_opacity"),
+    popup_opacity: homeiiEditorI18n("ui.popup_opacity"),
+  };
+  const helpers = {
+    config_entry_id: homeiiEditorI18n("ui.music_assistant_config_entry_id_if_you_want_direct_integration_lookup_th"),
+    ma_url: homeiiEditorI18n("ui.leave_empty_if_the_card_should_use_home_assistant_only"),
+    ma_token: homeiiEditorI18n("ui.only_needed_when_using_a_direct_music_assistant_url"),
+    active_player_helper_entity: homeiiEditorI18n("ui.optional_input_text_helper_updated_with_the_active_player_entity_id_for"),
+    ma_interface_url: homeiiEditorI18n("ui.path_used_when_opening_the_music_assistant_interface"),
+    cache_ttl: homeiiEditorI18n("ui.cache_duration_in_milliseconds_for_selected_data_requests"),
+    performance_mode: homeiiEditorI18n("ui.disables_blur_animations_dynamic_backgrounds_and_heavy_shadows_recommend"),
+    main_opacity: homeiiEditorI18n("ui.opacity_for_the_main_card_background"),
+    popup_opacity: homeiiEditorI18n("ui.opacity_for_popups_and_overlays"),
+  };
   return {
     schema: [
       {
@@ -13952,38 +14477,8 @@ function getBaseCardConfigForm() {
         ],
       },
     ],
-    computeLabel: (schema) => ({
-      config_entry_id: "Config Entry ID",
-      ma_url: homeiiEditorI18n("ui.music_assistant_url"),
-      ma_token: homeiiEditorI18n("ui.music_assistant_token"),
-      active_player_helper_entity: homeiiEditorI18n("ui.active_player_helper"),
-      ma_interface_url: homeiiEditorI18n("ui.ma_interface_path"),
-      ma_interface_target: homeiiEditorI18n("ui.open_interface_in"),
-      show_ma_button: homeiiEditorI18n("ui.show_ma_button"),
-      show_theme_toggle: homeiiEditorI18n("ui.show_theme_toggle"),
-      cache_ttl: homeiiEditorI18n("ui.cache_ttl"),
-      language: homeiiEditorI18n("ui.language"),
-      theme_mode: homeiiEditorI18n("ui.theme_mode"),
-      performance_mode: homeiiEditorI18n("ui.performance_mode_for_weak_devices"),
-      night_mode: homeiiEditorI18n("ui.night_mode"),
-      night_mode_auto_start: homeiiEditorI18n("ui.night_start_time"),
-      night_mode_auto_end: homeiiEditorI18n("ui.night_end_time"),
-      mobile_show_up_next: homeiiEditorI18n("ui.show_up_next_2"),
-      rtl: "RTL",
-      main_opacity: homeiiEditorI18n("ui.main_opacity"),
-      popup_opacity: homeiiEditorI18n("ui.popup_opacity"),
-    })[schema.name],
-    computeHelper: (schema) => ({
-      config_entry_id: homeiiEditorI18n("ui.music_assistant_config_entry_id_if_you_want_direct_integration_lookup_th"),
-      ma_url: homeiiEditorI18n("ui.leave_empty_if_the_card_should_use_home_assistant_only"),
-      ma_token: homeiiEditorI18n("ui.only_needed_when_using_a_direct_music_assistant_url"),
-      active_player_helper_entity: homeiiEditorI18n("ui.optional_input_text_helper_updated_with_the_active_player_entity_id_for"),
-      ma_interface_url: homeiiEditorI18n("ui.path_used_when_opening_the_music_assistant_interface"),
-      cache_ttl: homeiiEditorI18n("ui.cache_duration_in_milliseconds_for_selected_data_requests"),
-      performance_mode: homeiiEditorI18n("ui.disables_blur_animations_dynamic_backgrounds_and_heavy_shadows_recommend"),
-      main_opacity: homeiiEditorI18n("ui.opacity_for_the_main_card_background"),
-      popup_opacity: homeiiEditorI18n("ui.opacity_for_popups_and_overlays"),
-    })[schema.name],
+    computeLabel: (schema) => homeiiEditorLabelFor(schema, labels),
+    computeHelper: (schema) => homeiiEditorHelperFor(schema, helpers),
     assertConfig: (config) => {
       if (!config || typeof config !== "object" || Array.isArray(config)) {
         throw new Error("Card config must be an object");
@@ -14003,6 +14498,7 @@ function getMobileEditorTexts() {
       quickactions: homeiiEditorI18n("ui.quick_actions_2"),
       library: homeiiEditorI18n("ui.library_tabs"),
       announcements: homeiiEditorI18n("ui.announcements"),
+      voice_assistant: homeiiEditorI18n("ui.flow_assistant", {}, "FLOW ASSISTANT"),
       smart_home: homeiiEditorI18n("ui.smart_home"),
     },
     labels: {
@@ -14023,6 +14519,7 @@ function getMobileEditorTexts() {
       mobile_background_motion_mode: homeiiEditorI18n("ui.background_motion"),
       mobile_custom_text_tone: homeiiEditorI18n("ui.text_tone"),
       mobile_font_scale: homeiiEditorI18n("ui.font_scale"),
+      mobile_icon_scale: homeiiEditorI18n("ui.icon_size"),
       mobile_compact_mode: homeiiEditorI18n("ui.compact_mode"),
       mobile_swipe_mode: homeiiEditorI18n("ui.artwork_swipe"),
       mobile_footer_search_enabled: homeiiEditorI18n("ui.footer_search"),
@@ -14032,6 +14529,12 @@ function getMobileEditorTexts() {
       mobile_home_shortcut: homeiiEditorI18n("ui.home_shortcut"),
       mobile_home_shortcut_path: homeiiEditorI18n("ui.home_shortcut_path"),
       mobile_volume_mode: homeiiEditorI18n("ui.volume_mode"),
+      voice_assistant_enabled: homeiiEditorI18n("ui.flow_assistant", {}, "FLOW ASSISTANT"),
+      voice_assistant_section: homeiiEditorI18n("ui.flow_assistant", {}, "FLOW ASSISTANT"),
+      voice_assistant_grid: homeiiEditorI18n("ui.flow_assistant", {}, "FLOW ASSISTANT"),
+      voice_assistant_mode: homeiiEditorI18n("ui.voice_assistant_mode"),
+      voice_assistant_agent_id: homeiiEditorI18n("ui.assist_agent"),
+      voice_assistant_speak_feedback: homeiiEditorI18n("ui.voice_feedback"),
       mobile_liked_mode: homeiiEditorI18n("ui.liked_mode"),
       mobile_radio_browser_country: homeiiEditorI18n("ui.radio_browser_country_2"),
       mobile_main_bar_items: homeiiEditorI18n("ui.main_bar_items_2"),
@@ -14048,6 +14551,7 @@ function getMobileEditorTexts() {
       ambient_light_transition: homeiiEditorI18n("ui.ambient_light_transition"),
       ambient_light_cooldown: homeiiEditorI18n("ui.ambient_light_cooldown"),
       screensaver_enabled: homeiiEditorI18n("ui.screensaver"),
+      screensaver_controls_enabled: homeiiEditorI18n("ui.screensaver_controls"),
       screensaver_clock_mode: homeiiEditorI18n("ui.screensaver_clock_mode"),
       screensaver_timeout_seconds: homeiiEditorI18n("ui.screensaver_timeout"),
       screensaver_message: homeiiEditorI18n("ui.screensaver_message"),
@@ -14085,6 +14589,7 @@ function getMobileEditorTexts() {
       mobile_background_motion_mode: homeiiEditorI18n("ui.control_whether_the_card_background_moves_gently_and_how_strong_the_moti"),
       performance_mode: homeiiEditorI18n("ui.turns_off_heavy_visuals_so_the_card_runs_smoother_on_nest_hub_older_tabl"),
       mobile_font_scale: homeiiEditorI18n("ui.global_scale_for_every_interface_font_1_is_the_default_size"),
+      mobile_icon_scale: homeiiEditorI18n("ui.scales_interface_icons_without_changing_button_sizes"),
       mobile_compact_mode: homeiiEditorI18n("ui.shows_a_standalone_compact_player_tile_with_artwork_basic_controls_volum"),
       mobile_swipe_mode: homeiiEditorI18n("ui.choose_whether_artwork_swipe_changes_track_or_browses_covers"),
       mobile_footer_search_enabled: homeiiEditorI18n("ui.enable_or_disable_the_footer_search_button"),
@@ -14094,6 +14599,10 @@ function getMobileEditorTexts() {
       mobile_home_shortcut: homeiiEditorI18n("ui.enable_the_floating_home_shortcut_button"),
       mobile_home_shortcut_path: homeiiEditorI18n("ui.for_example_lovelace_home_or_any_other_home_assistant_path"),
       mobile_volume_mode: homeiiEditorI18n("ui.mainly_relevant_on_larger_layouts"),
+      voice_assistant_enabled: homeiiEditorI18n("ui.show_a_push_to_talk_button_for_music_and_assist_commands"),
+      voice_assistant_mode: homeiiEditorI18n("ui.hybrid_handles_music_locally_and_sends_unknown_commands_to_assist"),
+      voice_assistant_agent_id: homeiiEditorI18n("ui.optional_assist_agent_leave_empty_for_home_assistant_default"),
+      voice_assistant_speak_feedback: homeiiEditorI18n("ui.speak_voice_assistant_responses_out_loud"),
       mobile_liked_mode: homeiiEditorI18n("ui.local_mode_is_only_meaningful_when_local_likes_are_enabled"),
       mobile_radio_browser_country: homeiiEditorI18n("ui.uses_the_same_base_country_list_shown_in_the_in_card_settings_screen"),
       mobile_main_bar_items: homeiiEditorI18n("ui.choose_which_actions_appear_in_the_main_bar"),
@@ -14113,6 +14622,7 @@ function getMobileEditorTexts() {
       ambient_light_transition: homeiiEditorI18n("ui.soft_transition_time_for_music_lighting"),
       ambient_light_cooldown: homeiiEditorI18n("ui.minimum_seconds_between_light_updates"),
       screensaver_enabled: homeiiEditorI18n("ui.show_a_calm_clock_artwork_display_after_idle_time"),
+      screensaver_controls_enabled: homeiiEditorI18n("ui.show_previous_next_controls_on_the_screensaver"),
       screensaver_message: homeiiEditorI18n("ui.short_optional_message_shown_on_the_screensaver"),
       screensaver_clock_size: homeiiEditorI18n("ui.screensaver_clock_size_helper"),
       screensaver_clock_x: homeiiEditorI18n("ui.screensaver_clock_x_helper"),
@@ -14198,6 +14708,11 @@ function getMobileEditorTexts() {
         { value: "button", label: homeiiEditorI18n("ui.button") },
         { value: "always", label: homeiiEditorI18n("ui.always_visible") },
       ],
+      voice_assistant_mode: [
+        { value: "hybrid", label: homeiiEditorI18n("ui.hybrid_music_plus_assist") },
+        { value: "music", label: homeiiEditorI18n("ui.music_only") },
+        { value: "assist", label: homeiiEditorI18n("ui.assist_only") },
+      ],
       mobile_liked_mode: [
         { value: "ma", label: "Music Assistant" },
         { value: "local", label: homeiiEditorI18n("ui.local") },
@@ -14232,8 +14747,10 @@ function getMobileEditorTexts() {
         { value: "lyrics", label: homeiiEditorI18n("ui.lyrics") },
         { value: "queue", label: homeiiEditorI18n("ui.queue_2") },
         { value: "radio", label: homeiiEditorI18n("ui.quick_mix") },
+        { value: "voice", label: homeiiEditorI18n("ui.flow_assistant", {}, "FLOW ASSISTANT") },
         { value: "history", label: homeiiEditorI18n("ui.history") },
         { value: "info", label: homeiiEditorI18n("ui.info") },
+        { value: "disconnect_all", label: homeiiEditorI18n("ui.clean_all", {}, HomeiiEditorLocale.detectEditorHebrew() ? "נקה הכל" : "Clean all") },
       ],
       mobile_library_tabs: [
         { value: "library_search", label: homeiiEditorI18n("ui.search") },
@@ -14249,21 +14766,14 @@ function getMobileEditorTexts() {
   };
 }
 
-function getRadioBrowserCountrySelectorOptions() {
+function getRadioBrowserCountrySelectorOptions(translateFn = homeiiEditorI18n, language = "") {
+  const lang = language || (HomeiiEditorLocale.detectEditorHebrew() ? "he" : "en");
   return [
-    { value: "all", label: homeiiEditorI18n("ui.all_countries") },
-    { value: "IL", label: homeiiEditorI18n("ui.israel") },
-    { value: "US", label: homeiiEditorI18n("ui.united_states") },
-    { value: "GB", label: homeiiEditorI18n("ui.united_kingdom") },
-    { value: "DE", label: homeiiEditorI18n("ui.germany") },
-    { value: "FR", label: homeiiEditorI18n("ui.france") },
-    { value: "IT", label: homeiiEditorI18n("ui.italy") },
-    { value: "ES", label: homeiiEditorI18n("ui.spain") },
-    { value: "NL", label: homeiiEditorI18n("ui.netherlands") },
-    { value: "GR", label: homeiiEditorI18n("ui.greece") },
-    { value: "TR", label: homeiiEditorI18n("ui.turkey") },
-    { value: "CA", label: homeiiEditorI18n("ui.canada") },
-    { value: "AU", label: homeiiEditorI18n("ui.australia") },
+    { value: "all", label: translateFn("ui.all_countries") },
+    ...HOMEII_RADIO_BROWSER_COUNTRY_CODES.map((code) => ({
+      value: code,
+      label: homeiiRadioBrowserCountryLabel(code, translateFn, lang),
+    })),
   ];
 }
 
@@ -14316,6 +14826,7 @@ function getMobileCardConfigForm() {
               { name: "mobile_background_motion_mode", selector: { select: { mode: "dropdown", options: t.options.mobile_background_motion_mode } } },
               { name: "mobile_custom_text_tone", selector: { select: { mode: "dropdown", options: t.options.mobile_custom_text_tone } } },
               { name: "mobile_font_scale", selector: { number: { min: 0.5, max: 1.5, step: 0.05, mode: "slider" } } },
+              { name: "mobile_icon_scale", selector: { number: { min: 0.8, max: 1.25, step: 0.05, mode: "slider" } } },
               { name: "mobile_footer_mode", selector: { select: { mode: "dropdown", options: t.options.mobile_footer_mode } } },
             ],
           },
@@ -14374,6 +14885,27 @@ function getMobileCardConfigForm() {
       },
       {
         type: "expandable",
+        name: "voice_assistant_section",
+        title: t.sections.voice_assistant,
+        helper: t.helpers.voice_assistant_enabled,
+        flatten: true,
+        schema: [
+          {
+            type: "grid",
+            name: "voice_assistant_grid",
+            flatten: true,
+            column_min_width: "220px",
+            schema: [
+              { name: "voice_assistant_enabled", label: t.labels.voice_assistant_enabled, helper: t.helpers.voice_assistant_enabled, selector: { boolean: {} } },
+              { name: "voice_assistant_mode", label: t.labels.voice_assistant_mode, helper: t.helpers.voice_assistant_mode, selector: { select: { mode: "dropdown", options: t.options.voice_assistant_mode } } },
+              { name: "voice_assistant_agent_id", label: t.labels.voice_assistant_agent_id, helper: t.helpers.voice_assistant_agent_id, selector: { entity: { multiple: false, filter: [{ domain: "conversation" }] } } },
+              { name: "voice_assistant_speak_feedback", label: t.labels.voice_assistant_speak_feedback, helper: t.helpers.voice_assistant_speak_feedback, selector: { boolean: {} } },
+            ],
+          },
+        ],
+      },
+      {
+        type: "expandable",
         name: "smart_home_section",
         title: t.sections.smart_home,
         flatten: true,
@@ -14391,6 +14923,7 @@ function getMobileCardConfigForm() {
               { name: "ambient_light_transition", selector: { number: { min: 0, max: 120, step: 1, mode: "box" } } },
               { name: "ambient_light_cooldown", selector: { number: { min: 0, max: 120, step: 1, mode: "box" } } },
               { name: "screensaver_enabled", selector: { boolean: {} } },
+              { name: "screensaver_controls_enabled", selector: { boolean: {} } },
               { name: "screensaver_clock_mode", selector: { select: { mode: "dropdown", options: t.options.screensaver_clock_mode } } },
               { name: "screensaver_clock_size", selector: { number: { min: 0.75, max: 1.45, step: 0.05, mode: "slider" } } },
               { name: "screensaver_clock_x", selector: { number: { min: 8, max: 92, step: 1, mode: "slider" } } },
@@ -14481,8 +15014,8 @@ function getMobileCardConfigForm() {
         ],
       },
     ],
-    computeLabel: (schema) => t.labels[schema.name],
-    computeHelper: (schema) => t.helpers[schema.name],
+    computeLabel: (schema) => homeiiEditorLabelFor(schema, t.labels),
+    computeHelper: (schema) => homeiiEditorHelperFor(schema, t.helpers),
     assertConfig: (config) => {
       if (!config || typeof config !== "object" || Array.isArray(config)) {
         throw new Error("Card config must be an object");
@@ -14984,11 +15517,11 @@ class HomeiiBaseMusicEditor extends HTMLElement {
     if (this._editorForm) {
       const computeEditorLabel = (item) => {
         const schemaItem = this._editorSchemaItem(item);
-        return this._editorDynamicLabel(item) || computeLabel(schemaItem) || schemaItem?.label || schemaItem?.name || "";
+        return this._editorDynamicLabel(item) || computeLabel(schemaItem) || homeiiEditorLabelFor(schemaItem, labels);
       };
       const computeEditorHelper = (item) => {
         const schemaItem = this._editorSchemaItem(item);
-        return this._editorDynamicHelper(item) || computeHelper(schemaItem) || schemaItem?.helper || "";
+        return this._editorDynamicHelper(item) || computeHelper(schemaItem) || homeiiEditorHelperFor(schemaItem, helpers);
       };
       this._editorForm.computeLabel = computeEditorLabel;
       this._editorForm.computeHelper = computeEditorHelper;
@@ -15027,6 +15560,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.mobileDynamicThemeMode = "auto";
     this._state.mobileCustomTextTone = "light";
     this._state.mobileFontScale = 1;
+    this._state.mobileIconScale = 1;
     this._state.mobileNightMode = "off";
     this._state.mobileNightModeStart = "22:00";
     this._state.mobileNightModeEnd = "06:00";
@@ -15089,6 +15623,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.mobileHomeShortcutPath = "/";
     this._state.mobileVolumeMode = "button";
     this._state.mobileMicMode = "smart";
+    this._state.voiceAssistantEnabled = false;
+    this._state.voiceAssistantMode = "hybrid";
+    this._state.voiceAssistantAgentId = "";
+    this._state.voiceAssistantSpeakFeedback = false;
+    this._state.voiceAssistantListening = false;
+    this._state.voiceAssistantDialogOpen = false;
+    this._state.voiceAssistantDialogStatus = "";
+    this._state.voiceAssistantTranscript = "";
+    this._state.voiceAssistantResponse = "";
+    this._state.voiceAssistantKeepScreensaver = false;
     this._state.mobileLibraryTabs = ["library_search", "library_playlists", "library_artists", "library_albums", "library_tracks", "library_radio", "library_podcasts"];
     this._state.mobileMainBarItems = ["actions", "players", "library", "settings"];
     this._state.mobileQuickActions = ["timer", "like", "lyrics", "queue", "radio", "history"];
@@ -15109,6 +15653,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.ambientLightTransition = 3;
     this._state.ambientLightCooldown = 8;
     this._state.screensaverEnabled = false;
+    this._state.screensaverControlsEnabled = false;
     this._state.screensaverClockMode = "digital";
     this._state.screensaverTimeoutSeconds = 90;
     this._state.screensaverMessage = "";
@@ -15141,6 +15686,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._systemMobileStateHydratePromise = null;
     this._systemMobileStatePersistTimer = null;
     this._mobileArtBrowseResetTimer = null;
+    this._emptyPlaybackLoaderTimer = null;
     this._mobileSmartVoiceTimer = null;
     this._simpleWizardPopupTimer = null;
     this._simpleWizardToken = 0;
@@ -15170,6 +15716,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     try { this._state.mobileBackgroundMotionMode = localStorage.getItem("homeii_music_flow_mobile_background_motion_mode") || "subtle"; } catch (_) {}
     try { this._state.mobileCustomTextTone = localStorage.getItem("homeii_music_flow_mobile_custom_text") || "light"; } catch (_) {}
     try { this._state.mobileFontScale = Math.max(0.5, Math.min(1.5, Number(localStorage.getItem("homeii_music_flow_mobile_font_scale") || 1) || 1)); } catch (_) {}
+    try { this._state.mobileIconScale = HomeiiMobileSettingsFoundation.clampMobileIconScale(localStorage.getItem("homeii_music_flow_mobile_icon_scale") || 1); } catch (_) {}
     this._loadControlRoomScenesFromStorage();
     try { this._state.mobileNightMode = localStorage.getItem("homeii_music_flow_mobile_night_mode") || "off"; } catch (_) {}
     try { this._state.mobileNightModeStart = localStorage.getItem("homeii_music_flow_mobile_night_start") || "22:00"; } catch (_) {}
@@ -15222,6 +15769,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     try { this._state.mobileHomeShortcutPath = localStorage.getItem("homeii_music_flow_mobile_home_shortcut_path") || "/"; } catch (_) {}
     try { this._state.mobileVolumeMode = localStorage.getItem("homeii_music_flow_mobile_volume_mode") || "button"; } catch (_) {}
     try { this._state.mobileMicMode = localStorage.getItem("homeii_music_flow_mobile_mic_mode") || "smart"; } catch (_) {}
+    try { this._state.voiceAssistantEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_voice_assistant_enabled") ?? "false"); } catch {}
+    try { this._state.voiceAssistantMode = HomeiiMobileSettingsFoundation.normalizeVoiceAssistantMode(localStorage.getItem("homeii_music_flow_voice_assistant_mode") || "hybrid"); } catch {}
+    try { this._state.voiceAssistantAgentId = localStorage.getItem("homeii_music_flow_voice_assistant_agent_id") || ""; } catch {}
+    try { this._state.voiceAssistantSpeakFeedback = JSON.parse(localStorage.getItem("homeii_music_flow_voice_assistant_speak_feedback") ?? "false"); } catch {}
     try { this._state.mobileSwipeMode = localStorage.getItem("homeii_music_flow_mobile_swipe_mode") || "browse"; } catch (_) {}
     try { this._state.mobileRadioBrowserCountry = localStorage.getItem("homeii_music_flow_mobile_radio_country") || "all"; } catch (_) {}
     try {
@@ -15268,6 +15819,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     try { this._state.ambientLightTransition = HomeiiMobileSettingsFoundation.clampSeconds(localStorage.getItem("homeii_music_flow_ambient_light_transition") || 3, 3, { min: 0, max: 120 }); } catch {}
     try { this._state.ambientLightCooldown = HomeiiMobileSettingsFoundation.clampSeconds(localStorage.getItem("homeii_music_flow_ambient_light_cooldown") || 8, 8, { min: 0, max: 120 }); } catch {}
     try { this._state.screensaverEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_screensaver_enabled") ?? "false"); } catch {}
+    try { this._state.screensaverControlsEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_screensaver_controls_enabled") ?? "false"); } catch {}
     try { this._state.screensaverClockMode = HomeiiMobileSettingsFoundation.normalizeScreensaverClockMode(localStorage.getItem("homeii_music_flow_screensaver_clock_mode") || "digital"); } catch {}
     try { this._state.screensaverTimeoutSeconds = HomeiiMobileSettingsFoundation.clampSeconds(localStorage.getItem("homeii_music_flow_screensaver_timeout_seconds") || 90, 90, { min: 15, max: 3600 }); } catch {}
     try { this._state.screensaverMessage = localStorage.getItem("homeii_music_flow_screensaver_message") || ""; } catch {}
@@ -15306,6 +15858,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       mobile_background_motion_mode: "subtle",
       mobile_custom_text_tone: "light",
       mobile_font_scale: 1,
+      mobile_icon_scale: 1,
       mobile_compact_mode: false,
       mobile_footer_search_enabled: false,
       mobile_footer_mode: "both",
@@ -15314,6 +15867,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       mobile_home_shortcut_path: "/",
       mobile_volume_mode: "button",
       mobile_mic_mode: "smart",
+      voice_assistant_enabled: false,
+      voice_assistant_mode: "hybrid",
+      voice_assistant_agent_id: "",
+      voice_assistant_speak_feedback: false,
       mobile_library_tabs: ["library_search", "library_playlists", "library_artists", "library_albums", "library_tracks", "library_radio", "library_podcasts"],
       mobile_main_bar_items: ["actions", "players", "library", "settings"],
       mobile_quick_actions: ["timer", "like", "lyrics", "queue", "radio", "history"],
@@ -15331,6 +15888,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       ambient_light_transition: 3,
       ambient_light_cooldown: 8,
       screensaver_enabled: false,
+      screensaver_controls_enabled: false,
       screensaver_clock_mode: "digital",
       screensaver_timeout_seconds: 90,
       screensaver_message: "",
@@ -15407,6 +15965,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         mobile_custom_color: homeiiEditorI18n("ui.accent_color"),
         mobile_custom_text_tone: homeiiEditorI18n("ui.text_tone"),
         mobile_font_scale: homeiiEditorI18n("ui.font_scale"),
+        mobile_icon_scale: homeiiEditorI18n("ui.icon_size"),
         mobile_swipe_mode: homeiiEditorI18n("ui.artwork_swipe"),
         mobile_footer_search_enabled: homeiiEditorI18n("ui.footer_search"),
         mobile_mic_mode: homeiiEditorI18n("ui.microphone_2"),
@@ -15432,6 +15991,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         ambient_light_transition: homeiiEditorI18n("ui.ambient_light_transition"),
         ambient_light_cooldown: homeiiEditorI18n("ui.ambient_light_cooldown"),
         screensaver_enabled: homeiiEditorI18n("ui.screensaver"),
+        screensaver_controls_enabled: homeiiEditorI18n("ui.screensaver_controls"),
         screensaver_clock_mode: homeiiEditorI18n("ui.screensaver_clock_mode"),
         screensaver_timeout_seconds: homeiiEditorI18n("ui.screensaver_timeout"),
         screensaver_message: homeiiEditorI18n("ui.screensaver_message"),
@@ -15454,6 +16014,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         cache_ttl: homeiiEditorI18n("ui.cache_ttl"),
         allow_local_likes: homeiiEditorI18n("ui.allow_local_likes"),
         use_mass_queue_send_command: homeiiEditorI18n("ui.mass_queue_send_command_fallback"),
+        voice_assistant_section: homeiiEditorI18n("ui.flow_assistant", {}, "FLOW ASSISTANT"),
+        voice_assistant_grid: homeiiEditorI18n("ui.flow_assistant", {}, "FLOW ASSISTANT"),
       },
       helpers: {
         settings_source: homeiiEditorI18n("ui.choosing_visual_disables_the_in_card_settings_screen"),
@@ -15462,6 +16024,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         night_mode_auto_end: homeiiEditorI18n("ui.recommended_format_hh_mm_such_as_06_00_crossing_midnight_is_supported"),
         night_mode_days: homeiiEditorI18n("ui.choose_which_days_the_auto_night_mode_window_applies_to"),
         performance_mode: homeiiEditorI18n("ui.turns_off_heavy_visuals_so_the_card_runs_smoother_on_nest_hub_older_tabl"),
+        mobile_icon_scale: homeiiEditorI18n("ui.scales_interface_icons_without_changing_button_sizes"),
         mobile_main_bar_items: homeiiEditorI18n("ui.choose_which_actions_appear_in_the_main_bar"),
         mobile_quick_actions: homeiiEditorI18n("ui.choose_which_icons_appear_in_the_quick_action_row"),
         mobile_library_tabs: homeiiEditorI18n("ui.choose_which_tabs_are_available_in_the_library_screen"),
@@ -15475,6 +16038,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         ambient_light_transition: homeiiEditorI18n("ui.soft_transition_time_for_music_lighting"),
         ambient_light_cooldown: homeiiEditorI18n("ui.minimum_seconds_between_light_updates"),
         screensaver_enabled: homeiiEditorI18n("ui.show_a_calm_clock_artwork_display_after_idle_time"),
+        screensaver_controls_enabled: homeiiEditorI18n("ui.show_previous_next_controls_on_the_screensaver"),
         screensaver_message: homeiiEditorI18n("ui.short_optional_message_shown_on_the_screensaver"),
         screensaver_clock_size: homeiiEditorI18n("ui.screensaver_clock_size_helper"),
         screensaver_clock_x: homeiiEditorI18n("ui.screensaver_clock_x_helper"),
@@ -15583,6 +16147,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           { value: "radio", label: homeiiEditorI18n("ui.quick_mix") },
           { value: "history", label: homeiiEditorI18n("ui.history") },
           { value: "info", label: homeiiEditorI18n("ui.info") },
+          { value: "disconnect_all", label: homeiiEditorI18n("ui.clean_all", {}, HomeiiEditorLocale.detectEditorHebrew() ? "נקה הכל" : "Clean all") },
         ],
         mobile_library_tabs: [
           { value: "library_search", label: homeiiEditorI18n("ui.search") },
@@ -15630,6 +16195,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             { name: "mobile_background_motion_mode", selector: { select: { mode: "dropdown", options: t.options.mobile_background_motion_mode } } },
             { name: "mobile_custom_text_tone", selector: { select: { mode: "dropdown", options: t.options.mobile_custom_text_tone } } },
             { name: "mobile_font_scale", selector: { number: { min: 0.5, max: 1.5, step: 0.05, mode: "box" } } },
+            { name: "mobile_icon_scale", selector: { number: { min: 0.8, max: 1.25, step: 0.05, mode: "box" } } },
             { name: "mobile_footer_mode", selector: { select: { mode: "dropdown", options: t.options.mobile_footer_mode } } },
           ],
         },
@@ -15685,6 +16251,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             { name: "ambient_light_transition", selector: { number: { min: 0, max: 120, step: 1, mode: "box" } } },
             { name: "ambient_light_cooldown", selector: { number: { min: 0, max: 120, step: 1, mode: "box" } } },
             { name: "screensaver_enabled", selector: { boolean: {} } },
+            { name: "screensaver_controls_enabled", selector: { boolean: {} } },
             { name: "screensaver_clock_mode", selector: { select: { mode: "dropdown", options: t.options.screensaver_clock_mode } } },
             { name: "screensaver_clock_size", selector: { number: { min: 0.75, max: 1.45, step: 0.05, mode: "slider" } } },
             { name: "screensaver_clock_x", selector: { number: { min: 8, max: 92, step: 1, mode: "slider" } } },
@@ -15765,8 +16332,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           ],
         },
       ],
-      computeLabel: (schema) => t.labels[schema.name],
-      computeHelper: (schema) => t.helpers[schema.name],
+      computeLabel: (schema) => homeiiEditorLabelFor(schema, t.labels),
+      computeHelper: (schema) => homeiiEditorHelperFor(schema, t.helpers),
     };
   }
 
@@ -17250,6 +17817,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     try { localStorage.setItem("homeii_music_flow_mobile_background_motion_mode", storedBackgroundMotionMode); } catch (_) {}
     try { localStorage.setItem("homeii_music_flow_mobile_custom_text", this._state.mobileCustomTextTone || "light"); } catch (_) {}
     try { localStorage.setItem("homeii_music_flow_mobile_font_scale", String(this._state.mobileFontScale || 1)); } catch (_) {}
+    try { localStorage.setItem("homeii_music_flow_mobile_icon_scale", String(this._mobileIconScale())); } catch (_) {}
     try { localStorage.setItem("homeii_music_flow_mobile_night_mode", this._mobileNightMode()); } catch (_) {}
     try { localStorage.setItem("homeii_music_flow_mobile_night_start", this._normalizeClockTime(this._state.mobileNightModeStart || "22:00", "22:00")); } catch (_) {}
     try { localStorage.setItem("homeii_music_flow_mobile_night_end", this._normalizeClockTime(this._state.mobileNightModeEnd || "06:00", "06:00")); } catch (_) {}
@@ -17279,6 +17847,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     try { localStorage.setItem("homeii_music_flow_mobile_home_shortcut_path", this._mobileHomeShortcutPath()); } catch (_) {}
     try { localStorage.setItem("homeii_music_flow_mobile_volume_mode", this._mobileVolumeMode()); } catch (_) {}
     try { localStorage.setItem("homeii_music_flow_mobile_mic_mode", this._mobileMicMode()); } catch (_) {}
+    try { localStorage.setItem("homeii_music_flow_voice_assistant_enabled", JSON.stringify(this._voiceAssistantEnabled())); } catch {}
+    try { localStorage.setItem("homeii_music_flow_voice_assistant_mode", this._voiceAssistantMode()); } catch {}
+    try { localStorage.setItem("homeii_music_flow_voice_assistant_agent_id", this._voiceAssistantAgentId()); } catch {}
+    try { localStorage.setItem("homeii_music_flow_voice_assistant_speak_feedback", JSON.stringify(this._voiceAssistantSpeakFeedbackEnabled())); } catch {}
     try { localStorage.setItem("homeii_music_flow_mobile_library_tabs", JSON.stringify(this._mobileLibraryTabs())); } catch (_) {}
     try { localStorage.setItem("homeii_music_flow_mobile_main_bar_items", JSON.stringify(this._mobileMainBarItems())); } catch (_) {}
     try { localStorage.setItem("homeii_music_flow_mobile_quick_actions", JSON.stringify(this._mobileQuickActions())); } catch (_) {}
@@ -17296,6 +17868,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     try { localStorage.setItem("homeii_music_flow_ambient_light_transition", String(this._ambientLightTransition())); } catch {}
     try { localStorage.setItem("homeii_music_flow_ambient_light_cooldown", String(this._ambientLightCooldown())); } catch {}
     try { localStorage.setItem("homeii_music_flow_screensaver_enabled", JSON.stringify(!!this._state.screensaverEnabled)); } catch {}
+    try { localStorage.setItem("homeii_music_flow_screensaver_controls_enabled", JSON.stringify(!!this._state.screensaverControlsEnabled)); } catch {}
     try { localStorage.setItem("homeii_music_flow_screensaver_clock_mode", this._screensaverClockMode()); } catch {}
     try { localStorage.setItem("homeii_music_flow_screensaver_timeout_seconds", String(this._screensaverTimeoutSeconds())); } catch {}
     try { localStorage.setItem("homeii_music_flow_screensaver_message", this._screensaverMessage()); } catch {}
@@ -17343,6 +17916,44 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _mobileHomeShortcutPath() {
     return HomeiiMobileSettingsFoundation.normalizeHomeShortcutPath(this._state.mobileHomeShortcutPath, { leadingSlash: true });
+  }
+
+  _voiceAssistantEnabled() {
+    return this._state.voiceAssistantEnabled === true;
+  }
+
+  _voiceAssistantMode() {
+    return HomeiiMobileSettingsFoundation.normalizeVoiceAssistantMode(this._state.voiceAssistantMode);
+  }
+
+  _voiceAssistantAgentId() {
+    return String(this._state.voiceAssistantAgentId || "").trim();
+  }
+
+  _voiceAssistantSpeakFeedbackEnabled() {
+    return this._state.voiceAssistantSpeakFeedback === true;
+  }
+
+  _voiceAssistantAgentOptions() {
+    const options = [{
+      value: "",
+      label: this._i18n("ui.default_assist_agent"),
+    }];
+    const current = this._voiceAssistantAgentId();
+    const states = Object.values(this._hass?.states || {})
+      .filter((entity) => entity?.entity_id?.startsWith?.("conversation."))
+      .map((entity) => ({
+        value: entity.entity_id,
+        label: entity.attributes?.friendly_name || entity.entity_id,
+      }))
+      .sort((left, right) => String(left.label).localeCompare(String(right.label), undefined, { sensitivity: "base" }));
+    states.forEach((option) => {
+      if (!options.some((item) => item.value === option.value)) options.push(option);
+    });
+    if (current && !options.some((item) => item.value === current)) {
+      options.push({ value: current, label: current });
+    }
+    return options;
   }
 
   _ambientLightEnabled() {
@@ -17413,6 +18024,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       typeof window !== "undefined" ? Number(window.innerHeight || 0) : 0,
     );
     return width >= 760 && height >= 620;
+  }
+
+  _screensaverControlsEnabled() {
+    return this._state.screensaverControlsEnabled === true;
   }
 
   _screensaverClockMode() {
@@ -17565,6 +18180,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _handleScreensaverActivity(event = null) {
     if (event && event.isTrusted === false) return;
+    if (event?.target?.closest?.("[data-screensaver-voice]")) return;
+    if (
+      this._state.voiceAssistantKeepScreensaver === true
+      && event?.target?.closest?.("#voiceAssistantDialog, .voice-assistant-panel")
+    ) {
+      return;
+    }
     if (event?.target?.closest?.("#screensaverBackdrop")) {
       event.preventDefault?.();
       event.stopPropagation?.();
@@ -17639,6 +18261,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       || this._state.controlRoomOpen
       || this._state.lyricsOpen
       || this._state.mobileHistoryDrawerOpen
+      || (this._state.voiceAssistantDialogOpen && this._state.voiceAssistantKeepScreensaver !== true)
       || this.$("mobileQueueActionModal")?.classList?.contains("open")
       || this.$("mobileVolumePresetModal")?.classList?.contains("open")
       || this.$("mobileSmartVoiceModal")?.classList?.contains("open")
@@ -17678,6 +18301,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     overlay?.classList.remove("open");
     overlay?.setAttribute("aria-hidden", "true");
     this.shadowRoot?.querySelector?.(".card")?.classList?.remove("screensaver-active");
+    if (this._state.voiceAssistantKeepScreensaver) {
+      this._state.voiceAssistantKeepScreensaver = false;
+      this._syncVoiceAssistantDialog();
+    }
     clearInterval(this._screensaverClockTimer);
     this._screensaverClockTimer = null;
     this._syncNowPlayingUI();
@@ -17758,6 +18385,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const now = new Date();
     const player = this._getSelectedPlayer();
     const queueItem = this._state.maQueueState?.current_item || null;
+    ["screensaverPrevBtn", "screensaverNextBtn"].forEach((id) => {
+      const btn = this.$(id);
+      if (!btn) return;
+      btn.disabled = !player;
+      btn.setAttribute("aria-disabled", player ? "false" : "true");
+    });
     const art = this._currentArtworkUrl(player, queueItem, 720, { preferPlayerArtwork: true });
     const mediaTitle = player?.attributes?.media_title || queueItem?.media_item?.name || "";
     const mediaArtist = player?.attributes?.media_artist || (queueItem?.media_item?.artists || []).map((artistEntry) => artistEntry?.name).filter(Boolean).join(", ") || "";
@@ -17862,6 +18495,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _mobileFooterMode() {
     return HomeiiMobileSettingsFoundation.normalizeMobileFooterMode(this._state.mobileFooterMode);
+  }
+
+  _mobileIconScale() {
+    const scale = HomeiiMobileSettingsFoundation.clampMobileIconScale(this._state.mobileIconScale);
+    this._state.mobileIconScale = scale;
+    return scale;
   }
 
   _mobileMicMode() {
@@ -18070,8 +18709,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       { value: "lyrics", icon: "lyrics", label: this._i18n("ui.lyrics") },
       { value: "queue", icon: "queue", label: this._i18n("ui.queue_2") },
       { value: "radio", icon: "radio", label: this._i18n("ui.quick_mix") },
+      { value: "voice", icon: "mic", label: this._flowAssistantLabel() },
       { value: "history", icon: "history", label: this._i18n("ui.history") },
       { value: "info", icon: "info", label: this._i18n("ui.info") },
+      { value: "disconnect_all", icon: "close", label: this._cleanAllLabel(), tone: "danger" },
     ];
   }
 
@@ -18095,10 +18736,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         return `<button class="mobile-art-fab" id="mobileQueueBtn" title="${this._i18n("ui.open_queue")}">${this._iconSvg("queue")}</button>`;
       case "radio":
         return `<button class="mobile-art-fab" id="mobileRandomBtn" title="${this._i18n("ui.quick_mix")}">${this._iconSvg("radio")}</button>`;
+      case "voice":
+        return `<button class="mobile-art-fab voice-assistant-fab ${this._state.voiceAssistantListening ? "listening" : ""}" id="mobileVoiceAssistantBtn" title="${this._esc(this._flowAssistantLabel())}" aria-label="${this._esc(this._flowAssistantLabel())}">${this._iconSvg("mic")}</button>`;
       case "history":
         return historyToggleButtonHtml || "";
       case "info":
         return `<button class="mobile-art-fab" id="mobileInfoBtn" title="${this._i18n("ui.more_info")}">${this._iconSvg("info")}</button>`;
+      case "disconnect_all":
+        return `<button class="mobile-art-fab danger-fab" id="mobileDisconnectAllBtn" title="${this._esc(this._cleanAllLabel())}" aria-label="${this._esc(this._cleanAllLabel())}">${this._iconSvg("close")}</button>`;
       case "power":
         return this._powerButtonEnabled()
           ? `<button class="mobile-art-fab power-fab" id="mobilePowerBtn" title="${this._esc(this._i18n("ui.power"))}">${this._iconSvg("power")}</button>`
@@ -18111,6 +18756,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _mobileVisibleQuickActions(actions = this._mobileQuickActions(), player = this._getSelectedPlayer()) {
     const blocked = this._isLocalSendspinPlayer(player) ? new Set(["like", "radio"]) : null;
     return (Array.isArray(actions) ? actions : this._mobileQuickActions())
+      .filter((action) => action !== "voice" || this._voiceAssistantEnabled())
       .filter((action) => !blocked?.has(action));
   }
 
@@ -18130,6 +18776,82 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     clearTimeout(btn._pressUiTimer);
     btn._pressUiTimer = setTimeout(() => btn.classList.remove("pressed"), 180);
     return true;
+  }
+
+  _lockUiButton(btn, pattern = [6], options = {}) {
+    if (!btn || btn.disabled || btn.dataset.homeiiActionLocked === "1") return false;
+    const lockMs = Math.max(350, Number(options.lockMs || 900) || 900);
+    if (!this._pressUiButton(btn, pattern)) return false;
+    btn.dataset.homeiiActionLocked = "1";
+    btn.disabled = options.disabled !== false;
+    btn.classList.add("busy");
+    btn.setAttribute("aria-busy", "true");
+    clearTimeout(btn._homeiiActionLockTimer);
+    btn._homeiiActionLockTimer = setTimeout(() => this._unlockUiButton(btn), lockMs);
+    return true;
+  }
+
+  _unlockUiButton(btn) {
+    if (!btn) return;
+    clearTimeout(btn._homeiiActionLockTimer);
+    btn._homeiiActionLockTimer = null;
+    delete btn.dataset.homeiiActionLocked;
+    btn.disabled = false;
+    btn.classList.remove("busy");
+    btn.removeAttribute("aria-busy");
+  }
+
+  async _runLockedUiAction(btn, action, options = {}) {
+    if (!this._lockUiButton(btn, options.pattern || [6], options)) return null;
+    try {
+      return await action();
+    } finally {
+      if (options.hold !== true) this._unlockUiButton(btn);
+    }
+  }
+
+  _showEmptyMagicRipple(sourceEl = null) {
+    const card = this.shadowRoot?.querySelector?.(".card.empty-media");
+    if (!card) return;
+    const rect = card.getBoundingClientRect?.();
+    const sourceRect = sourceEl?.getBoundingClientRect?.();
+    if (!rect) return;
+    const x = sourceRect
+      ? sourceRect.left + (sourceRect.width / 2) - rect.left
+      : rect.width / 2;
+    const y = sourceRect
+      ? sourceRect.top + (sourceRect.height / 2) - rect.top
+      : rect.height / 2;
+    const ripple = document.createElement("span");
+    ripple.className = "empty-magic-screen-ripple";
+    ripple.style.setProperty("--empty-ripple-x", `${Math.round(x)}px`);
+    ripple.style.setProperty("--empty-ripple-y", `${Math.round(y)}px`);
+    card.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 1100);
+  }
+
+  _showEmptyPlaybackLoading(sourceEl = null) {
+    const card = this.shadowRoot?.querySelector?.(".card.empty-media");
+    if (!card) return;
+    this._hideEmptyPlaybackLoading();
+    const rect = card.getBoundingClientRect?.();
+    const sourceRect = sourceEl?.getBoundingClientRect?.();
+    const loader = document.createElement("span");
+    loader.className = "empty-playback-loader";
+    if (rect && sourceRect) {
+      loader.style.setProperty("--empty-loader-x", `${Math.round(sourceRect.left + (sourceRect.width / 2) - rect.left)}px`);
+      loader.style.setProperty("--empty-loader-y", `${Math.round(sourceRect.top + (sourceRect.height / 2) - rect.top)}px`);
+    }
+    loader.innerHTML = `<span></span><span></span><span></span>`;
+    card.appendChild(loader);
+    clearTimeout(this._emptyPlaybackLoaderTimer);
+    this._emptyPlaybackLoaderTimer = setTimeout(() => this._hideEmptyPlaybackLoading(), 6500);
+  }
+
+  _hideEmptyPlaybackLoading() {
+    clearTimeout(this._emptyPlaybackLoaderTimer);
+    this._emptyPlaybackLoaderTimer = null;
+    this.shadowRoot?.querySelectorAll?.(".empty-playback-loader")?.forEach((loader) => loader.remove());
   }
 
   _cycleActivePlayer(step = 1) {
@@ -18279,6 +19001,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       library_radio: "radio",
       library_podcasts: "podcast",
       library_search: "search",
+      media_detail: this._state.mobileLibraryDetail?.media_type === "playlist" ? "playlist" : "album",
     };
     return map[page] || "menu";
   }
@@ -18507,11 +19230,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     ].join("|");
   }
 
-  _mobileArtFallbackHtml() {
+  _mobileArtFallbackHtml(icon = "music_note") {
+    const fallbackIcon = icon === "brand" ? "brand" : (icon || "music_note");
     return `
-      <div class="art-stack-fallback static-fallback">
+      <div class="art-stack-fallback static-fallback ${fallbackIcon === "brand" ? "brand-fallback" : ""}">
         <div class="fallback-aura"></div>
-        <div class="fallback-disc">${this._iconSvg("music_note")}</div>
+        <div class="fallback-disc">${fallbackIcon === "brand" ? this._tabletBrandSignatureHtml("art-stack-brand-logo") : this._iconSvg(fallbackIcon)}</div>
       </div>
     `;
   }
@@ -18529,7 +19253,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const isCurrent = position === "center";
     const size = isCurrent ? 420 : 220;
     const selectedPlayer = this._getSelectedPlayer();
+    const isRadioItem = this._isLikelyRadioPlayback(selectedPlayer, item, item?.media_item);
+    const currentArtwork = isCurrent
+      ? this._currentArtworkUrl(selectedPlayer, item, size, { preferPlayerArtwork: isRadioItem })
+      : "";
     const art = this._bestArtworkUrl([
+      isRadioItem ? currentArtwork : "",
       this._queueItemImageUrl(item, size),
       item?.media_image,
       item?.image,
@@ -18538,15 +19267,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       item?.media_item?.image_url,
       item?.media_item?.album?.image,
       item?.media_item?.album?.image_url,
-      isCurrent ? this._currentArtworkUrl(selectedPlayer, item, size) : "",
+      !isRadioItem ? currentArtwork : "",
     ], {
       size,
       cacheKey: this._currentArtworkCacheKey(selectedPlayer, item),
     });
     const label = item?.media_item?.name || item?.name || (isCurrent ? (this._getSelectedPlayer()?.attributes?.media_title || "") : "");
+    const fallbackIcon = isRadioItem ? "brand" : "music_note";
     return `
       <div class="art-stack-card ${position} ${!art ? "placeholder" : ""}">
-        ${art ? `<img src="${this._esc(art)}" alt="${this._esc(label)}">` : this._mobileArtFallbackHtml()}
+        ${art ? `<img src="${this._esc(art)}" alt="${this._esc(label)}" data-homeii-art-fallback="1" data-homeii-art-fallback-icon="${this._esc(fallbackIcon)}">` : this._mobileArtFallbackHtml(fallbackIcon)}
       </div>
     `;
   }
@@ -18919,6 +19649,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const theme = this._effectiveTheme();
     const visualTheme = this._visualTheme();
     const layoutMode = this._layoutModeConfig();
+    const mobileIconScale = this._mobileIconScale();
     const fallbackHeight = this._configuredCardHeightFallback(760) || 760;
     const allocatedHeight = this._getAllocatedCardHeight(fallbackHeight);
     const layoutProfile = this._layoutProfileConfig(layoutMode, { height: allocatedHeight });
@@ -18944,6 +19675,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     });
     const height = Math.max(280, Math.min(2200, Math.round(allocatedHeight || fallbackHeight)));
     const minCardHeight = layoutProfile.heightSize === "short" ? 280 : (layoutMode === "tablet" ? 420 : 360);
+    const hostMinWidth = layoutMode === "tablet" ? "min(calc(100vw - 32px), 720px)" : "0px";
     const screensaverClockSize = this._screensaverClockSize();
     const screensaverClockX = this._screensaverClockX();
     const screensaverClockY = this._screensaverClockY();
@@ -18988,9 +19720,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const quickActions = sleepTimerActive && !configuredQuickActions.includes("timer")
       ? ["timer", ...configuredQuickActions]
       : configuredQuickActions;
-    const quickActionsWithPower = this._powerButtonEnabled() && !quickActions.includes("power")
-      ? [...quickActions, "power"]
+    const quickActionsWithVoice = this._voiceAssistantEnabled() && !quickActions.includes("voice")
+      ? [...quickActions, "voice"]
       : quickActions;
+    const quickActionsWithPower = this._powerButtonEnabled() && !quickActionsWithVoice.includes("power")
+      ? [...quickActionsWithVoice, "power"]
+      : quickActionsWithVoice;
     const controlRoomEnabled = this._controlRoomEnabled();
     const studioShortcutEnabled = this._mobileStudioShortcutEnabled();
     const mainBarButtons = [];
@@ -19185,9 +19920,20 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
     this.shadowRoot.innerHTML = `
       <style>
-        :host { display:block; container-type:inline-size; container-name:homeii-flow-host; width:100%; max-width:100%; margin:0 !important; padding:0 !important; background:transparent !important; border:none !important; box-shadow:none !important; overflow:visible !important; --mobile-height:${height}px; --mobile-min-height:${minCardHeight}px; --v2-font-scale:${this._state.mobileFontScale || 1}; --v2-custom-rgb:${this._customRgb()}; --v2-custom-text:${this._customTextColor()}; --accent-color:${this._state.mobileCustomColor || "#e0a11b"}; --ma-accent: var(--accent-color, #e0a11b); }
-        ha-card { background:transparent !important; border:none !important; box-shadow:none !important; overflow:visible !important; }
+        :host { display:block; container-type:inline-size; container-name:homeii-flow-host; width:100%; min-width:${hostMinWidth}; max-width:100%; margin:0 !important; padding:0 !important; background:transparent !important; border:none !important; box-shadow:none !important; overflow:hidden !important; border-radius:var(--ma-radius-xl); --ma-radius-xl:28px; --mobile-height:${height}px; --mobile-min-height:${minCardHeight}px; --v2-font-scale:${this._state.mobileFontScale || 1}; --v2-icon-scale:${mobileIconScale.toFixed(2)}; --v2-custom-rgb:${this._customRgb()}; --v2-custom-text:${this._customTextColor()}; --accent-color:${this._state.mobileCustomColor || "#e0a11b"}; --ma-accent: var(--accent-color, #e0a11b); }
+        ha-card { background:transparent !important; border:none !important; box-shadow:none !important; overflow:hidden !important; border-radius:var(--ma-radius-xl); }
         * { box-sizing:border-box; }
+        .side-btn .ui-ic,
+        .main-btn .ui-ic,
+        .volume-btn .ui-ic,
+        .mobile-art-fab .ui-ic,
+        .footer-btn .ui-ic,
+        .compact-control-btn .ui-ic,
+        .compact-main-btn .ui-ic,
+        .empty-voice-btn .ui-ic {
+          transform:scale(var(--v2-icon-scale, 1));
+          transform-origin:center;
+        }
         .card {
           position:relative; overflow:hidden; isolation:isolate; color:#fff;
           container-type:inline-size;
@@ -19197,7 +19943,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           height:var(--mobile-height);
           min-height:min(var(--mobile-min-height), var(--mobile-height));
           max-height:var(--mobile-height);
-          border-radius:28px; border:1px solid rgba(255,255,255,.1);
+          border-radius:var(--ma-radius-xl); border:1px solid rgba(255,255,255,.1);
           background:#0c0f16; box-shadow:0 24px 56px rgba(0,0,0,.3);
           font-size:calc(16px * var(--v2-font-scale));
           --flow-stage-pad-block:16px;
@@ -19609,8 +20355,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .lyrics-title-logo,
         .queue-action-logo,
         .smart-voice-logo,
+        .voice-assistant-logo,
         .screensaver-brand-logo,
-        .screensaver-empty-logo {
+        .screensaver-empty-logo,
+        .art-stack-brand-logo {
           width:100%;
           height:auto;
           display:block;
@@ -21564,6 +22312,20 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           -webkit-backdrop-filter:blur(14px);
         }
         .fallback-disc .ui-ic { width:46px; height:46px; }
+        .art-stack-fallback.brand-fallback .fallback-disc {
+          width:62%;
+          height:34%;
+          min-width:118px;
+          min-height:58px;
+          border-radius:999px;
+          background:rgba(12,16,24,.28);
+        }
+        .art-stack-brand-logo {
+          width:82%;
+          height:auto;
+          max-height:58px;
+          opacity:.78;
+        }
         .surprise-me-card .surprise-me-wand {
           z-index:3;
         }
@@ -21759,6 +22521,38 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         }
         .mobile-art-fab .ui-ic { width:20px; height:20px; }
         .mobile-art-fab.active { color:#f5a623; border-color:rgba(245,166,35,.34); background:rgba(245,166,35,.14); }
+        .mobile-art-fab.danger-fab {
+          color:#ffd6d6;
+          border-color:rgba(255,105,115,.28);
+          background:linear-gradient(145deg, rgba(255,85,95,.2), rgba(255,255,255,.06));
+          box-shadow:0 10px 22px rgba(255,70,80,.1), 0 8px 18px rgba(0,0,0,.14);
+        }
+        .mobile-art-fab.danger-fab.pressed,
+        .mobile-art-fab.danger-fab:active,
+        .mobile-art-fab.danger-fab.busy {
+          color:#fff;
+          border-color:rgba(255,130,138,.48);
+          background:linear-gradient(145deg, rgba(255,85,95,.32), rgba(255,255,255,.08));
+        }
+        .voice-assistant-fab { position:relative; overflow:visible; }
+        .voice-assistant-fab.listening {
+          color:var(--ma-accent);
+          border-color:color-mix(in srgb, var(--ma-accent) 34%, rgba(255,255,255,.16));
+          box-shadow:0 0 0 7px color-mix(in srgb, var(--ma-accent) 11%, transparent), 0 14px 26px rgba(0,0,0,.2);
+        }
+        .voice-assistant-fab.listening::after {
+          content:"";
+          position:absolute;
+          inset:-8px;
+          border-radius:999px;
+          border:1px solid color-mix(in srgb, var(--ma-accent) 44%, transparent);
+          animation:voiceAssistantListenPulse 1.1s ease-out infinite;
+          pointer-events:none;
+        }
+        @keyframes voiceAssistantListenPulse {
+          0% { transform:scale(.88); opacity:.78; }
+          100% { transform:scale(1.38); opacity:0; }
+        }
         .theme-light .np-art.mobile-art {
           background:rgba(255,255,255,.56);
           border-color:rgba(142,157,180,.2);
@@ -21793,6 +22587,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           color:#f5a623;
           border-color:rgba(245,166,35,.38);
           background:rgba(245,166,35,.16);
+        }
+        .theme-light .mobile-art-fab.danger-fab {
+          color:#b4232b;
+          background:#fff1f2;
+          border-color:rgba(180,35,43,.18);
+          box-shadow:0 12px 26px rgba(180,35,43,.1);
         }
         .mobile-meta { display:none; }
         .bottom { display:grid; width:100%; max-width:100%; min-width:0; min-height:0; gap:12px; align-content:end; }
@@ -22022,6 +22822,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           display:none;
         }
         .empty-quick-card {
+          position:relative;
           min-width:214px;
           max-width:214px;
           min-height:78px;
@@ -22043,10 +22844,25 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           transition:transform .16s ease, border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
         }
         .empty-quick-card:active,
-        .empty-quick-card.pressed {
+        .empty-quick-card.pressed,
+        .empty-quick-card.busy {
           transform:translateY(1px) scale(.98);
           border-color:color-mix(in srgb, var(--ma-accent) 34%, rgba(255,255,255,.14));
           box-shadow:0 12px 24px rgba(0,0,0,.12), 0 0 0 1px color-mix(in srgb, var(--ma-accent) 24%, transparent);
+        }
+        .empty-quick-card.busy,
+        .empty-quick-card:disabled {
+          cursor:progress;
+        }
+        .empty-quick-card.busy::after {
+          content:"";
+          position:absolute;
+          inset:0;
+          border-radius:inherit;
+          background:linear-gradient(120deg, transparent 0%, color-mix(in srgb, var(--ma-accent) 18%, transparent) 45%, transparent 76%);
+          transform:translateX(-100%);
+          animation:emptyActionSweep .9s ease-in-out infinite;
+          pointer-events:none;
         }
         .empty-quick-art {
           width:48px;
@@ -22150,7 +22966,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           width:var(--flow-side-btn-size);
           height:var(--flow-side-btn-size);
           border-radius:19px;
+          position:relative;
+          overflow:hidden;
           box-shadow:0 12px 26px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.08);
+          transition:transform .16s ease, background .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease;
         }
         .side-btn.minor-btn { width:var(--flow-minor-btn-size); height:var(--flow-minor-btn-size); border-radius:16px; }
         .main-btn {
@@ -22189,7 +23008,61 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .side-btn .ui-ic,.volume-btn .ui-ic { width:42%; height:42%; }
         .side-btn.minor-btn .ui-ic { width:38%; height:38%; }
         .main-btn .ui-ic { width:44%; height:44%; }
-        .side-btn.active { border-color:rgba(245,166,35,.34); background:rgba(245,166,35,.14); }
+        .side-btn.active {
+          color:#fff7e4;
+          border-color:color-mix(in srgb, var(--ma-accent) 48%, rgba(255,255,255,.16));
+          background:
+            radial-gradient(circle at 50% 28%, color-mix(in srgb, var(--ma-accent) 30%, rgba(255,255,255,.08)), transparent 58%),
+            linear-gradient(180deg, color-mix(in srgb, var(--ma-accent) 24%, rgba(255,255,255,.10)), rgba(255,255,255,.06));
+          box-shadow:0 14px 30px color-mix(in srgb, var(--ma-accent) 20%, rgba(0,0,0,.18)), inset 0 1px 0 rgba(255,255,255,.14);
+        }
+        .side-btn.minor-btn.active::after {
+          content:"";
+          position:absolute;
+          left:50%;
+          bottom:8px;
+          width:5px;
+          height:5px;
+          border-radius:999px;
+          transform:translateX(-50%);
+          background:currentColor;
+          box-shadow:0 0 12px color-mix(in srgb, var(--ma-accent) 54%, transparent);
+          opacity:.96;
+        }
+        #mobileRepeatBtn[data-repeat-mode="one"]::before,
+        #mobileRepeatBtn[data-repeat-mode="all"]::before {
+          position:absolute;
+          inset-block-start:7px;
+          inset-inline-end:7px;
+          min-width:14px;
+          height:14px;
+          padding:0 3px;
+          border-radius:999px;
+          display:grid;
+          place-items:center;
+          font-size:9px;
+          line-height:1;
+          font-weight:950;
+          color:#1a1306;
+          background:color-mix(in srgb, var(--ma-accent) 78%, white 22%);
+          box-shadow:0 4px 10px color-mix(in srgb, var(--ma-accent) 28%, transparent), inset 0 1px 0 rgba(255,255,255,.45);
+          pointer-events:none;
+        }
+        #mobileRepeatBtn[data-repeat-mode="one"]::before { content:"1"; }
+        #mobileRepeatBtn[data-repeat-mode="all"]::before { content:"∞"; font-size:10px; }
+        .card.layout-tablet .side-btn.minor-btn.active::after {
+          bottom:13px;
+          width:7px;
+          height:7px;
+        }
+        .card.layout-tablet #mobileRepeatBtn[data-repeat-mode="one"]::before,
+        .card.layout-tablet #mobileRepeatBtn[data-repeat-mode="all"]::before {
+          inset-block-start:8px;
+          inset-inline-end:8px;
+          min-width:16px;
+          height:16px;
+          font-size:10px;
+        }
         .side-btn.muted {
           border-color:rgba(214,76,76,.26);
           background:rgba(214,76,76,.18);
@@ -22595,8 +23468,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           box-shadow:0 12px 26px rgba(111,126,150,.14), inset 0 1px 0 rgba(255,255,255,.62);
         }
         .theme-light .side-btn.active {
-          border-color:rgba(245,166,35,.38);
-          background:rgba(245,166,35,.16);
+          color:#7a5210;
+          border-color:color-mix(in srgb, var(--ma-accent) 46%, rgba(141,155,177,.22));
+          background:
+            radial-gradient(circle at 50% 28%, color-mix(in srgb, var(--ma-accent) 22%, white 78%), transparent 58%),
+            linear-gradient(180deg, color-mix(in srgb, var(--ma-accent) 18%, white 82%), rgba(255,255,255,.58));
+          box-shadow:0 14px 28px color-mix(in srgb, var(--ma-accent) 16%, rgba(111,126,150,.12)), inset 0 1px 0 rgba(255,255,255,.72);
         }
         .theme-light .side-btn.muted {
           border-color:rgba(214,76,76,.24);
@@ -23003,6 +23880,100 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           justify-content:center;
           text-align:center;
         }
+        .clean-all-confirm-backdrop {
+          position:absolute;
+          z-index:92;
+          background:rgba(8,10,16,.24);
+          backdrop-filter:blur(10px);
+          -webkit-backdrop-filter:blur(10px);
+        }
+        .clean-all-confirm-sheet {
+          position:relative;
+          width:min(420px, calc(100vw - 36px));
+          max-height:none;
+          padding:18px;
+          gap:16px;
+          border-radius:26px;
+          background:rgba(18,21,30,.9);
+          box-shadow:0 22px 60px rgba(0,0,0,.3);
+        }
+        .clean-all-confirm-head {
+          display:grid;
+          grid-template-columns:48px minmax(0, 1fr);
+          gap:14px;
+          align-items:start;
+          padding-inline-end:40px;
+        }
+        .clean-all-confirm-icon {
+          width:48px;
+          height:48px;
+          border-radius:18px;
+          display:grid;
+          place-items:center;
+          background:linear-gradient(145deg, rgba(255,85,95,.2), rgba(255,255,255,.06));
+          border:1px solid rgba(255,105,115,.24);
+        }
+        .clean-all-confirm-icon .ui-ic {
+          width:22px;
+          height:22px;
+        }
+        .clean-all-confirm-title {
+          font-size:18px;
+          font-weight:950;
+          line-height:1.2;
+          color:#fff;
+          margin-block-end:6px;
+        }
+        .clean-all-confirm-close {
+          position:absolute;
+          inset-block-start:12px;
+          inset-inline-end:12px;
+          width:34px;
+          height:34px;
+          border-radius:14px;
+          border:1px solid rgba(255,255,255,.12);
+          background:rgba(255,255,255,.08);
+          color:#fff;
+          font-size:22px;
+          line-height:1;
+          cursor:pointer;
+        }
+        .confirm-actions.clean-all-confirm-actions {
+          margin-top:0;
+        }
+        .clean-all-confirm-actions .menu-item {
+          min-height:48px;
+          border-radius:18px;
+        }
+        .confirm-actions .menu-item.danger-confirm-action {
+          color:#ffd9d9;
+          background:linear-gradient(145deg, rgba(255,85,95,.24), rgba(255,85,95,.1));
+          border:1px solid rgba(255,105,115,.3);
+        }
+        .danger-confirm-icon {
+          color:#ffb6b6;
+        }
+        .theme-light .confirm-actions .menu-item.danger-confirm-action {
+          color:#b4232b;
+          background:#fff1f2;
+          border-color:rgba(180,35,43,.18);
+        }
+        .theme-light .clean-all-confirm-sheet {
+          background:rgba(255,255,255,.94);
+          border-color:rgba(141,155,177,.22);
+          box-shadow:0 18px 44px rgba(111,126,150,.2);
+        }
+        .theme-light .clean-all-confirm-title {
+          color:#16202d;
+        }
+        .theme-light .clean-all-confirm-close {
+          color:#16202d;
+          background:rgba(31,38,51,.06);
+          border-color:rgba(31,38,51,.1);
+        }
+        .theme-light .danger-confirm-icon {
+          color:#b4232b;
+        }
         .smart-voice-sheet {
           width:min(100%, 520px);
           gap:18px;
@@ -23075,6 +24046,299 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         }
         .smart-voice-actions {
           grid-template-columns:repeat(3, minmax(0, 1fr));
+        }
+        .voice-assistant-dialog {
+          position:absolute;
+          inset:0;
+          z-index:86;
+          display:none;
+          align-items:center;
+          justify-content:center;
+          padding:20px;
+          pointer-events:none;
+          background:rgba(2,6,14,.16);
+          backdrop-filter:blur(8px) saturate(1.08);
+          -webkit-backdrop-filter:blur(8px) saturate(1.08);
+        }
+        .voice-assistant-dialog.open {
+          display:flex;
+        }
+        .voice-assistant-dialog.keep-screensaver {
+          z-index:96;
+          background:transparent;
+          backdrop-filter:none;
+          -webkit-backdrop-filter:none;
+        }
+        .voice-assistant-panel {
+          position:relative;
+          width:min(560px, calc(100% - 18px));
+          display:grid;
+          gap:18px;
+          padding:22px;
+          border-radius:34px;
+          overflow:hidden;
+          border:1px solid rgba(255,255,255,.18);
+          background:
+            linear-gradient(145deg, rgba(255,255,255,.16), rgba(255,255,255,.045) 42%, rgba(255,255,255,.08)),
+            radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--ma-accent) 22%, transparent), transparent 42%),
+            rgba(8,12,22,.78);
+          box-shadow:0 34px 92px rgba(0,0,0,.46), inset 0 1px 0 rgba(255,255,255,.16);
+          backdrop-filter:blur(30px) saturate(1.18);
+          -webkit-backdrop-filter:blur(30px) saturate(1.18);
+          pointer-events:auto;
+          color:#fff;
+          animation:voiceAssistantPanelIn .26s cubic-bezier(.2,.85,.22,1) both;
+          transform-origin:center;
+        }
+        .voice-assistant-dialog.keep-screensaver .voice-assistant-panel {
+          width:min(520px, calc(100% - 28px));
+          background:
+            linear-gradient(145deg, rgba(255,255,255,.13), rgba(255,255,255,.035) 44%, rgba(255,255,255,.065)),
+            radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--ma-accent) 18%, transparent), transparent 42%),
+            rgba(8,12,22,.66);
+          box-shadow:0 26px 72px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.14);
+        }
+        .voice-assistant-panel::before {
+          content:"";
+          position:absolute;
+          inset:0;
+          pointer-events:none;
+          background:linear-gradient(120deg, rgba(255,255,255,.18), transparent 28%, transparent 68%, rgba(255,255,255,.08));
+          opacity:.42;
+        }
+        .voice-assistant-panel > * {
+          position:relative;
+          z-index:1;
+        }
+        @keyframes voiceAssistantPanelIn {
+          from { opacity:0; transform:translateY(18px) scale(.96); filter:blur(8px); }
+          to { opacity:1; transform:translateY(0) scale(1); filter:blur(0); }
+        }
+        .theme-light .voice-assistant-panel {
+          background:
+            linear-gradient(145deg, rgba(255,255,255,.94), rgba(255,255,255,.74)),
+            radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--ma-accent) 18%, transparent), transparent 42%);
+          border-color:rgba(105,119,142,.18);
+          color:#17202d;
+          box-shadow:0 28px 76px rgba(86,103,127,.26), inset 0 1px 0 rgba(255,255,255,.78);
+        }
+        .theme-light .voice-assistant-brand {
+          color:rgba(31,38,51,.42);
+        }
+        .voice-assistant-head {
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          gap:12px;
+        }
+        .voice-assistant-title-row {
+          min-width:0;
+          display:flex;
+          align-items:center;
+          gap:12px;
+        }
+        .voice-assistant-copy {
+          min-width:0;
+          display:grid;
+          gap:3px;
+        }
+        .voice-assistant-brand {
+          width:94px;
+          max-width:42vw;
+          color:rgba(255,255,255,.58);
+          opacity:.9;
+          display:block;
+          pointer-events:none;
+        }
+        .voice-assistant-icon {
+          width:58px;
+          height:58px;
+          border-radius:24px;
+          display:grid;
+          place-items:center;
+          color:var(--ma-accent);
+          border:1px solid color-mix(in srgb, var(--ma-accent) 28%, rgba(255,255,255,.16));
+          background:
+            linear-gradient(145deg, rgba(255,255,255,.18), rgba(255,255,255,.055)),
+            color-mix(in srgb, var(--ma-accent) 18%, rgba(255,255,255,.08));
+          box-shadow:0 18px 38px color-mix(in srgb, var(--ma-accent) 16%, transparent), inset 0 1px 0 rgba(255,255,255,.16);
+          transition:transform .2s ease, background-color .2s ease, box-shadow .2s ease;
+        }
+        .voice-assistant-dialog.status-listening .voice-assistant-icon {
+          animation:voiceAssistantIconPulse 1.25s ease-in-out infinite;
+        }
+        .voice-assistant-dialog.status-success .voice-assistant-icon {
+          transform:scale(1.05);
+          color:#c9ffdf;
+          background:rgba(73,214,127,.18);
+          box-shadow:0 16px 32px rgba(73,214,127,.16);
+        }
+        .voice-assistant-dialog.status-error .voice-assistant-icon {
+          color:#ffb7b7;
+          background:rgba(255,107,107,.16);
+          box-shadow:0 16px 32px rgba(255,107,107,.14);
+        }
+        @keyframes voiceAssistantIconPulse {
+          0%,100% { transform:scale(1); box-shadow:0 18px 38px color-mix(in srgb, var(--ma-accent) 16%, transparent), inset 0 1px 0 rgba(255,255,255,.16); }
+          50% { transform:scale(1.06); box-shadow:0 0 0 12px color-mix(in srgb, var(--ma-accent) 10%, transparent), 0 24px 48px color-mix(in srgb, var(--ma-accent) 20%, transparent), inset 0 1px 0 rgba(255,255,255,.18); }
+        }
+        .voice-assistant-icon .ui-ic { width:25px; height:25px; }
+        .voice-assistant-title {
+          display:block;
+          font-size:22px;
+          font-weight:950;
+          line-height:1.1;
+          letter-spacing:0;
+        }
+        .voice-assistant-status {
+          display:block;
+          margin-top:4px;
+          color:rgba(255,255,255,.66);
+          font-size:12px;
+          font-weight:850;
+        }
+        .theme-light .voice-assistant-status { color:rgba(36,45,58,.64); }
+        .voice-assistant-close {
+          width:42px;
+          height:42px;
+          border-radius:16px;
+          border:1px solid rgba(255,255,255,.14);
+          background:rgba(255,255,255,.08);
+          color:inherit;
+          display:grid;
+          place-items:center;
+          cursor:pointer;
+        }
+        .theme-light .voice-assistant-close {
+          background:rgba(255,255,255,.72);
+          border-color:rgba(105,119,142,.16);
+        }
+        .voice-assistant-close .ui-ic { width:19px; height:19px; }
+        .voice-assistant-meter {
+          height:5px;
+          border-radius:999px;
+          overflow:hidden;
+          background:rgba(255,255,255,.095);
+        }
+        .voice-assistant-meter span {
+          display:block;
+          width:42%;
+          height:100%;
+          border-radius:999px;
+          background:linear-gradient(90deg, transparent, var(--ma-accent), transparent);
+          animation:voiceAssistantMeter 1.2s ease-in-out infinite;
+        }
+        .voice-assistant-dialog.status-success .voice-assistant-meter span,
+        .voice-assistant-dialog.status-error .voice-assistant-meter span {
+          width:100%;
+          animation:none;
+          background:var(--ma-accent);
+        }
+        .voice-assistant-dialog.status-error .voice-assistant-meter span {
+          background:#ff6b6b;
+        }
+        @keyframes voiceAssistantMeter {
+          0% { transform:translateX(-110%); }
+          100% { transform:translateX(260%); }
+        }
+        .voice-assistant-wave {
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          gap:6px;
+          width:max-content;
+          min-width:118px;
+          height:38px;
+          margin:0 auto;
+          padding:0 16px;
+          border-radius:999px;
+          background:rgba(255,255,255,.065);
+          border:1px solid rgba(255,255,255,.08);
+        }
+        .voice-assistant-wave span {
+          width:5px;
+          height:10px;
+          border-radius:999px;
+          background:color-mix(in srgb, var(--ma-accent) 72%, white 28%);
+          opacity:.72;
+          transform-origin:center;
+          animation:voiceAssistantWave 1s ease-in-out infinite;
+        }
+        .voice-assistant-wave span:nth-child(2) { animation-delay:.1s; }
+        .voice-assistant-wave span:nth-child(3) { animation-delay:.2s; }
+        .voice-assistant-wave span:nth-child(4) { animation-delay:.3s; }
+        .voice-assistant-wave span:nth-child(5) { animation-delay:.4s; }
+        .voice-assistant-dialog.status-processing .voice-assistant-wave span {
+          animation-duration:.72s;
+        }
+        .voice-assistant-dialog.status-success .voice-assistant-wave span,
+        .voice-assistant-dialog.status-error .voice-assistant-wave span {
+          animation:none;
+          height:8px;
+          opacity:.36;
+        }
+        @keyframes voiceAssistantWave {
+          0%,100% { transform:scaleY(.62); opacity:.42; }
+          50% { transform:scaleY(2.25); opacity:1; }
+        }
+        .voice-assistant-lines {
+          display:grid;
+          gap:10px;
+        }
+        .voice-assistant-line {
+          display:grid;
+          gap:6px;
+          padding:13px 15px;
+          border-radius:20px;
+          background:rgba(255,255,255,.062);
+          border:1px solid rgba(255,255,255,.085);
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.045);
+        }
+        .theme-light .voice-assistant-line {
+          background:rgba(255,255,255,.72);
+          border-color:rgba(105,119,142,.12);
+        }
+        .voice-assistant-line-label {
+          color:rgba(255,255,255,.56);
+          font-size:11px;
+          font-weight:950;
+          text-transform:uppercase;
+        }
+        .theme-light .voice-assistant-line-label { color:rgba(36,45,58,.52); }
+        .voice-assistant-line-text {
+          min-height:22px;
+          font-size:15px;
+          font-weight:850;
+          line-height:1.45;
+          overflow-wrap:anywhere;
+        }
+        .voice-assistant-placeholder {
+          color:rgba(255,255,255,.45);
+        }
+        .theme-light .voice-assistant-placeholder { color:rgba(36,45,58,.42); }
+        .voice-assistant-actions {
+          display:flex;
+          gap:10px;
+          justify-content:flex-end;
+          flex-wrap:wrap;
+        }
+        .voice-assistant-actions button {
+          min-height:42px;
+          padding:0 15px;
+          border-radius:14px;
+          border:1px solid rgba(255,255,255,.12);
+          background:rgba(255,255,255,.08);
+          color:inherit;
+          font-weight:900;
+          cursor:pointer;
+        }
+        .voice-assistant-actions button[hidden] {
+          display:none !important;
+        }
+        .voice-assistant-actions .primary {
+          color:#17120a;
+          border-color:transparent;
+          background:linear-gradient(135deg, var(--ma-accent), color-mix(in srgb, var(--ma-accent) 72%, white 28%));
         }
         .menu-sheet {
           width:min(100%, 720px);
@@ -23327,15 +24591,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           display:none;
         }
         .card.layout-tablet.empty-media .hero-split-shell {
-          grid-template-columns:minmax(150px, 220px) minmax(0, 1fr) !important;
+          grid-template-columns:minmax(220px, 320px) minmax(0, 1fr) !important;
           align-items:center;
           justify-items:center;
+          gap:clamp(46px, 5cqi, 92px);
+          padding-left:clamp(42px, 4.4cqi, 84px);
         }
         .card.layout-tablet.empty-media .hero-visual {
           display:grid !important;
-          justify-self:center;
-          width:min(210px, 22vw);
-          min-width:150px;
+          justify-self:start;
+          width:min(286px, 28vw);
+          min-width:220px;
         }
         .card.layout-tablet.empty-media .art-stage {
           display:grid !important;
@@ -23355,6 +24621,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           border:none;
           box-shadow:none;
           overflow:visible;
+        }
+        .card.layout-tablet.empty-media .empty-magic-stack.has-voice {
+          padding-inline-end:clamp(52px, 4.2cqi, 70px);
+        }
+        .card.layout-tablet.empty-media .empty-voice-btn {
+          inset-inline-end:0;
+          inset-block-end:50%;
+          transform:translate(72%, 50%);
+        }
+        .card.layout-tablet.empty-media .empty-voice-btn.pressed,
+        .card.layout-tablet.empty-media .empty-voice-btn.busy {
+          transform:translate(72%, 50%) scale(.94);
         }
         .card.layout-tablet.empty-media .art-stack-view {
           display:grid !important;
@@ -23376,19 +24654,39 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           align-items:center;
           text-align:center;
         }
+        .card.layout-tablet.empty-media .empty-quick-shelf {
+          width:min(1040px, calc(100% - clamp(320px, 24cqi, 440px)));
+          margin-left:clamp(300px, 22cqi, 420px);
+          margin-right:auto;
+        }
         .card.radio-media .empty-quick-shelf {
           display:none !important;
         }
-        .card.radio-media .mobile-art-shell {
+        .card.radio-media.empty-media .mobile-art-shell {
           width:min(840px, 100%);
           padding:14px 14px 10px;
           border-radius:42px;
         }
-        .card.radio-media .art-stack-view {
+        .card.radio-media.empty-media .art-stack-view {
           height:clamp(246px, 26cqi, 356px);
           min-height:clamp(246px, 26cqi, 356px);
           max-height:clamp(246px, 26cqi, 356px);
           display:grid;
+          place-items:center;
+        }
+        .card.layout-tablet.radio-media.empty-media .mobile-art-shell {
+          width:min(520px, 56cqi);
+          height:min(520px, 56cqi);
+          border-radius:var(--ma-radius-xl);
+        }
+        .card.layout-tablet.radio-media.empty-media .art-stack-view,
+        .card.layout-tablet.radio-media.empty-media .art-stack-viewport,
+        .card.layout-tablet.radio-media.empty-media .art-stack-container {
+          width:100%;
+          height:100%;
+          min-height:100%;
+          max-height:100%;
+          display:grid !important;
           place-items:center;
         }
         .radio-stage {
@@ -23566,6 +24864,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           border-radius:16px;
           box-shadow:0 12px 24px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.08);
         }
+        .empty-magic-stack {
+          position:relative;
+          display:grid;
+          place-items:center;
+          width:max-content;
+          max-width:100%;
+          margin:auto;
+          overflow:visible;
+        }
         .surprise-me-card.magic-empty {
           width:168px;
           height:168px;
@@ -23577,7 +24884,52 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           border:1px solid rgba(255,255,255,.12);
           box-shadow:0 26px 46px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.14);
           transition:transform .16s ease, box-shadow .18s ease, border-color .18s ease;
-          animation:magic-empty-pulse 2.9s ease-in-out infinite;
+          animation:magic-empty-pulse 4.8s ease-in-out infinite;
+        }
+        .surprise-me-card.magic-empty::before {
+          content:"";
+          position:absolute;
+          inset:-10px;
+          border-radius:inherit;
+          border:1px solid color-mix(in srgb, var(--ma-accent) 26%, transparent);
+          box-shadow:0 0 0 8px color-mix(in srgb, var(--ma-accent) 7%, transparent);
+          opacity:.38;
+          animation:magic-empty-halo 4.8s ease-in-out infinite;
+          pointer-events:none;
+        }
+        .surprise-me-card.magic-empty.has-art {
+          width:min(360px, 44cqi);
+          height:min(360px, 44cqi);
+          max-width:100%;
+          max-height:100%;
+          border-radius:var(--ma-radius-xl);
+          background:#11151d;
+          animation:none;
+        }
+        .surprise-me-card.magic-empty.has-art::before {
+          display:none;
+        }
+        .surprise-me-card.magic-empty.has-art img {
+          position:absolute;
+          inset:0;
+          width:100%;
+          height:100%;
+          object-fit:cover;
+        }
+        .surprise-me-card.magic-empty.has-art .art-overlay {
+          position:absolute;
+          inset:auto 14px 14px auto;
+          width:52px;
+          height:52px;
+          border-radius:999px;
+          background:rgba(0,0,0,.34);
+          border:1px solid rgba(255,255,255,.16);
+          backdrop-filter:blur(18px);
+          -webkit-backdrop-filter:blur(18px);
+        }
+        .surprise-me-card.magic-empty.has-art .art-overlay .ui-ic {
+          width:24px;
+          height:24px;
         }
         .surprise-me-glow {
           position:absolute;
@@ -23622,14 +24974,161 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           height:56px;
           filter:drop-shadow(0 0 14px color-mix(in srgb, var(--ma-accent) 52%, transparent));
         }
+        .empty-voice-btn {
+          position:absolute;
+          inset-inline-end:-8px;
+          inset-block-end:-8px;
+          z-index:4;
+          width:46px;
+          height:46px;
+          border-radius:999px;
+          border:1px solid color-mix(in srgb, var(--ma-accent) 28%, rgba(255,255,255,.16));
+          background:linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.07));
+          color:#fff7df;
+          display:grid;
+          place-items:center;
+          cursor:pointer;
+          box-shadow:0 14px 28px rgba(0,0,0,.24), 0 0 0 5px rgba(255,255,255,.045), inset 0 1px 0 rgba(255,255,255,.14);
+          backdrop-filter:blur(16px) saturate(130%);
+          -webkit-backdrop-filter:blur(16px) saturate(130%);
+          transition:transform .16s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease, color .18s ease;
+        }
+        .empty-voice-btn .ui-ic {
+          width:20px;
+          height:20px;
+        }
+        .empty-voice-btn:hover,
+        .empty-voice-btn.listening,
+        .empty-voice-btn.pressed,
+        .empty-voice-btn.busy {
+          color:#fff;
+          border-color:color-mix(in srgb, var(--ma-accent) 54%, rgba(255,255,255,.18));
+          background:linear-gradient(180deg, color-mix(in srgb, var(--ma-accent) 28%, rgba(255,255,255,.14)), rgba(255,255,255,.07));
+          box-shadow:0 16px 32px color-mix(in srgb, var(--ma-accent) 20%, rgba(0,0,0,.22)), 0 0 0 7px color-mix(in srgb, var(--ma-accent) 10%, transparent), inset 0 1px 0 rgba(255,255,255,.16);
+        }
+        .empty-voice-btn.pressed,
+        .empty-voice-btn.busy {
+          transform:scale(.94);
+        }
+        .empty-voice-btn.busy {
+          cursor:progress;
+        }
+        .empty-voice-btn.listening::after {
+          content:"";
+          position:absolute;
+          inset:-8px;
+          border-radius:inherit;
+          border:1px solid color-mix(in srgb, var(--ma-accent) 44%, transparent);
+          animation:voiceAssistantListenPulse 1.1s ease-out infinite;
+        }
+        .empty-voice-btn.busy:not(.listening)::after {
+          content:"";
+          position:absolute;
+          inset:-6px;
+          border-radius:inherit;
+          border:1px solid color-mix(in srgb, var(--ma-accent) 38%, transparent);
+          animation:voiceAssistantListenPulse 1s ease-out infinite;
+          pointer-events:none;
+        }
+        .card.layout-tablet .empty-voice-btn {
+          width:50px;
+          height:50px;
+          inset-inline-end:-10px;
+          inset-block-end:-10px;
+        }
         .surprise-me-card.magic-empty:active,
-        .surprise-me-card.magic-empty.pressed {
+        .surprise-me-card.magic-empty.pressed,
+        .surprise-me-card.magic-empty.busy {
           transform:scale(.96);
           box-shadow:0 16px 30px rgba(0,0,0,.18), 0 0 0 1px color-mix(in srgb, var(--ma-accent) 34%, transparent), 0 0 26px color-mix(in srgb, var(--ma-accent) 22%, transparent);
         }
+        .surprise-me-card.magic-empty.busy,
+        .surprise-me-card.magic-empty:disabled {
+          cursor:progress;
+        }
+        .surprise-me-card.magic-empty.busy::after {
+          content:"";
+          position:absolute;
+          inset:12px;
+          border-radius:inherit;
+          border:1px solid color-mix(in srgb, var(--ma-accent) 44%, transparent);
+          animation:voiceAssistantListenPulse 1.05s ease-out infinite;
+          pointer-events:none;
+        }
+        @keyframes emptyActionSweep {
+          0% { transform:translateX(-100%); opacity:.4; }
+          45% { opacity:.95; }
+          100% { transform:translateX(100%); opacity:.25; }
+        }
         @keyframes magic-empty-pulse {
-          0%,100% { transform:scale(1); box-shadow:0 26px 46px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.14); }
-          50% { transform:scale(1.035); box-shadow:0 30px 54px rgba(0,0,0,.18), 0 0 30px color-mix(in srgb, var(--ma-accent) 18%, transparent), inset 0 1px 0 rgba(255,255,255,.16); }
+          0%,100% { box-shadow:0 26px 46px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.14); border-color:rgba(255,255,255,.12); }
+          50% { box-shadow:0 28px 50px rgba(0,0,0,.18), 0 0 28px color-mix(in srgb, var(--ma-accent) 14%, transparent), inset 0 1px 0 rgba(255,255,255,.16); border-color:color-mix(in srgb, var(--ma-accent) 24%, rgba(255,255,255,.14)); }
+        }
+        @keyframes magic-empty-halo {
+          0%,100% { opacity:.24; box-shadow:0 0 0 5px color-mix(in srgb, var(--ma-accent) 5%, transparent); }
+          50% { opacity:.48; box-shadow:0 0 0 10px color-mix(in srgb, var(--ma-accent) 9%, transparent); }
+        }
+        .empty-magic-screen-ripple {
+          position:absolute;
+          left:var(--empty-ripple-x, 50%);
+          top:var(--empty-ripple-y, 50%);
+          width:16px;
+          height:16px;
+          border-radius:999px;
+          pointer-events:none;
+          z-index:8;
+          transform:translate(-50%, -50%) scale(.2);
+          background:
+            radial-gradient(circle, color-mix(in srgb, var(--ma-accent) 28%, rgba(255,255,255,.38)) 0 10%, transparent 54%),
+            radial-gradient(circle, transparent 38%, color-mix(in srgb, var(--ma-accent) 28%, transparent) 40% 42%, transparent 62%);
+          filter:blur(.2px);
+          animation:emptyMagicRipple 1s ease-out forwards;
+        }
+        @keyframes emptyMagicRipple {
+          0% { opacity:.72; transform:translate(-50%, -50%) scale(.2); }
+          60% { opacity:.34; }
+          100% { opacity:0; transform:translate(-50%, -50%) scale(18); }
+        }
+        .empty-playback-loader {
+          position:absolute;
+          left:var(--empty-loader-x, 50%);
+          top:var(--empty-loader-y, 50%);
+          z-index:9;
+          width:92px;
+          height:42px;
+          border-radius:999px;
+          display:grid;
+          grid-auto-flow:column;
+          place-content:center;
+          align-items:center;
+          gap:8px;
+          pointer-events:none;
+          color:#fff8df;
+          background:linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.06));
+          border:1px solid color-mix(in srgb, var(--ma-accent) 28%, rgba(255,255,255,.16));
+          box-shadow:0 18px 36px rgba(0,0,0,.22), 0 0 0 7px color-mix(in srgb, var(--ma-accent) 9%, transparent), inset 0 1px 0 rgba(255,255,255,.14);
+          backdrop-filter:blur(18px) saturate(125%);
+          -webkit-backdrop-filter:blur(18px) saturate(125%);
+          transform:translate(-50%, -50%);
+          animation:emptyPlaybackLoaderIn .18s ease-out both;
+        }
+        .empty-playback-loader span {
+          width:8px;
+          height:8px;
+          border-radius:999px;
+          background:currentColor;
+          opacity:.52;
+          animation:emptyPlaybackDot 1s ease-in-out infinite;
+        }
+        .empty-playback-loader span:nth-child(2) { animation-delay:.14s; }
+        .empty-playback-loader span:nth-child(3) { animation-delay:.28s; }
+        @keyframes emptyPlaybackLoaderIn {
+          from { opacity:0; transform:translate(-50%, -50%) scale(.92); }
+          to { opacity:1; transform:translate(-50%, -50%) scale(1); }
+        }
+        @keyframes emptyPlaybackDot {
+          0%,100% { opacity:.38; transform:translateY(0); }
+          45% { opacity:1; transform:translateY(-5px); }
         }
         .top-settings-fab {
           position:absolute;
@@ -25224,6 +26723,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .theme-light .surprise-me-card.magic-empty.pressed {
           box-shadow:0 14px 28px rgba(111,126,150,.12), 0 0 0 1px rgba(31,38,51,.10), 0 0 18px rgba(31,38,51,.08);
         }
+        .theme-light .empty-voice-btn {
+          color:#7a5210;
+          background:linear-gradient(180deg, rgba(255,255,255,.88), rgba(239,244,250,.68));
+          border-color:color-mix(in srgb, var(--ma-accent) 30%, rgba(147,161,183,.2));
+          box-shadow:0 14px 28px rgba(111,126,150,.14), 0 0 0 5px rgba(255,255,255,.45), inset 0 1px 0 rgba(255,255,255,.78);
+        }
+        .theme-light .empty-voice-btn:hover,
+        .theme-light .empty-voice-btn.listening {
+          color:#6e4b10;
+          background:linear-gradient(180deg, color-mix(in srgb, var(--ma-accent) 16%, white 84%), rgba(255,255,255,.8));
+          box-shadow:0 16px 32px color-mix(in srgb, var(--ma-accent) 14%, rgba(111,126,150,.14)), 0 0 0 7px color-mix(in srgb, var(--ma-accent) 8%, transparent), inset 0 1px 0 rgba(255,255,255,.82);
+        }
         .theme-light .menu-item.active,
         .theme-light .menu-list-item.active,
         .theme-light .queue-row.active {
@@ -25651,15 +27162,39 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           place-items:center;
           color:var(--ma-accent);
         }
+        .media-play-btn {
+          flex-shrink:0;
+          min-width:38px;
+          min-height:38px;
+          width:38px;
+          border-radius:14px;
+          display:grid;
+          place-items:center;
+          color:#fff;
+          background:linear-gradient(135deg, color-mix(in srgb, var(--ma-accent) 34%, rgba(255,255,255,.12)), rgba(255,255,255,.08));
+          border:1px solid color-mix(in srgb, var(--ma-accent) 28%, rgba(255,255,255,.14));
+          box-shadow:0 12px 22px color-mix(in srgb, var(--ma-accent) 14%, transparent), inset 0 1px 0 rgba(255,255,255,.12);
+        }
         .media-more-btn .ui-ic {
           width:17px;
           height:17px;
+        }
+        .media-play-btn .ui-ic {
+          width:16px;
+          height:16px;
+          margin-inline-start:2px;
         }
         .theme-light .media-more-btn {
           color:var(--ma-accent);
           background:color-mix(in srgb, var(--ma-accent) 14%, rgba(255,255,255,.86));
           border:1px solid color-mix(in srgb, var(--ma-accent) 30%, rgba(147,161,183,.2));
           box-shadow:0 10px 18px color-mix(in srgb, var(--ma-accent) 14%, rgba(111,126,150,.12));
+        }
+        .theme-light .media-play-btn {
+          color:#172033;
+          background:linear-gradient(135deg, color-mix(in srgb, var(--ma-accent) 22%, white 78%), rgba(255,255,255,.9));
+          border-color:color-mix(in srgb, var(--ma-accent) 32%, rgba(147,161,183,.22));
+          box-shadow:0 10px 18px color-mix(in srgb, var(--ma-accent) 12%, rgba(111,126,150,.12));
         }
         .media-entry.list {
           min-height:82px;
@@ -25743,9 +27278,30 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           backdrop-filter:blur(12px);
           -webkit-backdrop-filter:blur(12px);
         }
+        .media-entry.grid .media-play-btn {
+          position:absolute;
+          inset-block-start:14px;
+          inset-inline-end:14px;
+          z-index:2;
+          width:34px;
+          min-width:34px;
+          height:34px;
+          min-height:34px;
+          border-radius:13px;
+          background:rgba(var(--dynamic-accent-rgb,245 166 35) / .34);
+          border:1px solid rgba(255,255,255,.2);
+          color:rgba(255,255,255,.92);
+          box-shadow:0 10px 22px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.1);
+          backdrop-filter:blur(12px);
+          -webkit-backdrop-filter:blur(12px);
+        }
         .media-entry.grid .media-more-btn .ui-ic {
           width:15px;
           height:15px;
+        }
+        .media-entry.grid .media-play-btn .ui-ic {
+          width:14px;
+          height:14px;
         }
         .media-entry.grid .menu-item-title {
           width:100%;
@@ -25777,6 +27333,103 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           background:rgba(255,255,255,.72);
           border-color:rgba(132,147,168,.22);
           color:#526176;
+        }
+        .theme-light .media-entry.grid .media-play-btn {
+          background:color-mix(in srgb, var(--ma-accent) 22%, rgba(255,255,255,.82));
+          border-color:color-mix(in srgb, var(--ma-accent) 30%, rgba(132,147,168,.22));
+          color:#172033;
+        }
+        .media-detail-shell {
+          display:grid;
+          gap:14px;
+          align-content:start;
+        }
+        .media-detail-hero {
+          display:grid;
+          grid-template-columns:72px minmax(0,1fr) 46px;
+          align-items:center;
+          gap:14px;
+          padding:14px;
+          border-radius:24px;
+        }
+        .media-detail-art {
+          width:72px;
+          height:72px;
+          border-radius:20px;
+          display:grid;
+          place-items:center;
+          overflow:hidden;
+          background:linear-gradient(135deg, color-mix(in srgb, var(--ma-accent) 22%, rgba(255,255,255,.08)), rgba(255,255,255,.06));
+          border:1px solid rgba(255,255,255,.14);
+          color:var(--ma-accent);
+        }
+        .media-detail-art img {
+          width:100%;
+          height:100%;
+          object-fit:cover;
+          display:block;
+        }
+        .media-detail-art .ui-ic {
+          width:34%;
+          height:34%;
+        }
+        .media-detail-copy {
+          min-width:0;
+          display:grid;
+          gap:4px;
+        }
+        .media-detail-kicker {
+          font-size:11px;
+          font-weight:850;
+          text-transform:uppercase;
+          color:color-mix(in srgb, var(--ma-accent) 78%, white 22%);
+          letter-spacing:.08em;
+        }
+        .media-detail-title {
+          font-size:18px;
+          font-weight:950;
+          line-height:1.15;
+          overflow:hidden;
+          display:-webkit-box;
+          -webkit-line-clamp:2;
+          -webkit-box-orient:vertical;
+        }
+        .media-detail-sub {
+          font-size:12px;
+          color:rgba(255,255,255,.66);
+          overflow:hidden;
+          text-overflow:ellipsis;
+          white-space:nowrap;
+        }
+        .media-detail-play-btn {
+          width:46px;
+          min-width:46px;
+          height:46px;
+          border-radius:16px;
+          display:grid;
+          place-items:center;
+          color:#fff;
+          background:linear-gradient(135deg, color-mix(in srgb, var(--ma-accent) 42%, rgba(255,255,255,.12)), rgba(255,255,255,.08));
+          border:1px solid color-mix(in srgb, var(--ma-accent) 30%, rgba(255,255,255,.14));
+          box-shadow:0 14px 28px color-mix(in srgb, var(--ma-accent) 16%, transparent), inset 0 1px 0 rgba(255,255,255,.14);
+        }
+        .media-detail-play-btn .ui-ic {
+          width:18px;
+          height:18px;
+          margin-inline-start:2px;
+        }
+        .media-detail-empty {
+          min-height:88px;
+          display:grid;
+          align-items:center;
+        }
+        .theme-light .media-detail-sub {
+          color:#536176;
+        }
+        .theme-light .media-detail-play-btn {
+          color:#172033;
+          background:linear-gradient(135deg, color-mix(in srgb, var(--ma-accent) 24%, white 76%), rgba(255,255,255,.9));
+          border-color:color-mix(in srgb, var(--ma-accent) 32%, rgba(147,161,183,.22));
         }
         .media-section-title {
           font-size:12px;
@@ -27322,6 +28975,31 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .settings-check-pill.is-locked input {
           opacity:.78;
         }
+        .settings-check-pill.quick-action-pill.danger {
+          border-color:rgba(255,105,115,.24);
+          background:linear-gradient(145deg, rgba(255,85,95,.1), rgba(255,255,255,.07));
+        }
+        .quick-action-setting-icon {
+          display:inline-grid;
+          place-items:center;
+          width:24px;
+          height:24px;
+          flex:0 0 24px;
+        }
+        .quick-action-setting-icon .ui-ic {
+          width:19px;
+          height:19px;
+        }
+        .settings-check-pill.quick-action-pill.danger .quick-action-setting-icon {
+          color:#ffb6b6;
+        }
+        .theme-light .settings-check-pill.quick-action-pill.danger {
+          background:#fff1f2;
+          border-color:rgba(180,35,43,.18);
+        }
+        .theme-light .settings-check-pill.quick-action-pill.danger .quick-action-setting-icon {
+          color:#b4232b;
+        }
         .settings-fixed-badge {
           margin-inline-start:auto;
           padding:3px 8px;
@@ -27506,10 +29184,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           .art-stack-slide.next { width:56%; }
           .mobile-art-shell { width:min(var(--flow-mobile-art-size), calc(100% - 28px)); border-radius:0; padding:0; }
           .card.empty-media .mobile-art-shell { width:min(174px, 44cqi); height:min(174px, 44cqi); display:grid; place-items:center; border-radius:999px; overflow:visible; background:transparent; border:none; box-shadow:none; }
+          .card.radio-media.empty-media .mobile-art-shell { width:min(292px, 72cqi); height:min(292px, 72cqi); border-radius:24px; }
           .card.empty-media .art-stack-view,
           .card.empty-media .art-stack-viewport,
           .card.empty-media .art-stack-container { width:100%; height:100%; min-height:100%; display:grid; place-items:center; overflow:visible; background:transparent; border:none; box-shadow:none; }
           .card.empty-media .surprise-me-card.magic-empty { width:min(168px, 42cqi); height:min(168px, 42cqi); border-radius:999px; overflow:hidden; }
+          .card.empty-media .surprise-me-card.magic-empty.has-art { width:100%; height:100%; border-radius:22px; }
           .np-art.mobile-art { border-radius:22px; }
           .mobile-art-actions { width:auto; margin-top:0; padding:0; gap:8px; }
           .mobile-art-fab { width:38px; min-width:38px; height:38px; border-radius:999px; }
@@ -29768,14 +31448,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   border:1px solid rgba(255,255,255,.12)!important;
 }
 .queue-more-btn,
-.media-more-btn{
+.media-more-btn,
+.media-play-btn{
   background:rgba(255,255,255,.075)!important;
   border:1px solid rgba(255,255,255,.14)!important;
   color:rgba(255,255,255,.82)!important;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
 }
 .queue-more-btn .ui-ic,
-.media-more-btn .ui-ic{
+.media-more-btn .ui-ic,
+.media-play-btn .ui-ic{
   width:18px!important;
   height:18px!important;
 }
@@ -29826,7 +31508,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   color:#536176!important;
 }
 .theme-light .queue-more-btn,
-.theme-light .media-more-btn{
+.theme-light .media-more-btn,
+.theme-light .media-play-btn{
   background:rgba(255,255,255,.88)!important;
   border-color:rgba(123,139,164,.24)!important;
   color:#4b586b!important;
@@ -31285,7 +32968,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   background:linear-gradient(145deg, rgba(255,85,95,.22), rgba(255,85,95,.1))!important;
   border-color:rgba(255,105,115,.24)!important;
 }
+.danger-fab{
+  color:#ffd9d9!important;
+  background:linear-gradient(145deg, rgba(255,85,95,.22), rgba(255,85,95,.1))!important;
+  border-color:rgba(255,105,115,.24)!important;
+}
 .theme-light .power-fab{
+  color:#b4232b!important;
+  background:#fff1f2!important;
+  border-color:rgba(180,35,43,.16)!important;
+}
+.theme-light .danger-fab{
   color:#b4232b!important;
   background:#fff1f2!important;
   border-color:rgba(180,35,43,.16)!important;
@@ -31319,6 +33012,80 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 .screensaver-backdrop.open{
   opacity:1;
   pointer-events:auto;
+}
+.screensaver-action-cluster{
+  position:absolute;
+  inset-inline-end:clamp(22px, 3vw, 48px);
+  inset-block-end:clamp(20px, 2.8vh, 42px);
+  z-index:5;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.screensaver-voice-btn{
+  position:relative;
+  width:clamp(56px, 5.8vw, 72px);
+  height:clamp(56px, 5.8vw, 72px);
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.115);
+  background:rgba(255,255,255,.045);
+  color:rgba(255,255,255,.7);
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+  box-shadow:0 16px 34px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.075);
+  backdrop-filter:blur(24px) saturate(108%);
+  -webkit-backdrop-filter:blur(24px) saturate(108%);
+  opacity:.48;
+  filter:saturate(.9);
+  transition:opacity .18s ease, transform .18s ease, background .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease, filter .18s ease;
+}
+.screensaver-control-btn{
+  width:clamp(48px, 4.8vw, 62px);
+  height:clamp(48px, 4.8vw, 62px);
+  opacity:.34;
+}
+.screensaver-voice-btn .ui-ic{
+  width:32%;
+  height:32%;
+}
+.screensaver-voice-btn:hover,
+.screensaver-voice-btn:focus-visible,
+.screensaver-voice-btn.listening{
+  opacity:.88;
+  filter:saturate(1);
+  color:#fff;
+  border-color:color-mix(in srgb, var(--ma-accent) 42%, rgba(255,255,255,.18));
+  background:linear-gradient(180deg, color-mix(in srgb, var(--ma-accent) 18%, rgba(255,255,255,.12)), rgba(255,255,255,.075));
+  box-shadow:0 20px 46px color-mix(in srgb, var(--ma-accent) 14%, rgba(0,0,0,.26)), 0 0 0 8px color-mix(in srgb, var(--ma-accent) 8%, transparent), inset 0 1px 0 rgba(255,255,255,.16);
+}
+.screensaver-voice-btn:active,
+.screensaver-voice-btn.pressed{
+  transform:scale(.96);
+}
+.screensaver-voice-btn:disabled{
+  cursor:default;
+  opacity:.22;
+  transform:none;
+}
+.screensaver-voice-btn.listening::after{
+  content:"";
+  position:absolute;
+  inset:-9px;
+  border-radius:inherit;
+  border:1px solid color-mix(in srgb, var(--ma-accent) 42%, transparent);
+  animation:voiceAssistantListenPulse 1.1s ease-out infinite;
+}
+.screensaver-backdrop.open .screensaver-art{
+  animation:screensaverArtGuard 127s ease-in-out infinite;
+}
+.screensaver-backdrop.open .screensaver-track,
+.screensaver-backdrop.open .screensaver-message,
+.screensaver-backdrop.open .screensaver-next{
+  animation:screensaverTextGuard 149s ease-in-out infinite;
+}
+.screensaver-backdrop.open .screensaver-brand{
+  animation:screensaverBrandGuard 181s ease-in-out infinite;
 }
 .screensaver-bg{
   position:absolute;
@@ -31654,6 +33421,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     transform:translate(-50%, -50%) scale(var(--screensaver-clock-scale, 1));
     transform-origin:center;
   }
+  .screensaver-backdrop.open .screensaver-clock,
+  .screensaver-backdrop.open .screensaver-analog-clock{
+    animation:screensaverClockGuard 137s ease-in-out infinite;
+  }
   .screensaver-clock{
     font-size:clamp(78px, 7.4vw, 128px);
     line-height:.9;
@@ -31711,6 +33482,20 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   color:rgba(20,26,38,.34);
   filter:drop-shadow(0 12px 28px rgba(255,255,255,.22)) saturate(.86);
 }
+.theme-light .screensaver-voice-btn{
+  color:rgba(31,38,51,.56);
+  background:rgba(255,255,255,.28);
+  border-color:rgba(141,155,177,.18);
+  box-shadow:0 16px 34px rgba(111,126,150,.1), inset 0 1px 0 rgba(255,255,255,.45);
+}
+.theme-light .screensaver-voice-btn:hover,
+.theme-light .screensaver-voice-btn:focus-visible,
+.theme-light .screensaver-voice-btn.listening{
+  color:#5f420f;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--ma-accent) 14%, white 86%), rgba(255,255,255,.62));
+  border-color:color-mix(in srgb, var(--ma-accent) 36%, rgba(141,155,177,.2));
+  box-shadow:0 20px 44px color-mix(in srgb, var(--ma-accent) 12%, rgba(111,126,150,.14)), 0 0 0 8px color-mix(in srgb, var(--ma-accent) 7%, transparent), inset 0 1px 0 rgba(255,255,255,.72);
+}
 .theme-light .screensaver-backdrop.empty-mode{
   background:
     radial-gradient(circle at 18% 14%, rgba(var(--dynamic-accent-rgb,245 166 35) / .16), transparent 34%),
@@ -31739,6 +33524,38 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 @keyframes screensaverImageIn{
   from{opacity:.38;transform:scale(1.015);}
   to{opacity:1;transform:scale(1);}
+}
+@keyframes screensaverArtGuard{
+  0%,100%{transform:translate3d(-3px,2px,0);}
+  25%{transform:translate3d(4px,-2px,0);}
+  50%{transform:translate3d(2px,4px,0);}
+  75%{transform:translate3d(-4px,-3px,0);}
+}
+@keyframes screensaverTextGuard{
+  0%,100%{transform:translate3d(3px,-2px,0);opacity:.96;}
+  33%{transform:translate3d(-4px,3px,0);opacity:.9;}
+  66%{transform:translate3d(2px,4px,0);opacity:.94;}
+}
+@keyframes screensaverBrandGuard{
+  0%,100%{transform:translate3d(0,0,0);opacity:.72;}
+  50%{transform:translate3d(5px,-4px,0);opacity:.58;}
+}
+@keyframes screensaverClockGuard{
+  0%,100%{transform:translate(calc(-50% - 4px), calc(-50% + 3px)) scale(var(--screensaver-clock-scale, 1));opacity:.94;}
+  25%{transform:translate(calc(-50% + 5px), calc(-50% - 2px)) scale(var(--screensaver-clock-scale, 1));opacity:.88;}
+  50%{transform:translate(calc(-50% + 2px), calc(-50% + 5px)) scale(var(--screensaver-clock-scale, 1));opacity:.92;}
+  75%{transform:translate(calc(-50% - 5px), calc(-50% - 3px)) scale(var(--screensaver-clock-scale, 1));opacity:.9;}
+}
+@media (prefers-reduced-motion: reduce){
+  .screensaver-backdrop.open .screensaver-art,
+  .screensaver-backdrop.open .screensaver-track,
+  .screensaver-backdrop.open .screensaver-message,
+  .screensaver-backdrop.open .screensaver-next,
+  .screensaver-backdrop.open .screensaver-brand,
+  .screensaver-backdrop.open .screensaver-clock,
+  .screensaver-backdrop.open .screensaver-analog-clock{
+    animation:none!important;
+  }
 }
 @media (max-width: 620px){
   .screensaver-shell{
@@ -31770,6 +33587,19 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   .screensaver-next-art{
     width:46px;
     border-radius:14px;
+  }
+  .screensaver-action-cluster{
+    inset-inline-end:18px;
+    inset-block-end:18px;
+    gap:8px;
+  }
+  .screensaver-voice-btn{
+    width:58px;
+    height:58px;
+  }
+  .screensaver-control-btn{
+    width:50px;
+    height:50px;
   }
 }
 
@@ -31835,15 +33665,39 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         <div class="queue-action-backdrop" id="mobileVolumePresetModal">
           <div class="queue-action-sheet" id="mobileVolumePresetSheet"></div>
         </div>
+        <div class="queue-action-backdrop clean-all-confirm-backdrop" id="cleanAllConfirmModal">
+          <div class="queue-action-sheet clean-all-confirm-sheet" role="dialog" aria-modal="true" aria-labelledby="cleanAllConfirmTitle">
+            <button class="clean-all-confirm-close" id="cleanAllConfirmCloseBtn" title="${this._esc(this._i18n("ui.close"))}" aria-label="${this._esc(this._i18n("ui.close"))}">×</button>
+            <div class="clean-all-confirm-head">
+              <span class="clean-all-confirm-icon danger-confirm-icon" aria-hidden="true">${this._iconSvg("close")}</span>
+              <div class="clean-all-confirm-copy">
+                <div class="clean-all-confirm-title" id="cleanAllConfirmTitle">${this._esc(this._cleanAllConfirmTitle())}</div>
+                <div class="confirm-copy">${this._esc(this._cleanAllConfirmCopy())}</div>
+              </div>
+            </div>
+            <div class="confirm-actions clean-all-confirm-actions">
+              <button class="menu-item danger-confirm-action" id="cleanAllConfirmContinueBtn">${this._esc(this._cleanAllLabel())}</button>
+              <button class="menu-item" id="cleanAllConfirmCancelBtn">${this._esc(this._i18n("ui.cancel"))}</button>
+            </div>
+          </div>
+        </div>
         <div class="menu-backdrop" id="mobileSmartVoiceModal">
           <div class="menu-sheet confirm-sheet smart-voice-sheet" id="mobileSmartVoiceSheet"></div>
         </div>
+        <div class="voice-assistant-dialog" id="voiceAssistantDialog" aria-live="polite"></div>
         <div class="hidden-tools"><select id="playerSel"></select><button id="themeToggleBtn"></button><button id="langBtn"></button><button id="maOpenBtn"></button><div id="content"></div></div>
         <audio id="homeiiLocalAudio" class="homeii-local-audio" playsinline aria-hidden="true"></audio>
         <div class="lyrics-backdrop" id="lyricsBackdrop"></div>
         <div class="screensaver-backdrop digital-mode" id="screensaverBackdrop" aria-hidden="true">
           <div class="screensaver-bg"></div>
           <div class="screensaver-brand" aria-hidden="true">${this._tabletBrandSignatureHtml("screensaver-brand-logo")}</div>
+          ${(this._screensaverControlsEnabled() || this._voiceAssistantEnabled()) ? `<div class="screensaver-action-cluster" aria-hidden="false">
+            ${this._screensaverControlsEnabled() ? `<button class="screensaver-voice-btn screensaver-control-btn" id="screensaverPrevBtn" title="${this._esc(this._i18n("ui.previous"))}" aria-label="${this._esc(this._i18n("ui.previous"))}">${this._iconSvg("previous")}</button>` : ""}
+            ${this._voiceAssistantEnabled() ? `<button class="screensaver-voice-btn ${this._state.voiceAssistantListening ? "listening" : ""}" id="screensaverVoiceBtn" data-screensaver-voice title="${this._esc(this._flowAssistantLabel())}" aria-label="${this._esc(this._flowAssistantLabel())}">
+              ${this._iconSvg("mic")}
+            </button>` : ""}
+            ${this._screensaverControlsEnabled() ? `<button class="screensaver-voice-btn screensaver-control-btn" id="screensaverNextBtn" title="${this._esc(this._i18n("ui.next"))}" aria-label="${this._esc(this._i18n("ui.next"))}">${this._iconSvg("next")}</button>` : ""}
+          </div>` : ""}
           <div class="screensaver-shell">
             <div class="screensaver-art" id="screensaverArt"></div>
             <div class="screensaver-info">
@@ -31883,10 +33737,39 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._syncRecentHistoryUi(true);
     this._syncSleepTimerChip();
     this._syncControlRoomUi();
+    this._syncVoiceAssistantDialog();
     const cardEl = this.shadowRoot.querySelector(".card");
     cardEl?.addEventListener("pointerdown", this._boundScreensaverActivity, { passive: false });
     cardEl?.addEventListener("keydown", this._boundScreensaverActivity);
     this.$("screensaverBackdrop")?.addEventListener("click", this._boundScreensaverActivity);
+    this.$("screensaverVoiceBtn")?.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    }, { passive: false });
+    this.$("screensaverVoiceBtn")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!this._pressUiButton(e.currentTarget, [8, 18, 8])) return;
+      this._startVoiceAssistantCommand({ keepScreensaver: true, ignoreWhenListening: true });
+    });
+    ["screensaverPrevBtn", "screensaverNextBtn"].forEach((id) => {
+      this.$(id)?.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }, { passive: false });
+    });
+    this.$("screensaverPrevBtn")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!this._pressUiButton(e.currentTarget)) return;
+      this._playerCmd("previous");
+    });
+    this.$("screensaverNextBtn")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!this._pressUiButton(e.currentTarget)) return;
+      this._playerCmd("next");
+    });
     if (this._screensaverPageEntryPending) {
       this._screensaverPageEntryPending = false;
       this._resetScreensaverTimer({ hide: true, activity: true });
@@ -31936,6 +33819,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this.$("mobileInfoBtn")?.addEventListener("click", (e) => {
       if (!this._pressUiButton(e.currentTarget)) return;
       this._openSelectedPlayerMoreInfo();
+    });
+    this.$("mobileVoiceAssistantBtn")?.addEventListener("click", (e) => {
+      if (!this._pressUiButton(e.currentTarget, [8, 18, 8])) return;
+      this._startVoiceAssistantCommand();
+    });
+    this.$("mobileDisconnectAllBtn")?.addEventListener("click", (e) => {
+      if (!this._pressUiButton(e.currentTarget, [12, 18])) return;
+      this._openCleanAllConfirm();
     });
     this.$("mobilePowerBtn")?.addEventListener("click", async (e) => {
       if (!this._pressUiButton(e.currentTarget, [12, 18])) return;
@@ -32684,6 +34575,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this.$("maConfirmCancelBtn")?.addEventListener("click", () => this._closeMaConfirm());
     this.$("maConfirmContinueBtn")?.addEventListener("click", () => this._confirmMusicAssistantOpen());
     this.$("maConfirmModal")?.addEventListener("click", (e) => { if (e.target === this.$("maConfirmModal")) this._closeMaConfirm(); });
+    this.$("cleanAllConfirmCloseBtn")?.addEventListener("click", () => this._closeCleanAllConfirm());
+    this.$("cleanAllConfirmCancelBtn")?.addEventListener("click", () => this._closeCleanAllConfirm());
+    this.$("cleanAllConfirmContinueBtn")?.addEventListener("click", async (e) => {
+      await this._runLockedUiAction(e.currentTarget, () => this._confirmCleanAllPlayers(), { pattern: [18, 24, 18], lockMs: 1600 });
+    });
+    this.$("cleanAllConfirmModal")?.addEventListener("click", (e) => { if (e.target === this.$("cleanAllConfirmModal")) this._closeCleanAllConfirm(); });
     this.$("mobileMenuBody")?.addEventListener("click", this._boundMobileMenuClick);
     this.$("mobileMenuBody")?.addEventListener("change", this._boundMobileMenuChange);
     this.$("progressBar")?.addEventListener("click", (e) => this._seekFromProgress(e));
@@ -33007,6 +34904,52 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     return out;
   }
 
+  _emptyQuickShelfPlayableItems(mediaTypes = []) {
+    const allowed = new Set((Array.isArray(mediaTypes) ? mediaTypes : [])
+      .map((type) => String(type || "").toLowerCase())
+      .filter(Boolean));
+    return (Array.isArray(this._state.emptyQuickShelfItems) ? this._state.emptyQuickShelfItems : [])
+      .map((item) => this._normalizeMediaItem(item))
+      .filter((item) => String(item?.uri || "").trim())
+      .filter((item) => !allowed.size || allowed.has(String(item?.media_type || "album").toLowerCase()));
+  }
+
+  async _playEmptyQuickShelfPick(mediaTypes = [], toastKey = "", fallbackLabelKey = "ui.quick_play") {
+    const pick = this._pickRandomItems(this._emptyQuickShelfPlayableItems(mediaTypes), 1)[0];
+    if (!pick?.uri) return false;
+    const mediaType = String(pick.media_type || "album").toLowerCase();
+    const ok = await this._playMedia(pick.uri, mediaType, "play", {
+      label: pick.name || pick.title || this._i18n(fallbackLabelKey),
+      silent: true,
+    });
+    if (!ok) return false;
+    if (mediaType !== "radio") this._showSurprisePopup(pick);
+    const resolvedToastKey = toastKey === "ui.playing_a_random_playlist" && mediaType !== "playlist"
+      ? "ui.playback_started"
+      : toastKey;
+    if (resolvedToastKey) this._toastSuccess(this._i18n(resolvedToastKey));
+    return true;
+  }
+
+  _bindEmptyQuickShelfButtons(host = null) {
+    host?.querySelectorAll("[data-empty-media-uri]").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        const mediaBtn = e.currentTarget;
+        await this._runLockedUiAction(mediaBtn, async () => {
+          const uri = mediaBtn.dataset.emptyMediaUri || "";
+          const mediaType = mediaBtn.dataset.emptyMediaType || "album";
+          if (!uri) return;
+          this._showEmptyPlaybackLoading(mediaBtn);
+          const ok = await this._playMedia(uri, mediaType, "play", {
+            label: mediaBtn.getAttribute("title") || "",
+            sourceEl: mediaBtn,
+          });
+          if (!ok) this._hideEmptyPlaybackLoading();
+        }, { lockMs: 1200 });
+      });
+    });
+  }
+
   async _renderEmptyQuickShelf() {
     const host = this.$("emptyQuickShelf");
     if (!host) return;
@@ -33028,17 +34971,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         `;
       }).join("");
       host.hidden = false;
-      host.querySelectorAll("[data-empty-media-uri]").forEach((btn) => btn.addEventListener("click", async (e) => {
-        const mediaBtn = e.currentTarget;
-        const uri = mediaBtn.dataset.emptyMediaUri || "";
-        const mediaType = mediaBtn.dataset.emptyMediaType || "album";
-        if (!uri) return;
-        this._pressUiButton(mediaBtn);
-        await this._playMedia(uri, mediaType, "play", {
-          label: mediaBtn.getAttribute("title") || "",
-          sourceEl: mediaBtn,
-        });
-      }));
+      this._bindEmptyQuickShelfButtons(host);
       return;
     }
     const token = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -33120,17 +35053,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         `;
       }).join("");
       host.hidden = false;
-      host.querySelectorAll("[data-empty-media-uri]").forEach((btn) => btn.addEventListener("click", async (e) => {
-        const mediaBtn = e.currentTarget;
-        const uri = mediaBtn.dataset.emptyMediaUri || "";
-        const mediaType = mediaBtn.dataset.emptyMediaType || "album";
-        if (!uri) return;
-        this._pressUiButton(mediaBtn);
-        await this._playMedia(uri, mediaType, "play", {
-          label: mediaBtn.getAttribute("title") || "",
-          sourceEl: mediaBtn,
-        });
-      }));
+      this._bindEmptyQuickShelfButtons(host);
     } catch (_) {
       if (this._emptyQuickShelfToken !== token) return;
       this._state.emptyQuickShelfItems = [];
@@ -33149,6 +35072,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const wasEmpty = card?.classList.contains("empty-media");
     card?.classList.add("empty-media");
     const nextShelfMode = String(options.shelfMode || "default");
+    card?.classList.toggle("radio-media", nextShelfMode === "radio");
+    const displayArt = this._normalizeArtworkUrl(options.art || "", {
+      size: 420,
+      cacheKey: options.artCacheKey || `empty:${nextShelfMode}:${text}`,
+    });
     if (this._state.emptyQuickShelfMode !== nextShelfMode) {
       this._state.emptyQuickShelfMode = nextShelfMode;
       this._state.emptyQuickShelfItems = [];
@@ -33159,34 +35087,58 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (this.$("bigCurTime")) this.$("bigCurTime").textContent = "0:00";
     if (this.$("bigTotalTime")) this.$("bigTotalTime").textContent = "0:00";
     if (this.$("progressFill")) this.$("progressFill").style.width = "0%";
-    if (!wasEmpty || !this.$("surpriseMeBtn")) {
+    if (!wasEmpty || !this.$("surpriseMeBtn") || displayArt) {
+      const voiceButtonHtml = this._voiceAssistantEnabled()
+        ? `<button class="empty-voice-btn ${this._state.voiceAssistantListening ? "listening" : ""}" id="emptyVoiceAssistantBtn" title="${this._esc(this._flowAssistantLabel())}" aria-label="${this._esc(this._flowAssistantLabel())}">${this._iconSvg("mic")}</button>`
+        : "";
       if (this.$("npArt")) this.$("npArt").innerHTML = `
-        <button class="surprise-me-card compact magic-empty" id="surpriseMeBtn" aria-label="${this._esc(options.artLabel || this._i18n("ui.surprise_me"))}">
-          <span class="surprise-me-glow"></span>
-          <span class="surprise-me-wand">${this._iconSvg(options.artIcon || "wand")}</span>
-        </button>
+        <div class="empty-magic-stack ${voiceButtonHtml ? "has-voice" : ""}">
+          <button class="surprise-me-card compact magic-empty ${displayArt ? "has-art" : ""}" id="surpriseMeBtn" aria-label="${this._esc(options.artLabel || this._i18n("ui.surprise_me"))}">
+            ${displayArt
+              ? `<img src="${this._esc(displayArt)}" alt="${this._esc(text)}"><span class="surprise-me-wand art-overlay">${this._iconSvg(options.artIcon || "radio")}</span>`
+              : `<span class="surprise-me-glow"></span><span class="surprise-me-wand">${this._iconSvg(options.artIcon || "wand")}</span>`}
+          </button>
+          ${voiceButtonHtml}
+        </div>
       `;
-      this.$("surpriseMeBtn")?.addEventListener("click", (e) => {
-        this._pressUiButton(e.currentTarget);
-        if (options.artAction === "radio") this._playRandomRadioStation();
-        else this._playRandomFromPlaylists();
+      this.$("surpriseMeBtn")?.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this._showEmptyMagicRipple(e.currentTarget);
+        await this._runLockedUiAction(e.currentTarget, async () => {
+          this._showEmptyPlaybackLoading(e.currentTarget);
+          const ok = options.artAction === "radio"
+            ? await this._playRandomRadioStation()
+            : await this._playRandomFromPlaylists();
+          if (!ok) this._hideEmptyPlaybackLoading();
+        }, { lockMs: 1600 });
+      });
+      this.$("emptyVoiceAssistantBtn")?.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!this._lockUiButton(e.currentTarget, [8, 18, 8], { lockMs: 1200, disabled: false })) return;
+        this._startVoiceAssistantCommand({ ignoreWhenListening: true });
       });
     }
     this._setMobileRandomFabVisible(false);
     this._setMobileRandomFabDisabled(false);
     this._destroyMobileEmbla();
     this._state.mobileArtRenderKey = "";
-    this._mobileDynamicThemeToken += 1;
-    this._state.mobileDynamicThemeArtwork = "";
-    this._state.mobileDynamicThemeArtworkUrl = "";
-    this._state.mobileDynamicThemePalette = null;
-    this._applyDynamicThemeStyles();
+    if (displayArt) {
+      this._syncDynamicThemeArtwork(displayArt).catch(() => {});
+    } else {
+      this._mobileDynamicThemeToken += 1;
+      this._state.mobileDynamicThemeArtwork = "";
+      this._state.mobileDynamicThemeArtworkUrl = "";
+      this._state.mobileDynamicThemePalette = null;
+      this._applyDynamicThemeStyles();
+    }
     this._syncSourceBadgesUi(null, null);
     this._syncRecentHistoryUi();
-    if (this.$("mobileArtAura")) this.$("mobileArtAura").style.backgroundImage = "";
-    if (this.$("mobileHeroAura")) this.$("mobileHeroAura").style.backgroundImage = "";
-    if (this.$("compactBackdropArt")) this.$("compactBackdropArt").style.backgroundImage = "";
-    if (this.$("compactCoverAura")) this.$("compactCoverAura").style.backgroundImage = "";
+    if (this.$("mobileArtAura")) this.$("mobileArtAura").style.backgroundImage = displayArt ? `url("${this._esc(displayArt)}")` : "";
+    if (this.$("mobileHeroAura")) this.$("mobileHeroAura").style.backgroundImage = displayArt ? `url("${this._esc(displayArt)}")` : "";
+    if (this.$("compactBackdropArt")) this.$("compactBackdropArt").style.backgroundImage = displayArt ? `url("${this._esc(displayArt)}")` : "";
+    if (this.$("compactCoverAura")) this.$("compactCoverAura").style.backgroundImage = displayArt ? `url("${this._esc(displayArt)}")` : "";
     if (!wasEmpty || !this.$("emptyQuickShelf")?.children?.length) {
       this._renderEmptyQuickShelf().catch(() => {});
     }
@@ -33195,6 +35147,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   async _playRandomFromPlaylists() {
     try {
+      const inEmptyScreen = !!this.shadowRoot?.querySelector(".card")?.classList.contains("empty-media");
+      if (inEmptyScreen && await this._playEmptyQuickShelfPick(["playlist", "album"], "ui.playing_a_random_playlist", "ui.random_playlist")) {
+        return true;
+      }
       const [allPlaylists, likedPlaylists] = await Promise.allSettled([
         this._fetchLibrary("playlist", "sort_name", 500, false),
         this._fetchLibrary("playlist", "sort_name", 180, true),
@@ -33207,12 +35163,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .filter((item, index, list) => list.findIndex((candidate) => candidate?.uri === item?.uri) === index);
       if (!playlists.length) {
         this._toastError(this._i18n("ui.no_playlists_found"));
-        return;
+        return false;
       }
       const pick = playlists[Math.floor(Math.random() * playlists.length)];
       if (!pick?.uri) {
         this._toastError(this._i18n("ui.could_not_choose_media"));
-        return;
+        return false;
       }
       const ok = await this._playMedia(pick.uri, pick.media_type || "playlist", "play", {
         label: pick.name || this._i18n("ui.random_playlist"),
@@ -33222,13 +35178,19 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         this._showSurprisePopup(pick);
         this._toastSuccess(this._i18n("ui.playing_a_random_playlist"));
       }
+      return !!ok;
     } catch (error) {
       this._toastError(error?.message || this._i18n("ui.could_not_start_playback_2"));
+      return false;
     }
   }
 
   async _playRandomRadioStation() {
     try {
+      const inEmptyScreen = !!this.shadowRoot?.querySelector(".card")?.classList.contains("empty-media");
+      if (inEmptyScreen && await this._playEmptyQuickShelfPick(["radio"], "ui.playing_a_random_radio_station", "ui.random_radio")) {
+        return true;
+      }
       const [likedRadios, radios, browserRadios] = await Promise.allSettled([
         this._fetchLibrary("radio", "sort_name", 200, true),
         this._fetchLibrary("radio", "sort_name", 400, false),
@@ -33244,7 +35206,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .filter((item, index, list) => list.findIndex((candidate) => String(candidate?.uri || "").trim() === String(item?.uri || "").trim()) === index);
       if (!stations.length) {
         this._toastError(this._i18n("ui.no_radio_stations_found"));
-        return;
+        return false;
       }
       const pick = stations[Math.floor(Math.random() * stations.length)];
       const ok = await this._playMedia(pick.uri, "radio", "play", {
@@ -33252,8 +35214,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         silent: true,
       });
       if (ok) this._toastSuccess(this._i18n("ui.playing_a_random_radio_station"));
+      return !!ok;
     } catch (error) {
       this._toastError(error?.message || this._i18n("ui.could_not_start_radio_playback"));
+      return false;
     }
   }
 
@@ -33400,6 +35364,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const cardRoot = this.shadowRoot.querySelector(".card");
     cardRoot?.classList.remove("empty-media");
     cardRoot?.classList.remove("radio-media");
+    this._hideEmptyPlaybackLoading();
     this.$("activePlayerChip")?.classList.toggle("playing", player.state === "playing");
     this._clearNotice();
     this._setButtonIcon(this.$("btnPlay"), this._playPauseIconName(player));
@@ -33408,9 +35373,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._setButtonIcon(this.$("controlVolumeBtn"), this._volumeIconName(player));
     this.$("controlVolumeBtn")?.classList.toggle("muted", this._isMuted(player));
     this._setButtonIcon(this.$("mobileShuffleBtn"), "shuffle");
-    this._setButtonIcon(this.$("mobileRepeatBtn"), (player.attributes.repeat || "off") === "one" ? "repeat_one" : "repeat");
+    const repeatMode = player.attributes.repeat || "off";
+    const repeatLabel = this._repeatModeLabel(repeatMode);
+    this._setButtonIcon(this.$("mobileRepeatBtn"), repeatMode === "one" ? "repeat_one" : "repeat");
     this.$("mobileShuffleBtn")?.classList.toggle("active", !!player.attributes.shuffle);
-    this.$("mobileRepeatBtn")?.classList.toggle("active", (player.attributes.repeat || "off") !== "off");
+    const mobileRepeat = this.$("mobileRepeatBtn");
+    if (mobileRepeat) {
+      mobileRepeat.classList.toggle("active", repeatMode !== "off");
+      mobileRepeat.dataset.repeatMode = repeatMode;
+      mobileRepeat.title = repeatLabel;
+      mobileRepeat.setAttribute("aria-label", repeatLabel);
+    }
     const tabletPopupSlider = this.$("tabletPopupVolSlider");
     const tabletPopupMuteBtn = this.$("tabletPopupMuteBtn");
     const tabletPopupVolPct = this.$("tabletPopupVolPct");
@@ -33521,54 +35494,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._syncLocalSendspinMediaSession(player, currentQueueItem);
       return;
     }
-    if (currentMediaType === "radio" || forceRadioHero || likelyRadioPlayback) {
-      this._rememberRecentPlayback(player, currentQueueItem);
-      this._syncRecentHistoryUi();
-      this._syncSourceBadgesUi(player, currentQueueItem);
-      const radioDuration = this._getCurrentDuration();
-      const radioPosition = this._getCurrentPosition();
-      if (renderCompactTile({
-        title: currentTitle || this._i18n("ui.radio"),
-        subtitle: [currentArtist || player.attributes.media_artist || "", currentAlbum].filter(Boolean).join(" · ") || "—",
-        art: this._currentArtworkUrl(player, currentQueueItem, 420, { preferPlayerArtwork: true }),
-        icon: "radio",
-        duration: radioDuration,
-        position: radioPosition,
-        upNextItem,
-        sourceQueueItem: currentQueueItem,
-      })) {
-        syncMobileVolumeControls();
-        this.$("btnPlay")?.classList.toggle("is-playing", player.state === "playing");
-        return;
-      }
-      this._renderEmpty(currentTitle || this._i18n("ui.radio"), {
-        subtitle: [currentArtist || player.attributes.media_artist || "", currentAlbum].filter(Boolean).join(" · ") || "—",
-        shelfMode: "radio",
-        artLabel: this._i18n("ui.random_radio"),
-        artIcon: "radio",
-        artAction: "radio",
-      });
-      this._syncMobileUpNextUi(upNextItem);
-      if (this.$("progressFill")) this.$("progressFill").style.width = radioDuration ? `${Math.min(100, (radioPosition / radioDuration) * 100)}%` : "0%";
-      if (this.$("bigCurTime")) this.$("bigCurTime").textContent = this._fmtDur(radioPosition);
-      if (this.$("bigTotalTime")) this.$("bigTotalTime").textContent = this._fmtDur(radioDuration);
-      const radioVol = Math.round((player.attributes.volume_level || 0) * 100);
-      if (this.$("volSlider")) {
-        this.$("volSlider").value = radioVol;
-        this.$("volSlider").style.setProperty("--vol-pct", `${radioVol}%`);
-      }
-      const radioVolLabel = this.$("mobileVolPctLabel");
-      if (radioVolLabel) radioVolLabel.textContent = `${radioVol}%`;
-      this.$("btnMute")?.classList.toggle("active", this._isMuted(player));
-      this.$("btnMute")?.classList.toggle("muted", this._isMuted(player));
-      this.$("btnPlay")?.classList.toggle("is-playing", player.state === "playing");
-      this._renderPlayerSummary();
-      this._syncStatus();
-      this._syncLikeButtons();
-      this._updateActivePlayersBubble();
-      if (this._state.screensaverOpen) this._syncScreensaverUi();
-      this._syncLocalSendspinMediaSession(player, currentQueueItem);
-      return;
+    const isRadioNowPlaying = currentMediaType === "radio" || forceRadioHero || likelyRadioPlayback;
+    if (isRadioNowPlaying) {
+      cardRoot?.classList.add("radio-media");
     }
     this._state.forceRadioHero = false;
     const emptyShelf = this.$("emptyQuickShelf");
@@ -34746,9 +36674,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             </button>
           </div>
         </div>
-        <button class="players-action-stop" data-menu-nav="stop_all" title="${this._esc(this._i18n("ui.stop_all_players"))}">
+        <button class="players-action-stop" data-menu-nav="stop_all" title="${this._esc(this._cleanAllLabel())}">
           <span class="players-action-stop-icon">${this._iconSvg("stop")}</span>
-          <span>${this._esc(this._i18n("ui.disconnect_all"))}</span>
+          <span>${this._esc(this._cleanAllLabel())}</span>
         </button>
       </div>
     `;
@@ -35380,11 +37308,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const dynamicThemeMode = this._mobileDynamicThemeMode();
     const backgroundMotionMode = this._mobileBackgroundMotionMode();
     const fontScale = Number(this._state.mobileFontScale || 1).toFixed(2);
+    const iconScale = this._mobileIconScale().toFixed(2);
     const compactMode = !!this._state.mobileCompactMode;
     const showUpNext = this._mobileShowUpNextEnabled();
     const footerMode = this._mobileFooterMode();
     const volumeMode = this._mobileVolumeMode();
     const micMode = this._mobileMicMode();
+    const voiceAssistantEnabled = this._voiceAssistantEnabled();
+    const voiceAssistantMode = this._voiceAssistantMode();
+    const voiceAssistantSpeakFeedback = this._voiceAssistantSpeakFeedbackEnabled();
+    const voiceAssistantAgentOptions = this._voiceAssistantAgentOptions();
     const homeShortcut = this._mobileHomeShortcutEnabled();
     const studioShortcut = this._mobileStudioShortcutEnabled();
     const likedMode = this._useMaLikedMode() ? "ma" : "local";
@@ -35470,6 +37403,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             <input id="mobileFontScaleRange" type="range" min="0.5" max="1.5" step="0.05" value="${this._esc(fontScale)}">
             <div class="settings-value">${this._esc(fontScale)}x</div>
           </div>
+          <div class="settings-range">
+            <div class="settings-label">${this._i18n("ui.icon_size")}</div>
+            <input id="mobileIconScaleRange" type="range" min="0.8" max="1.25" step="0.05" value="${this._esc(iconScale)}">
+            <div class="settings-value">${this._esc(iconScale)}x</div>
+          </div>
           <div class="settings-label">${this._i18n("ui.compact_mode")}</div>
           <div class="settings-pills">
             ${this._settingsPill(this._i18n("ui.enabled"), "on", compactMode ? "on" : "off", "data-setting-compact-mode")}
@@ -35515,11 +37453,38 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           </div>
           <div class="settings-hint">${this._i18n("ui.only_music_assistant_players_are_shown_here_browser_and_local_sendspin_p")}</div>
         </div>
+        <div class="settings-group voice-assistant-settings-card">
+          <div class="settings-label">${this._flowAssistantLabel()}</div>
+          <div class="settings-pills">
+            ${this._settingsPill(this._i18n("ui.enabled"), "on", voiceAssistantEnabled ? "on" : "off", "data-setting-voice-assistant")}
+            ${this._settingsPill(this._i18n("ui.disabled"), "off", voiceAssistantEnabled ? "on" : "off", "data-setting-voice-assistant")}
+          </div>
+          <div class="settings-label">${this._i18n("ui.voice_assistant_mode")}</div>
+          <div class="settings-pills">
+            ${this._settingsPill(this._i18n("ui.hybrid_music_plus_assist"), "hybrid", voiceAssistantMode, "data-setting-voice-assistant-mode")}
+            ${this._settingsPill(this._i18n("ui.music_only"), "music", voiceAssistantMode, "data-setting-voice-assistant-mode")}
+            ${this._settingsPill(this._i18n("ui.assist_only"), "assist", voiceAssistantMode, "data-setting-voice-assistant-mode")}
+          </div>
+          <div class="settings-hint">${this._i18n("ui.hybrid_handles_music_locally_and_sends_unknown_commands_to_assist")}</div>
+          <div class="settings-label">${this._i18n("ui.assist_agent")}</div>
+          <select class="media-sort-select settings-select" id="voiceAssistantAgentSelect" aria-label="${this._esc(this._i18n("ui.assist_agent"))}">
+            ${voiceAssistantAgentOptions.map((option) => `
+              <option value="${this._esc(option.value)}" ${option.value === this._voiceAssistantAgentId() ? "selected" : ""}>${this._esc(option.label)}</option>
+            `).join("")}
+          </select>
+          <div class="settings-hint">${this._i18n("ui.optional_assist_agent_leave_empty_for_home_assistant_default")}</div>
+          <div class="settings-label">${this._i18n("ui.voice_feedback")}</div>
+          <div class="settings-pills">
+            ${this._settingsPill(this._i18n("ui.enabled"), "on", voiceAssistantSpeakFeedback ? "on" : "off", "data-setting-voice-feedback")}
+            ${this._settingsPill(this._i18n("ui.disabled"), "off", voiceAssistantSpeakFeedback ? "on" : "off", "data-setting-voice-feedback")}
+          </div>
+          <div class="settings-hint">${this._i18n("ui.speak_voice_assistant_responses_out_loud")}</div>
+        </div>
         <div class="settings-group quick-actions-settings-card">
           <div class="settings-label">${this._i18n("ui.quick_actions")}</div>
           <div class="settings-check-grid quick-actions-grid">
-            ${quickActionOptions.map(({ value, label, icon }) => `
-              <label class="settings-check-pill quick-action-pill">
+            ${quickActionOptions.map(({ value, label, icon, tone }) => `
+              <label class="settings-check-pill quick-action-pill ${tone === "danger" ? "danger" : ""}">
                 <input type="checkbox" data-setting-quick-action="${this._esc(value)}" ${selectedQuickActions.has(value) ? "checked" : ""}>
                 <span class="quick-action-setting-icon">${this._iconSvg(icon)}</span>
                 <span>${this._esc(label)}</span>
@@ -35610,6 +37575,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             ${this._settingsPill(this._i18n("ui.enabled"), "on", this._screensaverEnabled() ? "on" : "off", "data-setting-screensaver")}
             ${this._settingsPill(this._i18n("ui.disabled"), "off", this._screensaverEnabled() ? "on" : "off", "data-setting-screensaver")}
           </div>
+          <div class="settings-label">${this._i18n("ui.screensaver_controls")}</div>
+          <div class="settings-pills">
+            ${this._settingsPill(this._i18n("ui.enabled"), "on", this._screensaverControlsEnabled() ? "on" : "off", "data-setting-screensaver-controls")}
+            ${this._settingsPill(this._i18n("ui.disabled"), "off", this._screensaverControlsEnabled() ? "on" : "off", "data-setting-screensaver-controls")}
+          </div>
+          <div class="settings-hint">${this._i18n("ui.show_previous_next_controls_on_the_screensaver")}</div>
           <select class="media-sort-select settings-select" id="screensaverClockModeSelect" aria-label="${this._esc(this._i18n("ui.screensaver_clock_mode"))}">
             <option value="digital" ${screensaverClockMode === "digital" ? "selected" : ""}>${this._esc(this._i18n("ui.digital"))}</option>
             <option value="analog" ${screensaverClockMode === "analog" ? "selected" : ""}>${this._esc(this._i18n("ui.analog"))}</option>
@@ -35712,6 +37683,38 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     `;
   }
 
+  _libraryMediaDetailHtml(detail = {}) {
+    const mediaType = String(detail.media_type || detail.type || "album").toLowerCase();
+    const title = detail.name || (mediaType === "playlist" ? this._i18n("ui.playlist") : this._i18n("ui.album"));
+    const subtitle = [detail.artist, typeof detail.album === "string" ? detail.album : detail.album?.name].filter(Boolean).join(" · ")
+      || (mediaType === "playlist" ? this._i18n("ui.playlist") : this._i18n("ui.album"));
+    const art = detail.image || detail.image_url || this._artUrl(detail);
+    const fallbackIcon = mediaType === "playlist" ? "playlist" : "album";
+    const tracks = Array.isArray(detail.tracks) ? detail.tracks : [];
+    const loading = !!detail.loading;
+    const trackCount = tracks.length ? `${tracks.length} ${this._i18n("ui.tracks").toLowerCase()}` : "";
+    const emptyCopy = detail.error || this._m("No tracks were returned. You can still play it.", "לא נטענו שירים. עדיין אפשר לנגן.");
+    return `
+      <div class="media-detail-shell">
+        <div class="menu-list-item media-detail-hero">
+          <span class="media-detail-art">${art ? `<img src="${this._esc(art)}" alt="">` : this._iconSvg(fallbackIcon)}</span>
+          <span class="media-detail-copy">
+            <span class="media-detail-kicker">${this._esc(mediaType === "playlist" ? this._i18n("ui.playlist") : this._i18n("ui.album"))}</span>
+            <span class="media-detail-title">${this._esc(title)}</span>
+            <span class="media-detail-sub">${this._esc(trackCount || subtitle || "—")}</span>
+          </span>
+          <button class="chip-btn media-detail-play-btn" data-media-play="${this._esc(detail.uri || "")}" data-media-type="${this._esc(mediaType)}" data-media-name="${this._esc(title)}" data-media-artist="${this._esc(detail.artist || "")}" data-media-album="${this._esc(typeof detail.album === "string" ? detail.album : detail.album?.name || "")}" data-media-image="${this._esc(art || "")}" title="${this._esc(this._i18n("ui.play"))}" aria-label="${this._esc(this._i18n("ui.play"))}">${this._iconSvg("play")}</button>
+        </div>
+        <div class="media-section-title">${this._esc(this._i18n("ui.tracks"))}</div>
+        ${loading
+          ? this._loadingStateHtml(this._i18n("ui.loading_library"), { notice: true })
+          : tracks.length
+            ? this._mediaItemsListHtml(tracks, "track", { layout: "list" })
+            : `<div class="notice open media-detail-empty">${this._esc(emptyCopy)}</div>`}
+      </div>
+    `;
+  }
+
   _librarySearchHomeHtml() {
     const q = this._state.mediaQuery || "";
     const voiceSupported = this._isVoiceSearchSupported();
@@ -35754,13 +37757,24 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       group.forEach((item) => {
         const uri = String(item?.uri || item?.media_item?.uri || "").trim();
         if (!uri) return;
+        const mediaItem = item?.media_item || {};
+        const artist = this._artistName(item)
+          || this._artistName(mediaItem)
+          || item?.artist
+          || item?.artist_str
+          || item?.media_artist
+          || mediaItem?.artist
+          || mediaItem?.artist_str
+          || mediaItem?.media_artist
+          || "";
         items.push({
           uri,
-          media_type: item?.media_type || item?.type || mediaType,
-          name: item?.name || item?.media_item?.name || uri,
-          artist: this._artistName(item) || item?.artist || "",
-          album: item?.album?.name || item?.media_item?.album?.name || "",
-          image: this._artUrl(item) || item?.image || item?.media_item?.image || "",
+          media_type: this._voiceAssistantCanonicalMediaType(item?.media_type || item?.type || mediaType, mediaType),
+          name: item?.name || item?.title || mediaItem?.name || mediaItem?.title || uri,
+          artist,
+          album: item?.album?.name || item?.album || mediaItem?.album?.name || mediaItem?.album || "",
+          image: this._artUrl(item) || item?.image || item?.image_url || mediaItem?.image || mediaItem?.image_url || "",
+          _homeiiVoiceFocused: item?._homeiiVoiceFocused === true,
         });
       });
     });
@@ -35871,6 +37885,1105 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     await this._playMedia(candidate.uri, candidate.media_type || "playlist", "play", { label: candidate.name || "" });
     this._closeSmartVoiceConfirm();
     this._closeMobileMenu();
+  }
+
+  _voiceAssistantRecognitionLanguage() {
+    if (this._isHebrew()) return "he-IL";
+    try {
+      const languages = Array.isArray(window.navigator?.languages)
+        ? window.navigator.languages
+        : [window.navigator?.language || ""];
+      if (languages.some((language) => String(language || "").toLowerCase().startsWith("he"))) return "he-IL";
+    } catch (_) {}
+    return "en-US";
+  }
+
+  _voiceAssistantAssistLanguage() {
+    return this._voiceAssistantRecognitionLanguage().toLowerCase().startsWith("he") ? "he" : "en";
+  }
+
+  _normalizeVoiceCommandText(value = "") {
+    return String(value || "")
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[.,!?;:"'`׳״()[\]{}]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  _voiceCommandHasAny(normalizedText = "", terms = []) {
+    const text = this._normalizeVoiceCommandText(normalizedText);
+    if (!text) return false;
+    const haystack = ` ${text} `;
+    return terms.some((term) => {
+      const needle = this._normalizeVoiceCommandText(term);
+      if (!needle) return false;
+      if (/[\u0590-\u05ff]/.test(needle)) return text.includes(needle);
+      return haystack.includes(` ${needle} `) || text === needle;
+    });
+  }
+
+  _voiceAssistantAliasIndex(normalizedText = "", alias = "") {
+    const text = this._normalizeVoiceCommandText(normalizedText);
+    const needle = this._normalizeVoiceCommandText(alias);
+    if (!text || !needle) return -1;
+    if (/[\u0590-\u05ff]/.test(needle)) return text.indexOf(needle);
+    const index = ` ${text} `.indexOf(` ${needle} `);
+    return index >= 0 ? Math.max(0, index) : -1;
+  }
+
+  _voiceAssistantPlayerPool() {
+    this._loadPlayers();
+    return (this._state.players || [])
+      .filter((player) => this._isMusicAssistantPlayer(player))
+      .filter((player) => !this._isLikelyBrowserPlayer(player) || this._isLocalSendspinPlayer(player))
+      .filter((player) => this._isAvailableThisDevicePlayer(player));
+  }
+
+  _voiceAssistantPlayerAliases(player = null) {
+    if (!player) return [];
+    const attrs = player.attributes || {};
+    const raw = player.__homeiiRawPlayer || {};
+    const candidates = [
+      player.entity_id,
+      String(player.entity_id || "").replace(/^media_player\./, "").replace(/_/g, " "),
+      attrs.friendly_name,
+      attrs.name,
+      attrs.display_name,
+      attrs.mass_player_id,
+      attrs.player_id,
+      raw.name,
+      raw.display_name,
+      raw.friendly_name,
+    ];
+    const aliases = [];
+    candidates.forEach((value) => {
+      const alias = this._normalizeVoiceCommandText(value);
+      if (!alias || alias.length < 2) return;
+      if (["media player", "music assistant", "homeii direct", "homeii flow"].includes(alias)) return;
+      if (!aliases.includes(alias)) aliases.push(alias);
+    });
+    return aliases.sort((left, right) => right.length - left.length);
+  }
+
+  _voiceAssistantMentionedPlayers(transcript = "") {
+    const normalized = this._normalizeVoiceCommandText(transcript);
+    if (!normalized) return [];
+    const matches = [];
+    this._voiceAssistantPlayerPool().forEach((player) => {
+      this._voiceAssistantPlayerAliases(player).forEach((alias) => {
+        const index = this._voiceAssistantAliasIndex(normalized, alias);
+        if (index < 0) return;
+        matches.push({ player, alias, index, end: index + alias.length });
+      });
+    });
+    const ranges = [];
+    const seen = new Set();
+    return matches
+      .sort((left, right) => left.index - right.index || right.alias.length - left.alias.length)
+      .filter((match) => {
+        if (!match.player?.entity_id || seen.has(match.player.entity_id)) return false;
+        const overlaps = ranges.some(([start, end]) => match.index < end && match.end > start);
+        if (overlaps) return false;
+        seen.add(match.player.entity_id);
+        ranges.push([match.index, match.end]);
+        return true;
+      })
+      .map((match) => match.player);
+  }
+
+  _voiceAssistantDefaultPlayer(excludeEntityIds = [], { allowIdle = false } = {}) {
+    const excluded = new Set((Array.isArray(excludeEntityIds) ? excludeEntityIds : []).filter(Boolean));
+    const players = this._voiceAssistantPlayerPool();
+    const selected = this._getSelectedPlayer();
+    if (selected?.entity_id && !excluded.has(selected.entity_id) && players.some((player) => player.entity_id === selected.entity_id)) return selected;
+    return players.find((player) => player.state === "playing" && !excluded.has(player.entity_id))
+      || (allowIdle ? players.find((player) => !excluded.has(player.entity_id)) : null)
+      || null;
+  }
+
+  _resolveVoiceAssistantTarget(transcript = "") {
+    const normalized = this._normalizeVoiceCommandText(transcript);
+    const players = this._voiceAssistantPlayerPool();
+    const explicit = players.find((player) => this._voiceAssistantPlayerAliases(player)
+      .some((alias) => normalized.includes(alias)));
+    if (explicit) return { player: explicit, explicit: true };
+    const selected = this._getSelectedPlayer();
+    if (selected && players.some((player) => player.entity_id === selected.entity_id)) {
+      return { player: selected, explicit: false };
+    }
+    return {
+      player: players.find((player) => player.state === "playing") || players[0] || null,
+      explicit: false,
+    };
+  }
+
+  _stripVoiceAssistantPlayerAliases(text = "", player = null) {
+    let next = ` ${this._normalizeVoiceCommandText(text)} `;
+    this._voiceAssistantPlayerAliases(player).forEach((alias) => {
+      next = next.split(` ${alias} `).join(" ");
+    });
+    return next.replace(/\s+/g, " ").trim();
+  }
+
+  _extractVoiceAssistantMusicQuery(transcript = "", player = null) {
+    let query = this._stripVoiceAssistantPlayerAliases(transcript, player);
+    const commandTerms = [
+      "please",
+      "home assistant",
+      "hey home assistant",
+      "play",
+      "put on",
+      "listen to",
+      "start",
+      "music",
+      "בבקשה",
+      "היי",
+      "היי הום אסיסטנט",
+      "הום אסיסטנט",
+      "נגן",
+      "נגני",
+      "תנגן",
+      "תנגני",
+      "שים",
+      "שימי",
+      "השמע",
+      "תשמיע",
+      "תשמיעי",
+      "הפעל",
+      "תפעיל",
+      "תפעילי",
+    ];
+    commandTerms.forEach((term) => {
+      const normalized = this._normalizeVoiceCommandText(term);
+      if (!normalized) return;
+      query = ` ${query} `.split(` ${normalized} `).join(" ").replace(/\s+/g, " ").trim();
+    });
+    return query || this._normalizeVoiceCommandText(transcript);
+  }
+
+  _voiceAssistantQueueIntent(transcript = "") {
+    const normalized = this._normalizeVoiceCommandText(transcript);
+    if (!normalized) return null;
+    const hasQueueWord = this._voiceCommandHasAny(normalized, ["queue", "current queue", "play queue", "music queue", "תור", "טור", "התור", "הטור", "תור ניגון", "רשימת השמעה"]);
+    const hasTransferWord = this._voiceCommandHasAny(normalized, ["transfer", "move", "send", "move queue", "transfer queue", "העבר", "להעביר", "תעביר", "תעבירי", "הזז", "העברת"]);
+    const mentioned = this._voiceAssistantMentionedPlayers(transcript);
+    if (!hasTransferWord || (!hasQueueWord && mentioned.length < 2)) return null;
+    let sourcePlayer = null;
+    let targetPlayer = null;
+    if (mentioned.length >= 2) {
+      sourcePlayer = mentioned[0];
+      targetPlayer = mentioned[1];
+    } else if (mentioned.length === 1) {
+      targetPlayer = mentioned[0];
+      sourcePlayer = this._voiceAssistantDefaultPlayer([targetPlayer.entity_id]);
+    }
+    return {
+      type: "queue_transfer",
+      sourcePlayerId: sourcePlayer?.entity_id || "",
+      targetPlayerId: targetPlayer?.entity_id || "",
+    };
+  }
+
+  _voiceAssistantSpeakerGroupIntent(transcript = "") {
+    const normalized = this._normalizeVoiceCommandText(transcript);
+    if (!normalized) return null;
+    const mentioned = this._voiceAssistantMentionedPlayers(transcript);
+    const hasSpeakerWord = this._voiceCommandHasAny(normalized, ["speaker", "speakers", "player", "players", "room", "rooms", "רמקול", "רמקולים", "נגן", "נגנים", "חדר", "חדרים"]);
+    const hasGroupWord = this._voiceCommandHasAny(normalized, ["group", "group speakers", "join", "connect speakers", "link speakers", "ungroup", "disconnect group", "speaker group", "קבוצה", "קבוצת נגנים", "חיבור רמקולים", "חבר רמקולים", "ניתוק רמקולים", "צימוד רמקולים"]);
+    const hasDisconnectWord = this._voiceCommandHasAny(normalized, ["ungroup", "disconnect group", "disconnect speakers", "unjoin", "clear group", "נתק", "תנתק", "תנתקי", "פרק", "תפרק", "הפרד", "נתק קבוצה", "נתק רמקולים"]);
+    const hasConnectWord = this._voiceCommandHasAny(normalized, ["group", "join", "connect", "link", "pair", "activate speakers", "start speakers", "חבר", "תחבר", "תחברי", "צרף", "תצרף", "תצרפי", "צמד", "אחד", "סנכרן", "הפעל", "תפעיל", "תפעילי"]);
+    const allGroups = this._voiceCommandHasAny(normalized, ["all groups", "all speakers", "all players", "כל הקבוצות", "כל הרמקולים", "כל הנגנים", "כולם"]);
+    const speakerCountHint = this._voiceCommandHasAny(normalized, ["two speakers", "2 speakers", "שני רמקולים", "2 רמקולים", "שתי רמקולים", "שני נגנים", "2 נגנים"]);
+    if (hasDisconnectWord && (hasGroupWord || hasSpeakerWord || allGroups || mentioned.length)) {
+      if (allGroups) return { type: "group_disconnect_all" };
+      const player = mentioned[0] || this._voiceAssistantDefaultPlayer();
+      return { type: "group_disconnect", playerId: player?.entity_id || "" };
+    }
+    if (!hasConnectWord || (!hasGroupWord && !hasSpeakerWord && !speakerCountHint && mentioned.length < 2)) return null;
+    let primaryPlayer = null;
+    let memberPlayers = [];
+    if (mentioned.length >= 2) {
+      primaryPlayer = mentioned[0];
+      memberPlayers = mentioned.slice(1);
+    } else if (mentioned.length === 1) {
+      primaryPlayer = this._voiceAssistantDefaultPlayer([mentioned[0].entity_id]);
+      memberPlayers = primaryPlayer ? [mentioned[0]] : [];
+    }
+    return {
+      type: "group_connect",
+      primaryPlayerId: primaryPlayer?.entity_id || "",
+      memberPlayerIds: memberPlayers.map((player) => player?.entity_id).filter(Boolean),
+    };
+  }
+
+  _voiceAssistantVolumeIntent(normalizedText = "") {
+    if (this._voiceCommandHasAny(normalizedText, ["unmute", "sound on", "בטל השתקה", "להחזיר קול", "תחזיר קול"])) return { type: "unmute" };
+    if (this._voiceCommandHasAny(normalizedText, ["mute", "silence", "השתק", "להשתיק", "שקט"])) return { type: "mute" };
+    const hasVolumeWord = this._voiceCommandHasAny(normalizedText, ["volume", "sound", "ווליום", "עוצמה", "עוצמת קול"]);
+    if (!hasVolumeWord) return null;
+    if (this._voiceCommandHasAny(normalizedText, ["half", "חצי"])) return { type: "volume_set", level: 0.5 };
+    if (this._voiceCommandHasAny(normalizedText, ["max", "maximum", "מקסימום", "הכי חזק"])) return { type: "volume_set", level: 1 };
+    const numberMatch = normalizedText.match(/(\d{1,3})/);
+    if (numberMatch) {
+      const pct = Math.max(0, Math.min(100, Number(numberMatch[1]) || 0));
+      return { type: "volume_set", level: pct / 100 };
+    }
+    if (this._voiceCommandHasAny(normalizedText, ["up", "higher", "louder", "increase", "הגבר", "להגביר", "חזק יותר"])) {
+      return { type: "volume_delta", delta: 0.1 };
+    }
+    if (this._voiceCommandHasAny(normalizedText, ["down", "lower", "quieter", "decrease", "הנמך", "להנמיך", "חלש יותר"])) {
+      return { type: "volume_delta", delta: -0.1 };
+    }
+    return null;
+  }
+
+  _voiceAssistantCommandIntent(transcript = "", player = null, { forceMusic = false } = {}) {
+    const normalized = this._normalizeVoiceCommandText(transcript);
+    if (!normalized) return { type: "unknown" };
+    const queueIntent = this._voiceAssistantQueueIntent(transcript);
+    if (queueIntent) return queueIntent;
+    const speakerGroupIntent = this._voiceAssistantSpeakerGroupIntent(transcript);
+    if (speakerGroupIntent) return speakerGroupIntent;
+    const volumeIntent = this._voiceAssistantVolumeIntent(normalized);
+    if (volumeIntent) return volumeIntent;
+    if (this._voiceCommandHasAny(normalized, ["next", "skip", "הבא", "הבאה", "דלג", "תעביר", "תעבירי"])) return { type: "next" };
+    if (this._voiceCommandHasAny(normalized, ["previous", "back", "last song", "הקודם", "הקודמת", "חזור", "תחזור"])) return { type: "previous" };
+    if (this._voiceCommandHasAny(normalized, ["pause", "hold", "השהה", "להשהות"])) return { type: "pause" };
+    if (this._voiceCommandHasAny(normalized, ["stop", "turn off music", "עצור", "תעצור", "תפסיק", "כבה מוזיקה"])) return { type: "stop" };
+    if (this._voiceCommandHasAny(normalized, ["resume", "continue", "play music", "המשך", "תמשיך", "להמשיך"])) return { type: "resume" };
+    const hasMusicVerb = this._voiceCommandHasAny(normalized, [
+      "play",
+      "put on",
+      "listen to",
+      "start music",
+      "נגן",
+      "נגני",
+      "תנגן",
+      "תנגני",
+      "שים",
+      "שימי",
+      "השמע",
+      "תשמיע",
+      "תשמיעי",
+      "הפעל",
+      "תפעיל",
+      "תפעילי",
+    ]);
+    if (hasMusicVerb || forceMusic) {
+      const query = this._extractVoiceAssistantMusicQuery(transcript, player);
+      return query ? { type: "music", query } : { type: "resume" };
+    }
+    return { type: "unknown" };
+  }
+
+  _voiceAssistantRequestedMediaType(query = "") {
+    const normalized = this._normalizeVoiceCommandText(query);
+    if (this._voiceCommandHasAny(normalized, ["playlist", "play list", "פלייליסט", "רשימת השמעה"])) return { type: "playlist", explicit: true };
+    if (this._voiceCommandHasAny(normalized, ["album", "אלבום"])) return { type: "album", explicit: true };
+    if (this._voiceCommandHasAny(normalized, ["artist", "singer", "אמן", "זמר", "זמרת"])) return { type: "artist", explicit: true };
+    if (this._voiceCommandHasAny(normalized, ["radio", "station", "רדיו", "תחנה"])) return { type: "radio", explicit: true };
+    if (this._voiceCommandHasAny(normalized, ["song", "track", "שיר", "רצועה", "by"])) return { type: "track", explicit: true };
+    if (` ${normalized} `.includes(" של ") || ` ${normalized} `.includes(" מאת ")) return { type: "track", explicit: true };
+    return { type: "track", explicit: false };
+  }
+
+  _voiceAssistantCanonicalMediaType(value = "", fallback = "track") {
+    const type = String(value || fallback || "track").toLowerCase().trim();
+    if (type === "tracks") return "track";
+    if (type === "playlists" || type === "play_list" || type === "play lists") return "playlist";
+    if (type === "albums") return "album";
+    if (type === "artists") return "artist";
+    if (type === "radios" || type === "station" || type === "stations") return "radio";
+    if (type === "podcasts") return "podcast";
+    if (type === "songs") return "track";
+    return type || String(fallback || "track").toLowerCase().trim() || "track";
+  }
+
+  _voiceAssistantImportantMusicTokens(value = "") {
+    return this._normalizeVoiceCommandText(value)
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length > 1 && !HOMEII_VOICE_ASSISTANT_MUSIC_STOP_WORDS.includes(token));
+  }
+
+  _voiceAssistantCleanMusicPhrase(value = "", { allowStopWordFallback = false } = {}) {
+    const normalized = this._normalizeVoiceCommandText(value);
+    if (!normalized) return "";
+    const tokens = this._voiceAssistantImportantMusicTokens(normalized);
+    return tokens.join(" ") || (allowStopWordFallback ? normalized : "");
+  }
+
+  _voiceAssistantTransliterateHebrewToken(value = "") {
+    const map = {
+      א: "a", ב: "b", ג: "g", ד: "d", ה: "h", ו: "o", ז: "z", ח: "h", ט: "t",
+      י: "i", כ: "k", ך: "k", ל: "l", מ: "m", ם: "m", נ: "n", ן: "n", ס: "s",
+      ע: "a", פ: "p", ף: "p", צ: "tz", ץ: "tz", ק: "k", ר: "r", ש: "sh", ת: "t",
+    };
+    return Array.from(String(value || ""))
+      .map((char) => map[char] ?? char)
+      .join("");
+  }
+
+  _voiceAssistantLatinPhoneticKeys(value = "") {
+    const raw = this._voiceAssistantTransliterateHebrewToken(value)
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+    if (!raw) return [];
+    const variants = new Set([
+      raw,
+      raw.replace(/ch/g, "sh"),
+      raw.replace(/ch/g, "k"),
+      raw.replace(/ph/g, "f"),
+    ]);
+    const keys = new Set();
+    variants.forEach((variant) => {
+      const normalized = variant
+        .replace(/c(?=[eiy])/g, "s")
+        .replace(/c/g, "k")
+        .replace(/q/g, "k")
+        .replace(/x/g, "ks")
+        .replace(/(.)\1+/g, "$1");
+      const consonants = normalized.replace(/[aeiouy]/g, "");
+      [normalized, consonants].forEach((key) => {
+        if (key.length >= 2) keys.add(key);
+      });
+    });
+    return Array.from(keys);
+  }
+
+  _voiceAssistantTextHasToken(normalizedText = "", token = "") {
+    const haystack = this._normalizeVoiceCommandText(normalizedText);
+    const needle = this._normalizeVoiceCommandText(token);
+    if (!haystack || !needle) return false;
+    if (/[\u0590-\u05ff]/.test(needle) && haystack.includes(needle)) return true;
+    if (!/[\u0590-\u05ff]/.test(needle) && (` ${haystack} `.includes(` ${needle} `) || haystack.includes(needle))) return true;
+    const needleKeys = this._voiceAssistantLatinPhoneticKeys(needle);
+    if (!needleKeys.length) return false;
+    return haystack
+      .split(/\s+/)
+      .some((word) => {
+        const wordKeys = this._voiceAssistantLatinPhoneticKeys(word);
+        return wordKeys.some((wordKey) => needleKeys.some((needleKey) =>
+          wordKey === needleKey
+          || (needleKey.length >= 4 && wordKey.includes(needleKey))
+          || (wordKey.length >= 4 && needleKey.includes(wordKey))
+        ));
+      });
+  }
+
+  _voiceAssistantMatchedTokenCount(tokens = [], normalizedText = "") {
+    const haystack = this._normalizeVoiceCommandText(normalizedText);
+    return (Array.isArray(tokens) ? tokens : [])
+      .filter((token) => this._voiceAssistantTextHasToken(haystack, token))
+      .length;
+  }
+
+  _voiceAssistantMusicQueryParts(query = "") {
+    const normalized = this._normalizeVoiceCommandText(query);
+    if (!normalized) return { query: "", title: "", artist: "" };
+    const separators = [" של ", " מאת ", " by ", " from ", " ל "];
+    for (const separator of separators) {
+      const padded = ` ${normalized} `;
+      const index = padded.indexOf(separator);
+      if (index < 0) continue;
+      const title = this._voiceAssistantCleanMusicPhrase(padded.slice(1, index));
+      const artist = this._voiceAssistantCleanMusicPhrase(padded.slice(index + separator.length, -1));
+      if (title && artist) return { query: normalized, title, artist };
+    }
+    const cleaned = this._voiceAssistantCleanMusicPhrase(normalized, { allowStopWordFallback: true });
+    return { query: cleaned || normalized, title: cleaned || normalized, artist: "" };
+  }
+
+  _voiceAssistantFocusedMusicQuery(query = "") {
+    const parts = this._voiceAssistantMusicQueryParts(query);
+    return [parts.title, parts.artist].filter(Boolean).join(" ").trim() || parts.query;
+  }
+
+  async _voiceAssistantFocusedMusicSearch(query = "", mediaType = "track") {
+    const safeQuery = String(query || "").trim();
+    const type = this._voiceAssistantCanonicalMediaType(mediaType, "track");
+    if (!safeQuery) return this._emptySearchResults();
+    try {
+      const raw = await this._callService("search", { name: safeQuery, query: safeQuery, limit: 30, media_type: [type] });
+      return this._normalizeSearchResponse(raw);
+    } catch (_) {
+      try {
+        const raw2 = await this._callService("search", { name: safeQuery, limit: 30, media_type: type });
+        return this._normalizeSearchResponse(raw2);
+      } catch (_) {}
+    }
+    return this._emptySearchResults();
+  }
+
+  _markVoiceAssistantFocusedResults(results = {}) {
+    const out = this._emptySearchResults();
+    Object.keys(out).forEach((group) => {
+      out[group] = (Array.isArray(results?.[group]) ? results[group] : [])
+        .map((item) => ({ ...item, _homeiiVoiceFocused: true }));
+    });
+    return out;
+  }
+
+  _voiceAssistantCandidateScore(candidate = {}, query = "", request = this._voiceAssistantRequestedMediaType(query)) {
+    const type = this._voiceAssistantCanonicalMediaType(candidate?.media_type || "", "");
+    const title = this._normalizeVoiceCommandText(candidate?.name || candidate?.title || "");
+    const artist = this._normalizeVoiceCommandText(candidate?.artist || "");
+    const album = this._normalizeVoiceCommandText(candidate?.album || "");
+    const parts = this._voiceAssistantMusicQueryParts(query);
+    const q = parts.query;
+    const titleNeedle = parts.title;
+    const artistNeedle = parts.artist;
+    const haystack = [title, artist, album].filter(Boolean).join(" ");
+    let score = 0;
+    if (type === request.type) score += request.explicit ? 24 : 10;
+    else if (!request.explicit && type === "track") score += 10;
+    else if (!request.explicit && type === "album") score += 3;
+    else if (!request.explicit && type === "artist") score += 2;
+    else if (!request.explicit && type === "playlist") score -= 8;
+    else if (request.explicit) score -= 8;
+    if (candidate?._homeiiVoiceFocused === true) score += 8;
+    if (q && title === q) score += 28;
+    else if (q && title.startsWith(q)) score += 16;
+    else if (q && title.includes(q)) score += 10;
+    if (titleNeedle && title === titleNeedle) score += 34;
+    else if (titleNeedle && title.startsWith(titleNeedle)) score += 22;
+    else if (titleNeedle && title.includes(titleNeedle)) score += 15;
+    if (artistNeedle) {
+      if (artist === artistNeedle) score += 30;
+      else if (artist.includes(artistNeedle) || artistNeedle.includes(artist)) score += 18;
+      else if (artistNeedle.split(" ").filter(Boolean).every((word) => haystack.includes(word))) score += 12;
+    }
+    const words = this._voiceAssistantImportantMusicTokens([parts.title, parts.artist].filter(Boolean).join(" ") || q);
+    const matchedWords = this._voiceAssistantMatchedTokenCount(words, haystack);
+    score += matchedWords * 6;
+    if (words.length && matchedWords === words.length) score += 12;
+    if (words.length && !matchedWords) score -= 30;
+    if (!request.explicit && type === "playlist" && (title.includes("hits") || title.includes("top") || title.includes("radio"))) score -= 4;
+    return score;
+  }
+
+  _voiceAssistantCandidateMatch(candidate = {}, query = "", request = this._voiceAssistantRequestedMediaType(query), index = 0) {
+    const type = this._voiceAssistantCanonicalMediaType(candidate?.media_type || "", "");
+    const title = this._normalizeVoiceCommandText(candidate?.name || candidate?.title || "");
+    const artist = this._normalizeVoiceCommandText(candidate?.artist || "");
+    const album = this._normalizeVoiceCommandText(candidate?.album || "");
+    const parts = this._voiceAssistantMusicQueryParts(query);
+    const queryTokens = this._voiceAssistantImportantMusicTokens([parts.title, parts.artist].filter(Boolean).join(" ") || parts.query);
+    const titleTokens = this._voiceAssistantImportantMusicTokens(parts.title);
+    const artistTokens = this._voiceAssistantImportantMusicTokens(parts.artist);
+    const haystack = [title, artist, album].filter(Boolean).join(" ");
+    const matchedTokens = this._voiceAssistantMatchedTokenCount(queryTokens, haystack);
+    const matchedTitleTokens = this._voiceAssistantMatchedTokenCount(titleTokens, title);
+    const matchedArtistTokens = this._voiceAssistantMatchedTokenCount(artistTokens, [artist, album, haystack].filter(Boolean).join(" "));
+    const exactTitlePhrase = !!parts.title && (title === parts.title || title.startsWith(parts.title) || title.includes(parts.title));
+    const exactQueryPhrase = !!parts.query && (title === parts.query || title.startsWith(parts.query) || title.includes(parts.query));
+    const titleMatchStrong = exactTitlePhrase
+      || exactQueryPhrase
+      || (titleTokens.length > 0 && matchedTitleTokens === titleTokens.length);
+    const hasCandidateArtist = !!artist;
+    const requiredArtistMatches = artistTokens.length
+      ? Math.min(artistTokens.length, Math.max(1, Math.ceil(artistTokens.length * 0.6)))
+      : 0;
+    const artistMatchStrong = artistTokens.length > 0 && matchedArtistTokens >= requiredArtistMatches;
+    const score = this._voiceAssistantCandidateScore(candidate, query, request);
+    let accepted = false;
+    if (artistTokens.length && !titleTokens.length) {
+      accepted = artistMatchStrong;
+    } else if (artistTokens.length && titleTokens.length) {
+      accepted = titleMatchStrong && (artistMatchStrong || !hasCandidateArtist);
+    } else if (queryTokens.length === 1) {
+      accepted = matchedTokens === 1 && (exactTitlePhrase || exactQueryPhrase || matchedTitleTokens === 1 || matchedArtistTokens === 1);
+    } else if (queryTokens.length > 1) {
+      const requiredMatches = Math.min(queryTokens.length, Math.max(2, Math.ceil(queryTokens.length * 0.55)));
+      accepted = titleMatchStrong || matchedTokens >= requiredMatches;
+    }
+    if (request.explicit && type !== request.type) accepted = false;
+    return {
+      candidate,
+      index,
+      score,
+      accepted,
+      matchedTokens,
+      queryTokenCount: queryTokens.length,
+      exactTitlePhrase,
+      exactQueryPhrase,
+    };
+  }
+
+  _voiceAssistantRankedCandidates(results = {}, query = "") {
+    const candidates = this._normalizeSmartVoiceCandidates(results);
+    if (!candidates.length) return [];
+    const request = this._voiceAssistantRequestedMediaType(query);
+    return candidates
+      .map((candidate, index) => this._voiceAssistantCandidateMatch(candidate, query, request, index))
+      .sort((left, right) =>
+        Number(right.accepted) - Number(left.accepted)
+        || right.score - left.score
+        || right.matchedTokens - left.matchedTokens
+        || left.index - right.index
+      );
+  }
+
+  _voiceAssistantBestCandidate(results = {}, query = "") {
+    return this._voiceAssistantRankedCandidates(results, query)
+      .find((match) => match.accepted && match.candidate?.uri)
+      ?.candidate || null;
+  }
+
+  async _playVoiceAssistantMusic(query = "", player = null) {
+    const target = player || this._getSelectedPlayer();
+    if (!target?.entity_id) {
+      const message = this._i18n("ui.voice_command_no_player");
+      this._toastError(message);
+      return { handled: true, ok: false, message };
+    }
+    const safeQuery = String(query || "").trim();
+    if (!safeQuery) {
+      const message = this._i18n("ui.voice_command_not_understood");
+      this._toastError(message);
+      return { handled: true, ok: false, message };
+    }
+    this._toast(this._i18n("ui.voice_music_searching", { query: safeQuery }));
+    try {
+      let results = this._emptySearchResults();
+      try {
+        results = await this._search(safeQuery);
+      } catch (error) {
+        this._debugLog?.("warn", "[HOMEii Voice] Music search failed", { query: safeQuery, error });
+      }
+      const requested = this._voiceAssistantRequestedMediaType(safeQuery);
+      const focusedQuery = this._voiceAssistantFocusedMusicQuery(safeQuery);
+      const focusedType = this._voiceAssistantCanonicalMediaType(requested?.type || "track", "track");
+      if (!this._hasSearchResults(results) && focusedQuery && focusedType) {
+        const focusedResults = await this._voiceAssistantFocusedMusicSearch(focusedQuery, focusedType);
+        results = this._mergeSearchResults(this._markVoiceAssistantFocusedResults(focusedResults), results);
+      }
+      const rankedCandidates = this._voiceAssistantRankedCandidates(results, safeQuery);
+      const candidate = rankedCandidates.find((match) => match.accepted && match.candidate?.uri)?.candidate
+        || rankedCandidates.find((match) => match.candidate?.uri)?.candidate
+        || this._normalizeSmartVoiceCandidates(results).find((item) => item?.uri)
+        || null;
+      if (!candidate?.uri) {
+        const message = this._i18n("ui.no_matching_content_was_found");
+        this._toastError(message);
+        return { handled: true, ok: false, message };
+      }
+      if (target.entity_id !== this._state.selectedPlayer) this._selectPlayer(target.entity_id, true);
+      const title = candidate.name || safeQuery;
+      this._updateVoiceAssistantDialog({ status: "processing", response: this._i18n("ui.voice_starting_playback", { title }) });
+      const mediaType = this._voiceAssistantCanonicalMediaType(candidate.media_type || focusedType, focusedType);
+      const played = await this._playMediaOnPlayer(target.entity_id, candidate.uri, mediaType, "play", {
+        label: title,
+        silent: true,
+      });
+      if (!played) {
+        const message = this._i18n("ui.could_not_play_label", { label: title });
+        this._toastError(message);
+        return { handled: true, ok: false, message };
+      }
+      return {
+        handled: true,
+        ok: true,
+        message: this._i18n("ui.voice_playing_result", { title }),
+        autoCloseMs: 1400,
+      };
+    } catch (error) {
+      const message = error?.message || this._i18n("ui.voice_command_failed");
+      this._toastError(message);
+      return { handled: true, ok: false, message };
+    }
+  }
+
+  async _runVoiceAssistantPlayerManagementCommand(intent = {}) {
+    const type = String(intent?.type || "");
+    if (!["queue_transfer", "group_connect", "group_disconnect", "group_disconnect_all"].includes(type)) return null;
+    try {
+      if (type === "queue_transfer") {
+        const sourcePlayerId = String(intent.sourcePlayerId || "").trim();
+        const targetPlayerId = String(intent.targetPlayerId || "").trim();
+        if (!sourcePlayerId || !targetPlayerId || sourcePlayerId === targetPlayerId) {
+          const message = this._i18n("ui.voice_queue_transfer_needs_players");
+          this._toastError(message);
+          return { handled: true, ok: false, message };
+        }
+        const ok = await this._transferQueueBetween(sourcePlayerId, targetPlayerId, { silent: true });
+        const source = this._controlRoomPlayerName(sourcePlayerId);
+        const target = this._controlRoomPlayerName(targetPlayerId);
+        const message = ok
+          ? this._i18n("ui.voice_queue_transferred_between", { source, target })
+          : this._i18n("ui.queue_action_failed");
+        (ok ? this._toastSuccess : this._toastError).call(this, message);
+        return { handled: true, ok, message, autoCloseMs: ok ? 1400 : 0 };
+      }
+      if (type === "group_connect") {
+        const primaryPlayerId = String(intent.primaryPlayerId || "").trim();
+        const memberPlayerIds = [...new Set((Array.isArray(intent.memberPlayerIds) ? intent.memberPlayerIds : []).filter((id) => id && id !== primaryPlayerId))];
+        if (!primaryPlayerId || !memberPlayerIds.length) {
+          const message = this._i18n("ui.voice_group_connect_needs_players");
+          this._toastError(message);
+          return { handled: true, ok: false, message };
+        }
+        await this._applySpeakerGroupFor(primaryPlayerId, memberPlayerIds);
+        const primary = this._controlRoomPlayerName(primaryPlayerId);
+        const members = memberPlayerIds.map((entityId) => this._controlRoomPlayerName(entityId)).join(", ");
+        const message = this._i18n("ui.voice_group_connected_players", { primary, members });
+        this._toastSuccess(message);
+        setTimeout(() => {
+          this._loadPlayers();
+          this._refreshGroupingState();
+          if (this._state.menuOpen) this._renderMobileMenu();
+        }, 550);
+        return { handled: true, ok: true, message, autoCloseMs: 1400 };
+      }
+      if (type === "group_disconnect") {
+        const playerId = String(intent.playerId || "").trim();
+        if (!playerId) {
+          const message = this._i18n("ui.voice_group_disconnect_needs_player");
+          this._toastError(message);
+          return { handled: true, ok: false, message };
+        }
+        const ok = await this._clearSpeakerGroupFor(playerId);
+        const player = this._controlRoomPlayerName(playerId);
+        const message = ok
+          ? this._i18n("ui.voice_group_disconnected_player", { player })
+          : this._i18n("ui.player_groups_could_not_be_disconnected");
+        (ok ? this._toastSuccess : this._toastError).call(this, message);
+        return { handled: true, ok, message, autoCloseMs: ok ? 1200 : 0 };
+      }
+      if (type === "group_disconnect_all") {
+        const result = await this._disconnectPlayerGroups({ silent: true });
+        const ok = result?.ok !== false;
+        const message = ok
+          ? (Number(result?.count || 0) > 0 ? this._i18n("ui.all_player_groups_disconnected") : this._i18n("ui.no_player_groups_to_disconnect"))
+          : this._i18n("ui.player_groups_could_not_be_disconnected");
+        (ok ? this._toastSuccess : this._toastError).call(this, message);
+        return { handled: true, ok, message, autoCloseMs: ok ? 1200 : 0 };
+      }
+    } catch (error) {
+      const message = error?.message || this._i18n("ui.voice_command_failed");
+      this._toastError(message);
+      return { handled: true, ok: false, message };
+    }
+    return null;
+  }
+
+  async _runVoiceAssistantMediaCommand(intent = {}, player = null) {
+    const playerManagementResult = await this._runVoiceAssistantPlayerManagementCommand(intent);
+    if (playerManagementResult) return playerManagementResult;
+    if (!player?.entity_id) {
+      const message = this._i18n("ui.voice_command_no_player");
+      this._toastError(message);
+      return { handled: true, ok: false, message };
+    }
+    const entityId = player.entity_id;
+    try {
+      if (entityId !== this._state.selectedPlayer) this._selectPlayer(entityId, true);
+      if (intent.type === "next" || intent.type === "previous") {
+        await this._playerCmdFor(entityId, intent.type === "previous" ? "previous" : "next");
+      } else if (intent.type === "pause") {
+        if (this._isDirectMaPlayer(player)) await this._callDirectMaPlayerCommand(player, "players/cmd/pause");
+        else await this._hass.callService("media_player", "media_pause", { entity_id: entityId });
+      } else if (intent.type === "resume") {
+        if (this._isDirectMaPlayer(player)) await this._callDirectMaPlayerCommand(player, "players/cmd/play");
+        else await this._hass.callService("media_player", "media_play", { entity_id: entityId });
+      } else if (intent.type === "stop") {
+        if (this._isDirectMaPlayer(player)) await this._callDirectMaPlayerCommand(player, "players/cmd/stop");
+        else await this._hass.callService("media_player", "media_stop", { entity_id: entityId });
+      } else if (intent.type === "mute" || intent.type === "unmute") {
+        const shouldMute = intent.type === "mute";
+        if (this._isMuted(player) !== shouldMute) await this._toggleMuteFor(entityId);
+      } else if (intent.type === "volume_set") {
+        await this._setPlayerVolumeFor(entityId, intent.level);
+      } else if (intent.type === "volume_delta") {
+        const current = Number(player.attributes?.volume_level);
+        const base = Number.isFinite(current) ? current : 0.35;
+        await this._setPlayerVolumeFor(entityId, Math.max(0, Math.min(1, base + Number(intent.delta || 0))));
+      } else {
+        return { handled: false, ok: false, message: "" };
+      }
+      const actionLabel = ({
+        next: this._m("next track", "השיר הבא"),
+        previous: this._m("previous track", "השיר הקודם"),
+        pause: this._m("pause", "השהיה"),
+        resume: this._m("play", "ניגון"),
+        stop: this._m("stop", "עצירה"),
+        mute: this._m("mute", "השתקה"),
+        unmute: this._m("unmute", "ביטול השתקה"),
+        volume_set: this._m("volume", "עוצמת קול"),
+        volume_delta: this._m("volume", "עוצמת קול"),
+      })[intent.type] || this._i18n("ui.voice_command_executed");
+      const message = this._i18n("ui.voice_command_completed_action", { action: actionLabel });
+      this._toastSuccess(message);
+      return { handled: true, ok: true, message, autoCloseMs: 1200 };
+    } catch (error) {
+      const message = error?.message || this._i18n("ui.voice_command_failed");
+      this._toastError(message);
+      return { handled: true, ok: false, message };
+    }
+  }
+
+  _assistResponseSpeech(response = null) {
+    const candidates = [
+      response?.response?.speech?.plain?.speech,
+      response?.response?.speech?.plain,
+      response?.speech?.plain?.speech,
+      response?.speech?.plain,
+      response?.response?.speech,
+      response?.speech,
+    ];
+    const found = candidates.find((value) => typeof value === "string" && value.trim());
+    return String(found || "").trim();
+  }
+
+  async _sendVoiceCommandToAssist(transcript = "") {
+    const text = String(transcript || "").trim();
+    if (!text) return false;
+    const payload = {
+      type: "conversation/process",
+      text,
+      language: this._voiceAssistantAssistLanguage(),
+    };
+    const agentId = this._voiceAssistantAgentId();
+    if (agentId) payload.agent_id = agentId;
+    try {
+      const response = await this._callHomeAssistantWs(payload);
+      const speech = this._assistResponseSpeech(response);
+      if (speech) this._toast(speech, "info", { duration: 6500 });
+      else this._toastSuccess(this._i18n("ui.voice_command_sent"));
+      return {
+        handled: true,
+        ok: true,
+        message: speech || this._i18n("ui.voice_command_sent"),
+      };
+    } catch (error) {
+      const message = error?.message || this._i18n("ui.voice_command_failed");
+      this._toastError(message);
+      return { handled: true, ok: false, message };
+    }
+  }
+
+  async _handleVoiceAssistantTranscript(transcript = "") {
+    const text = String(transcript || "").trim();
+    if (!text) {
+      const message = this._i18n("ui.no_speech_was_captured");
+      this._toastError(message);
+      return { handled: true, ok: false, message };
+    }
+    const mode = this._voiceAssistantMode();
+    const target = this._resolveVoiceAssistantTarget(text);
+    if (mode !== "assist") {
+      const intent = this._voiceAssistantCommandIntent(text, target.player, { forceMusic: mode === "music" });
+      if (intent.type === "music") {
+        return this._playVoiceAssistantMusic(intent.query, target.player);
+      }
+      if (intent.type !== "unknown") {
+        return this._runVoiceAssistantMediaCommand(intent, target.player);
+      }
+    }
+    if (mode !== "music") {
+      return this._sendVoiceCommandToAssist(text);
+    }
+    const message = this._i18n("ui.voice_command_not_understood");
+    this._toastError(message);
+    return { handled: true, ok: false, message };
+  }
+
+  _stopVoiceAssistantRecognition() {
+    const recognition = this._voiceAssistantRecognition;
+    this._voiceAssistantRecognition = null;
+    this._state.voiceAssistantListening = false;
+    this.$("mobileVoiceAssistantBtn")?.classList.remove("listening");
+    this.$("emptyVoiceAssistantBtn")?.classList.remove("listening");
+    this.$("screensaverVoiceBtn")?.classList.remove("listening");
+    try {
+      if (recognition) recognition.__homeiiCancelled = true;
+      recognition?.abort?.();
+    } catch {}
+  }
+
+  _voiceAssistantStatusLabel(status = "") {
+    const safeStatus = String(status || "").toLowerCase();
+    if (safeStatus === "listening") return this._i18n("ui.voice_listening_status");
+    if (safeStatus === "processing") return this._i18n("ui.voice_processing_status");
+    if (safeStatus === "success") return this._i18n("ui.voice_done_status");
+    if (safeStatus === "error") return this._i18n("ui.voice_error_status");
+    return this._i18n("ui.voice_ready_status");
+  }
+
+  _voiceAssistantDialogIcon(status = "") {
+    return String(status || "").toLowerCase() === "error" ? "close" : "mic";
+  }
+
+  _openVoiceAssistantDialog(status = "listening", updates = {}) {
+    clearTimeout(this._voiceAssistantDialogCloseTimer);
+    this._state.voiceAssistantDialogOpen = true;
+    this._state.voiceAssistantKeepScreensaver = updates.keepScreensaver === true;
+    this._state.voiceAssistantDialogStatus = status;
+    this._state.voiceAssistantTranscript = updates.transcript ?? "";
+    this._state.voiceAssistantResponse = updates.response ?? "";
+    this._syncVoiceAssistantDialog();
+  }
+
+  _updateVoiceAssistantDialog(updates = {}) {
+    if (updates.status && !["success", "error"].includes(String(updates.status || "").toLowerCase())) {
+      clearTimeout(this._voiceAssistantDialogCloseTimer);
+    }
+    this._state.voiceAssistantDialogOpen = updates.open ?? this._state.voiceAssistantDialogOpen ?? true;
+    if (updates.keepScreensaver !== undefined) this._state.voiceAssistantKeepScreensaver = updates.keepScreensaver === true;
+    if (updates.status !== undefined) this._state.voiceAssistantDialogStatus = updates.status;
+    if (updates.transcript !== undefined) this._state.voiceAssistantTranscript = updates.transcript;
+    if (updates.response !== undefined) this._state.voiceAssistantResponse = updates.response;
+    this._syncVoiceAssistantDialog();
+  }
+
+  _closeVoiceAssistantDialog({ stopRecognition = true } = {}) {
+    clearTimeout(this._voiceAssistantDialogCloseTimer);
+    if (stopRecognition) this._stopVoiceAssistantRecognition();
+    this._state.voiceAssistantDialogOpen = false;
+    this._state.voiceAssistantKeepScreensaver = false;
+    this._syncVoiceAssistantDialog();
+  }
+
+  _scheduleVoiceAssistantDialogClose(delayMs = 1500) {
+    clearTimeout(this._voiceAssistantDialogCloseTimer);
+    this._voiceAssistantDialogCloseTimer = setTimeout(() => {
+      this._voiceAssistantDialogCloseTimer = null;
+      this._closeVoiceAssistantDialog({ stopRecognition: false });
+    }, Math.max(500, Number(delayMs) || 1500));
+  }
+
+  _syncVoiceAssistantDialog() {
+    const host = this.$("voiceAssistantDialog");
+    if (!host) return;
+    const open = !!this._state.voiceAssistantDialogOpen;
+    const status = String(this._state.voiceAssistantDialogStatus || "ready").toLowerCase();
+    const transcript = String(this._state.voiceAssistantTranscript || "").trim();
+    const response = String(this._state.voiceAssistantResponse || "").trim();
+    const keepScreensaver = this._state.voiceAssistantKeepScreensaver === true;
+    host.className = `voice-assistant-dialog ${open ? "open" : ""} ${keepScreensaver ? "keep-screensaver" : ""} status-${this._esc(status)}`;
+    if (!open) {
+      host.innerHTML = "";
+      return;
+    }
+    if (!host.querySelector(".voice-assistant-panel")) {
+      host.innerHTML = `
+      <div class="voice-assistant-panel" data-screensaver-dialog role="dialog" aria-label="FLOW ASSISTANT">
+        <div class="voice-assistant-head">
+          <div class="voice-assistant-title-row">
+            <span class="voice-assistant-icon" id="voiceAssistantDialogIconSlot"></span>
+            <span class="voice-assistant-copy">
+              <span class="voice-assistant-brand" aria-hidden="true">${this._tabletBrandSignatureHtml("voice-assistant-logo")}</span>
+              <span class="voice-assistant-title">FLOW ASSISTANT</span>
+              <span class="voice-assistant-status" id="voiceAssistantDialogStatus"></span>
+            </span>
+          </div>
+          <button class="voice-assistant-close" id="voiceAssistantDialogClose" title="${this._esc(this._i18n("ui.close"))}">${this._iconSvg("close")}</button>
+        </div>
+        <div class="voice-assistant-meter" aria-hidden="true"><span></span></div>
+        <div class="voice-assistant-wave" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <div class="voice-assistant-lines">
+          <div class="voice-assistant-line">
+            <span class="voice-assistant-line-label">${this._esc(this._i18n("ui.voice_transcript"))}</span>
+            <span class="voice-assistant-line-text" id="voiceAssistantDialogTranscript"></span>
+          </div>
+          <div class="voice-assistant-line">
+            <span class="voice-assistant-line-label">${this._esc(this._i18n("ui.voice_response"))}</span>
+            <span class="voice-assistant-line-text" id="voiceAssistantDialogResponse"></span>
+          </div>
+        </div>
+        <div class="voice-assistant-actions">
+          <button type="button" id="voiceAssistantDialogRetry" class="primary">${this._esc(this._i18n("ui.try_again"))}</button>
+          <button type="button" id="voiceAssistantDialogCloseSecondary">${this._esc(this._i18n("ui.close"))}</button>
+        </div>
+      </div>
+    `;
+      const panel = host.querySelector(".voice-assistant-panel");
+      const keepPanelEvent = (event) => {
+        if (this._state.screensaverOpen && this._state.voiceAssistantKeepScreensaver === true) {
+          event.stopPropagation();
+        }
+      };
+      panel?.addEventListener("pointerdown", keepPanelEvent);
+      panel?.addEventListener("click", keepPanelEvent);
+      panel?.addEventListener("keydown", keepPanelEvent);
+      host.querySelector("#voiceAssistantDialogClose")?.addEventListener("click", () => this._closeVoiceAssistantDialog());
+      host.querySelector("#voiceAssistantDialogCloseSecondary")?.addEventListener("click", () => this._closeVoiceAssistantDialog());
+      host.querySelector("#voiceAssistantDialogRetry")?.addEventListener("click", () => {
+        this._startVoiceAssistantCommand({ keepScreensaver: this._state.voiceAssistantKeepScreensaver === true });
+      });
+    }
+    const retryBtn = host.querySelector("#voiceAssistantDialogRetry");
+    if (retryBtn) retryBtn.hidden = status === "listening" || status === "processing";
+    const iconSlot = host.querySelector("#voiceAssistantDialogIconSlot");
+    const iconName = this._voiceAssistantDialogIcon(status);
+    if (iconSlot && iconSlot.dataset.iconName !== iconName) {
+      iconSlot.dataset.iconName = iconName;
+      iconSlot.innerHTML = this._iconSvg(iconName);
+    }
+    const statusEl = host.querySelector("#voiceAssistantDialogStatus");
+    if (statusEl) statusEl.textContent = this._voiceAssistantStatusLabel(status);
+    const transcriptEl = host.querySelector("#voiceAssistantDialogTranscript");
+    if (transcriptEl) {
+      transcriptEl.textContent = transcript || this._i18n("ui.waiting_for_speech");
+      transcriptEl.classList.toggle("voice-assistant-placeholder", !transcript);
+    }
+    const responseEl = host.querySelector("#voiceAssistantDialogResponse");
+    if (responseEl) {
+      responseEl.textContent = response || this._i18n("ui.voice_response_will_appear_here");
+      responseEl.classList.toggle("voice-assistant-placeholder", !response);
+    }
+  }
+
+  _voiceAssistantRecognitionErrorMessage(errorCode = "") {
+    const code = String(errorCode || "").trim();
+    if (code === "no-speech") return this._i18n("ui.no_speech_was_captured");
+    if (code === "not-allowed" || code === "service-not-allowed") return this._i18n("ui.microphone_permission_or_browser_blocked");
+    if (code === "language-not-supported") return this._i18n("ui.voice_language_is_not_supported");
+    if (code === "network") return this._i18n("ui.voice_recognition_network_failed");
+    return this._i18n("ui.voice_input_failed");
+  }
+
+  _speakVoiceAssistantFeedback(text = "") {
+    const message = String(text || "").trim();
+    if (!message || !this._voiceAssistantSpeakFeedbackEnabled()) return;
+    if (typeof window === "undefined") return;
+    const synth = window.speechSynthesis;
+    if (!synth || typeof window.SpeechSynthesisUtterance !== "function") return;
+    try {
+      synth.cancel();
+      const utterance = new window.SpeechSynthesisUtterance(message);
+      utterance.lang = this._voiceAssistantRecognitionLanguage();
+      utterance.rate = 1;
+      utterance.pitch = 1;
+      synth.speak(utterance);
+    } catch (_) {}
+  }
+
+  _startVoiceAssistantCommand(options = {}) {
+    const keepScreensaver = options?.keepScreensaver === true;
+    const ignoreWhenListening = options?.ignoreWhenListening === true;
+    if (keepScreensaver) this._resetScreensaverTimer({ hide: false, activity: true });
+    if (!this._voiceAssistantEnabled()) {
+      const message = this._i18n("ui.voice_assistant_disabled");
+      this._toastError(message);
+      this._openVoiceAssistantDialog("error", { response: message, keepScreensaver });
+      return;
+    }
+    if (this._mobileMicMode() === "off") {
+      const message = this._i18n("ui.microphone_is_disabled");
+      this._toastError(message);
+      this._openVoiceAssistantDialog("error", { response: message, keepScreensaver });
+      return;
+    }
+    if (this._state.voiceAssistantListening) {
+      if (ignoreWhenListening) {
+        this._openVoiceAssistantDialog("listening", {
+          transcript: this._state.voiceAssistantTranscript || "",
+          response: this._state.voiceAssistantResponse || "",
+          keepScreensaver,
+        });
+        return;
+      }
+      this._stopVoiceAssistantRecognition();
+      this._closeVoiceAssistantDialog();
+      return;
+    }
+    if (!keepScreensaver) this._resetScreensaverTimer({ hide: true, activity: true });
+    this._openVoiceAssistantDialog("listening", { transcript: "", response: "", keepScreensaver });
+    const SpeechRecognition = this._speechRecognitionCtor();
+    const micButtons = Array.from(this.shadowRoot?.querySelectorAll("#mobileVoiceAssistantBtn, #emptyVoiceAssistantBtn, #screensaverVoiceBtn") || []);
+    if (!SpeechRecognition) {
+      const message = this._i18n("ui.voice_input_is_not_supported_on_this_device");
+      this._toastError(message);
+      this._updateVoiceAssistantDialog({ status: "error", response: message, keepScreensaver });
+      return;
+    }
+    try { this._voiceAssistantRecognition?.abort?.(); } catch {}
+    const recognition = new SpeechRecognition();
+    this._voiceAssistantRecognition = recognition;
+    recognition.lang = this._voiceAssistantRecognitionLanguage();
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    recognition.maxAlternatives = 1;
+    let capturedTranscript = "";
+    let handled = false;
+    let recognitionFailed = false;
+    const stopListeningUi = () => {
+      this._state.voiceAssistantListening = false;
+      micButtons.forEach((btn) => btn.classList.remove("listening"));
+    };
+    const finishTranscript = (transcript) => {
+      if (handled) return;
+      handled = true;
+      stopListeningUi();
+      if (this._voiceAssistantRecognition === recognition) this._voiceAssistantRecognition = null;
+      try { recognition.abort?.(); } catch {}
+      this._updateVoiceAssistantDialog({ status: "processing", transcript, response: this._i18n("ui.voice_processing_status") });
+      this._handleVoiceAssistantTranscript(transcript).then((result) => {
+        const message = result?.message || (result?.ok === false ? this._i18n("ui.voice_command_failed") : this._i18n("ui.voice_command_executed"));
+        const status = result?.ok === false ? "error" : "success";
+        this._updateVoiceAssistantDialog({ status, transcript, response: message });
+        if (result?.ok !== false) {
+          this._speakVoiceAssistantFeedback(message);
+          if (Number(result?.autoCloseMs || 0) > 0) this._scheduleVoiceAssistantDialogClose(result.autoCloseMs);
+        }
+      }).catch((error) => {
+        const message = error?.message || this._i18n("ui.voice_command_failed");
+        this._toastError(message);
+        this._updateVoiceAssistantDialog({ status: "error", transcript, response: message });
+      });
+    };
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results || [])
+        .map((result) => result?.[0]?.transcript || "")
+        .join(" ")
+        .trim();
+      if (transcript) capturedTranscript = transcript;
+      if (capturedTranscript) this._updateVoiceAssistantDialog({ status: "listening", transcript: capturedTranscript });
+      const finalized = Array.from(event.results || []).some((result) => result?.isFinal);
+      if (finalized && capturedTranscript) finishTranscript(capturedTranscript);
+    };
+    recognition.onerror = (event) => {
+      if (handled) return;
+      if (recognition.__homeiiCancelled) return;
+      recognitionFailed = true;
+      stopListeningUi();
+      if (this._voiceAssistantRecognition === recognition) this._voiceAssistantRecognition = null;
+      const message = this._voiceAssistantRecognitionErrorMessage(event?.error);
+      this._toastError(message);
+      this._updateVoiceAssistantDialog({ status: "error", response: message });
+    };
+    recognition.onend = () => {
+      stopListeningUi();
+      if (this._voiceAssistantRecognition === recognition) this._voiceAssistantRecognition = null;
+      if (recognition.__homeiiCancelled) return;
+      if (!handled && capturedTranscript) {
+        finishTranscript(capturedTranscript);
+      } else if (!handled && !recognitionFailed) {
+        const message = this._i18n("ui.no_speech_was_captured");
+        this._toastError(message);
+        this._updateVoiceAssistantDialog({ status: "error", response: message });
+      }
+    };
+    try {
+      this._state.voiceAssistantListening = true;
+      micButtons.forEach((btn) => btn.classList.add("listening"));
+      this._hapticTap([8, 18, 8]);
+      this._toast(this._i18n("ui.voice_assistant_listening"));
+      recognition.start();
+    } catch {
+      stopListeningUi();
+      if (this._voiceAssistantRecognition === recognition) this._voiceAssistantRecognition = null;
+      const message = this._i18n("ui.voice_command_failed");
+      this._toastError(message);
+      this._updateVoiceAssistantDialog({ status: "error", response: message });
+    }
   }
 
   async _handleSmartVoiceTranscript(transcript = "") {
@@ -36041,27 +39154,31 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const layout = options.layout || this._state.mobileMediaLayout || this._defaultMobileMediaLayout();
     const iconMap = { track: "tracks", radio: "radio", album: "album", artist: "artist", podcast: "podcast", playlist: "playlist" };
     return `<div class="media-items-list layout-${this._esc(layout)}">${items.map((item) => {
+      const entryMediaType = String(item?.media_type || item?.type || mediaType || "album").toLowerCase();
+      const canOpenDetails = this._mediaTypeCanOpenDetails(entryMediaType);
       const art = this._artUrl(item);
-      const fallbackIcon = iconMap[mediaType] || "repeat";
+      const fallbackIcon = iconMap[entryMediaType] || iconMap[mediaType] || "repeat";
       const thumbHtml = art
         ? `<span class="menu-thumb" data-img="${this._esc(art)}" data-placeholder="${this._esc(fallbackIcon)}">${this._iconSvg(fallbackIcon)}</span>`
         : `<span class="menu-thumb">${this._iconSvg(fallbackIcon)}</span>`;
       const artistName = this._artistName(item) || "";
-      const sub = mediaType === "artist"
+      const sub = entryMediaType === "artist"
         ? this._i18n("ui.artist")
-        : mediaType === "radio"
+        : entryMediaType === "radio"
           ? (item.metadata?.description || "")
           : artistName || item.album?.name || item.publisher || "";
+      const dataAttrs = `data-media-type="${this._esc(entryMediaType)}" data-media-name="${this._esc(item.name || "")}" data-media-artist="${this._esc(artistName)}" data-media-album="${this._esc(item.album?.name || "")}" data-media-image="${this._esc(art || "")}"`;
       return `
         <div class="menu-list-item media-entry ${this._esc(layout)}">
-          <button class="media-entry-main" data-media-uri="${this._esc(item.uri || "")}" data-media-type="${this._esc(mediaType)}">
+          <button class="media-entry-main" ${canOpenDetails ? `data-media-open="${this._esc(item.uri || "")}"` : `data-media-uri="${this._esc(item.uri || "")}"`} ${dataAttrs}>
             ${thumbHtml}
             <span style="min-width:0;flex:1;">
               <span class="menu-item-title">${this._esc(item.name || "")}</span>
               <span class="menu-item-sub">${this._esc(sub || "—")}</span>
             </span>
           </button>
-          <button class="chip-btn queue-more-btn media-more-btn" data-media-more="${this._esc(item.uri || "")}" data-media-type="${this._esc(mediaType)}" data-media-name="${this._esc(item.name || "")}" data-media-artist="${this._esc(artistName)}" data-media-album="${this._esc(item.album?.name || "")}" data-media-image="${this._esc(art || "")}" title="${this._esc(this._i18n("ui.actions_2"))}">${this._iconSvg("more")}</button>
+          ${canOpenDetails ? `<button class="chip-btn queue-more-btn media-play-btn" data-media-play="${this._esc(item.uri || "")}" ${dataAttrs} title="${this._esc(this._i18n("ui.play"))}" aria-label="${this._esc(this._i18n("ui.play"))}">${this._iconSvg("play")}</button>` : ``}
+          <button class="chip-btn queue-more-btn media-more-btn" data-media-more="${this._esc(item.uri || "")}" ${dataAttrs} title="${this._esc(this._i18n("ui.actions_2"))}">${this._iconSvg("more")}</button>
         </div>
       `;
     }).join("")}</div>`;
@@ -36113,18 +39230,23 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       <div class="media-items-list layout-list">${entries.map((entry) => {
         const uri = String(entry?.uri || "").trim();
         const checked = selectedSet.has(uri);
+        const entryMediaType = String(entry.media_type || entry.type || "track").toLowerCase();
+        const canOpenDetails = this._mediaTypeCanOpenDetails(entryMediaType);
+        const entryArt = entry.image || entry.image_url || "";
+        const dataAttrs = `data-media-type="${this._esc(entryMediaType)}" data-media-name="${this._esc(entry.name || "")}" data-media-artist="${this._esc(entry.artist || "")}" data-media-album="${this._esc(entry.album || "")}" data-media-image="${this._esc(entryArt)}"`;
         return `
-          <div class="menu-list-item media-entry list liked-entry" data-media-uri="${this._esc(uri)}" data-media-type="${this._esc(entry.media_type || "track")}">
+          <div class="menu-list-item media-entry list liked-entry" ${canOpenDetails ? "" : `data-media-uri="${this._esc(uri)}"`} ${dataAttrs}>
             ${this._state.likedSelectionMode ? `<label class="liked-select-box ${checked ? "checked" : ""}"><input type="checkbox" data-liked-select-uri="${this._esc(uri)}" ${checked ? "checked" : ""}><span></span></label>` : ``}
-            <button class="media-entry-main" data-media-uri="${this._esc(uri)}" data-media-type="${this._esc(entry.media_type || "track")}">
-              <span class="menu-thumb">${entry.image ? `<img src="${this._esc(entry.image)}" alt="">` : this._iconSvg("heart_filled")}</span>
+            <button class="media-entry-main" ${canOpenDetails ? `data-media-open="${this._esc(uri)}"` : `data-media-uri="${this._esc(uri)}"`} ${dataAttrs}>
+              <span class="menu-thumb">${entryArt ? `<img src="${this._esc(entryArt)}" alt="">` : this._iconSvg("heart_filled")}</span>
               <span style="min-width:0;flex:1;">
                 <span class="menu-item-title">${this._esc(entry.name || "")}</span>
                 <span class="menu-item-sub">${this._esc([entry.artist, entry.album].filter(Boolean).join(" · ") || "—")}</span>
               </span>
             </button>
             <div class="media-entry-actions">
-              <button class="chip-btn queue-more-btn media-more-btn" data-media-more="${this._esc(uri)}" data-media-type="${this._esc(entry.media_type || "track")}" data-media-name="${this._esc(entry.name || "")}" data-media-artist="${this._esc(entry.artist || "")}" data-media-album="${this._esc(entry.album || "")}" data-media-image="${this._esc(entry.image || "")}" title="${this._esc(this._i18n("ui.actions_2"))}">${this._iconSvg("more")}</button>
+              ${canOpenDetails ? `<button class="chip-btn queue-more-btn media-play-btn" data-media-play="${this._esc(uri)}" ${dataAttrs} title="${this._esc(this._i18n("ui.play"))}" aria-label="${this._esc(this._i18n("ui.play"))}">${this._iconSvg("play")}</button>` : ``}
+              <button class="chip-btn queue-more-btn media-more-btn" data-media-more="${this._esc(uri)}" ${dataAttrs} title="${this._esc(this._i18n("ui.actions_2"))}">${this._iconSvg("more")}</button>
             </div>
           </div>
         `;
@@ -36727,7 +39849,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       return true;
     };
     const hasBackTarget = Array.isArray(this._state.menuStack) && this._state.menuStack.length > 0;
-    const isLibraryPage = page.startsWith("library_");
+    const isLibraryDetailPage = page === "media_detail";
+    const isLibraryPage = page.startsWith("library_") || isLibraryDetailPage;
     const isTabletLibraryPage = isLibraryPage && this._layoutModeConfig() === "tablet";
     back.hidden = !hasBackTarget;
     aux.hidden = true;
@@ -36822,6 +39945,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (page === "settings") {
       this._setMobileMenuHeader(this._i18n("ui.settings"), this._menuPageIcon(page));
       body.innerHTML = this._settingsMenuHtml();
+      finishMenuRender();
+      return;
+    }
+    if (page === "media_detail") {
+      const detail = this._state.mobileLibraryDetail || {};
+      const parentPage = this._state.mobileLibraryDetailParentPage || this._libraryDetailParentPageForType(detail.media_type);
+      const iconName = detail.media_type === "playlist" ? "playlist" : "album";
+      this._setMobileMenuHeader(detail.name || (detail.media_type === "playlist" ? this._i18n("ui.playlist") : this._i18n("ui.album")), iconName, "players");
+      body.innerHTML = this._libraryShellHtml(this._libraryMediaDetailHtml(detail), parentPage);
       finishMenuRender();
       return;
     }
@@ -36967,10 +40099,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._closeMobileMenu();
     }
     else if (page === "stop_all") {
-      body.innerHTML = this._loadingStateHtml(this._i18n("ui.stop_all_players"), { notice: true });
-      await this._stopAllPlayers();
-      if (!isCurrentRender()) return;
       this._closeMobileMenu();
+      this._openCleanAllConfirm();
+      return;
     }
     finishMenuRender();
   }
@@ -37341,6 +40472,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._reopenSettingsMenuPreservingScroll();
       return;
     }
+    const screensaverControlsBtn = e.target.closest("[data-setting-screensaver-controls]");
+    if (screensaverControlsBtn?.dataset.settingScreensaverControls) {
+      this._flashInteraction(screensaverControlsBtn);
+      this._state.screensaverControlsEnabled = screensaverControlsBtn.dataset.settingScreensaverControls === "on";
+      this._persistMobileAppearance();
+      this._syncScreensaverUi();
+      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      return;
+    }
     const powerButtonBtn = e.target.closest("[data-setting-power-button]");
     if (powerButtonBtn?.dataset.settingPowerButton) {
       this._flashInteraction(powerButtonBtn);
@@ -37444,6 +40584,31 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
       return;
     }
+    const voiceAssistantBtn = e.target.closest("[data-setting-voice-assistant]");
+    if (voiceAssistantBtn?.dataset.settingVoiceAssistant) {
+      this._flashInteraction(voiceAssistantBtn);
+      this._state.voiceAssistantEnabled = voiceAssistantBtn.dataset.settingVoiceAssistant === "on";
+      if (!this._state.voiceAssistantEnabled) this._stopVoiceAssistantRecognition();
+      this._persistMobileAppearance();
+      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      return;
+    }
+    const voiceAssistantModeBtn = e.target.closest("[data-setting-voice-assistant-mode]");
+    if (voiceAssistantModeBtn?.dataset.settingVoiceAssistantMode) {
+      this._flashInteraction(voiceAssistantModeBtn);
+      this._state.voiceAssistantMode = HomeiiMobileSettingsFoundation.normalizeVoiceAssistantMode(voiceAssistantModeBtn.dataset.settingVoiceAssistantMode);
+      this._persistMobileAppearance();
+      this._reopenSettingsMenuPreservingScroll();
+      return;
+    }
+    const voiceFeedbackBtn = e.target.closest("[data-setting-voice-feedback]");
+    if (voiceFeedbackBtn?.dataset.settingVoiceFeedback) {
+      this._flashInteraction(voiceFeedbackBtn);
+      this._state.voiceAssistantSpeakFeedback = voiceFeedbackBtn.dataset.settingVoiceFeedback === "on";
+      this._persistMobileAppearance();
+      this._reopenSettingsMenuPreservingScroll();
+      return;
+    }
     const footerModeBtn = e.target.closest("[data-setting-footer-mode]");
     if (footerModeBtn?.dataset.settingFooterMode) {
       this._flashInteraction(footerModeBtn);
@@ -37532,9 +40697,20 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (nav) {
       nav.classList.add("tap-feedback");
       setTimeout(() => nav.classList.remove("tap-feedback"), 180);
+      if (nav.dataset.menuNav === "stop_all") {
+        e.preventDefault();
+        e.stopPropagation();
+        this._openCleanAllConfirm();
+        return;
+      }
       return this._pushMobileMenu(nav.dataset.menuNav);
     }
-    if (this._state.menuPage === "library_liked" && this._state.likedSelectionMode && e.target.closest("[data-media-uri]") && !e.target.closest(".liked-select-box")) {
+    if (
+      this._state.menuPage === "library_liked"
+      && this._state.likedSelectionMode
+      && (e.target.closest("[data-media-uri]") || e.target.closest("[data-media-play]") || e.target.closest("[data-media-open]"))
+      && !e.target.closest(".liked-select-box")
+    ) {
       e.preventDefault();
       e.stopPropagation();
       return;
@@ -37557,16 +40733,6 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       if (scrollSnapshot) this._restoreMobileMenuScrollSnapshot(scrollSnapshot, scrollSnapshot.page);
       return;
     }
-    const mediaBtn = e.target.closest("[data-media-uri]");
-    if (mediaBtn?.dataset.mediaUri) {
-      const label = mediaBtn.querySelector(".menu-item-title, .discovery-orb-title")?.textContent?.trim() || "";
-      await this._playMedia(mediaBtn.dataset.mediaUri, mediaBtn.dataset.mediaType || "album", "play", {
-        label,
-        sourceEl: mediaBtn,
-        forceRadioHero: this._state.menuPage === "library_radio",
-      });
-      return this._closeMobileMenu();
-    }
     const mediaMoreBtn = e.target.closest("[data-media-more]");
     if (mediaMoreBtn) {
       e.preventDefault();
@@ -37583,6 +40749,47 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       });
       return;
     }
+    const mediaPlayBtn = e.target.closest("[data-media-play]");
+    if (mediaPlayBtn?.dataset.mediaPlay) {
+      e.preventDefault();
+      e.stopPropagation();
+      const sourceEl = mediaPlayBtn.closest(".media-entry, .media-detail-hero") || mediaPlayBtn;
+      const label = mediaPlayBtn.dataset.mediaName || sourceEl.querySelector?.(".menu-item-title, .media-detail-title")?.textContent?.trim() || "";
+      await this._playMedia(mediaPlayBtn.dataset.mediaPlay, mediaPlayBtn.dataset.mediaType || "album", "play", {
+        label,
+        sourceEl,
+        forceRadioHero: this._state.menuPage === "library_radio",
+      });
+      return this._closeMobileMenu();
+    }
+    const mediaOpenBtn = e.target.closest("[data-media-open]");
+    if (mediaOpenBtn?.dataset.mediaOpen) {
+      e.preventDefault();
+      e.stopPropagation();
+      const sourceEl = mediaOpenBtn.closest(".media-entry") || mediaOpenBtn;
+      const opened = this._openLibraryMediaDetail({
+        uri: mediaOpenBtn.dataset.mediaOpen,
+        media_type: mediaOpenBtn.dataset.mediaType || "album",
+        name: mediaOpenBtn.dataset.mediaName || sourceEl.querySelector?.(".menu-item-title")?.textContent?.trim() || "",
+        artist: mediaOpenBtn.dataset.mediaArtist || "",
+        album: mediaOpenBtn.dataset.mediaAlbum || "",
+        image: mediaOpenBtn.dataset.mediaImage || "",
+      }, sourceEl);
+      if (opened) return;
+    }
+    const mediaBtn = e.target.closest("[data-media-uri]");
+    if (mediaBtn?.dataset.mediaUri) {
+      e.preventDefault();
+      e.stopPropagation();
+      const sourceEl = mediaBtn.closest(".media-entry") || mediaBtn;
+      const label = mediaBtn.dataset.mediaName || mediaBtn.querySelector(".menu-item-title, .discovery-orb-title")?.textContent?.trim() || "";
+      await this._playMedia(mediaBtn.dataset.mediaUri, mediaBtn.dataset.mediaType || "album", "play", {
+        label,
+        sourceEl,
+        forceRadioHero: this._state.menuPage === "library_radio",
+      });
+      return this._closeMobileMenu();
+    }
     const playerBtn = e.target.closest("[data-menu-player]");
     if (playerBtn) {
       const pinnedEntities = this._resolvedPinnedPlayerEntities();
@@ -37594,7 +40801,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._selectPlayer(playerBtn.dataset.menuPlayer, true);
       this._toast(this._i18n("ui.player_selected"));
       const previousPage = this._state.menuStack[this._state.menuStack.length - 1];
-      if (String(previousPage || "").startsWith("library_")) {
+      if (String(previousPage || "").startsWith("library_") || previousPage === "media_detail") {
         this._state.menuPage = this._state.menuStack.pop();
         await this._renderMobileMenu();
         return;
@@ -37732,6 +40939,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._persistMobileAppearance();
       return;
     }
+    if (e.target?.id === "voiceAssistantAgentSelect") {
+      this._state.voiceAssistantAgentId = String(e.target.value || "").trim();
+      this._persistMobileAppearance();
+      return;
+    }
     if (e.target?.id === "ambientLightEntitiesInput") {
       this._state.ambientLightEntities = HomeiiMobileSettingsFoundation.normalizeEntityList(e.target.value || "");
       this._persistMobileAppearance();
@@ -37825,6 +41037,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
     if (e.target?.id === "mobileFontScaleRange") {
       this._state.mobileFontScale = Math.max(0.5, Math.min(1.5, Number(e.target.value || 1) || 1));
+      this._persistMobileAppearance();
+      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      return;
+    }
+    if (e.target?.id === "mobileIconScaleRange") {
+      this._state.mobileIconScale = HomeiiMobileSettingsFoundation.clampMobileIconScale(e.target.value || 1);
       this._persistMobileAppearance();
       this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
       return;
@@ -37987,12 +41205,12 @@ class HomeiiMusicFlowCard extends HomeiiMusicFlowBaseCard {
   }
 
   static async getConfigElement() {
-    return document.createElement("homeii-music-flow-editor");
+    return document.createElement(HOMEII_MOBILE_EDITOR_TAG);
   }
 }
 class HomeiiMusicMobileCard extends HomeiiMusicFlowBaseCard {
   static async getConfigElement() {
-    return document.createElement("homeii-music-mobile-editor");
+    return document.createElement(HOMEII_MOBILE_EDITOR_TAG);
   }
 }
 class HomeiiMusicFlowEditor extends HomeiiMusicFlowBaseEditor {}

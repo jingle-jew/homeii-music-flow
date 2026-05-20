@@ -59,12 +59,18 @@ describe("config validators", () => {
         mobile_dynamic_theme_mode: "strong",
         mobile_background_motion_mode: "subtle",
         mobile_custom_text_tone: "dark",
+        mobile_icon_scale: 1.1,
         mobile_volume_mode: "always",
         mobile_mic_mode: "smart",
+        voice_assistant_enabled: true,
+        voice_assistant_mode: "hybrid",
+        voice_assistant_agent_id: "conversation.home_assistant",
+        voice_assistant_speak_feedback: true,
         mobile_liked_mode: "local",
         mobile_swipe_mode: "browse",
         mobile_library_tabs: ["library", "queue"],
         mobile_main_bar_items: ["actions", "settings"],
+        mobile_quick_actions: ["timer", "voice"],
         mobile_announcement_presets: ["hello"],
         mobile_compact_mode: true,
         mobile_show_up_next: false,
@@ -75,6 +81,7 @@ describe("config validators", () => {
         ambient_light_transition: 3,
         ambient_light_cooldown: 8,
         screensaver_enabled: true,
+        screensaver_controls_enabled: true,
         screensaver_clock_mode: "analog",
         screensaver_timeout_seconds: 90,
         screensaver_message: "Dinner is ready",
@@ -95,6 +102,12 @@ describe("config validators", () => {
         mobile_volume_mode: "slider-only",
       })
     ).toThrow("mobile_volume_mode must be one of: always, button");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        voice_assistant_mode: "always-listen",
+      })
+    ).toThrow("voice_assistant_mode must be one of: hybrid, music, assist");
   });
 
   it("rejects invalid smart-home config values", () => {

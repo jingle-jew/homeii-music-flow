@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   clampPercent,
+  clampMobileIconScale,
   clampMobileFontScale,
   clampSeconds,
   formatAmbientLightPlayerMapEntry,
@@ -12,10 +13,12 @@ import {
   normalizeMobileLibraryTabs,
   normalizeMobileMainBarItems,
   normalizeMobileMicMode,
+  normalizeMobileQuickActions,
   normalizeMobileVolumeMode,
   normalizePinnedPlayerEntities,
   normalizePowerButtonAction,
   normalizeScreensaverClockMode,
+  normalizeVoiceAssistantMode,
   normalizeVisualMobileState,
   parseAmbientLightPlayerMap,
 } from "../src/core/state/mobile-settings.js";
@@ -30,6 +33,7 @@ describe("mobile settings foundation", () => {
       mobile_background_motion_mode: "wild",
       mobile_custom_text_tone: "dark",
       mobile_font_scale: 8,
+      mobile_icon_scale: 2,
       night_mode: "ON",
       night_mode_auto_start: "23:15",
       night_mode_auto_end: "05:45",
@@ -43,11 +47,16 @@ describe("mobile settings foundation", () => {
       mobile_home_shortcut_path: "lovelace/media",
       mobile_volume_mode: "always",
       mobile_mic_mode: "SMART",
+      voice_assistant_enabled: true,
+      voice_assistant_mode: "ASSIST",
+      voice_assistant_agent_id: " conversation.home_assistant ",
+      voice_assistant_speak_feedback: true,
       mobile_liked_mode: "local",
       mobile_swipe_mode: "browse",
       mobile_radio_browser_country: "il",
       mobile_library_tabs: ["library_albums"],
       mobile_main_bar_items: ["theme", "settings"],
+      mobile_quick_actions: ["voice", "timer", "disconnect_all", "voice"],
       mobile_announcement_presets: ["One", "Two", "Three", "Four"],
       announcement_tts_entity: "tts.living_room",
       announcement_tts_language: "en-GB",
@@ -59,6 +68,7 @@ describe("mobile settings foundation", () => {
       ambient_light_transition: -4,
       ambient_light_cooldown: "soon",
       screensaver_enabled: true,
+      screensaver_controls_enabled: true,
       screensaver_clock_mode: "ANALOG",
       screensaver_timeout_seconds: 4,
       screensaver_message: "Enjoy the music",
@@ -74,6 +84,7 @@ describe("mobile settings foundation", () => {
       normalizeNightModeDays: (value) => Array.isArray(value) ? value : [],
       defaultLibraryTabs: ["library_search", "library_playlists"],
       defaultMainBarItems: ["actions", "players", "library", "settings"],
+      defaultQuickActions: ["timer", "like", "lyrics"],
       defaultAnnouncementPresets: ["Default A", "Default B", "Default C"],
     });
 
@@ -84,6 +95,7 @@ describe("mobile settings foundation", () => {
     expect(state.mobileBackgroundMotionMode).toBe("subtle");
     expect(state.mobileCustomTextTone).toBe("dark");
     expect(state.mobileFontScale).toBe(1.5);
+    expect(state.mobileIconScale).toBe(1.25);
     expect(state.mobileNightMode).toBe("on");
     expect(state.mobileNightModeStart).toBe("23:15");
     expect(state.mobileNightModeEnd).toBe("05:45");
@@ -97,11 +109,16 @@ describe("mobile settings foundation", () => {
     expect(state.mobileHomeShortcutPath).toBe("lovelace/media");
     expect(state.mobileVolumeMode).toBe("always");
     expect(state.mobileMicMode).toBe("smart");
+    expect(state.voiceAssistantEnabled).toBe(true);
+    expect(state.voiceAssistantMode).toBe("assist");
+    expect(state.voiceAssistantAgentId).toBe("conversation.home_assistant");
+    expect(state.voiceAssistantSpeakFeedback).toBe(true);
     expect(state.mobileLikedMode).toBe("local");
     expect(state.mobileSwipeMode).toBe("browse");
     expect(state.mobileRadioBrowserCountry).toBe("il");
     expect(state.mobileLibraryTabs).toEqual(["library_albums"]);
     expect(state.mobileMainBarItems).toEqual(["theme", "settings"]);
+    expect(state.mobileQuickActions).toEqual(["voice", "timer", "disconnect_all"]);
     expect(state.mobileAnnouncementPresets).toEqual(["One", "Two", "Three"]);
     expect(state.mobileAnnouncementTtsEntity).toBe("tts.living_room");
     expect(state.mobileAnnouncementTtsLanguage).toBe("en-GB");
@@ -113,6 +130,7 @@ describe("mobile settings foundation", () => {
     expect(state.ambientLightTransition).toBe(0);
     expect(state.ambientLightCooldown).toBe(8);
     expect(state.screensaverEnabled).toBe(true);
+    expect(state.screensaverControlsEnabled).toBe(true);
     expect(state.screensaverClockMode).toBe("analog");
     expect(state.screensaverTimeoutSeconds).toBe(15);
     expect(state.screensaverMessage).toBe("Enjoy the music");
@@ -150,6 +168,8 @@ describe("mobile settings foundation", () => {
       "library_search",
       "library_playlists",
     ])).toEqual(["library_search", "library_albums"]);
+
+    expect(normalizeMobileQuickActions(["voice", "bad", "timer", "disconnect_all", "voice"], ["timer"])).toEqual(["voice", "timer", "disconnect_all"]);
   });
 
   it("stabilizes home shortcut, footer, mic, and volume modes", () => {
@@ -157,8 +177,11 @@ describe("mobile settings foundation", () => {
     expect(normalizeHomeShortcutPath(" /dashboard ", { leadingSlash: true })).toBe("/dashboard");
     expect(normalizeMobileFooterMode("invalid")).toBe("both");
     expect(normalizeMobileMicMode("OFF")).toBe("off");
+    expect(normalizeVoiceAssistantMode("music")).toBe("music");
+    expect(normalizeVoiceAssistantMode("bad")).toBe("hybrid");
     expect(normalizeMobileVolumeMode("invalid")).toBe("button");
     expect(clampMobileFontScale(0.2)).toBe(0.5);
+    expect(clampMobileIconScale(0.2)).toBe(0.8);
   });
 
   it("normalizes pinned player inputs from single and multi-entity config", () => {

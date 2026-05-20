@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DICTIONARIES,
   detectLanguage,
   isRtlLanguage,
   translate,
@@ -33,5 +34,12 @@ describe("localization", () => {
     expect(isRtlLanguage("he")).toBe(true);
     expect(isRtlLanguage("en")).toBe(false);
     expect(isRtlLanguage("fr")).toBe(false);
+  });
+
+  it("keeps localized dictionaries aligned with English keys", () => {
+    const englishKeys = Object.keys(DICTIONARIES.en).sort();
+    for (const [language, dictionary] of Object.entries(DICTIONARIES)) {
+      expect(Object.keys(dictionary).sort(), language).toEqual(englishKeys);
+    }
   });
 });

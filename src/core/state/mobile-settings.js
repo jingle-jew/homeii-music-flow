@@ -6,9 +6,11 @@ const MOBILE_VOLUME_MODES = ["always", "button"];
 const MOBILE_MIC_MODES = ["on", "off", "smart"];
 const MOBILE_LIKED_MODES = ["ma", "local"];
 const MOBILE_SWIPE_MODES = ["play", "browse"];
+const VOICE_ASSISTANT_MODES = ["hybrid", "music", "assist"];
 const SCREENSAVER_CLOCK_MODES = ["digital", "analog"];
 const POWER_BUTTON_ACTIONS = ["stop_player", "toggle", "turn_on", "turn_off", "scene", "script"];
 const MOBILE_MAIN_BAR_ITEMS = ["search", "library", "players", "actions", "settings", "theme"];
+const MOBILE_QUICK_ACTIONS = ["timer", "like", "lyrics", "queue", "radio", "voice", "history", "info", "disconnect_all"];
 const MOBILE_LIBRARY_TABS = ["library_playlists", "library_artists", "library_albums", "library_tracks", "library_radio", "library_podcasts", "library_liked", "library_search"];
 const COLOR_LIGHT_MODES = ["hs", "xy", "rgb", "rgbw", "rgbww"];
 
@@ -101,6 +103,10 @@ export function clampMobileFontScale(value) {
   return Math.max(0.5, Math.min(1.5, Number(value || 1) || 1));
 }
 
+export function clampMobileIconScale(value) {
+  return Math.max(0.8, Math.min(1.25, Number(value || 1) || 1));
+}
+
 export function normalizeHomeShortcutPath(value, { leadingSlash = false } = {}) {
   const normalized = String(value || "/").trim() || "/";
   if (!leadingSlash) return normalized;
@@ -114,6 +120,10 @@ export function normalizeMobileFooterMode(value) {
 
 export function normalizeMobileMicMode(value) {
   return normalizeEnum(value, MOBILE_MIC_MODES, "smart");
+}
+
+export function normalizeVoiceAssistantMode(value) {
+  return normalizeEnum(value, VOICE_ASSISTANT_MODES, "hybrid");
 }
 
 export function normalizeMobileVolumeMode(value) {
@@ -167,11 +177,23 @@ export function normalizeMobileLibraryTabs(tabs, fallbackTabs = []) {
     : normalized;
 }
 
+export function normalizeMobileQuickActions(items, fallbackItems = []) {
+  const allowed = new Set(MOBILE_QUICK_ACTIONS);
+  const fallback = normalizeStringArray(fallbackItems).filter((item) => allowed.has(item));
+  const source = Array.isArray(items) && items.length ? items : fallback;
+  const cleaned = [];
+  normalizeStringArray(source).forEach((item) => {
+    if (allowed.has(item) && !cleaned.includes(item)) cleaned.push(item);
+  });
+  return cleaned.length ? cleaned : fallback;
+}
+
 export function normalizeVisualMobileState(config = {}, {
   normalizeClockTime = (value, fallback) => String(value || fallback || ""),
   normalizeNightModeDays = (value) => Array.isArray(value) ? value : [0, 1, 2, 3, 4, 5, 6],
   defaultLibraryTabs = [],
   defaultMainBarItems = [],
+  defaultQuickActions = [],
   defaultAnnouncementPresets = [],
 } = {}) {
   return {
@@ -183,6 +205,7 @@ export function normalizeVisualMobileState(config = {}, {
     mobileBackgroundMotionMode: normalizeEnum(config.mobile_background_motion_mode, MOBILE_BACKGROUND_MOTION_MODES, "subtle"),
     mobileCustomTextTone: String(config.mobile_custom_text_tone || "light") === "dark" ? "dark" : "light",
     mobileFontScale: clampMobileFontScale(config.mobile_font_scale),
+    mobileIconScale: clampMobileIconScale(config.mobile_icon_scale),
     mobileNightMode: normalizeEnum(config.night_mode, MOBILE_NIGHT_MODES, "off"),
     mobileNightModeStart: normalizeClockTime(config.night_mode_auto_start || "22:00", "22:00"),
     mobileNightModeEnd: normalizeClockTime(config.night_mode_auto_end || "06:00", "06:00"),
@@ -196,6 +219,10 @@ export function normalizeVisualMobileState(config = {}, {
     mobileHomeShortcutPath: normalizeHomeShortcutPath(config.mobile_home_shortcut_path),
     mobileVolumeMode: normalizeMobileVolumeMode(config.mobile_volume_mode),
     mobileMicMode: normalizeMobileMicMode(config.mobile_mic_mode),
+    voiceAssistantEnabled: config.voice_assistant_enabled === true,
+    voiceAssistantMode: normalizeVoiceAssistantMode(config.voice_assistant_mode),
+    voiceAssistantAgentId: String(config.voice_assistant_agent_id || "").trim(),
+    voiceAssistantSpeakFeedback: config.voice_assistant_speak_feedback === true,
     mobileLikedMode: normalizeEnum(config.mobile_liked_mode, MOBILE_LIKED_MODES, "ma"),
     mobileSwipeMode: normalizeEnum(config.mobile_swipe_mode, MOBILE_SWIPE_MODES, "browse"),
     mobileRadioBrowserCountry: String(config.mobile_radio_browser_country || "all"),
@@ -205,6 +232,10 @@ export function normalizeVisualMobileState(config = {}, {
     mobileMainBarItems: Array.isArray(config.mobile_main_bar_items) && config.mobile_main_bar_items.length
       ? config.mobile_main_bar_items.slice()
       : normalizeStringArray(defaultMainBarItems),
+    mobileQuickActions: normalizeMobileQuickActions(
+      config.mobile_quick_actions,
+      defaultQuickActions,
+    ),
     mobileAnnouncementPresets: Array.isArray(config.mobile_announcement_presets) && config.mobile_announcement_presets.length
       ? config.mobile_announcement_presets.slice(0, 3)
       : normalizeStringArray(defaultAnnouncementPresets).slice(0, 3),
@@ -218,6 +249,7 @@ export function normalizeVisualMobileState(config = {}, {
     ambientLightTransition: clampSeconds(config.ambient_light_transition, 3, { min: 0, max: 120 }),
     ambientLightCooldown: clampSeconds(config.ambient_light_cooldown, 8, { min: 0, max: 120 }),
     screensaverEnabled: config.screensaver_enabled === true,
+    screensaverControlsEnabled: config.screensaver_controls_enabled === true,
     screensaverClockMode: normalizeScreensaverClockMode(config.screensaver_clock_mode),
     screensaverTimeoutSeconds: clampSeconds(config.screensaver_timeout_seconds, 90, { min: 15, max: 3600 }),
     screensaverMessage: String(config.screensaver_message || ""),

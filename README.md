@@ -26,7 +26,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/r11a/homeii-music-flow"><img alt="version" src="https://img.shields.io/badge/version-5.5.0-gold"></a>
+  <a href="https://github.com/r11a/homeii-music-flow"><img alt="version" src="https://img.shields.io/badge/version-5.6.0-gold"></a>
   <img alt="Home Assistant" src="https://img.shields.io/badge/Home%20Assistant-Dashboard-41BDF5">
   <img alt="Music Assistant" src="https://img.shields.io/badge/Music%20Assistant-required-7C5CFF">
   <img alt="Sendspin" src="https://img.shields.io/badge/Sendspin-browser%20player-18B6FF">
@@ -47,12 +47,26 @@ HOMEii Flow started from my own daily use of Home Assistant and Music Assistant.
 - **Sendspin browser player built in:** turn the current browser, phone, tablet, or wall panel into a Music Assistant playback target directly from the card, with a session that survives Dashboard page changes while the dashboard stays open.
 - **Premium now-playing experience:** artwork-led layout, dynamic atmosphere, elegant controls, full-screen lyrics, and responsive visual polish.
 - **FLOW guided music wizard:** a simple step-by-step music flow for choosing players, picking a mood or existing content, reviewing visual results, and starting playback without learning the full Music Assistant UI.
+- **Experimental Flow Assistant:** optional voice commands can launch music from the player, empty state, and screensaver. This is intentionally marked experimental, and community feedback is welcome so it can become sharper and more reliable.
 - **Studio / Control Room:** choose players, group rooms, control volumes, move playback, and manage multi-room listening.
 - **Mobile-first workflow:** queue, search, library, FLOW, actions, timers, announcements, settings, and player switching are designed for touch.
-- **Real Music Assistant library flow:** playlists, albums, artists, tracks, radio, favorites, recent listening, and recommendations.
+- **Real Music Assistant library flow:** playlists, albums, artists, tracks, radio, favorites, recent listening, recommendations, and album/playlist drill-in before playback.
 - **Smart-home aware listening:** optional Home Assistant light sync, screensaver display, and POWER actions let the card participate in the room without becoming mandatory setup.
-- **Hebrew and RTL ready:** layout, labels, alignment, and interaction patterns are built for Hebrew as a first-class use case.
+- **International and RTL ready:** English, Hebrew/RTL, and Simplified Chinese are bundled, with the same localization path available for future community translations.
 - **Release-ready package:** HACS-ready `dist/` output includes the card, Sendspin files, Embla swipe support, and the brand asset.
+
+## What's New In 5.6.0
+
+- **Flow Assistant arrives as an experimental voice layer:** open it from the player, the empty-state music screen, or the screensaver, then ask for music in natural language. This is still experimental; feedback, failed examples, and language/device reports are especially helpful for improving it.
+- **Library browsing is less accidental:** playlists and albums can open into their track list before playback, with a compact `Play` button when you want to start the full item immediately.
+- **Touch feedback is clearer across the music surface:** library content, recommendations, the empty-state wand, and quick actions now respond with stronger visual feedback so taps feel immediate instead of uncertain.
+- **Screensaver controls stay elegant:** the screensaver can show subtle voice, previous, and next controls when enabled, while keeping the clean idle look and avoiding accidental exits during Flow Assistant interaction.
+- **Radio artwork is fixed in normal playback:** radio stations that expose dynamic `entity_picture` artwork now show that cover in the main player too, not only in the screensaver, with safer fallback branding when station art is missing.
+- **Radio layout has been tightened:** radio playback no longer depends on broken station image URLs, and titles/artwork are arranged more cleanly across large tablet views.
+- **Quick Actions adds `Clear all`:** a red-toned disconnect action can be enabled from the visual editor and uses a confirmation popup before disconnecting all active players.
+- **Shuffle and repeat states are easier to read:** repeat-one, repeat-all, and shuffle now have clearer active styling so the current mode is not a guessing game.
+- **Visual editor wording is cleaner:** Flow Assistant, icon sizing, quick actions, and related settings now use friendly labels instead of internal underscore-style names.
+- **Simplified Chinese localization is now bundled:** thank you to [@gao19970120](https://github.com/gao19970120) for contributing the Chinese translation.
 
 ## What's New In 5.5.0
 
@@ -190,7 +204,7 @@ If HACS does not add the resource automatically, add:
 3. Add this Dashboard resource:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.5.0
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.6.0
 ```
 
 4. Add the card:
@@ -867,7 +881,7 @@ npm run lint
 npm test
 ```
 
-Current packaged version: `5.5.0`
+Current packaged version: `5.6.0`
 
 ## Release Readiness
 

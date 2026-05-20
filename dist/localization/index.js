@@ -1,6 +1,6 @@
-import en from "./en.js";
-import he from "./he.js";
-import zh from "./zh.js";
+import en from "./en.js?v=5.6.1";
+import he from "./he.js?v=5.6.1";
+import zh from "./zh.js?v=5.6.1";
 
 export const DEFAULT_LANGUAGE = "en";
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   DICTIONARIES,
+  LANGUAGE_OPTIONS,
   detectLanguage,
   isRtlLanguage,
   translate,
@@ -28,6 +29,13 @@ describe("localization", () => {
     expect(detectLanguage({ configLanguage: "zh-CN" })).toBe("zh");
     expect(detectLanguage({ configLanguage: "fr" })).toBe("en");
     expect(detectLanguage({ configLanguage: "auto", hass: { locale: { language: "he-IL" } } })).toBe("he");
+  });
+
+  it("offers Simplified Chinese in the language picker options", () => {
+    expect(LANGUAGE_OPTIONS).toContainEqual({
+      value: "zh-CN",
+      label: "简体中文 / Simplified Chinese",
+    });
   });
 
   it("marks Hebrew as RTL", () => {

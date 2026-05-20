@@ -4,7 +4,7 @@
   isRtlLanguage as homeiiIsRtlLanguage,
   translate as homeiiTranslate,
   translateText as homeiiTranslateText,
-} from "./localization/index.js";
+} from "./localization/index.js?v=5.6.1";
 
 const HOMEII_RADIO_BROWSER_COUNTRY_CODES = Object.freeze(
   "AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS XK YE YT ZA ZM ZW"
@@ -865,7 +865,7 @@ class HomeiiBaseMusicCard extends HTMLElement {
   _versionedAssetUrl(url) {
     const value = String(url || "").trim();
     if (!value || /^data:/i.test(value) || /[?&]v=/.test(value)) return value;
-    const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.6.0";
+    const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.6.1";
     return `${value}${value.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
   }
 
@@ -12328,9 +12328,9 @@ function ensureHaEditorComponents() {
   } catch (_) {}
 }
 
-const HOMEII_CARD_VERSION = "5.6.0";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v560";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v560";
+const HOMEII_CARD_VERSION = "5.6.1";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v561";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v561";
 const AMBIENT_LIGHT_PAIR_PLAYER_PREFIX = "__homeii_ambient_light_pair_player_";
 const AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX = "__homeii_ambient_light_pair_lights_";
 

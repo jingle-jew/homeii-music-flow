@@ -1,4 +1,4 @@
-import { copyFile, cp, mkdir, readFile, rm } from "node:fs/promises";
+import { copyFile, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,6 +25,26 @@ await mkdir(path.dirname(distMainPath), { recursive: true });
 await copyFile(srcMainPath, distMainPath);
 await rm(distLocalizationPath, { recursive: true, force: true });
 await cp(srcLocalizationPath, distLocalizationPath, { recursive: true });
+
+const distMainText = await readFile(distMainPath, "utf8");
+await writeFile(
+  distMainPath,
+  distMainText.replace(
+    'from "./localization/index.js";',
+    `from "./localization/index.js?v=${version}";`,
+  ),
+);
+
+const distLocalizationIndexPath = path.join(distLocalizationPath, "index.js");
+const distLocalizationIndexText = await readFile(distLocalizationIndexPath, "utf8");
+await writeFile(
+  distLocalizationIndexPath,
+  distLocalizationIndexText
+    .replace('from "./en.js";', `from "./en.js?v=${version}";`)
+    .replace('from "./he.js";', `from "./he.js?v=${version}";`)
+    .replace('from "./zh.js";', `from "./zh.js?v=${version}";`),
+);
+
 await rm(distSendspinPath, { recursive: true, force: true });
 await cp(srcSendspinPath, distSendspinPath, { recursive: true });
 

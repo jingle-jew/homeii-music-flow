@@ -865,7 +865,7 @@ class HomeiiBaseMusicCard extends HTMLElement {
   _versionedAssetUrl(url) {
     const value = String(url || "").trim();
     if (!value || /^data:/i.test(value) || /[?&]v=/.test(value)) return value;
-    const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.6.0";
+    const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.6.1";
     return `${value}${value.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
   }
 
@@ -12328,9 +12328,9 @@ function ensureHaEditorComponents() {
   } catch (_) {}
 }
 
-const HOMEII_CARD_VERSION = "5.6.0";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v560";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v560";
+const HOMEII_CARD_VERSION = "5.6.1";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v561";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v561";
 const AMBIENT_LIGHT_PAIR_PLAYER_PREFIX = "__homeii_ambient_light_pair_player_";
 const AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX = "__homeii_ambient_light_pair_lights_";
 

@@ -26,7 +26,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/r11a/homeii-music-flow"><img alt="version" src="https://img.shields.io/badge/version-5.6.0-gold"></a>
+  <a href="https://github.com/r11a/homeii-music-flow"><img alt="version" src="https://img.shields.io/badge/version-5.6.1-gold"></a>
   <img alt="Home Assistant" src="https://img.shields.io/badge/Home%20Assistant-Dashboard-41BDF5">
   <img alt="Music Assistant" src="https://img.shields.io/badge/Music%20Assistant-required-7C5CFF">
   <img alt="Sendspin" src="https://img.shields.io/badge/Sendspin-browser%20player-18B6FF">
@@ -54,6 +54,11 @@ HOMEii Flow started from my own daily use of Home Assistant and Music Assistant.
 - **Smart-home aware listening:** optional Home Assistant light sync, screensaver display, and POWER actions let the card participate in the room without becoming mandatory setup.
 - **International and RTL ready:** English, Hebrew/RTL, and Simplified Chinese are bundled, with the same localization path available for future community translations.
 - **Release-ready package:** HACS-ready `dist/` output includes the card, Sendspin files, Embla swipe support, and the brand asset.
+
+## What's New In 5.6.1
+
+- **Chinese language option fixed in the visual editor:** the Simplified Chinese dictionary was included in 5.6.0, but the browser could keep an older cached `localization/index.js` module, so the visual-editor language dropdown still showed only the older options. 5.6.1 cache-busts the localization module imports so `简体中文 / Simplified Chinese` appears after updating.
+- **No feature behavior changed from 5.6.0:** this is a focused release packaging/cache hotfix for the new localization layer.
 
 ## What's New In 5.6.0
 
@@ -204,7 +209,7 @@ If HACS does not add the resource automatically, add:
 3. Add this Dashboard resource:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.6.0
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.6.1
 ```
 
 4. Add the card:
@@ -881,7 +886,7 @@ npm run lint
 npm test
 ```
 
-Current packaged version: `5.6.0`
+Current packaged version: `5.6.1`
 
 ## Release Readiness
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## 5.6.1 - 2026-05-20
+
+Release packaging hotfix for the Simplified Chinese language option.
+
+- Fixes the visual-editor language dropdown not showing `简体中文 / Simplified Chinese` for some users after installing 5.6.0.
+- Root cause: the Chinese dictionary and `LANGUAGE_OPTIONS` were present in the release, but the main card imported `./localization/index.js` without a version query, so Home Assistant/browser cache could keep the older language-options module.
+- Adds release-time cache-busting to the packaged `dist/homeii-music-flow.js` localization import and to the dictionary imports inside `dist/localization/index.js`.
+- Keeps runtime behavior otherwise unchanged from 5.6.0.
+
 ## 5.6.0 - 2026-05-20
 
 Release focus: Flow Assistant voice commands, richer library browsing, radio artwork reliability, cleaner tablet/saver controls, and a full bug-fix rollup from the local 5.5.1 test cycle.

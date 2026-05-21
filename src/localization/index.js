@@ -2,6 +2,7 @@ import en from "./en.js";
 import he from "./he.js";
 import zh from "./zh.js";
 import es from "./es.js";
+import lt from "./lt.js";
 
 export const DEFAULT_LANGUAGE = "en";
 
@@ -10,6 +11,7 @@ export const DICTIONARIES = Object.freeze({
   he,
   zh,
   es,
+  lt,
 });
 
 export const RTL_LANGUAGE_CODES = Object.freeze(["he"]);
@@ -19,6 +21,7 @@ export const LANGUAGE_OPTIONS = Object.freeze([
   { value: "en", label: "English" },
   { value: "es", label: "Español" },
   { value: "he", label: "עברית / Hebrew" },
+  { value: "lt", label: "Lithuanian / Lietuvių" },
   { value: "zh-CN", label: "简体中文 / Simplified Chinese" },
 ]);
 

@@ -46,7 +46,7 @@ const messages = Object.freeze({
   "ui.announcement_volume_boost": "Augmentation du volume pendant les annonces",
   "ui.announcements": "Annonces",
   "ui.appearance": "Apparence",
-  "ui.alphabetical": "Alphab?tique",
+  "ui.alphabetical": "Alphabétique",
   "ui.auxiliary_button": "Bouton auxiliaire",
   "ui.auxiliary_button_action": "Action du bouton auxiliaire",
   "ui.auxiliary_button_entity": "Entité du bouton auxiliaire",

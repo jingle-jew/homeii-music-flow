@@ -21,11 +21,11 @@ export const RTL_LANGUAGE_CODES = Object.freeze(["he"]);
 export const LANGUAGE_OPTIONS = Object.freeze([
   { value: "auto", label: "Auto" },
   { value: "en", label: "English" },
-  { value: "es", label: "Español" },
-  { value: "fr", label: "Français" },
-  { value: "he", label: "עברית / Hebrew" },
-  { value: "lt", label: "Lithuanian / Lietuvių" },
-  { value: "zh-CN", label: "简体中文 / Simplified Chinese" },
+  { value: "es", label: "Espa\u00f1ol" },
+  { value: "fr", label: "Fran\u00e7ais" },
+  { value: "he", label: "\u05e2\u05d1\u05e8\u05d9\u05ea / Hebrew" },
+  { value: "lt", label: "Lithuanian / Lietuvi\u0173" },
+  { value: "zh-CN", label: "\u7b80\u4f53\u4e2d\u6587 / Simplified Chinese" },
 ]);
 
 export const SUPPORTED_LANGUAGE_CODES = Object.freeze(Object.keys(DICTIONARIES));

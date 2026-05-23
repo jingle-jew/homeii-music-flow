@@ -14,6 +14,7 @@ beforeAll(async () => {
     attachShadow() {
       const root = {
         addEventListener() {},
+        getElementById() { return null; },
         querySelector() { return null; },
         querySelectorAll() { return []; },
       };
@@ -50,6 +51,54 @@ function createCard() {
   card._artUrl = () => "";
   return card;
 }
+
+describe("Music Assistant player filtering", () => {
+  it("does not fall back to generic Home Assistant media players", () => {
+    const card = createCard();
+    const genericPlayer = {
+      entity_id: "media_player.tv",
+      state: "idle",
+      attributes: { friendly_name: "TV" },
+    };
+    const musicAssistantPlayer = {
+      entity_id: "media_player.ma_living_room",
+      state: "idle",
+      attributes: { friendly_name: "MA Living Room", app_id: "music_assistant" },
+    };
+    card._hass = {
+      states: {
+        [genericPlayer.entity_id]: genericPlayer,
+        [musicAssistantPlayer.entity_id]: musicAssistantPlayer,
+      },
+    };
+    card._state.players = [];
+    card._directMaPlayers = [];
+
+    expect(card._playerByEntityId(genericPlayer.entity_id)).toBe(null);
+    expect(card._playerByEntityId(musicAssistantPlayer.entity_id)).toBe(musicAssistantPlayer);
+  });
+
+  it("clears stale selections when no Music Assistant players are available", () => {
+    const card = createCard();
+    card._hass = {
+      states: {
+        "media_player.tv": {
+          entity_id: "media_player.tv",
+          state: "idle",
+          attributes: { friendly_name: "TV" },
+        },
+      },
+    };
+    card._state.selectedPlayer = "media_player.tv";
+    card._state.hasAutoSelectedPlayer = true;
+
+    card._loadPlayers();
+
+    expect(card._state.players).toEqual([]);
+    expect(card._state.selectedPlayer).toBe(null);
+    expect(card._state.musicAssistantIssueMessage).toContain("Music Assistant");
+  });
+});
 
 describe("voice assistant music matching", () => {
   it("rejects unrelated search results instead of auto-playing by media type only", () => {

@@ -26,7 +26,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/r11a/homeii-music-flow"><img alt="version" src="https://img.shields.io/badge/version-5.6.1-gold"></a>
+  <a href="https://github.com/r11a/homeii-music-flow"><img alt="version" src="https://img.shields.io/badge/version-5.7.0-gold"></a>
   <img alt="Home Assistant" src="https://img.shields.io/badge/Home%20Assistant-Dashboard-41BDF5">
   <img alt="Music Assistant" src="https://img.shields.io/badge/Music%20Assistant-required-7C5CFF">
   <img alt="Sendspin" src="https://img.shields.io/badge/Sendspin-browser%20player-18B6FF">
@@ -46,14 +46,38 @@ HOMEii Flow started from my own daily use of Home Assistant and Music Assistant.
 
 - **Sendspin browser player built in:** turn the current browser, phone, tablet, or wall panel into a Music Assistant playback target directly from the card, with a session that survives Dashboard page changes while the dashboard stays open.
 - **Premium now-playing experience:** artwork-led layout, dynamic atmosphere, elegant controls, full-screen lyrics, and responsive visual polish.
+- **Compact and Mini player modes:** use HOMEii Flow as a full music surface, a dashboard-friendly compact card, or a tiny two-row mobile widget that still keeps the important controls close.
 - **FLOW guided music wizard:** a simple step-by-step music flow for choosing players, picking a mood or existing content, reviewing visual results, and starting playback without learning the full Music Assistant UI.
 - **Experimental Flow Assistant:** optional voice commands can launch music from the player, empty state, and screensaver. This is intentionally marked experimental, and community feedback is welcome so it can become sharper and more reliable.
 - **Studio / Control Room:** choose players, group rooms, control volumes, move playback, and manage multi-room listening.
 - **Mobile-first workflow:** queue, search, library, FLOW, actions, timers, announcements, settings, and player switching are designed for touch.
 - **Real Music Assistant library flow:** playlists, albums, artists, tracks, radio, favorites, recent listening, recommendations, and album/playlist drill-in before playback.
+- **Performance profiles for weak devices:** Full, High, Low, and Ultra Lite modes let older tablets, wall panels, and slow browsers keep the card usable by reducing expensive effects without removing core controls.
 - **Smart-home aware listening:** optional Home Assistant light sync, screensaver display, and POWER actions let the card participate in the room without becoming mandatory setup.
-- **International and RTL ready:** English, Hebrew/RTL, and Simplified Chinese are bundled, with the same localization path available for future community translations.
+- **International and RTL ready:** English, Hebrew/RTL, Spanish, French, Lithuanian, and Simplified Chinese are bundled, with a documented path for more community translations.
 - **Release-ready package:** HACS-ready `dist/` output includes the card, Sendspin files, Embla swipe support, and the brand asset.
+
+## What's New In 5.7.0
+
+Version 5.7.0 is the biggest HOMEii Flow release so far. It is built from a long community feedback cycle: bug reports, screenshots, edge cases, requests for better mobile behavior, and many small "this should feel nicer" moments. Thank you to everyone who asked, tested, pushed, and cared. I tried to answer almost every practical request and turn it into a better daily music experience.
+
+- **Compact player rebuilt for real dashboards:** the compact card now fits Home Assistant Section dashboards much better, behaves correctly beside other cards, opens into a true full-screen popup, keeps clicks inside the player instead of leaking to the dashboard underneath, and includes better phone/tablet proportions.
+- **New Mini player widget mode:** a smaller two-row compact layout gives mobile dashboards a real music widget: clear artwork, readable title/artist, previous/play/next, volume controls, active-player access, and a premium full-screen expand button without taking over the whole page.
+- **Performance tuning is a release headline:** Full, High, Low, and Ultra Lite performance profiles make the card more practical on weak tablets and kiosk devices. Ultra Lite strips back blur, transparency, animation, background motion, and heavy visual effects while keeping the card fully usable.
+- **Music Assistant safety first:** HOMEii Flow now refuses to fall back to unrelated Home Assistant media players. If Music Assistant is missing, inactive, or exposes no valid MA players, the card shows a clear setup message instead of filling the player list with wrong entities.
+- **Better player management:** exclude players from the visual editor, sort players alphabetically or in a custom order, use an order list that matches the real player count, and rely on cleaner active-player selection surfaces on compact and full layouts.
+- **Grouping and queue transfer hardened:** group join, disconnect, transfer queue, stop, and clear actions were tightened so the card uses safer player payloads and avoids many false success/error states, especially with newer Music Assistant beta behavior.
+- **Quick Actions are now user-controlled:** reorder Quick Actions, choose which buttons appear, keep Home in the action row, add multiple auxiliary buttons with Home Assistant icons, and keep configured actions visible after playback starts without needing a page refresh.
+- **Volume and media controls improved:** volume sliders update immediately, plus/minus volume buttons use a configurable 1-10 percent step, mute is better sized, shuffle uses glow styling without covering the icon, and repeat badges moved away from the icon center.
+- **Screensaver upgraded:** choose which screensaver buttons appear, including Flow Assistant, previous/next, play/pause, power, mute, and like. The screensaver can use a full-page layout, dynamic artwork colors, softer idle animation, and performance-aware visuals.
+- **Flow Assistant behaves better:** assistant windows can open above the screensaver without closing it, responses are time-limited, and empty overlay/menu cases were fixed so the right panel stays visible.
+- **Discovery and FLOW feel fresher:** style selection now uses a much larger Spotify-like catalog of familiar genres and moods, recommendations rotate more naturally, Discover can show the active player, and compact recommendation layouts avoid collisions on smaller screens.
+- **Library browsing is more flexible:** choose a default library view of Grid or List in settings, still switch manually per page, open playlist/album drill-ins in grid mode, and use more stable navigation without unexpected returns to the main screen.
+- **Search, history, queue, and lyrics polished:** Quick Actions can open a dedicated search popup, history has a play-all action, queue rows include a like action with clearer feedback, and the lyrics panel now has a more polished dynamic background and readable layout.
+- **Opened screens and Studio are larger and calmer:** Studio panels, player selectors, action menus, library pages, queue, and compact full-screen views now use more of the available display and avoid the cramped half-height feeling.
+- **Responsive behavior is more honest:** the awkward tablet/phone middle widths now keep access to the important features through wrapping, menus, and full-screen surfaces. At very narrow sizes, compact modes are favored so the layout does not crush itself.
+- **New languages:** Spanish, French, and Lithuanian are now bundled alongside English, Hebrew, and Simplified Chinese. Thank you to Daniel Eduardo Gonzalez (@danielxb-ar) for Spanish, Donatas / donatassmarterhome for Lithuanian, Julien Moreau Brousseau for French translation work, Jingle Jew for French wording corrections, and @gao19970120 for the earlier Simplified Chinese contribution.
+- **Bug-fix rollup:** fixes include the library loading spinner loop, delayed media-control feedback, random library jumps back to the home page, missing Quick Actions after playback starts, French language selection falling back to English, compact popup stacking and click handling, mini player selector overlays, volume dropdown z-index, tablet icon sizing, manual height behavior, and the Home Assistant Section height regression reported after 5.6.1.
 
 ## What's New In 5.6.1
 
@@ -209,7 +233,7 @@ If HACS does not add the resource automatically, add:
 3. Add this Dashboard resource:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.6.1
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.7.0
 ```
 
 4. Add the card:
@@ -886,7 +910,7 @@ npm run lint
 npm test
 ```
 
-Current packaged version: `5.6.1`
+Current packaged version: `5.7.0`
 
 ## Release Readiness
 
@@ -928,6 +952,11 @@ Credit and thanks:
 - [Home Assistant](https://www.home-assistant.io/) for the dashboard platform.
 - [HACS](https://www.hacs.xyz/) for the custom repository distribution path.
 - [Embla Carousel](https://www.embla-carousel.com/) for the packaged swipe foundation.
+- Daniel Eduardo Gonzalez ([@danielxb-ar](https://github.com/danielxb-ar)) for the Spanish translation.
+- Donatas / donatassmarterhome for the Lithuanian translation.
+- Julien Moreau Brousseau for the French translation work.
+- Jingle Jew for French wording corrections.
+- [@gao19970120](https://github.com/gao19970120) for the Simplified Chinese translation contribution.
 - Codex for helping turn a non-programmer's product and UX vision into a working release-ready card.
 
 ## Documentation

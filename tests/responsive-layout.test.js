@@ -17,9 +17,11 @@ describe("responsive layout foundation", () => {
     expect(resolveLayoutMode("tablet", { rectWidth: 200 })).toBe("tablet");
     expect(resolveLayoutMode("mobile", { rectWidth: 1200 })).toBe("mobile");
     expect(resolveLayoutMode("auto", { rectWidth: 860, hostWidth: 870, viewportWidth: 880 })).toBe("mobile");
-    expect(resolveLayoutMode("auto", { rectWidth: 860, hostWidth: 920, viewportWidth: 880 })).toBe("tablet");
+    expect(resolveLayoutMode("auto", { rectWidth: 860, hostWidth: 920, viewportWidth: 880 })).toBe("mobile");
+    expect(resolveLayoutMode("auto", { rectWidth: 860, hostWidth: 1000, viewportWidth: 880 })).toBe("tablet");
     expect(resolveLayoutMode("auto", { rectWidth: 400, hostWidth: 0, viewportWidth: 1440 })).toBe("mobile");
-    expect(resolveLayoutMode("auto", { rectWidth: 0, hostWidth: 0, viewportWidth: 920 })).toBe("tablet");
+    expect(resolveLayoutMode("auto", { rectWidth: 0, hostWidth: 0, viewportWidth: 920 })).toBe("mobile");
+    expect(resolveLayoutMode("auto", { rectWidth: 0, hostWidth: 0, viewportWidth: 1000 })).toBe("tablet");
   });
 
   it("normalizes tablet auto-fit flags", () => {

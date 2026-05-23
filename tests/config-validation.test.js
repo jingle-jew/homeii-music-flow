@@ -16,9 +16,11 @@ describe("config validators", () => {
         main_opacity: 0.9,
         popup_opacity: 0.75,
         cache_ttl: 1000,
+        music_assistant_timeout_ms: 12000,
         language: "he",
         theme_mode: "dark",
         rtl: true,
+        performance_profile: "ultra_lite",
         performance_mode: true,
         show_ma_button: false,
         show_theme_toggle: true,
@@ -32,6 +34,12 @@ describe("config validators", () => {
         performance_mode: "on",
       })
     ).toThrow("performance_mode must be a boolean");
+
+    expect(() =>
+      validateBaseCardEditorConfig({
+        performance_profile: "turbo",
+      })
+    ).toThrow("performance_profile must be one of: full, high, low, ultra_lite");
   });
 
   it("accepts future language codes and rejects non-string language values", () => {
@@ -46,6 +54,12 @@ describe("config validators", () => {
         language: 7,
       })
     ).toThrow("language must be a string");
+
+    expect(() =>
+      validateBaseCardEditorConfig({
+        music_assistant_timeout_ms: "slow",
+      })
+    ).toThrow("music_assistant_timeout_ms must be a number");
   });
 
   it("accepts a valid mobile-only config", () => {
@@ -56,23 +70,33 @@ describe("config validators", () => {
         layout_mode: "tablet",
         settings_source: "card",
         night_mode: "auto",
+        performance_profile: "low",
         mobile_dynamic_theme_mode: "strong",
         mobile_background_motion_mode: "subtle",
         mobile_custom_text_tone: "dark",
         mobile_icon_scale: 1.1,
         mobile_volume_mode: "always",
+        mobile_volume_step_buttons: true,
+        mobile_volume_step_percent: 5,
         mobile_mic_mode: "smart",
         voice_assistant_enabled: true,
         voice_assistant_mode: "hybrid",
         voice_assistant_agent_id: "conversation.home_assistant",
         voice_assistant_speak_feedback: true,
+        flow_assistant_response_timeout_ms: 18000,
+        flow_assistant_listen_timeout_ms: 12000,
+        flow_assistant_auto_close_ms: 4200,
         mobile_liked_mode: "local",
         mobile_swipe_mode: "browse",
         mobile_library_tabs: ["library", "queue"],
+        mobile_library_default_layout: "grid",
         mobile_main_bar_items: ["actions", "settings"],
         mobile_quick_actions: ["timer", "voice"],
+        mobile_quick_action_1: "voice",
+        mobile_quick_action_2: "timer",
         mobile_announcement_presets: ["hello"],
         mobile_compact_mode: true,
+        mobile_compact_widget_mode: "mini",
         mobile_show_up_next: false,
         ambient_light_enabled: true,
         ambient_light_entities: ["light.living_room", "light.tv"],
@@ -82,6 +106,7 @@ describe("config validators", () => {
         ambient_light_cooldown: 8,
         screensaver_enabled: true,
         screensaver_controls_enabled: true,
+        screensaver_control_buttons: ["previous", "play_pause", "next", "mute", "power", "like", "voice"],
         screensaver_clock_mode: "analog",
         screensaver_timeout_seconds: 90,
         screensaver_message: "Dinner is ready",
@@ -89,8 +114,19 @@ describe("config validators", () => {
         screensaver_clock_x: 80,
         screensaver_clock_y: 24,
         power_button_enabled: true,
+        power_button_name: "Movie",
+        power_button_icon: "speaker",
         power_button_action: "script",
         power_button_entity: "script.movie_time",
+        aux_button_2_enabled: true,
+        aux_button_2_name: "Amp",
+        aux_button_2_icon: "music_note",
+        aux_button_2_action: "toggle",
+        aux_button_2_entity: "switch.amp",
+        excluded_player_entities: ["media_player.bedroom"],
+        player_sort_mode: "custom",
+        player_order_entities: ["media_player.kitchen"],
+        player_order_entity_1: "media_player.living_room",
         discovery_mode_enabled: true,
       })
     ).not.toThrow();
@@ -105,9 +141,69 @@ describe("config validators", () => {
 
     expect(() =>
       validateMobileCardEditorConfig({
+        performance_profile: "turbo",
+      })
+    ).toThrow("performance_profile must be one of: full, high, low, ultra_lite");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
         voice_assistant_mode: "always-listen",
       })
     ).toThrow("voice_assistant_mode must be one of: hybrid, music, assist");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        flow_assistant_response_timeout_ms: "forever",
+      })
+    ).toThrow("flow_assistant_response_timeout_ms must be a number");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        mobile_volume_step_buttons: "yes",
+      })
+    ).toThrow("mobile_volume_step_buttons must be a boolean");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        mobile_volume_step_percent: "5",
+      })
+    ).toThrow("mobile_volume_step_percent must be a number");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        mobile_compact_widget_mode: "tiny",
+      })
+    ).toThrow("mobile_compact_widget_mode must be one of: auto, full, mini");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        mobile_library_default_layout: "cards",
+      })
+    ).toThrow("mobile_library_default_layout must be one of: grid, list");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        mobile_quick_action_1: 7,
+      })
+    ).toThrow("mobile_quick_action_1 must be a string");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        excluded_player_entities: "media_player.kitchen",
+      })
+    ).toThrow("excluded_player_entities must be an array of strings");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        player_sort_mode: "random",
+      })
+    ).toThrow("player_sort_mode must be one of: default, alphabetical, custom");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        player_order_entity_1: 7,
+      })
+    ).toThrow("player_order_entity_1 must be a string");
   });
 
   it("rejects invalid smart-home config values", () => {
@@ -119,9 +215,33 @@ describe("config validators", () => {
 
     expect(() =>
       validateMobileCardEditorConfig({
+        screensaver_control_buttons: ["previous", "party"],
+      })
+    ).toThrow("screensaver_control_buttons must contain only: previous, play_pause, next, mute, power, like, voice");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
         power_button_action: "explode",
       })
     ).toThrow("power_button_action must be one of: stop_player, toggle, turn_on, turn_off, scene, script");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        power_button_icon: 4,
+      })
+    ).toThrow("power_button_icon must be a string");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        aux_button_2_enabled: "yes",
+      })
+    ).toThrow("aux_button_2_enabled must be a boolean");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        aux_button_2_action: "explode",
+      })
+    ).toThrow("aux_button_2_action must be one of: stop_player, toggle, turn_on, turn_off, scene, script");
 
     expect(() =>
       validateMobileCardEditorConfig({

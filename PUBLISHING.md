@@ -24,19 +24,19 @@
   - the HACS My Home Assistant button
   - the HACS download/install button
 
-## 2. Create the 5.6.1 release
+## 2. Create the 5.7.0 release
 
-- Create a Git tag named `v5.6.1`.
+- Create a Git tag named `v5.7.0`.
 - Create a GitHub release from that tag.
-- Title the release `5.6.1`.
-- Use the `5.6.1` section from `CHANGELOG.md` as the release notes.
+- Title the release `5.7.0`.
+- Use the `5.7.0` section from `CHANGELOG.md` as the release notes.
 - Do not attach a custom release zip asset for HACS. Keep the complete installable runtime in `dist/` and let HACS use the normal repository release/tag contents.
 
 ## 3. Verify repository files after publishing
 
 - Confirm `hacs.json` still points to `homeii-music-flow.js`.
 - Confirm `dist/homeii-music-flow.js` matches the released runtime.
-- Confirm `dist/localization/` includes English, Hebrew, and Simplified Chinese dictionaries.
+- Confirm `dist/localization/` includes English, Hebrew, Spanish, French, Lithuanian, and Simplified Chinese dictionaries.
 - Confirm `dist/sendspin-js/` exists for the local Sendspin browser player.
 - Confirm `dist/vendor/embla-carousel.umd.js` exists for mobile swipe support.
 - Confirm `dist/homeii-flow-logo.svg` and `docs/brand/homeii-flow-logo.svg` exist.
@@ -81,7 +81,7 @@ to:
 
 Then load:
 
-`/local/community/homeii-music-flow/homeii-music-flow.js?v=5.6.1`
+`/local/community/homeii-music-flow/homeii-music-flow.js?v=5.7.0`
 
 ## 7. Final pre-release smoke test
 

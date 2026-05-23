@@ -16,6 +16,7 @@ export function createBaseBrowserState() {
     playerModalOpen: false,
     hasAutoSelectedPlayer: false,
     cardTheme: "auto",
+    performanceProfile: "full",
     performanceMode: false,
     performanceModeLocalOverride: false,
     modalMode: "players",

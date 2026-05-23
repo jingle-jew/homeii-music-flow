@@ -1,4 +1,4 @@
-const TABLET_BREAKPOINT = 900;
+const TABLET_BREAKPOINT = 980;
 
 function normalizeLayoutMode(value) {
   const normalized = String(value || "auto").trim().toLowerCase();

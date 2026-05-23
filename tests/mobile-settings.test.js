@@ -4,18 +4,26 @@ import {
   clampPercent,
   clampMobileIconScale,
   clampMobileFontScale,
+  clampMobileVolumeStepPercent,
   clampSeconds,
   formatAmbientLightPlayerMapEntry,
   isColorCapableLightEntity,
+  normalizeAuxiliaryButtonIcon,
+  normalizeExcludedPlayerEntities,
   normalizeEntityList,
   normalizeHomeShortcutPath,
   normalizeMobileFooterMode,
+  normalizeMobileCompactWidgetMode,
+  normalizeMobileLibraryDefaultLayout,
   normalizeMobileLibraryTabs,
   normalizeMobileMainBarItems,
   normalizeMobileMicMode,
   normalizeMobileQuickActions,
+  normalizeMobileQuickActionSlots,
   normalizeMobileVolumeMode,
   normalizePinnedPlayerEntities,
+  normalizePlayerOrderEntities,
+  normalizePlayerSortMode,
   normalizePowerButtonAction,
   normalizeScreensaverClockMode,
   normalizeVoiceAssistantMode,
@@ -39,6 +47,8 @@ describe("mobile settings foundation", () => {
       night_mode_auto_end: "05:45",
       night_mode_days: [1, 3, 5],
       mobile_compact_mode: true,
+      mobile_compact_widget_mode: "MINI",
+      mobile_library_default_layout: "GRID",
       mobile_show_up_next: false,
       mobile_footer_search_enabled: true,
       mobile_studio_shortcut: false,
@@ -46,6 +56,8 @@ describe("mobile settings foundation", () => {
       mobile_home_shortcut: true,
       mobile_home_shortcut_path: "lovelace/media",
       mobile_volume_mode: "always",
+      mobile_volume_step_buttons: true,
+      mobile_volume_step_percent: 7,
       mobile_mic_mode: "SMART",
       voice_assistant_enabled: true,
       voice_assistant_mode: "ASSIST",
@@ -57,10 +69,19 @@ describe("mobile settings foundation", () => {
       mobile_library_tabs: ["library_albums"],
       mobile_main_bar_items: ["theme", "settings"],
       mobile_quick_actions: ["voice", "timer", "disconnect_all", "voice"],
+      mobile_quick_action_1: "timer",
+      mobile_quick_action_2: "like",
+      mobile_quick_action_3: "voice",
+      mobile_quick_action_4: "disconnect_all",
       mobile_announcement_presets: ["One", "Two", "Three", "Four"],
       announcement_tts_entity: "tts.living_room",
       announcement_tts_language: "en-GB",
       pinned_player_entities: ["media_player.kitchen", " media_player.kitchen ", "media_player.office"],
+      excluded_player_entities: ["media_player.bedroom", " media_player.bedroom ", "media_player.garden"],
+      player_sort_mode: "CUSTOM",
+      player_order_entity_1: "media_player.office",
+      player_order_entity_2: "media_player.kitchen",
+      player_order_entities: ["media_player.office", "media_player.garden"],
       ambient_light_enabled: true,
       ambient_light_entities: ["light.living_room", " light.living_room ", "light.tv"],
       ambient_light_player_map: ["media_player.kitchen = light.kitchen", " media_player.office: light.office "],
@@ -69,6 +90,7 @@ describe("mobile settings foundation", () => {
       ambient_light_cooldown: "soon",
       screensaver_enabled: true,
       screensaver_controls_enabled: true,
+      screensaver_control_buttons: ["next", "voice", "bogus", "next"],
       screensaver_clock_mode: "ANALOG",
       screensaver_timeout_seconds: 4,
       screensaver_message: "Enjoy the music",
@@ -76,8 +98,15 @@ describe("mobile settings foundation", () => {
       screensaver_clock_x: 120,
       screensaver_clock_y: -10,
       power_button_enabled: true,
+      power_button_name: "Movie",
+      power_button_icon: "mdi:movie-open",
       power_button_action: "SCENE",
       power_button_entity: " scene.movie_time ",
+      aux_button_2_enabled: true,
+      aux_button_2_name: "Amp",
+      aux_button_2_icon: "mdi:amplifier",
+      aux_button_2_action: "toggle",
+      aux_button_2_entity: "switch.amp",
       discovery_mode_enabled: false,
     }, {
       normalizeClockTime: (value, fallback) => String(value || fallback),
@@ -90,6 +119,7 @@ describe("mobile settings foundation", () => {
 
     expect(state.lang).toBe("he");
     expect(state.cardTheme).toBe("light");
+    expect(state.performanceProfile).toBe("low");
     expect(state.performanceMode).toBe(true);
     expect(state.mobileDynamicThemeMode).toBe("strong");
     expect(state.mobileBackgroundMotionMode).toBe("subtle");
@@ -101,6 +131,8 @@ describe("mobile settings foundation", () => {
     expect(state.mobileNightModeEnd).toBe("05:45");
     expect(state.mobileNightModeDays).toEqual([1, 3, 5]);
     expect(state.mobileCompactMode).toBe(true);
+    expect(state.mobileCompactWidgetMode).toBe("mini");
+    expect(state.mobileLibraryDefaultLayout).toBe("grid");
     expect(state.mobileShowUpNext).toBe(false);
     expect(state.mobileFooterSearchEnabled).toBe(true);
     expect(state.mobileStudioShortcutEnabled).toBe(false);
@@ -108,6 +140,8 @@ describe("mobile settings foundation", () => {
     expect(state.mobileHomeShortcutEnabled).toBe(true);
     expect(state.mobileHomeShortcutPath).toBe("lovelace/media");
     expect(state.mobileVolumeMode).toBe("always");
+    expect(state.mobileVolumeStepButtonsEnabled).toBe(true);
+    expect(state.mobileVolumeStepPercent).toBe(7);
     expect(state.mobileMicMode).toBe("smart");
     expect(state.voiceAssistantEnabled).toBe(true);
     expect(state.voiceAssistantMode).toBe("assist");
@@ -118,7 +152,7 @@ describe("mobile settings foundation", () => {
     expect(state.mobileRadioBrowserCountry).toBe("il");
     expect(state.mobileLibraryTabs).toEqual(["library_albums"]);
     expect(state.mobileMainBarItems).toEqual(["theme", "settings"]);
-    expect(state.mobileQuickActions).toEqual(["voice", "timer", "disconnect_all"]);
+    expect(state.mobileQuickActions).toEqual(["timer", "voice", "disconnect_all"]);
     expect(state.mobileAnnouncementPresets).toEqual(["One", "Two", "Three"]);
     expect(state.mobileAnnouncementTtsEntity).toBe("tts.living_room");
     expect(state.mobileAnnouncementTtsLanguage).toBe("en-GB");
@@ -131,6 +165,7 @@ describe("mobile settings foundation", () => {
     expect(state.ambientLightCooldown).toBe(8);
     expect(state.screensaverEnabled).toBe(true);
     expect(state.screensaverControlsEnabled).toBe(true);
+    expect(state.screensaverControlButtons).toEqual(["next", "voice"]);
     expect(state.screensaverClockMode).toBe("analog");
     expect(state.screensaverTimeoutSeconds).toBe(15);
     expect(state.screensaverMessage).toBe("Enjoy the music");
@@ -138,8 +173,20 @@ describe("mobile settings foundation", () => {
     expect(state.screensaverClockX).toBe(92);
     expect(state.screensaverClockY).toBe(8);
     expect(state.powerButtonEnabled).toBe(true);
+    expect(state.powerButtonName).toBe("Movie");
+    expect(state.powerButtonIcon).toBe("mdi:movie-open");
     expect(state.powerButtonAction).toBe("scene");
     expect(state.powerButtonEntity).toBe("scene.movie_time");
+    expect(state.auxiliaryButtons[0]).toEqual({
+      enabled: true,
+      name: "Amp",
+      icon: "mdi:amplifier",
+      action: "toggle",
+      entity: "switch.amp",
+    });
+    expect(state.excludedPlayerEntities).toEqual(["media_player.bedroom", "media_player.garden"]);
+    expect(state.playerSortMode).toBe("custom");
+    expect(state.playerOrderEntities).toEqual(["media_player.office", "media_player.kitchen", "media_player.garden"]);
     expect(state.discoveryModeEnabled).toBe(false);
   });
 
@@ -170,6 +217,24 @@ describe("mobile settings foundation", () => {
     ])).toEqual(["library_search", "library_albums"]);
 
     expect(normalizeMobileQuickActions(["voice", "bad", "timer", "disconnect_all", "voice"], ["timer"])).toEqual(["voice", "timer", "disconnect_all"]);
+    expect(normalizeMobileQuickActions([], ["timer"])).toEqual([]);
+    expect(normalizeMobileQuickActionSlots({
+      mobile_quick_action_1: "timer",
+      mobile_quick_action_2: "bad",
+      mobile_quick_action_3: "home",
+    }, ["home", "timer", "lyrics"])).toEqual(["timer", "home", "lyrics"]);
+
+    expect(normalizeVisualMobileState({ mobile_quick_actions: [] }, {
+      defaultQuickActions: ["timer", "like"],
+    }).mobileQuickActions).toEqual([]);
+  });
+
+  it("normalizes performance profiles while keeping legacy performance mode", () => {
+    expect(normalizeVisualMobileState({ performance_profile: "ultra_lite" }).performanceProfile).toBe("ultra_lite");
+    expect(normalizeVisualMobileState({ performance_profile: "ultra_lite" }).performanceMode).toBe(true);
+    expect(normalizeVisualMobileState({ performance_profile: "high", performance_mode: true }).performanceProfile).toBe("high");
+    expect(normalizeVisualMobileState({ performance_profile: "high", performance_mode: true }).performanceMode).toBe(false);
+    expect(normalizeVisualMobileState({ performance_profile: "turbo", performance_mode: true }).performanceProfile).toBe("low");
   });
 
   it("stabilizes home shortcut, footer, mic, and volume modes", () => {
@@ -180,8 +245,12 @@ describe("mobile settings foundation", () => {
     expect(normalizeVoiceAssistantMode("music")).toBe("music");
     expect(normalizeVoiceAssistantMode("bad")).toBe("hybrid");
     expect(normalizeMobileVolumeMode("invalid")).toBe("button");
+    expect(normalizeMobileCompactWidgetMode("bad")).toBe("auto");
+    expect(normalizeMobileLibraryDefaultLayout("GRID")).toBe("grid");
+    expect(normalizeMobileLibraryDefaultLayout("bad", "grid")).toBe("grid");
     expect(clampMobileFontScale(0.2)).toBe(0.5);
     expect(clampMobileIconScale(0.2)).toBe(0.8);
+    expect(clampMobileVolumeStepPercent(99)).toBe(10);
   });
 
   it("normalizes pinned player inputs from single and multi-entity config", () => {
@@ -201,6 +270,20 @@ describe("mobile settings foundation", () => {
     expect(normalizeScreensaverClockMode("clock")).toBe("digital");
     expect(normalizePowerButtonAction("scene")).toBe("scene");
     expect(normalizePowerButtonAction("bad")).toBe("stop_player");
+    expect(normalizeAuxiliaryButtonIcon("wand")).toBe("wand");
+    expect(normalizeAuxiliaryButtonIcon("mdi:lightbulb")).toBe("mdi:lightbulb");
+    expect(normalizeAuxiliaryButtonIcon("bad")).toBe("power");
+    expect(normalizePlayerSortMode("alphabetical")).toBe("alphabetical");
+    expect(normalizePlayerSortMode("bad")).toBe("default");
+    expect(normalizeExcludedPlayerEntities({
+      excluded_player_entities: ["media_player.kitchen", " media_player.kitchen ", "media_player.office"],
+    })).toEqual(["media_player.kitchen", "media_player.office"]);
+    expect(normalizePlayerOrderEntities({
+      player_order_entity_1: "media_player.office",
+      player_order_entity_2: "media_player.kitchen",
+      player_order_entity_21: "media_player.patio",
+      player_order_entities: ["media_player.kitchen", "media_player.bedroom"],
+    })).toEqual(["media_player.office", "media_player.kitchen", "media_player.patio", "media_player.bedroom"]);
   });
 
   it("parses player to light mappings with multiple lights", () => {

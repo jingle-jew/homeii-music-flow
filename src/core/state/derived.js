@@ -17,20 +17,34 @@ export function mobileShowUpNextEnabled(state) {
   return state?.mobileShowUpNext === true;
 }
 
+export function performanceProfile(state) {
+  const profile = String(state?.performanceProfile || "").trim().toLowerCase();
+  if (["full", "high", "low", "ultra_lite"].includes(profile)) return profile;
+  return state?.performanceMode === true ? "low" : "full";
+}
+
 export function performanceModeEnabled(state) {
-  return state?.performanceMode === true;
+  return ["low", "ultra_lite"].includes(performanceProfile(state));
+}
+
+export function performanceUltraLiteEnabled(state) {
+  return performanceProfile(state) === "ultra_lite";
 }
 
 export function mobileDynamicThemeMode(state) {
-  if (performanceModeEnabled(state)) return "off";
+  const profile = performanceProfile(state);
+  if (profile === "low" || profile === "ultra_lite") return "off";
   const mode = String(state?.mobileDynamicThemeMode || "auto").toLowerCase();
-  return ["off", "auto", "strong"].includes(mode) ? mode : "auto";
+  const normalized = ["off", "auto", "strong"].includes(mode) ? mode : "auto";
+  return profile === "high" && normalized === "strong" ? "auto" : normalized;
 }
 
 export function mobileBackgroundMotionMode(state) {
-  if (performanceModeEnabled(state)) return "off";
+  const profile = performanceProfile(state);
+  if (profile === "low" || profile === "ultra_lite") return "off";
   const mode = String(state?.mobileBackgroundMotionMode || "subtle").toLowerCase();
-  return ["off", "subtle", "strong", "extreme"].includes(mode) ? mode : "subtle";
+  const normalized = ["off", "subtle", "strong", "extreme"].includes(mode) ? mode : "subtle";
+  return profile === "high" && ["strong", "extreme"].includes(normalized) ? "subtle" : normalized;
 }
 
 export function backgroundMotionEnabled(state) {

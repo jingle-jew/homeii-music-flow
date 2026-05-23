@@ -12,8 +12,9 @@ import {
 describe("localization", () => {
   it("translates by key with English fallback", () => {
     expect(translate("he", "ui.home")).toBe("בית");
+    expect(translate("fr", "ui.home")).toBe("Accueil");
     expect(translate("zh-CN", "ui.home")).toBe("首页");
-    expect(translate("fr", "ui.home")).toBe("Home");
+    expect(translate("de", "ui.home")).toBe("Home");
     expect(translate("he", "missing.key", {}, "Fallback")).toBe("Fallback");
   });
 
@@ -25,13 +26,28 @@ describe("localization", () => {
   });
 
   it("detects configured languages and falls back to English", () => {
+    expect(detectLanguage({ configLanguage: "es" })).toBe("es");
+    expect(detectLanguage({ configLanguage: "fr" })).toBe("fr");
     expect(detectLanguage({ configLanguage: "he" })).toBe("he");
+    expect(detectLanguage({ configLanguage: "lt" })).toBe("lt");
     expect(detectLanguage({ configLanguage: "zh-CN" })).toBe("zh");
-    expect(detectLanguage({ configLanguage: "fr" })).toBe("en");
+    expect(detectLanguage({ configLanguage: "de" })).toBe("en");
     expect(detectLanguage({ configLanguage: "auto", hass: { locale: { language: "he-IL" } } })).toBe("he");
   });
 
-  it("offers Simplified Chinese in the language picker options", () => {
+  it("offers community languages in the language picker options", () => {
+    expect(LANGUAGE_OPTIONS).toContainEqual({
+      value: "es",
+      label: "Español",
+    });
+    expect(LANGUAGE_OPTIONS).toContainEqual({
+      value: "fr",
+      label: "Français",
+    });
+    expect(LANGUAGE_OPTIONS).toContainEqual({
+      value: "lt",
+      label: "Lithuanian / Lietuvių",
+    });
     expect(LANGUAGE_OPTIONS).toContainEqual({
       value: "zh-CN",
       label: "简体中文 / Simplified Chinese",

@@ -10,6 +10,8 @@ import {
   mobileShowUpNextEnabled,
   normalizeSettingsSource,
   performanceModeEnabled,
+  performanceProfile,
+  performanceUltraLiteEnabled,
   usesVisualSettings,
 } from "../src/core/state/derived.js";
 
@@ -50,5 +52,21 @@ describe("state derived helpers", () => {
     expect(mobileDynamicThemeMode(state)).toBe("off");
     expect(mobileBackgroundMotionMode(state)).toBe("off");
     expect(backgroundMotionEnabled(state)).toBe(false);
+  });
+
+  it("normalizes performance profiles with legacy fallback", () => {
+    expect(performanceProfile({ performanceMode: true })).toBe("low");
+    expect(performanceProfile({ performanceProfile: "HIGH" })).toBe("high");
+    expect(performanceProfile({ performanceProfile: "ultra_lite" })).toBe("ultra_lite");
+    expect(performanceModeEnabled({ performanceProfile: "high" })).toBe(false);
+    expect(performanceModeEnabled({ performanceProfile: "low" })).toBe(true);
+    expect(performanceUltraLiteEnabled({ performanceProfile: "ultra_lite" })).toBe(true);
+  });
+
+  it("caps visual intensity by performance profile", () => {
+    expect(mobileDynamicThemeMode({ performanceProfile: "high", mobileDynamicThemeMode: "strong" })).toBe("auto");
+    expect(mobileBackgroundMotionMode({ performanceProfile: "high", mobileBackgroundMotionMode: "extreme" })).toBe("subtle");
+    expect(mobileDynamicThemeMode({ performanceProfile: "ultra_lite", mobileDynamicThemeMode: "strong" })).toBe("off");
+    expect(mobileBackgroundMotionMode({ performanceProfile: "ultra_lite", mobileBackgroundMotionMode: "strong" })).toBe("off");
   });
 });

@@ -1,5 +1,132 @@
 # Changelog
 
+## 5.7.0 - 2026-05-23
+
+Major community release focused on Music Assistant safety, compact/mobile dashboards, full-screen interaction, weak-device performance, player control reliability, and localization.
+
+This release was shaped by a long feedback cycle from real Home Assistant dashboards. Thank you to everyone who opened issues, sent screenshots, tested local beta builds, and asked for practical improvements. Many of the changes below came directly from user requests, and the goal was to add as much as possible without breaking the premium player experience.
+
+Highlights:
+
+- Rebuilds the **compact card** so it behaves correctly inside Home Assistant Section dashboards, sits beside other cards without overlaying them, opens a true full-screen popup, captures pointer events inside the popup, and keeps phone/tablet layouts usable.
+- Adds a **Mini player** compact mode for mobile dashboards: a smaller two-row music widget with artwork, track text, previous/play/next, volume controls, active-player access, and a cleaner full-screen expand button.
+- Adds stronger **performance profiles** for weak devices: Full, High, Low, and Ultra Lite. Ultra Lite reduces blur, transparency, animation, dynamic backgrounds, motion, and expensive visual effects while preserving the important controls.
+- Enforces **Music Assistant player safety**. HOMEii Flow no longer falls back to unrelated Home Assistant `media_player` entities when Music Assistant is missing, inactive, or exposes no valid MA players. The card now shows a clear setup message instead.
+- Improves Home Assistant **Section dashboard fit** with better height handling, compact/full layouts, mobile breakpoints, popup sizing, and manual-height support.
+- Expands **screensaver controls** with configurable buttons for Flow Assistant, previous/next, play/pause, power, mute, and like, plus dynamic artwork color, lighter idle animation, and performance-aware rendering.
+- Adds a much larger **style and genre catalog** for FLOW and Discover so users choose familiar music styles instead of a tiny fixed category list.
+- Bundles **Spanish, French, and Lithuanian** translations alongside English, Hebrew, and Simplified Chinese.
+
+Music Assistant, players, and grouping:
+
+- Shows a clear Music Assistant requirement notice when the integration is unavailable, inactive, or has no supported players.
+- Prevents non-Music-Assistant Home Assistant players from appearing in the card as a fallback.
+- Adds player exclusion from the visual editor.
+- Adds player sorting by alphabet or custom order.
+- Sizes custom player-order controls by the real number of available players instead of showing a fixed long list.
+- Improves active-player selector behavior in compact, mini, full, screensaver, and opened player surfaces.
+- Hardens group join, disconnect, queue transfer, stop, and clear flows around Music Assistant beta behavior and unsupported idle devices.
+- Reduces false success/error feedback when grouping or disconnecting speakers.
+- Improves player group UI cards, selection feedback, and volume controls.
+
+Compact, Mini, mobile, and Section layout:
+
+- Adds the Mini two-row compact card mode for dashboards where the normal compact card still uses too much vertical space.
+- Keeps the regular compact card available as a richer compact experience.
+- Moves compact full-screen views into a true popup-like surface that uses the screen instead of resizing the card in place.
+- Fixes compact full-screen clicks passing through to cards underneath.
+- Fixes compact full-screen controls that only allowed the close button to work.
+- Fixes compact cards stacking under or over unrelated Home Assistant cards in Section dashboards.
+- Improves compact album art sizing and cover browsing.
+- Allows cover browsing selections in compact mode to start the selected item.
+- Replaces the old triangle compact expand button with a clearer full-screen icon.
+- Adds active-player access to the Mini card header.
+- Moves Mini/mobile volume into its own row where needed to avoid crowding the media controls.
+- Improves mobile proportions, hit areas, control sizes, and text clipping.
+- Better handles narrow intermediate widths by wrapping actions, opening full-screen menus, or favoring compact layouts instead of crushing tablet layout controls.
+
+Quick Actions and auxiliary controls:
+
+- Moves Home into the Quick Actions row and keeps it available when the player is idle.
+- Adds Quick Action ordering in the visual editor.
+- Fixes Quick Actions disappearing after music starts and only returning after a page refresh.
+- Hides irrelevant Quick Actions from the idle player view.
+- Adds multiple auxiliary buttons with configurable names, Home Assistant icon selection, and actions.
+- Adds a dedicated search Quick Action that opens a clean search-only popup.
+- Adds better action menu tile sizing so labels and icons do not clip.
+- Supports two-row Quick Actions on constrained layouts to preserve artwork space.
+
+Media controls and volume:
+
+- Improves immediate feedback for play, pause, shuffle, repeat, previous, next, mute, and volume.
+- Adds optional plus/minus volume buttons with a configurable 1-10 percent step and a 5 percent default.
+- Fixes plus/minus volume changing from the wrong baseline.
+- Fixes volume slider and percentage not updating immediately after choosing a preset.
+- Fixes the compact volume preset popup stacking under other cards.
+- Enlarges and balances media-control icons, especially shuffle and repeat.
+- Moves the repeat badge outside the icon center so it no longer blocks the repeat glyph.
+- Changes shuffle active state to a border/glow treatment instead of an icon-covering dot.
+- Tunes tablet media controls and reduces the mute button size.
+
+Screensaver and ambient visuals:
+
+- Adds configurable screensaver button visibility, including existing Flow Assistant and previous/next controls.
+- Keeps Flow Assistant above the screensaver and prevents it from closing the screensaver unintentionally.
+- Removes the experimental `screensaver_kiosk_mode` option because it did not provide a useful difference in Home Assistant chrome behavior.
+- Uses a full-page screensaver surface similar to compact full-screen mode.
+- Adds gentle idle animation for no-content screens and idle players.
+- Keeps dynamic color and ambient-light behavior updating during screensaver playback where Home Assistant/browser visibility allows it.
+- Reduces screensaver motion and visual cost in Ultra Lite mode.
+
+FLOW, Discover, library, search, queue, and lyrics:
+
+- Replaces fixed FLOW category choices with a larger familiar style catalog.
+- Applies the expanded style catalog to Discover too.
+- Makes Discover recommendations less repetitive between opens.
+- Shows the active player inside Discover.
+- Adjusts Discover recommendation orbs on narrow screens so items do not overlap.
+- Adds default library view setting for Grid or List while preserving manual per-page switching.
+- Adds grid mode inside playlist and album drill-in views.
+- Improves library navigation so it does not unexpectedly return to the main page.
+- Adds History play-all.
+- Adds like support to queue row actions with clearer visual feedback.
+- Repositions queue row actions so like does not trigger row playback accidentally.
+- Redesigns the lyrics panel with a more polished dynamic background, clearer typography, and better alignment across devices.
+- Expands opened Studio panels and media sheets so they use more of the screen instead of half-height panels.
+
+Flow Assistant:
+
+- Adds response/open-time limits so assistant panels do not remain active too long.
+- Fixes assistant dialogs opening behind the screensaver.
+- Fixes screensaver Flow Assistant so it opens over the current screensaver without exiting it.
+- Fixes an empty `Menu` overlay that could cover the correct player selector after a rebuild.
+
+Localization:
+
+- Adds Spanish localization. Thank you to Daniel Eduardo Gonzalez ([@danielxb-ar](https://github.com/danielxb-ar)).
+- Adds Lithuanian localization. Thank you to Donatas / donatassmarterhome.
+- Adds French localization, updated from the repository contribution and completed for the 5.7.0 keys. Thank you to Julien Moreau Brousseau and to Jingle Jew for wording corrections.
+- Keeps Simplified Chinese localization bundled. Thank you again to [@gao19970120](https://github.com/gao19970120).
+- Fixes French language selection staying in English after choosing French in the editor.
+
+Bug fixes:
+
+- Fixes the library loading spinner loop reported in issue #19.
+- Fixes the fixed-height/tablet Section dashboard regression reported in issue #17 by respecting manual height and Section layout constraints more carefully.
+- Fixes delayed media-control response and missing immediate UI feedback.
+- Fixes idle player view missing the Home action.
+- Fixes idle recommendations changing too aggressively while the idle page is open.
+- Fixes overlapping elements in media/action menus and opened screens.
+- Fixes broken-looking small icons, including the library icon treatment.
+- Fixes tablet and mobile intermediate layouts losing access to controls.
+- Fixes compact popup sizing on phones.
+- Fixes player selector from Mini/compact opening the wrong tiny surface before the real selector.
+- Fixes volume dropdown/preset z-index from compact cards.
+- Fixes screensaver Flow Assistant panel layering.
+- Fixes quick action state mismatches after playback starts.
+- Fixes French localization registration and release packaging.
+- Fixes release localization cache busting for the expanded language package.
+
 ## 5.6.1 - 2026-05-20
 
 Release packaging hotfix for the Simplified Chinese language option.

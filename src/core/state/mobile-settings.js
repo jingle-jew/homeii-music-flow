@@ -1,22 +1,34 @@
 const MOBILE_DYNAMIC_THEME_MODES = ["off", "auto", "strong"];
 const MOBILE_BACKGROUND_MOTION_MODES = ["off", "subtle", "strong", "extreme"];
+const PERFORMANCE_PROFILE_MODES = ["full", "high", "low", "ultra_lite"];
 const MOBILE_NIGHT_MODES = ["off", "auto", "on"];
 const MOBILE_FOOTER_MODES = ["icon", "text", "both"];
 const MOBILE_VOLUME_MODES = ["always", "button"];
+const MOBILE_COMPACT_WIDGET_MODES = ["auto", "full", "mini"];
+const MOBILE_LIBRARY_LAYOUT_MODES = ["grid", "list"];
 const MOBILE_MIC_MODES = ["on", "off", "smart"];
 const MOBILE_LIKED_MODES = ["ma", "local"];
 const MOBILE_SWIPE_MODES = ["play", "browse"];
 const VOICE_ASSISTANT_MODES = ["hybrid", "music", "assist"];
 const SCREENSAVER_CLOCK_MODES = ["digital", "analog"];
+const SCREENSAVER_CONTROL_BUTTONS = ["previous", "play_pause", "next", "mute", "power", "like", "voice"];
 const POWER_BUTTON_ACTIONS = ["stop_player", "toggle", "turn_on", "turn_off", "scene", "script"];
+const AUXILIARY_BUTTON_ICONS = ["power", "home", "speaker", "music_note", "wand", "grid", "settings", "heart_outline", "play", "stop", "radio", "timer", "info"];
+const PLAYER_SORT_MODES = ["default", "alphabetical", "custom"];
 const MOBILE_MAIN_BAR_ITEMS = ["search", "library", "players", "actions", "settings", "theme"];
-const MOBILE_QUICK_ACTIONS = ["timer", "like", "lyrics", "queue", "radio", "voice", "history", "info", "disconnect_all"];
+const MOBILE_QUICK_ACTIONS = ["home", "search", "timer", "like", "lyrics", "queue", "radio", "voice", "history", "info", "disconnect_all"];
 const MOBILE_LIBRARY_TABS = ["library_playlists", "library_artists", "library_albums", "library_tracks", "library_radio", "library_podcasts", "library_liked", "library_search"];
 const COLOR_LIGHT_MODES = ["hs", "xy", "rgb", "rgbw", "rgbww"];
 
 function normalizeEnum(value, allowedValues, fallbackValue) {
   const normalized = String(value || "").trim().toLowerCase();
   return allowedValues.includes(normalized) ? normalized : fallbackValue;
+}
+
+function normalizePerformanceProfile(value, legacyPerformanceMode = false) {
+  const normalized = normalizeEnum(value, PERFORMANCE_PROFILE_MODES, "");
+  if (normalized) return normalized;
+  return legacyPerformanceMode === true ? "low" : "full";
 }
 
 function normalizeStringArray(value) {
@@ -95,8 +107,66 @@ export function normalizeScreensaverClockMode(value) {
   return normalizeEnum(value, SCREENSAVER_CLOCK_MODES, "digital");
 }
 
+export function normalizeScreensaverControlButtons(items, fallbackItems = []) {
+  const allowed = new Set(SCREENSAVER_CONTROL_BUTTONS);
+  const fallback = normalizeStringArray(fallbackItems).filter((item) => allowed.has(item));
+  const hasExplicitItems = Array.isArray(items);
+  const source = hasExplicitItems ? items : fallback;
+  const cleaned = [];
+  normalizeStringArray(source).forEach((item) => {
+    if (allowed.has(item) && !cleaned.includes(item)) cleaned.push(item);
+  });
+  return cleaned.length ? cleaned : (hasExplicitItems ? [] : fallback);
+}
+
 export function normalizePowerButtonAction(value) {
   return normalizeEnum(value, POWER_BUTTON_ACTIONS, "stop_player");
+}
+
+export function normalizeAuxiliaryButtonIcon(value) {
+  const icon = String(value || "").trim();
+  if (/^[a-z0-9_-]+:[a-z0-9_-]+$/i.test(icon)) return icon;
+  return normalizeEnum(icon, AUXILIARY_BUTTON_ICONS, "power");
+}
+
+export function normalizePlayerSortMode(value) {
+  return normalizeEnum(value, PLAYER_SORT_MODES, "default");
+}
+
+export function normalizePlayerOrderEntities(config = {}, limit = 50) {
+  const ordered = [];
+  const dynamicLimit = Object.keys(config || {}).reduce((max, key) => {
+    const match = /^player_order_entity_(\d+)$/.exec(key);
+    return match ? Math.max(max, Number(match[1]) || 0) : max;
+  }, limit);
+  for (let index = 1; index <= dynamicLimit; index += 1) {
+    const entityId = String(config?.[`player_order_entity_${index}`] || "").trim();
+    if (entityId && !ordered.includes(entityId)) ordered.push(entityId);
+  }
+  normalizeStringArray(config?.player_order_entities).forEach((entityId) => {
+    if (!ordered.includes(entityId)) ordered.push(entityId);
+  });
+  return ordered;
+}
+
+export function normalizeAuxiliaryButtons(config = {}, limit = 4) {
+  const buttons = [{
+    enabled: config.power_button_enabled === true,
+    name: String(config.power_button_name || "").trim(),
+    icon: normalizeAuxiliaryButtonIcon(config.power_button_icon || "power"),
+    action: normalizePowerButtonAction(config.power_button_action),
+    entity: String(config.power_button_entity || "").trim(),
+  }];
+  for (let index = 2; index <= limit; index += 1) {
+    buttons.push({
+      enabled: config[`aux_button_${index}_enabled`] === true,
+      name: String(config[`aux_button_${index}_name`] || "").trim(),
+      icon: normalizeAuxiliaryButtonIcon(config[`aux_button_${index}_icon`] || "power"),
+      action: normalizePowerButtonAction(config[`aux_button_${index}_action`]),
+      entity: String(config[`aux_button_${index}_entity`] || "").trim(),
+    });
+  }
+  return buttons;
 }
 
 export function clampMobileFontScale(value) {
@@ -105,6 +175,11 @@ export function clampMobileFontScale(value) {
 
 export function clampMobileIconScale(value) {
   return Math.max(0.8, Math.min(1.25, Number(value || 1) || 1));
+}
+
+export function clampMobileVolumeStepPercent(value) {
+  const number = Number(value);
+  return Math.round(Math.max(1, Math.min(10, Number.isFinite(number) ? number : 5)));
 }
 
 export function normalizeHomeShortcutPath(value, { leadingSlash = false } = {}) {
@@ -130,6 +205,14 @@ export function normalizeMobileVolumeMode(value) {
   return normalizeEnum(value, MOBILE_VOLUME_MODES, "button");
 }
 
+export function normalizeMobileCompactWidgetMode(value) {
+  return normalizeEnum(value, MOBILE_COMPACT_WIDGET_MODES, "auto");
+}
+
+export function normalizeMobileLibraryDefaultLayout(value, fallback = "list") {
+  return normalizeEnum(value, MOBILE_LIBRARY_LAYOUT_MODES, normalizeEnum(fallback, MOBILE_LIBRARY_LAYOUT_MODES, "list"));
+}
+
 export function normalizePinnedPlayerEntityList(value) {
   const next = [];
   normalizeStringArray(value).forEach((entityId) => {
@@ -143,6 +226,10 @@ export function normalizePinnedPlayerEntities(config = {}) {
   if (explicitEntities.length) return normalizePinnedPlayerEntityList(explicitEntities);
   const singleEntity = String(config?.pinned_player_entity || "").trim();
   return normalizePinnedPlayerEntityList(singleEntity ? [singleEntity] : []);
+}
+
+export function normalizeExcludedPlayerEntities(config = {}) {
+  return normalizePinnedPlayerEntityList(config?.excluded_player_entities);
 }
 
 export function normalizeMobileMainBarItems(items, {
@@ -180,12 +267,28 @@ export function normalizeMobileLibraryTabs(tabs, fallbackTabs = []) {
 export function normalizeMobileQuickActions(items, fallbackItems = []) {
   const allowed = new Set(MOBILE_QUICK_ACTIONS);
   const fallback = normalizeStringArray(fallbackItems).filter((item) => allowed.has(item));
-  const source = Array.isArray(items) && items.length ? items : fallback;
+  const hasExplicitItems = Array.isArray(items);
+  const source = hasExplicitItems ? items : fallback;
   const cleaned = [];
   normalizeStringArray(source).forEach((item) => {
     if (allowed.has(item) && !cleaned.includes(item)) cleaned.push(item);
   });
-  return cleaned.length ? cleaned : fallback;
+  return cleaned.length ? cleaned : (hasExplicitItems ? [] : fallback);
+}
+
+export function normalizeMobileQuickActionSlots(config = {}, selectedItems = []) {
+  const allowed = new Set(MOBILE_QUICK_ACTIONS);
+  const selected = normalizeStringArray(selectedItems).filter((item) => allowed.has(item));
+  const ordered = [];
+  for (let index = 1; index <= 10; index += 1) {
+    const item = String(config?.[`mobile_quick_action_${index}`] || "").trim();
+    if (!allowed.has(item) || !selected.includes(item) || ordered.includes(item)) continue;
+    ordered.push(item);
+  }
+  selected.forEach((item) => {
+    if (!ordered.includes(item)) ordered.push(item);
+  });
+  return ordered;
 }
 
 export function normalizeVisualMobileState(config = {}, {
@@ -196,10 +299,13 @@ export function normalizeVisualMobileState(config = {}, {
   defaultQuickActions = [],
   defaultAnnouncementPresets = [],
 } = {}) {
+  const screensaverControlFallback = config.screensaver_controls_enabled === true ? ["previous", "next"] : [];
+  const performanceProfile = normalizePerformanceProfile(config.performance_profile, config.performance_mode);
   return {
     lang: String(config.language || "en"),
     cardTheme: String(config.theme_mode || "auto"),
-    performanceMode: config.performance_mode === true,
+    performanceProfile,
+    performanceMode: ["low", "ultra_lite"].includes(performanceProfile),
     mobileCustomColor: String(config.mobile_custom_color || "#f5a623"),
     mobileDynamicThemeMode: normalizeEnum(config.mobile_dynamic_theme_mode, MOBILE_DYNAMIC_THEME_MODES, "auto"),
     mobileBackgroundMotionMode: normalizeEnum(config.mobile_background_motion_mode, MOBILE_BACKGROUND_MOTION_MODES, "subtle"),
@@ -211,6 +317,8 @@ export function normalizeVisualMobileState(config = {}, {
     mobileNightModeEnd: normalizeClockTime(config.night_mode_auto_end || "06:00", "06:00"),
     mobileNightModeDays: normalizeNightModeDays(config.night_mode_days),
     mobileCompactMode: !!config.mobile_compact_mode,
+    mobileCompactWidgetMode: normalizeMobileCompactWidgetMode(config.mobile_compact_widget_mode),
+    mobileLibraryDefaultLayout: normalizeMobileLibraryDefaultLayout(config.mobile_library_default_layout, "list"),
     mobileShowUpNext: config.mobile_show_up_next === true,
     mobileFooterSearchEnabled: !!config.mobile_footer_search_enabled,
     mobileStudioShortcutEnabled: config.mobile_studio_shortcut !== false,
@@ -218,6 +326,8 @@ export function normalizeVisualMobileState(config = {}, {
     mobileHomeShortcutEnabled: !!config.mobile_home_shortcut,
     mobileHomeShortcutPath: normalizeHomeShortcutPath(config.mobile_home_shortcut_path),
     mobileVolumeMode: normalizeMobileVolumeMode(config.mobile_volume_mode),
+    mobileVolumeStepButtonsEnabled: config.mobile_volume_step_buttons === true,
+    mobileVolumeStepPercent: clampMobileVolumeStepPercent(config.mobile_volume_step_percent),
     mobileMicMode: normalizeMobileMicMode(config.mobile_mic_mode),
     voiceAssistantEnabled: config.voice_assistant_enabled === true,
     voiceAssistantMode: normalizeVoiceAssistantMode(config.voice_assistant_mode),
@@ -232,10 +342,10 @@ export function normalizeVisualMobileState(config = {}, {
     mobileMainBarItems: Array.isArray(config.mobile_main_bar_items) && config.mobile_main_bar_items.length
       ? config.mobile_main_bar_items.slice()
       : normalizeStringArray(defaultMainBarItems),
-    mobileQuickActions: normalizeMobileQuickActions(
+    mobileQuickActions: normalizeMobileQuickActionSlots(config, normalizeMobileQuickActions(
       config.mobile_quick_actions,
       defaultQuickActions,
-    ),
+    )),
     mobileAnnouncementPresets: Array.isArray(config.mobile_announcement_presets) && config.mobile_announcement_presets.length
       ? config.mobile_announcement_presets.slice(0, 3)
       : normalizeStringArray(defaultAnnouncementPresets).slice(0, 3),
@@ -250,6 +360,7 @@ export function normalizeVisualMobileState(config = {}, {
     ambientLightCooldown: clampSeconds(config.ambient_light_cooldown, 8, { min: 0, max: 120 }),
     screensaverEnabled: config.screensaver_enabled === true,
     screensaverControlsEnabled: config.screensaver_controls_enabled === true,
+    screensaverControlButtons: normalizeScreensaverControlButtons(config.screensaver_control_buttons, screensaverControlFallback),
     screensaverClockMode: normalizeScreensaverClockMode(config.screensaver_clock_mode),
     screensaverTimeoutSeconds: clampSeconds(config.screensaver_timeout_seconds, 90, { min: 15, max: 3600 }),
     screensaverMessage: String(config.screensaver_message || ""),
@@ -257,8 +368,14 @@ export function normalizeVisualMobileState(config = {}, {
     screensaverClockX: clampNumber(config.screensaver_clock_x, 82, { min: 8, max: 92 }),
     screensaverClockY: clampNumber(config.screensaver_clock_y, 24, { min: 8, max: 70 }),
     powerButtonEnabled: config.power_button_enabled === true,
+    powerButtonName: String(config.power_button_name || "").trim(),
+    powerButtonIcon: normalizeAuxiliaryButtonIcon(config.power_button_icon || "power"),
     powerButtonAction: normalizePowerButtonAction(config.power_button_action),
     powerButtonEntity: String(config.power_button_entity || "").trim(),
+    auxiliaryButtons: normalizeAuxiliaryButtons(config).slice(1),
+    excludedPlayerEntities: normalizeExcludedPlayerEntities(config),
+    playerSortMode: normalizePlayerSortMode(config.player_sort_mode),
+    playerOrderEntities: normalizePlayerOrderEntities(config),
     discoveryModeEnabled: config.discovery_mode_enabled !== false,
   };
 }

@@ -41267,13 +41267,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             ${this._settingsPill(this._i18n("ui.enabled"), "on", compactMode ? "on" : "off", "data-setting-compact-mode")}
             ${this._settingsPill(this._i18n("ui.disabled"), "off", compactMode ? "on" : "off", "data-setting-compact-mode")}
           </div>
-          <div class="settings-label">${this._esc(this._m("Compact widget style", "סגנון ווידג׳ט קומפקטי"))}</div>
+          <div class="settings-label">${this._i18n("ui.compact_widget_mode")}</div>
           <div class="settings-pills">
             ${this._settingsPill("Auto", "auto", compactWidgetMode, "data-setting-compact-widget-mode")}
-            ${this._settingsPill(this._m("Full", "רגיל"), "full", compactWidgetMode, "data-setting-compact-widget-mode")}
-            ${this._settingsPill(this._m("Mini widget", "ווידג׳ט קטן"), "mini", compactWidgetMode, "data-setting-compact-widget-mode")}
+            ${this._settingsPill(this._i18n("ui.full"), "full", compactWidgetMode, "data-setting-compact-widget-mode")}
+            ${this._settingsPill(this._i18n("ui.mini_widget"), "mini", compactWidgetMode, "data-setting-compact-widget-mode")}
           </div>
-          <div class="settings-hint">${this._esc(this._m("Mini keeps the compact card to a low two-row player for mobile sections.", "מצב קטן שומר את הכרטיס הקומפקטי כנגן נמוך של שתי שורות לתצוגות מובייל."))}</div>
+          <div class="settings-hint">${this._i18n("ui.choose_when_compact_mode_uses_the_two_row_mobile_widget")}</div>
           <div class="settings-label">${this._i18n("ui.show_up_next")}</div>
           <div class="settings-pills">
             ${this._settingsPill(this._i18n("ui.enabled"), "on", showUpNext ? "on" : "off", "data-setting-show-up-next")}

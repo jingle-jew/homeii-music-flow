@@ -11708,13 +11708,43 @@ class HomeiiBaseMusicCard extends HTMLElement {
     }, 50);
   }
 
+  _setNowPlayingSubtitle(value, { scrollWhenOverflow = false } = {}) {
+    const el = this.$("npSub");
+    if (!el) return;
+    const text = String(value || "—");
+    el.textContent = "";
+    el.title = text;
+    el.classList.toggle("scroll-when-overflow", !!scrollWhenOverflow);
+    el.classList.remove("is-overflowing");
+    el.style.removeProperty("--scroll-distance");
+    el.style.removeProperty("--scroll-duration");
+    const inner = document.createElement("span");
+    inner.className = "scrolling-text-inner";
+    inner.textContent = text;
+    el.appendChild(inner);
+    if (scrollWhenOverflow) {
+      const sync = () => this._syncNowPlayingSubtitleOverflow(el);
+      if (typeof requestAnimationFrame === "function") requestAnimationFrame(sync);
+      else sync();
+    }
+  }
+
+  _syncNowPlayingSubtitleOverflow(el) {
+    const inner = el?.querySelector?.(".scrolling-text-inner");
+    if (!el || !inner) return;
+    const distance = Math.max(0, inner.scrollWidth - el.clientWidth);
+    el.classList.toggle("is-overflowing", distance > 1);
+    el.style.setProperty("--scroll-distance", distance + "px");
+    el.style.setProperty("--scroll-duration", Math.max(7, Math.min(18, 7 + distance / 18)).toFixed(2) + "s");
+  }
+
   _syncNowPlayingUI() {
     const player = this._getSelectedPlayer();
     if (!player) {
       const issue = this._state.musicAssistantIssueMessage || this._musicAssistantRequiredMessage();
       this._setButtonIcon(this.$("btnPlay"), "play");
       if (this.$("npTitle")) this.$("npTitle").textContent = this._musicAssistantRequiredTitle();
-      if (this.$("npSub")) this.$("npSub").textContent = issue;
+      this._setNowPlayingSubtitle(issue);
       if (this.$("npArt")) this.$("npArt").innerHTML = this._artPlaceholderHtml("speaker");
       if (this.$("progressFill")) this.$("progressFill").style.width = "0%";
       const slider = this.$("volSlider");
@@ -11744,7 +11774,7 @@ class HomeiiBaseMusicCard extends HTMLElement {
       || "";
     this._setButtonIcon(this.$("btnPlay"), this._playPauseIconName(player));
     this.$("npTitle").textContent = queueTitle || player.attributes.media_title || this._i18n("ui.nothing_playing");
-    this.$("npSub").textContent = queueArtist || player.attributes.media_artist || "—";
+    this._setNowPlayingSubtitle(queueArtist || player.attributes.media_artist || "—");
     const art = this._currentArtworkUrl(player, queueItem, 420, { preferPlayerArtwork: true }) || queueArt || this._bestArtworkUrl([
       player.attributes.entity_picture_local,
       player.attributes.entity_picture,
@@ -21189,7 +21219,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         || "";
       const browseAlbum = stack.current?.media_item?.album?.name || player?.attributes?.media_album_name || "";
       if (this.$("npTitle")) this.$("npTitle").textContent = browseTitle;
-      if (this.$("npSub")) this.$("npSub").textContent = [browseArtist, browseAlbum].filter(Boolean).join(" · ") || "—";
+      this._setNowPlayingSubtitle([browseArtist, browseAlbum].filter(Boolean).join(" · ") || "—");
       this._scheduleMobileArtBrowseReset();
     } else {
       const hasPendingPlay = Number(this._state.mobileQueuePlayPendingUntil || 0) > Date.now();
@@ -21202,7 +21232,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const subParts = hasPendingPlay
         ? [queueArtist || player?.attributes?.media_artist || "", queueAlbum || player?.attributes?.media_album_name || ""]
         : [player?.attributes?.media_artist || queueArtist || "", player?.attributes?.media_album_name || queueAlbum || ""];
-      if (this.$("npSub")) this.$("npSub").textContent = subParts.filter(Boolean).join(" · ") || "—";
+      this._setNowPlayingSubtitle(subParts.filter(Boolean).join(" · ") || "—");
       clearTimeout(this._mobileArtBrowseResetTimer);
       this._mobileArtBrowseResetTimer = null;
     }
@@ -24288,6 +24318,53 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           display:-webkit-box;
           -webkit-line-clamp:2;
           -webkit-box-orient:vertical;
+        }
+        .np-sub.scroll-when-overflow {
+          display:block;
+          white-space:nowrap;
+          overflow:hidden;
+          text-overflow:clip;
+          -webkit-line-clamp:unset;
+          -webkit-box-orient:initial;
+        }
+        .np-sub.scroll-when-overflow .scrolling-text-inner {
+          display:inline-block;
+          min-width:0;
+          max-width:none;
+          width:max-content;
+        }
+        .np-sub.scroll-when-overflow.is-overflowing .scrolling-text-inner {
+          padding-inline-end:3rem;
+          animation:homeiiSubtitleScroll var(--scroll-duration, 10s) ease-in-out infinite;
+          will-change:transform;
+        }
+        .card.rtl .np-sub.scroll-when-overflow.is-overflowing .scrolling-text-inner {
+          padding-inline-start:3rem;
+          padding-inline-end:0;
+          animation-name:homeiiSubtitleScrollRtl;
+        }
+        .np-sub.scroll-when-overflow.is-overflowing:hover .scrolling-text-inner {
+          animation-play-state:paused;
+        }
+        @keyframes homeiiSubtitleScroll {
+          0%, 12% { transform:translateX(0); }
+          48%, 70% { transform:translateX(calc(-1 * var(--scroll-distance, 0px))); }
+          100% { transform:translateX(0); }
+        }
+        @keyframes homeiiSubtitleScrollRtl {
+          0%, 12% { transform:translateX(0); }
+          48%, 70% { transform:translateX(var(--scroll-distance, 0px)); }
+          100% { transform:translateX(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .np-sub.scroll-when-overflow {
+            text-overflow:ellipsis;
+          }
+          .np-sub.scroll-when-overflow.is-overflowing .scrolling-text-inner {
+            max-width:100%;
+            padding-inline:0;
+            animation:none;
+          }
         }
         .hero-up-next {
           justify-content:center;
@@ -38553,7 +38630,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       emptyActions.setAttribute("hidden", "");
     }
     if (this.$("npTitle")) this.$("npTitle").textContent = text;
-    if (this.$("npSub")) this.$("npSub").textContent = options.subtitle || this._i18n("ui.choose_something_from_the_quick_shelf_or_tap_the_wand_for_a_random_playl");
+    this._setNowPlayingSubtitle(options.subtitle || this._i18n("ui.choose_something_from_the_quick_shelf_or_tap_the_wand_for_a_random_playl"), { scrollWhenOverflow: true });
     if (this.$("bigCurTime")) this.$("bigCurTime").textContent = "0:00";
     if (this.$("bigTotalTime")) this.$("bigTotalTime").textContent = "0:00";
     if (this.$("progressFill")) this.$("progressFill").style.width = "0%";
@@ -38842,7 +38919,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       if (compactCoverAura) compactCoverAura.style.backgroundImage = displayArt ? `url("${this._esc(displayArt)}")` : "";
       if (bg) bg.style.backgroundImage = displayArt ? `${overlay}, url("${this._esc(displayArt)}")` : "";
       if (this.$("npTitle")) this.$("npTitle").textContent = displayTitle || this._i18n("ui.nothing_playing");
-      if (this.$("npSub")) this.$("npSub").textContent = displaySubtitle || "—";
+      this._setNowPlayingSubtitle(displaySubtitle || "—");
       this._syncMobileUpNextUi(upNextItem);
       this._syncSourceBadgesUi(player, displayQueueItem);
       if (this.$("progressFill")) this.$("progressFill").style.width = duration ? `${Math.min(100, (position / duration) * 100)}%` : "0%";
@@ -38979,7 +39056,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         return;
       }
       if (this.$("npTitle")) this.$("npTitle").textContent = pendingTitle;
-      if (this.$("npSub")) this.$("npSub").textContent = this._i18n("ui.starting_quick_mix");
+      this._setNowPlayingSubtitle(this._i18n("ui.starting_quick_mix"));
       if (this.$("npArt")) this.$("npArt").innerHTML = pendingArt ? `<img src="${this._esc(pendingArt)}" alt="">` : this._artPlaceholderHtml("radio");
       if (this.$("progressFill")) this.$("progressFill").style.width = "0%";
       this._syncDynamicThemeArtwork(pendingArt || "").catch(() => {});
@@ -39031,7 +39108,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._setMobileRandomFabVisible(true);
     this._setMobileRandomFabDisabled(false);
     if (this.$("npTitle")) this.$("npTitle").textContent = currentTitle;
-    if (this.$("npSub")) this.$("npSub").textContent = [currentArtist || player.attributes.media_artist || "", currentAlbum].filter(Boolean).join(" · ") || "—";
+    this._setNowPlayingSubtitle([currentArtist || player.attributes.media_artist || "", currentAlbum].filter(Boolean).join(" · ") || "—");
     this._rememberRecentPlayback(player, currentQueueItem);
     this._syncRecentHistoryUi();
     this._syncSourceBadgesUi(player, currentQueueItem);

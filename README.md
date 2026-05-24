@@ -1,5 +1,19 @@
 # HOMEii Flow
 
+
+
+https://github.com/user-attachments/assets/2da93861-9d4a-48b8-a6aa-09b0a90fa1cb
+
+
+
+https://github.com/user-attachments/assets/fc20486e-758f-4e42-b315-585026599a98
+
+
+
+https://github.com/user-attachments/assets/a0076e6e-0352-40f8-ac37-35737e717a80
+
+
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/r11a/homeii-music-flow/main/HOMEii%20Flow%20Main.png" alt="HOMEii Flow main experience" width="100%">
 </p>

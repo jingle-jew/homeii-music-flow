@@ -11712,21 +11712,35 @@ class HomeiiBaseMusicCard extends HTMLElement {
     const el = this.$("npSub");
     if (!el) return;
     const text = String(value || "—");
-    el.textContent = "";
+    const shouldScroll = !!scrollWhenOverflow;
+    const existingInner = el.querySelector?.(".scrolling-text-inner");
+    const unchanged = el.dataset.homeiiSubtitleText === text
+      && el.dataset.homeiiSubtitleScroll === String(shouldScroll)
+      && existingInner;
+
     el.title = text;
-    el.classList.toggle("scroll-when-overflow", !!scrollWhenOverflow);
+    el.classList.toggle("scroll-when-overflow", shouldScroll);
+    if (unchanged) {
+      if (shouldScroll) this._queueNowPlayingSubtitleOverflowSync(el);
+      return;
+    }
+
+    el.dataset.homeiiSubtitleText = text;
+    el.dataset.homeiiSubtitleScroll = String(shouldScroll);
     el.classList.remove("is-overflowing");
     el.style.removeProperty("--scroll-distance");
     el.style.removeProperty("--scroll-duration");
+    el.textContent = "";
     const inner = document.createElement("span");
     inner.className = "scrolling-text-inner";
     inner.textContent = text;
     el.appendChild(inner);
-    if (scrollWhenOverflow) {
-      const sync = () => this._syncNowPlayingSubtitleOverflow(el);
-      if (typeof requestAnimationFrame === "function") requestAnimationFrame(sync);
-      else sync();
-    }
+    if (shouldScroll) this._queueNowPlayingSubtitleOverflowSync(el);
+  }
+
+  _queueNowPlayingSubtitleOverflowSync(el) {
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => this._syncNowPlayingSubtitleOverflow(el));
+    else this._syncNowPlayingSubtitleOverflow(el);
   }
 
   _syncNowPlayingSubtitleOverflow(el) {

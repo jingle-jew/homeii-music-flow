@@ -4,7 +4,7 @@
   isRtlLanguage as homeiiIsRtlLanguage,
   translate as homeiiTranslate,
   translateText as homeiiTranslateText,
-} from "./localization/index.js?v=5.7.0-locales-a71cb3608d";
+} from "./localization/index.js?v=5.7.0-locales-8c8f7d7dfd";
 
 const HOMEII_VISIBLE_LANGUAGE_OPTIONS = Object.freeze([
   ...HOMEII_LANGUAGE_OPTIONS,

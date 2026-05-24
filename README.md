@@ -954,8 +954,7 @@ Credit and thanks:
 - [Embla Carousel](https://www.embla-carousel.com/) for the packaged swipe foundation.
 - Daniel Eduardo Gonzalez ([@danielxb-ar](https://github.com/danielxb-ar)) for the Spanish translation.
 - Donatas / donatassmarterhome for the Lithuanian translation.
-- Julien Moreau Brousseau for the French translation work.
-- Jingle Jew for French wording corrections.
+- Julien Moreau B. / jingle-jew for the French translation.
 - [@gao19970120](https://github.com/gao19970120) for the Simplified Chinese translation contribution.
 - Codex for helping turn a non-programmer's product and UX vision into a working release-ready card.
 

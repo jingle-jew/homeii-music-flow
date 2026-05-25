@@ -11712,7 +11712,7 @@ class HomeiiBaseMusicCard extends HTMLElement {
     const el = this.$("npSub");
     if (!el) return;
     const text = String(value || "—");
-    const shouldScroll = !!scrollWhenOverflow;
+    const shouldScroll = !!scrollWhenOverflow && !this._isHebrew();
     const existingInner = el.querySelector?.(".scrolling-text-inner");
     const unchanged = el.dataset.homeiiSubtitleText === text
       && el.dataset.homeiiSubtitleScroll === String(shouldScroll)
@@ -24377,16 +24377,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           animation:homeiiSubtitleScroll var(--scroll-duration, 12s) linear infinite;
           will-change:transform;
         }
-        .card.rtl .np-sub.scroll-when-overflow.is-overflowing .scrolling-text-inner {
-          animation-name:homeiiSubtitleScrollRtl;
-        }
         @keyframes homeiiSubtitleScroll {
           from { transform:translateX(0); }
           to { transform:translateX(calc(-1 * var(--scroll-distance, 0px))); }
-        }
-        @keyframes homeiiSubtitleScrollRtl {
-          from { transform:translateX(0); }
-          to { transform:translateX(var(--scroll-distance, 0px)); }
         }
         @media (prefers-reduced-motion: reduce) {
           .np-sub.scroll-when-overflow {

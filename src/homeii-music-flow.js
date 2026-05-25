@@ -25213,23 +25213,30 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           gap:10px;
         }
         .empty-quick-shelf {
+          --empty-quick-edge-fade:42px;
+          --empty-quick-gap:16px;
+          --empty-quick-card-width:214px;
+          --empty-quick-two-card-min:calc((var(--empty-quick-edge-fade) * 2) + (var(--empty-quick-card-width) * 2) + var(--empty-quick-gap));
           display:flex;
-          gap:16px;
+          gap:var(--empty-quick-gap);
           width:min(980px, 100%);
+          box-sizing:border-box;
           margin:0 auto;
-          padding:8px 8px 10px;
+          padding:8px var(--empty-quick-edge-fade) 10px;
           overflow-x:auto;
           scrollbar-width:none;
           -ms-overflow-style:none;
           scroll-snap-type:x proximity;
+          -webkit-mask-image:linear-gradient(90deg, transparent 0, rgba(0,0,0,.22) 10px, rgba(0,0,0,.72) 26px, #000 var(--empty-quick-edge-fade), #000 calc(100% - var(--empty-quick-edge-fade)), rgba(0,0,0,.72) calc(100% - 26px), rgba(0,0,0,.22) calc(100% - 10px), transparent 100%);
+          mask-image:linear-gradient(90deg, transparent 0, rgba(0,0,0,.22) 10px, rgba(0,0,0,.72) 26px, #000 var(--empty-quick-edge-fade), #000 calc(100% - var(--empty-quick-edge-fade)), rgba(0,0,0,.72) calc(100% - 26px), rgba(0,0,0,.22) calc(100% - 10px), transparent 100%);
         }
         .empty-quick-shelf::-webkit-scrollbar {
           display:none;
         }
         .empty-quick-card {
           position:relative;
-          min-width:214px;
-          max-width:214px;
+          min-width:var(--empty-quick-card-width);
+          max-width:var(--empty-quick-card-width);
           min-height:78px;
           padding:12px 14px;
           display:grid;
@@ -27168,7 +27175,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           text-align:center;
         }
         .card.layout-tablet.empty-media .empty-quick-shelf {
-          width:min(1040px, calc(100% - clamp(320px, 24cqi, 440px)));
+          width:min(1040px, max(var(--empty-quick-two-card-min), calc(100% - clamp(320px, 24cqi, 440px))));
           margin-left:clamp(300px, 22cqi, 420px);
           margin-right:auto;
           padding-inline:max(var(--empty-quick-edge-fade), calc(50% - 452px));
@@ -31947,7 +31954,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           .footer-nav { gap:8px; margin-top:6px; padding:8px; border-radius:18px; }
           .footer-btn { min-height:52px; border-radius:16px; font-size:calc(10px * var(--v2-font-scale)); gap:4px; }
           .footer-btn .ui-ic { width:20px; height:20px; }
-          .empty-quick-shelf { gap:10px; padding:8px 2px 10px; }
+          .empty-quick-shelf { gap:10px; padding:8px var(--empty-quick-edge-fade) 10px; }
           .empty-quick-card { min-width:172px; max-width:172px; min-height:68px; }
           .library-nav { gap:6px; padding:6px; border-radius:18px; }
           .library-nav-btn { min-height:48px; border-radius:14px; }

@@ -11733,7 +11733,17 @@ class HomeiiBaseMusicCard extends HTMLElement {
     el.textContent = "";
     const inner = document.createElement("span");
     inner.className = "scrolling-text-inner";
-    inner.textContent = text;
+    const primary = document.createElement("span");
+    primary.className = "scrolling-text-item";
+    primary.textContent = text;
+    inner.appendChild(primary);
+    if (shouldScroll) {
+      const duplicate = document.createElement("span");
+      duplicate.className = "scrolling-text-item";
+      duplicate.setAttribute("aria-hidden", "true");
+      duplicate.textContent = text;
+      inner.appendChild(duplicate);
+    }
     el.appendChild(inner);
     if (shouldScroll) this._queueNowPlayingSubtitleOverflowSync(el);
   }
@@ -11745,11 +11755,16 @@ class HomeiiBaseMusicCard extends HTMLElement {
 
   _syncNowPlayingSubtitleOverflow(el) {
     const inner = el?.querySelector?.(".scrolling-text-inner");
-    if (!el || !inner) return;
-    const distance = Math.max(0, inner.scrollWidth - el.clientWidth);
-    el.classList.toggle("is-overflowing", distance > 1);
+    const item = inner?.querySelector?.(".scrolling-text-item");
+    if (!el || !inner || !item) return;
+    const gap = Math.max(24, Math.round(el.clientWidth * 0.18));
+    const itemWidth = item.scrollWidth;
+    const distance = itemWidth + gap;
+    const overflow = itemWidth > el.clientWidth + 1;
+    el.classList.toggle("is-overflowing", overflow);
+    el.style.setProperty("--scroll-gap", gap + "px");
     el.style.setProperty("--scroll-distance", distance + "px");
-    el.style.setProperty("--scroll-duration", Math.max(7, Math.min(18, 7 + distance / 18)).toFixed(2) + "s");
+    el.style.setProperty("--scroll-duration", Math.max(9, Math.min(24, distance / 24)).toFixed(2) + "s");
   }
 
   _syncNowPlayingUI() {
@@ -24338,37 +24353,40 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           white-space:nowrap;
           overflow:hidden;
           text-overflow:clip;
+          text-align:start;
           -webkit-line-clamp:unset;
           -webkit-box-orient:initial;
         }
         .np-sub.scroll-when-overflow .scrolling-text-inner {
-          display:inline-block;
+          display:inline-flex;
+          align-items:center;
           min-width:0;
           max-width:none;
           width:max-content;
+          gap:var(--scroll-gap, 3rem);
+        }
+        .np-sub.scroll-when-overflow .scrolling-text-item {
+          flex:0 0 auto;
+          white-space:nowrap;
+        }
+        .np-sub.scroll-when-overflow.is-overflowing {
+          -webkit-mask-image:linear-gradient(90deg, transparent 0, #000 12%, #000 88%, transparent 100%);
+          mask-image:linear-gradient(90deg, transparent 0, #000 12%, #000 88%, transparent 100%);
         }
         .np-sub.scroll-when-overflow.is-overflowing .scrolling-text-inner {
-          padding-inline-end:3rem;
-          animation:homeiiSubtitleScroll var(--scroll-duration, 10s) ease-in-out infinite;
+          animation:homeiiSubtitleScroll var(--scroll-duration, 12s) linear infinite;
           will-change:transform;
         }
         .card.rtl .np-sub.scroll-when-overflow.is-overflowing .scrolling-text-inner {
-          padding-inline-start:3rem;
-          padding-inline-end:0;
           animation-name:homeiiSubtitleScrollRtl;
         }
-        .np-sub.scroll-when-overflow.is-overflowing:hover .scrolling-text-inner {
-          animation-play-state:paused;
-        }
         @keyframes homeiiSubtitleScroll {
-          0%, 12% { transform:translateX(0); }
-          48%, 70% { transform:translateX(calc(-1 * var(--scroll-distance, 0px))); }
-          100% { transform:translateX(0); }
+          from { transform:translateX(0); }
+          to { transform:translateX(calc(-1 * var(--scroll-distance, 0px))); }
         }
         @keyframes homeiiSubtitleScrollRtl {
-          0%, 12% { transform:translateX(0); }
-          48%, 70% { transform:translateX(var(--scroll-distance, 0px)); }
-          100% { transform:translateX(0); }
+          from { transform:translateX(0); }
+          to { transform:translateX(var(--scroll-distance, 0px)); }
         }
         @media (prefers-reduced-motion: reduce) {
           .np-sub.scroll-when-overflow {
@@ -24376,7 +24394,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           }
           .np-sub.scroll-when-overflow.is-overflowing .scrolling-text-inner {
             max-width:100%;
-            padding-inline:0;
+            gap:0;
             animation:none;
           }
         }

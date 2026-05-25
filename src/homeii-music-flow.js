@@ -19799,6 +19799,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const now = new Date();
     const player = this._getSelectedPlayer();
     const queueItem = this._state.maQueueState?.current_item || null;
+    this._syncLocalSendspinMediaSession(player, queueItem);
     const art = this._currentArtworkUrl(player, queueItem, 720, { preferPlayerArtwork: true });
     const mediaTitle = player?.attributes?.media_title || queueItem?.media_item?.name || "";
     const mediaArtist = player?.attributes?.media_artist || (queueItem?.media_item?.artists || []).map((artistEntry) => artistEntry?.name).filter(Boolean).join(", ") || "";

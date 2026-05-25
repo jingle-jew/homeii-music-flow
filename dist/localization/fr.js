@@ -870,6 +870,7 @@ const messages = Object.freeze({
   "ui.player_light_pair_player_helper": "Choisissez le lecteur MA pour cette lumière.",
   "ui.all": "Tous",
   "ui.all_genres": "Tous les styles",
+  "ui.genres_and_styles": "Styles et genres",
   "ui.compact_widget_mode": "Style du widget compact",
   "ui.choose_when_compact_mode_uses_the_two_row_mobile_widget": "Choisissez le mode du widget. Mini widget affiche une carte compacte adaptée pour mobile.",
   "ui.full": "Complet",

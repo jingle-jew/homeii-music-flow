@@ -848,6 +848,7 @@ const messages = Object.freeze({
   "ui.player_light_pair_player_helper": "Selecciona el reproductor de Music Assistant para este par de luces.",
   "ui.all": "Todo",
   "ui.all_genres": "Todos los géneros",
+  "ui.genres_and_styles": "Géneros y estilos",
   "ui.compact_widget_mode": "Estilo del widget compacto",
   "ui.choose_when_compact_mode_uses_the_two_row_mobile_widget": "Elige cuándo el modo compacto usa el widget móvil pequeño de dos filas.",
   "ui.full": "Completo",

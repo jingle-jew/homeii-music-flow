@@ -820,6 +820,7 @@ const messages = Object.freeze({
   "ui.player_light_pair_player_helper": "בחר את נגן Music Assistant עבור צמד התאורה הזה.",
   "ui.all": "הכל",
   "ui.all_genres": "כל הז׳אנרים",
+  "ui.genres_and_styles": "ז'אנרים וסגנונות",
   "ui.compact_widget_mode": "סגנון ווידג׳ט קומפקטי",
   "ui.choose_when_compact_mode_uses_the_two_row_mobile_widget": "בחר מתי מצב קומפקטי משתמש בווידג׳ט מובייל קטן בשתי שורות.",
   "ui.full": "רגיל",

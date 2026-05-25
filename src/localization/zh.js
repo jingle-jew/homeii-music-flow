@@ -812,6 +812,7 @@ const messages = Object.freeze({
   "ui.player_light_pair_player_helper": "为这个灯光配对选择 Music Assistant 播放器。",
   "ui.all": "全部",
   "ui.all_genres": "所有流派",
+  "ui.genres_and_styles": "流派和风格",
   "ui.compact_widget_mode": "紧凑小组件样式",
   "ui.choose_when_compact_mode_uses_the_two_row_mobile_widget": "选择紧凑模式何时使用较小的两行移动小组件。",
   "ui.full": "完整",

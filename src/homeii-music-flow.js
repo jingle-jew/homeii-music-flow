@@ -40499,7 +40499,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     return `
       <div class="action-grid">
         ${this._navMenuItem("simple_wizard", this._iconSvg("wand"), "FLOW", this._i18n("ui.a_guided_music_wizard"), "simple")}
-        ${this._discoveryModeEnabled() ? this._navMenuItem("discovery", this._iconSvg("grid"), this._i18n("ui.discover_music", {}, this._m("Discover", "גלה מוזיקה")), this._m("Genres and styles", "ז'אנרים וסגנונות"), "discovery") : ""}
+        ${this._discoveryModeEnabled() ? this._navMenuItem("discovery", this._iconSvg("grid"), this._i18n("ui.discover_music", {}, this._m("Discover", "גלה מוזיקה")), this._i18n("ui.genres_and_styles", {}, this._m("Genres and styles", "ז'אנרים וסגנונות")), "discovery") : ""}
         ${this._navMenuItem("players", this._iconSvg("speaker"), this._i18n("ui.players"), this._i18n("ui.players_queue_and_groups"), "players")}
         ${this._navMenuItem("library_liked", this._iconSvg("heart_filled"), this._i18n("ui.liked"), this._i18n("ui.open_saved_songs"), "liked")}
         ${this._navMenuItem("sleep_timer", this._iconSvg("timer"), this._i18n("ui.schedules"), this._i18n("ui.sleep_timer_and_morning_playback"), "announcement")}

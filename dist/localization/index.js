@@ -1,9 +1,9 @@
-import en from "./en.js?v=5.7.0-33db1690b5";
-import es from "./es.js?v=5.7.0-2d540e6320";
-import fr from "./fr.js?v=5.7.0-de9e026537";
-import he from "./he.js?v=5.7.0-de02c77850";
-import lt from "./lt.js?v=5.7.0-1f57a169f3";
-import zh from "./zh.js?v=5.7.0-238a0bd5bb";
+import en from "./en.js?v=5.7.0-8f335b1a18";
+import es from "./es.js?v=5.7.0-48f781a0fe";
+import fr from "./fr.js?v=5.7.0-aa7f7140da";
+import he from "./he.js?v=5.7.0-6e2b7dc5df";
+import lt from "./lt.js?v=5.7.0-fe08da22a2";
+import zh from "./zh.js?v=5.7.0-42be293741";
 
 export const DEFAULT_LANGUAGE = "en";
 

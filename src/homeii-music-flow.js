@@ -38872,13 +38872,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _syncNowPlayingUI() {
     this._syncSleepTimerState();
     this._syncNightModeUi();
+    const player = this._getSelectedPlayer();
+    const currentQueueItem = this._state.maQueueState?.current_item || null;
     if (this._state.screensaverOpen) {
       this._syncScreensaverDynamicArtwork();
       this._syncScreensaverUi();
       this._syncAmbientLightForCurrentMedia("screensaver");
+      this._syncLocalSendspinMediaSession(player, currentQueueItem);
       return;
     }
-    const player = this._getSelectedPlayer();
     if (!player) {
       this._syncControlRoomUi();
       this._resetLocalSendspinMediaSession();
@@ -39049,7 +39051,6 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._state.mobileArtBrowseOffset = 0;
     }
     const stack = this._mobileArtStackItems();
-    const currentQueueItem = this._state.maQueueState?.current_item || null;
     const currentMedia = currentQueueItem?.media_item || {};
     const hasPendingPlay = Number(this._state.mobileQueuePlayPendingUntil || 0) > Date.now();
     const playerUri = String(player.attributes.media_content_id || "").trim();

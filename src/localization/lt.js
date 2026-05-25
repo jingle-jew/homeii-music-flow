@@ -848,6 +848,7 @@ const messages = Object.freeze({
   "ui.player_light_pair_player_helper": "Pasirinkite Music Assistant grotuvą šiai šviesų porai.",
   "ui.all": "Visi",
   "ui.all_genres": "Visi žanrai",
+  "ui.genres_and_styles": "Žanrai ir stiliai",
   "ui.compact_widget_mode": "Kompaktiško valdiklio stilius",
   "ui.choose_when_compact_mode_uses_the_two_row_mobile_widget": "Pasirinkite, kada kompaktiškas režimas naudoja mažesnį dviejų eilučių mobilųjį valdiklį.",
   "ui.full": "Pilnas",

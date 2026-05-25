@@ -11712,7 +11712,7 @@ class HomeiiBaseMusicCard extends HTMLElement {
     const el = this.$("npSub");
     if (!el) return;
     const text = String(value || "—");
-    const shouldScroll = !!scrollWhenOverflow && !this._isHebrew();
+    const shouldScroll = this._nowPlayingSubtitleShouldScroll(scrollWhenOverflow);
     const existingInner = el.querySelector?.(".scrolling-text-inner");
     const unchanged = el.dataset.homeiiSubtitleText === text
       && el.dataset.homeiiSubtitleScroll === String(shouldScroll)
@@ -11746,6 +11746,10 @@ class HomeiiBaseMusicCard extends HTMLElement {
     }
     el.appendChild(inner);
     if (shouldScroll) this._queueNowPlayingSubtitleOverflowSync(el);
+  }
+
+  _nowPlayingSubtitleShouldScroll(scrollWhenOverflow = false) {
+    return !!scrollWhenOverflow && !this._isHebrew() && !this._performanceUltraLiteEnabled();
   }
 
   _queueNowPlayingSubtitleOverflowSync(el) {
@@ -27167,6 +27171,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           width:min(1040px, calc(100% - clamp(320px, 24cqi, 440px)));
           margin-left:clamp(300px, 22cqi, 420px);
           margin-right:auto;
+          padding-inline:max(var(--empty-quick-edge-fade), calc(50% - 452px));
+          scroll-padding-inline:max(var(--empty-quick-edge-fade), calc(50% - 452px));
+        }
+        .card.layout-tablet.empty-media .empty-quick-card {
+          scroll-snap-align:start;
         }
         .card.radio-media .empty-quick-shelf {
           display:none !important;
@@ -34531,6 +34540,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 .card.performance-lite .eq-icon span{
   animation:none!important;
   transform:none!important;
+}
+.card.performance-ultra-lite .np-sub.scroll-when-overflow.is-overflowing .scrolling-text-inner{
+  animation:none!important;
+  transform:none!important;
+  will-change:auto!important;
 }
 .performance-profile-pills .settings-pill{
   flex:1 1 96px;

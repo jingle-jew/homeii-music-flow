@@ -100,6 +100,20 @@ describe("Music Assistant player filtering", () => {
   });
 });
 
+describe("now playing subtitle", () => {
+  it("disables subtitle scrolling in Ultra Lite performance mode", () => {
+    const card = createCard();
+    card._state.lang = "en";
+    card._state.performanceProfile = "full";
+
+    expect(card._nowPlayingSubtitleShouldScroll(true)).toBe(true);
+
+    card._state.performanceProfile = "ultra_lite";
+
+    expect(card._nowPlayingSubtitleShouldScroll(true)).toBe(false);
+  });
+});
+
 describe("voice assistant music matching", () => {
   it("rejects unrelated search results instead of auto-playing by media type only", () => {
     const card = createCard();

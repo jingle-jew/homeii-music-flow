@@ -426,14 +426,20 @@ export class AudioScheduler {
                 });
             }
             else {
-                this.streamDestination =
-                    this.audioContext.createMediaStreamDestination();
-                this.gainNode.connect(this.streamDestination);
-                audioElement.srcObject = this.streamDestination.stream;
-                audioElement.volume = 1.0;
-                audioElement.play().catch((e) => {
-                    console.warn("Sendspin: Audio autoplay blocked:", e);
-                });
+                if (typeof this.audioContext.createMediaStreamDestination === "function") {
+                    this.streamDestination =
+                        this.audioContext.createMediaStreamDestination();
+                    this.gainNode.connect(this.streamDestination);
+                    audioElement.srcObject = this.streamDestination.stream;
+                    audioElement.volume = 1.0;
+                    audioElement.play().catch((e) => {
+                        console.warn("Sendspin: Audio autoplay blocked:", e);
+                    });
+                }
+                else {
+                    console.warn("Sendspin: MediaStreamDestination is unavailable; falling back to direct AudioContext output.");
+                    this.gainNode.connect(this.audioContext.destination);
+                }
             }
         }
         this.updateVolume();

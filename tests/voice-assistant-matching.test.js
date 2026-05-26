@@ -98,6 +98,29 @@ describe("Music Assistant player filtering", () => {
     expect(card._state.selectedPlayer).toBe(null);
     expect(card._state.musicAssistantIssueMessage).toContain("Music Assistant");
   });
+
+  it("loads Music Assistant players identified by the entity registry", () => {
+    const card = createCard();
+    const musicAssistantPlayer = {
+      entity_id: "media_player.bedroom",
+      state: "idle",
+      attributes: { friendly_name: "Bedroom" },
+    };
+    card._hass = {
+      states: {
+        [musicAssistantPlayer.entity_id]: musicAssistantPlayer,
+      },
+      entities: {
+        [musicAssistantPlayer.entity_id]: { platform: "music_assistant" },
+      },
+    };
+
+    card._loadPlayers();
+
+    expect(card._state.players).toEqual([musicAssistantPlayer]);
+    expect(card._state.selectedPlayer).toBe(musicAssistantPlayer.entity_id);
+    expect(card._state.musicAssistantIssueMessage).toBe("");
+  });
 });
 
 describe("now playing subtitle", () => {

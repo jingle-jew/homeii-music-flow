@@ -836,6 +836,7 @@ const messages = Object.freeze({
   "ui.digital": "Digital",
   "ui.discover_albums": "Descubrir álbumes",
   "ui.discover_music": "Descubrir",
+  "ui.discover_subtitle": "Listas, álbumes y radio recomendados.",
   "ui.discovery": "Descubrimiento",
   "ui.discovery_failed": "Error en el modo de descubrimiento",
   "ui.discovery_mode": "Modo de descubrimiento",
@@ -922,6 +923,9 @@ const messages = Object.freeze({
   "ui.show_auxiliary_button_in_quick_actions": "Muestra este botón auxiliar en la fila de acciones rápidas.",
   "ui.screensaver_buttons": "Botones del salvapantallas",
   "ui.choose_which_buttons_appear_on_the_screensaver": "Elige exactamente qué botones aparecen en el salvapantallas, incluidos FLOW ASSISTANT y los botones anterior y siguiente.",
+  "ui.hotel_mode": "Modo hotel",
+  "ui.hotel_mode_helper": "Interfaz mínima segura para hotel: solo controles del reproductor, volumen, búsqueda, navegación por carátulas y selección de reproductor.",
+  "ui.style_and_genres": "Estilos y géneros",
 });
 
 export default messages;

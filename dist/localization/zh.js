@@ -800,6 +800,7 @@ const messages = Object.freeze({
   "ui.digital": "数字式",
   "ui.discover_albums": "发现专辑",
   "ui.discover_music": "发现",
+  "ui.discover_subtitle": "推荐的歌单、专辑和电台。",
   "ui.discovery": "音乐发现",
   "ui.discovery_failed": "发现模式失败",
   "ui.discovery_mode": "发现模式",
@@ -922,6 +923,9 @@ const messages = Object.freeze({
   "ui.show_auxiliary_button_in_quick_actions": "在快捷操作栏中显示此辅助按钮。",
   "ui.screensaver_buttons": "Screensaver buttons",
   "ui.choose_which_buttons_appear_on_the_screensaver": "Choose exactly which buttons appear on the screensaver, including FLOW ASSISTANT, previous and next.",
+  "ui.hotel_mode": "酒店模式",
+  "ui.hotel_mode_helper": "适合酒店的极简安全界面：仅保留播放器控制、音量、搜索、封面浏览和播放器选择。",
+  "ui.style_and_genres": "风格和流派",
 });
 
 export default messages;

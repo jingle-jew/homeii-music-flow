@@ -40,6 +40,7 @@ describe("mobile settings foundation", () => {
       mobile_dynamic_theme_mode: "STRONG",
       mobile_background_motion_mode: "wild",
       mobile_custom_text_tone: "dark",
+      hotel_mode: true,
       mobile_font_scale: 8,
       mobile_icon_scale: 2,
       night_mode: "ON",
@@ -124,6 +125,7 @@ describe("mobile settings foundation", () => {
     expect(state.mobileDynamicThemeMode).toBe("strong");
     expect(state.mobileBackgroundMotionMode).toBe("subtle");
     expect(state.mobileCustomTextTone).toBe("dark");
+    expect(state.hotelMode).toBe(true);
     expect(state.mobileFontScale).toBe(1.5);
     expect(state.mobileIconScale).toBe(1.25);
     expect(state.mobileNightMode).toBe("on");

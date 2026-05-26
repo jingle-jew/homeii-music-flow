@@ -1,6 +1,6 @@
 # How To Add A Language
 
-HOMEii Music Flow uses flat JavaScript dictionaries in `src/localization/`. English is the fallback language, so every new language file should start by copying the English keys. Version 5.7.0 ships with English, Hebrew, Spanish, French, Lithuanian, and Simplified Chinese.
+HOMEii Music Flow uses flat JavaScript dictionaries in `src/localization/`. English is the fallback language, so every new language file should start by copying the English keys. Version 5.7.1 ships with English, Hebrew, Spanish, French, Italian, Lithuanian, and Simplified Chinese.
 
 ## Steps
 

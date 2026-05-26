@@ -1,9 +1,10 @@
-import en from "./en.js?v=5.7.0-8f335b1a18";
-import es from "./es.js?v=5.7.0-48f781a0fe";
-import fr from "./fr.js?v=5.7.0-aa7f7140da";
-import he from "./he.js?v=5.7.0-6e2b7dc5df";
-import lt from "./lt.js?v=5.7.0-fe08da22a2";
-import zh from "./zh.js?v=5.7.0-42be293741";
+import en from "./en.js?v=5.7.1-8468eb524b";
+import es from "./es.js?v=5.7.1-16e5cabf8e";
+import fr from "./fr.js?v=5.7.1-53901fc467";
+import he from "./he.js?v=5.7.1-10e3feafaa";
+import it from "./it.js?v=5.7.1-f7b021fce1";
+import lt from "./lt.js?v=5.7.1-f34c389d46";
+import zh from "./zh.js?v=5.7.1-a33bc98f49";
 
 export const DEFAULT_LANGUAGE = "en";
 
@@ -12,6 +13,7 @@ export const DICTIONARIES = Object.freeze({
   es,
   fr,
   he,
+  it,
   lt,
   zh,
 });
@@ -24,6 +26,7 @@ export const LANGUAGE_OPTIONS = Object.freeze([
   { value: "es", label: "Espa\u00f1ol" },
   { value: "fr", label: "Fran\u00e7ais" },
   { value: "he", label: "\u05e2\u05d1\u05e8\u05d9\u05ea / Hebrew" },
+  { value: "it-IT", label: "Italiano" },
   { value: "lt", label: "Lithuanian / Lietuvi\u0173" },
   { value: "zh-CN", label: "\u7b80\u4f53\u4e2d\u6587 / Simplified Chinese" },
 ]);

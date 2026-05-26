@@ -45,7 +45,9 @@ export function validateBaseCardEditorConfig(config) {
 
   assertStringIfDefined(config.config_entry_id, "config_entry_id");
   assertStringIfDefined(config.ma_url, "ma_url");
+  assertStringIfDefined(config.music_assistant_external_url, "music_assistant_external_url");
   assertStringIfDefined(config.ma_token, "ma_token");
+  assertStringIfDefined(config.active_player_helper_entity, "active_player_helper_entity");
   assertStringIfDefined(config.ma_interface_url, "ma_interface_url");
   assertValueInList(config.ma_interface_target, "ma_interface_target", ["_self", "_blank"]);
   assertNumberIfDefined(config.height, "height");
@@ -54,8 +56,9 @@ export function validateBaseCardEditorConfig(config) {
   assertNumberIfDefined(config.cache_ttl, "cache_ttl");
   assertNumberIfDefined(config.music_assistant_timeout_ms, "music_assistant_timeout_ms");
   assertStringIfDefined(config.language, "language");
-  assertValueInList(config.theme_mode, "theme_mode", ["auto", "dark", "light"]);
+  assertValueInList(config.theme_mode, "theme_mode", ["auto", "dark", "light", "custom"]);
   assertBooleanIfDefined(config.rtl, "rtl");
+  assertBooleanIfDefined(config.hotel_mode, "hotel_mode");
   assertBooleanIfDefined(config.performance_mode, "performance_mode");
   assertValueInList(config.performance_profile, "performance_profile", ["full", "high", "low", "ultra_lite"]);
   assertBooleanIfDefined(config.show_ma_button, "show_ma_button");

@@ -310,6 +310,7 @@ export function normalizeVisualMobileState(config = {}, {
     mobileDynamicThemeMode: normalizeEnum(config.mobile_dynamic_theme_mode, MOBILE_DYNAMIC_THEME_MODES, "auto"),
     mobileBackgroundMotionMode: normalizeEnum(config.mobile_background_motion_mode, MOBILE_BACKGROUND_MOTION_MODES, "subtle"),
     mobileCustomTextTone: String(config.mobile_custom_text_tone || "light") === "dark" ? "dark" : "light",
+    hotelMode: config.hotel_mode === true,
     mobileFontScale: clampMobileFontScale(config.mobile_font_scale),
     mobileIconScale: clampMobileIconScale(config.mobile_icon_scale),
     mobileNightMode: normalizeEnum(config.night_mode, MOBILE_NIGHT_MODES, "off"),

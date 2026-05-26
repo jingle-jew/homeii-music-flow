@@ -132,12 +132,17 @@ export function extractCurrentLyricsText(queueItem = null) {
 }
 
 export function imageProxyUrl(path, provider = "", size = 300, maUrl = "") {
-  if (!path) return null;
-  if (/^(https?:|data:|blob:)/i.test(path)) return path;
-  if (String(path).startsWith("/")) return String(path);
-  if (!maUrl) return null;
+  const raw = String(path || "").trim();
+  if (!raw) return null;
+  if (/^(data:|blob:)/i.test(raw)) return raw;
+  if (raw.includes("/imageproxy?")) return raw;
+  if (raw.startsWith("imageproxy?")) return `/${raw}`;
+  if (raw.startsWith("imageproxy/")) return `/${raw}`;
+  if (raw.startsWith("/") && !/^\/\//.test(raw)) return raw;
+  if (!maUrl) return /^https?:/i.test(raw) ? raw : null;
   const providerKey = provider || "";
-  return `${maUrl}/imageproxy?path=${encodeURIComponent(path)}${providerKey ? `&provider=${encodeURIComponent(providerKey)}` : ""}&size=${size}`;
+  const baseUrl = String(maUrl || "").replace(/\/$/, "");
+  return `${baseUrl}/imageproxy?path=${encodeURIComponent(raw)}${providerKey ? `&provider=${encodeURIComponent(providerKey)}` : ""}&size=${size}`;
 }
 
 export function imageUrl(value, size = 300, { maUrl = "", seen = new Set(), depth = 0 } = {}) {
@@ -145,11 +150,11 @@ export function imageUrl(value, size = 300, { maUrl = "", seen = new Set(), dept
   if (typeof value === "string") {
     const raw = String(value).trim();
     if (!raw) return null;
-    if (/^(https?:|data:|blob:)/i.test(raw)) return raw;
-    if (raw.startsWith("/")) return raw;
+    if (/^(data:|blob:)/i.test(raw)) return raw;
+    if (raw.includes("/imageproxy?")) return raw;
     if (raw.startsWith("imageproxy?")) return `/${raw}`;
     if (raw.startsWith("imageproxy/")) return `/${raw}`;
-    if (raw.includes("/imageproxy?")) return raw;
+    if (raw.startsWith("/")) return raw;
     return imageProxyUrl(raw, "", size, maUrl);
   }
   if (typeof value !== "object") return null;
@@ -164,7 +169,7 @@ export function imageUrl(value, size = 300, { maUrl = "", seen = new Set(), dept
     return null;
   }
 
-  if (value.url) return value.url;
+  if (value.url) return imageUrl(value.url, size, { maUrl, seen, depth: depth + 1 });
 
   const rawPath = value.path || value.image_path || value.thumb_path || value.cover_path;
   if (rawPath) {

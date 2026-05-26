@@ -76,9 +76,18 @@ describe("media presentation foundation", () => {
     expect(imageProxyUrl("cover/path.jpg", "spotify", 400, "https://ma.local")).toBe(
       "https://ma.local/imageproxy?path=cover%2Fpath.jpg&provider=spotify&size=400",
     );
+    expect(imageProxyUrl("https://covers.example/album.jpg", "", 400, "https://ma.local")).toBe(
+      "https://ma.local/imageproxy?path=https%3A%2F%2Fcovers.example%2Falbum.jpg&size=400",
+    );
     expect(imageUrl("imageproxy?path=x")).toBe("/imageproxy?path=x");
+    expect(imageUrl("https://covers.example/album.jpg", 300, { maUrl: "https://ma.local" })).toBe(
+      "https://ma.local/imageproxy?path=https%3A%2F%2Fcovers.example%2Falbum.jpg&size=300",
+    );
     expect(imageUrl({ path: "cover/path.jpg", provider: "spotify" }, 300, { maUrl: "https://ma.local" })).toBe(
       "https://ma.local/imageproxy?path=cover%2Fpath.jpg&provider=spotify&size=300",
+    );
+    expect(imageUrl({ url: "https://covers.example/artist.jpg" }, 300, { maUrl: "https://ma.local" })).toBe(
+      "https://ma.local/imageproxy?path=https%3A%2F%2Fcovers.example%2Fartist.jpg&size=300",
     );
     expect(artUrl({
       album: { metadata: { images: [{ path: "album/path.png", provider: "library" }] } },

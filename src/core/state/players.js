@@ -42,15 +42,19 @@ export function isLikelyBrowserPlayer(player = null) {
     || haystack.includes("this device");
 }
 
-export function isMusicAssistantPlayer(player = null) {
+export function isMusicAssistantPlayer(player = null, registryEntry = null) {
   if (!player?.entity_id?.startsWith("media_player.")) return false;
   const attrs = player.attributes || {};
+  const registry = registryEntry || {};
   const identity = [
     attrs.app_id,
     attrs.integration,
     attrs.platform,
     attrs.provider,
     attrs.provider_name,
+    registry.integration,
+    registry.platform,
+    registry.device_class,
   ].filter(Boolean).join(" ").toLowerCase();
   return identity.includes("music_assistant")
     || identity.includes("music assistant")
@@ -73,6 +77,42 @@ export function resolvePinnedPlayerEntities(preferredIds = [], players = []) {
   const validIds = new Set((Array.isArray(players) ? players : []).map((player) => String(player?.entity_id || "").toLowerCase()));
   return (Array.isArray(preferredIds) ? preferredIds : [])
     .filter((entityId) => validIds.has(String(entityId || "").toLowerCase()));
+}
+
+export function resolvePreferredFrontPlayerEntity(players = [], {
+  currentEntityId = "",
+  frontPinnedEntityId = "",
+  manualFrontEntityId = "",
+  manualFrontUntil = 0,
+  now = Date.now(),
+  pinnedEntityIds = [],
+  isPlayerActiveFn = (player) => player?.state === "playing",
+  isExternalBrowserPlayerFn = isLikelyBrowserPlayer,
+} = {}) {
+  const sourcePlayers = Array.isArray(players) ? players : [];
+  const byId = new Map(sourcePlayers.map((player) => [player?.entity_id, player]).filter(([entityId]) => !!entityId));
+  const usable = (player) => !!player?.entity_id && !isExternalBrowserPlayerFn(player);
+  const usableById = (entityId) => {
+    const player = byId.get(String(entityId || "").trim());
+    return usable(player) ? player : null;
+  };
+  const manualFront = Number(manualFrontUntil || 0) > Number(now || 0)
+    ? usableById(manualFrontEntityId)
+    : null;
+  if (manualFront) return manualFront.entity_id;
+  const frontPinned = usableById(frontPinnedEntityId);
+  if (frontPinned) return frontPinned.entity_id;
+  const playing = sourcePlayers.find((player) => usable(player) && player.state === "playing");
+  if (playing) return playing.entity_id;
+  const active = sourcePlayers.find((player) => usable(player) && isPlayerActiveFn(player));
+  if (active) return active.entity_id;
+  for (const entityId of Array.isArray(pinnedEntityIds) ? pinnedEntityIds : []) {
+    const pinned = usableById(entityId);
+    if (pinned) return pinned.entity_id;
+  }
+  const current = usableById(currentEntityId);
+  if (current) return current.entity_id;
+  return (sourcePlayers.find(usable) || sourcePlayers[0])?.entity_id || "";
 }
 
 export function playerByEntityId(entityId = "", players = [], hassStates = {}) {

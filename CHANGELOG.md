@@ -1,5 +1,91 @@
 # Changelog
 
+## 5.7.1 - 2026-05-26
+
+Polish, safety, and hospitality release for the 5.7.x cycle.
+
+Release focus:
+
+- Adds Hotel Mode for guest-safe and family-safe dashboards.
+- Hardens player priority, front pinning, and temporary manual player selection.
+- Adds an HTTPS-safe Music Assistant external URL option for Nabu Casa / Companion App users.
+- Integrates the latest merged PRs from jingle-jew.
+- Adds Italian localization from Dieghito72.
+- Improves group feedback, Discover, library/radio behavior, tablet polish, and release packaging.
+
+Hotel Mode:
+
+- Adds `hotel_mode: true` for a simplified hotel-safe interface.
+- Removes main navigation items in Hotel Mode.
+- Hides queue management, advanced settings, grouping/transfer actions, long-press actions, theme toggle, media-source badges, and secondary controls.
+- Keeps core playback controls, shuffle/repeat, previous/next, search, artwork browsing, volume slider, and volume +/- controls.
+- Keeps player selection available while removing advanced join, disconnect, and transfer options from that picker.
+- Restores the HOMEII FLOW logo in Hotel Mode.
+- Keeps glassmorphism and aura-lighting while reducing duplicate artwork/background layers.
+- Returns the search control to the original artwork-action position.
+- Slims Hotel Mode player/volume rows and keeps the UI calmer for shared spaces.
+
+Player priority, pins, and selection:
+
+- Adds front-player priority across the player surfaces.
+- Uses the intended hierarchy: temporary manual selection, front pin, currently playing player, then configured/default player behavior.
+- Allows manual selection even when another player is pinned or playing.
+- Clears temporary manual selection when leaving and returning to the dashboard page.
+- Adds a compact front pin with better top-corner placement, smaller footprint, no extra container, grey inactive state, and cover-accent active color.
+- Keeps pinned players above playing players where pinning is explicitly requested.
+- Removes the front pin from queue-transfer player selection.
+
+Music Assistant, Sendspin, and HTTPS:
+
+- Adds `music_assistant_external_url` / "Music Assistant external URL".
+- Uses the HTTPS external Music Assistant URL for Sendspin websocket/browser-player connections when Home Assistant is loaded over HTTPS.
+- Keeps local/internal `ma_url` behavior for HTTP/LAN dashboards.
+- Shows an explicit mixed-content/setup error instead of trying to bypass browser security rules.
+- Routes remote artwork through the Music Assistant image proxy when possible.
+- Improves RadioBrowser/radio artwork fallback paths.
+- Keeps the Music Assistant player registry detection fix from the local 5.7.0 work.
+- Adds the PR #36 Sendspin fallback for macOS native Home Assistant WebView when MediaStreamDestination is unavailable.
+
+Merged contributor work:
+
+- Includes PR #34 from jingle-jew: keeps Sendspin Media Session active in the screensaver and restores quick shelf edge guarantees.
+- Includes PR #35 from jingle-jew: keeps Media Session metadata and playback state synced while the screensaver is open.
+- Includes PR #36 from jingle-jew: falls back to direct AudioContext output when macOS native Home Assistant WebView lacks MediaStreamDestination.
+- Includes PR #37 from Dieghito72: adds Italian localization and registers it in the language picker.
+- Adds release credit for jingle-jew / Julien Moreau B. for PRs, French wording work, and testing feedback.
+- Adds release credit for Dieghito72 for the Italian translation contribution.
+
+Grouping, FLOW, and player management:
+
+- Adds loading feedback for group join and disconnect actions.
+- Adds separate join/disconnect action animation states so group commands feel responsive.
+- Clears shared group volume state immediately after disconnecting a group.
+- Improves the group player selection window and top-corner add/remove affordances.
+- Moves add/remove controls closer to the card corner and uses clearer selected-state feedback.
+- Changes FLOW multi-player behavior so choosing more than one player enters join/group behavior instead of starting separate playback attempts.
+- Fixes "Clean all" so stale local player artwork is cleared after stopping/disconnecting players.
+
+Discover, library, liked, and recommendations:
+
+- Keeps Discover open when changing players from inside Discover on tablet.
+- Moves the Discover style selector into the active-player area on tablet.
+- Restores RadioBrowser station visibility in the library flow.
+- Adds grid/list view controls to the tablet Liked screen.
+- Restores the 5.7.0 mobile recommendation drawer button behavior in the quick-action row.
+- Keeps the tablet recommendation drawer as a subtle edge arrow.
+- Fixes the mobile recommendation drawer button so it keeps the same glass button treatment as the other quick actions.
+
+UI and interaction polish:
+
+- Restores the 5.7.0 magic-wand icon after experimental replacements.
+- Shrinks tablet mute controls and their internal icon.
+- Refines player-card pin placement and sizing.
+- Refines group buttons, add/remove indicators, volume rows, and tablet spacing.
+- Adds smooth fade-in and fade-out transitions for entering and exiting the screensaver.
+- Removes the experimental Crossfade control until Music Assistant/service support is reliable enough.
+- Bundles English, Hebrew/RTL, Spanish, French, Italian, Lithuanian, and Simplified Chinese dictionaries in the release package.
+- Keeps theme, localization, and release package artifacts synced for 5.7.1.
+
 ## 5.7.0 - 2026-05-23
 
 Major community release focused on Music Assistant safety, compact/mobile dashboards, full-screen interaction, weak-device performance, player control reliability, and localization.

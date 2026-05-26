@@ -808,6 +808,7 @@ const messages = Object.freeze({
   "ui.digital": "דיגיטלי",
   "ui.discover_albums": "גילוי אלבומים",
   "ui.discover_music": "גלה מוזיקה",
+  "ui.discover_subtitle": "המלצות, אלבומים ורדיו לפי הסגנון שבחרת.",
   "ui.discovery": "גילוי מוזיקה",
   "ui.discovery_failed": "מצב ההמלצות נכשל",
   "ui.discovery_mode": "מצב המלצות",
@@ -922,6 +923,9 @@ const messages = Object.freeze({
   "ui.voice_listening_status": "מקשיב...",
   "ui.waiting_for_speech": "ממתין לדיבור...",
   "ui.microphone_permission_or_browser_blocked": "הדפדפן חסם את זיהוי הדיבור. בדוק הרשאות מיקרופון והגדרות זיהוי בדפדפן.",
+  "ui.hotel_mode": "מצב מלון",
+  "ui.hotel_mode_helper": "ממשק מצב מלון מינימלי: פקדי נגן, ווליום, חיפוש, דפדוף בעטיפות ובחירת נגן בלבד.",
+  "ui.style_and_genres": "סגנונות וז'אנרים",
 });
 
 export default messages;

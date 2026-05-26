@@ -836,6 +836,7 @@ const messages = Object.freeze({
   "ui.digital": "Skaitmeninis",
   "ui.discover_albums": "Atrasti albumus",
   "ui.discover_music": "Atrasti",
+  "ui.discover_subtitle": "Rekomenduojami grojaraščiai, albumai ir radijas.",
   "ui.discovery": "Atradimas",
   "ui.discovery_failed": "Atradimo režimas nepavyko",
   "ui.discovery_mode": "Atradimo režimas",
@@ -922,6 +923,9 @@ const messages = Object.freeze({
   "ui.show_auxiliary_button_in_quick_actions": "Shows this auxiliary button in the Quick Actions row.",
   "ui.screensaver_buttons": "Screensaver buttons",
   "ui.choose_which_buttons_appear_on_the_screensaver": "Choose exactly which buttons appear on the screensaver, including FLOW ASSISTANT, previous and next.",
+  "ui.hotel_mode": "Viešbučio režimas",
+  "ui.hotel_mode_helper": "Minimali viešbučiui saugi sąsaja: tik grotuvo valdymas, garsumas, paieška, viršelių naršymas ir grotuvo pasirinkimas.",
+  "ui.style_and_genres": "Stiliai ir žanrai",
 });
 
 export default messages;

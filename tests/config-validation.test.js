@@ -11,6 +11,7 @@ describe("config validators", () => {
     expect(() =>
       validateBaseCardEditorConfig({
         config_entry_id: "abc",
+        music_assistant_external_url: "https://ma.example.com",
         ma_interface_target: "_self",
         height: 800,
         main_opacity: 0.9,
@@ -20,6 +21,7 @@ describe("config validators", () => {
         language: "he",
         theme_mode: "dark",
         rtl: true,
+        hotel_mode: true,
         performance_profile: "ultra_lite",
         performance_mode: true,
         show_ma_button: false,
@@ -60,6 +62,12 @@ describe("config validators", () => {
         music_assistant_timeout_ms: "slow",
       })
     ).toThrow("music_assistant_timeout_ms must be a number");
+
+    expect(() =>
+      validateBaseCardEditorConfig({
+        hotel_mode: "yes",
+      })
+    ).toThrow("hotel_mode must be a boolean");
   });
 
   it("accepts a valid mobile-only config", () => {

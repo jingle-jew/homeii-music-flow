@@ -17,6 +17,7 @@ import {
   playerGroupCount,
   playerGroupMemberIds,
   playerGroupMemberNames,
+  resolvePreferredFrontPlayerEntity,
   resolvePinnedPlayerEntities,
 } from "../src/core/state/players.js";
 
@@ -79,6 +80,12 @@ describe("players foundation", () => {
       entity_id: "media_player.ma_kitchen",
       attributes: { mass_player_type: "player" },
     })).toBe(true);
+    expect(isMusicAssistantPlayer({
+      entity_id: "media_player.ma_bedroom",
+      attributes: { friendly_name: "Bedroom" },
+    }, {
+      platform: "music_assistant",
+    })).toBe(true);
     expect(isMusicAssistantPlayer(browserPlayer)).toBe(true);
     expect(isMusicAssistantPlayer(livingRoom)).toBe(false);
     expect(isMusicAssistantPlayer({
@@ -90,6 +97,39 @@ describe("players foundation", () => {
   it("resolves this-device and pinned players safely", () => {
     expect(getThisDevicePlayer([livingRoom, kitchen], "media_player.kitchen")).toEqual(kitchen);
     expect(resolvePinnedPlayerEntities(["media_player.kitchen", "media_player.missing"], [livingRoom, kitchen])).toEqual(["media_player.kitchen"]);
+  });
+
+  it("resolves the front player with pin, playing, configured, and fallback hierarchy", () => {
+    expect(resolvePreferredFrontPlayerEntity([livingRoom, kitchen], {
+      frontPinnedEntityId: "media_player.kitchen",
+      pinnedEntityIds: ["media_player.living_room"],
+    })).toBe("media_player.kitchen");
+    expect(resolvePreferredFrontPlayerEntity([livingRoom, kitchen], {
+      frontPinnedEntityId: "media_player.living_room",
+      manualFrontEntityId: "media_player.kitchen",
+      manualFrontUntil: 2000,
+      now: 1000,
+    })).toBe("media_player.kitchen");
+    expect(resolvePreferredFrontPlayerEntity([livingRoom, kitchen], {
+      pinnedEntityIds: ["media_player.kitchen"],
+    })).toBe("media_player.living_room");
+    expect(resolvePreferredFrontPlayerEntity([livingRoom, kitchen], {
+      manualFrontEntityId: "media_player.kitchen",
+      manualFrontUntil: 2000,
+      now: 1000,
+    })).toBe("media_player.kitchen");
+    expect(resolvePreferredFrontPlayerEntity([livingRoom, kitchen], {
+      manualFrontEntityId: "media_player.kitchen",
+      manualFrontUntil: 1000,
+      now: 2000,
+    })).toBe("media_player.living_room");
+    expect(resolvePreferredFrontPlayerEntity([kitchen], {
+      pinnedEntityIds: ["media_player.kitchen"],
+    })).toBe("media_player.kitchen");
+    expect(resolvePreferredFrontPlayerEntity([browserPlayer, kitchen], {
+      frontPinnedEntityId: "media_player.browser_tablet",
+      currentEntityId: "media_player.browser_tablet",
+    })).toBe("media_player.kitchen");
   });
 
   it("finds players and favorite button entities from entity registries", () => {

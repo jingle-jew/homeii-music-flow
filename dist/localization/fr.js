@@ -858,6 +858,7 @@ const messages = Object.freeze({
   "ui.digital": "Numérique",
   "ui.discover_albums": "Découvrir des albums",
   "ui.discover_music": "Découvrir",
+  "ui.discover_subtitle": "Playlists, albums et radios recommandés.",
   "ui.discovery": "Découverte",
   "ui.discovery_failed": "Échec du mode Découverte",
   "ui.discovery_mode": "Mode Découverte",
@@ -922,6 +923,9 @@ const messages = Object.freeze({
   "ui.choose_a_category_to_browse_provider_playlists": "Choisissez une catégorie pour parcourir les listes de lecture du fournisseur avant de lancer la lecture.",
   "ui.new_and_recommended": "Nouveau et recommandé",
   "ui.provider_playlists": "Listes de lecture du fournisseur",
+  "ui.hotel_mode": "Mode hôtel",
+  "ui.hotel_mode_helper": "Interface minimale sécurisée pour l'hôtel : commandes du lecteur, volume, recherche, navigation dans les pochettes et sélection du lecteur uniquement.",
+  "ui.style_and_genres": "Styles et genres",
 });
 
 export default messages;

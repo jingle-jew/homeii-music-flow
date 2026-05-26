@@ -46,7 +46,7 @@ https://github.com/user-attachments/assets/a0076e6e-0352-40f8-ac37-35737e717a80
 </p>
 
 <p align="center">
-  <a href="https://github.com/r11a/homeii-music-flow"><img alt="version" src="https://img.shields.io/badge/version-5.7.0-gold"></a>
+  <a href="https://github.com/r11a/homeii-music-flow"><img alt="version" src="https://img.shields.io/badge/version-5.7.1-gold"></a>
   <img alt="Home Assistant" src="https://img.shields.io/badge/Home%20Assistant-Dashboard-41BDF5">
   <img alt="Music Assistant" src="https://img.shields.io/badge/Music%20Assistant-required-7C5CFF">
   <img alt="Sendspin" src="https://img.shields.io/badge/Sendspin-browser%20player-18B6FF">
@@ -62,9 +62,18 @@ HOMEii Flow is a custom Home Assistant Dashboard card for Music Assistant. It tu
 
 HOMEii Flow started from my own daily use of Home Assistant and Music Assistant. I wanted it to feel less like a technical dashboard widget and more like a real music app inside Home Assistant, so a lot of thought went into the flow, touch interactions, Hebrew/RTL comfort, wall-tablet behavior, mobile details, and the small moments that make choosing music feel natural at home.
 
+## 5.7.1 Release Overview
+
+HOMEii Flow 5.7.1 is a polish, safety, and hospitality release. It keeps the 5.7.0 foundation, then tightens the parts that matter in real homes: what guests can touch, which player opens first, how Music Assistant is reached from HTTPS dashboards, how grouping feels, and how the tablet/phone surfaces behave after long feedback sessions.
+
+The headline feature is **Hotel Mode**. When `hotel_mode: true` is enabled, HOMEii Flow becomes a calm, protected music surface for guests, family, wall panels, Airbnb-style dashboards, and shared rooms. Advanced menus, queue transfer, grouping tools, long-press behavior, theme toggles, source badges, and secondary actions are removed from the primary path. The result is still premium and visual, but much harder to misuse.
+
+5.7.1 also folds in the latest merged community PRs from **jingle-jew**, adds Italian localization from **Dieghito72**, improves Sendspin / Media Session behavior in the screensaver, adds safer HTTPS handling for Nabu Casa and Companion App users, fixes front-player selection edge cases, restores the mobile recommendation drawer behavior from 5.7.0, and updates the release package for HACS.
+
 ## Why It Stands Out
 
 - **Sendspin browser player built in:** turn the current browser, phone, tablet, or wall panel into a Music Assistant playback target directly from the card, with a session that survives Dashboard page changes while the dashboard stays open.
+- **Hotel Mode for shared spaces:** a locked-down premium interface keeps the player beautiful while hiding advanced actions that guests or family should not accidentally trigger.
 - **Premium now-playing experience:** artwork-led layout, dynamic atmosphere, elegant controls, full-screen lyrics, and responsive visual polish.
 - **Compact and Mini player modes:** use HOMEii Flow as a full music surface, a dashboard-friendly compact card, or a tiny two-row mobile widget that still keeps the important controls close.
 - **FLOW guided music wizard:** a simple step-by-step music flow for choosing players, picking a mood or existing content, reviewing visual results, and starting playback without learning the full Music Assistant UI.
@@ -74,8 +83,66 @@ HOMEii Flow started from my own daily use of Home Assistant and Music Assistant.
 - **Real Music Assistant library flow:** playlists, albums, artists, tracks, radio, favorites, recent listening, recommendations, and album/playlist drill-in before playback.
 - **Performance profiles for weak devices:** Full, High, Low, and Ultra Lite modes let older tablets, wall panels, and slow browsers keep the card usable by reducing expensive effects without removing core controls.
 - **Smart-home aware listening:** optional Home Assistant light sync, screensaver display, and POWER actions let the card participate in the room without becoming mandatory setup.
-- **International and RTL ready:** English, Hebrew/RTL, Spanish, French, Lithuanian, and Simplified Chinese are bundled, with a documented path for more community translations.
+- **International and RTL ready:** English, Hebrew/RTL, Spanish, French, Italian, Lithuanian, and Simplified Chinese are bundled, with a documented path for more community translations.
 - **Release-ready package:** HACS-ready `dist/` output includes the card, Sendspin files, Embla swipe support, and the brand asset.
+
+## What's New In 5.7.1
+
+Version 5.7.1 is a focused release for real daily use: Hotel Mode, safer player priority, HTTPS Music Assistant access, grouped-player feedback, tablet/mobile polish, Discover/library fixes, Italian localization, and the latest merged contributor work.
+
+### Hotel Mode
+
+- Adds **Hotel Mode** (`hotel_mode: true`) for shared homes, guest rooms, hotels, family dashboards, and wall tablets that should stay beautiful but protected.
+- Removes the main navigation bar in Hotel Mode so the first screen stays simple and hard to misuse.
+- Hides advanced menus, queue transfer, grouping actions, long-press actions, theme toggle, media-source badges, and secondary controls.
+- Keeps only the expected guest-safe controls: play/pause, previous/next, shuffle, repeat, artwork browsing, search, volume slider, and volume +/- controls.
+- Keeps player selection available, but removes join, disconnect, transfer queue, and other advanced player-management options.
+- Restores the HOMEII FLOW logo in Hotel Mode and keeps the premium glassmorphism / aura-lighting look.
+- Reduces visual duplication by avoiding unnecessary repeated artwork layers in the Hotel Mode surface.
+
+### Player Priority And Manual Selection
+
+- Adds front-player priority for real multi-room dashboards: manual temporary selection, front pin, currently playing player, then configured/default player behavior.
+- Adds a compact front-pin control in the player cards with better positioning, cover-accent active color, and quieter inactive styling.
+- Allows manual player selection to work even when another player is pinned or currently playing.
+- Keeps manual selection temporary, then returns to the correct active/pinned/default hierarchy.
+- Clears temporary manual selection when leaving and returning to the dashboard page, so a stale inactive player does not stay in front.
+
+### Music Assistant, Sendspin, And HTTPS
+
+- Adds `music_assistant_external_url` / "Music Assistant external URL" for users who open Home Assistant over HTTPS.
+- Uses the HTTPS external Music Assistant URL for Sendspin websocket/browser-player connections when the Home Assistant frontend is loaded over HTTPS.
+- Keeps the existing local/internal `ma_url` behavior for normal LAN HTTP dashboards.
+- Does not bypass browser mixed-content rules. If Home Assistant is HTTPS and only insecure HTTP/ws Music Assistant access is configured, the card fails clearly with an explicit setup error.
+- Routes external cover-art URLs through the Music Assistant image proxy when possible, reducing CORS failures in search, radio, and library panels.
+- Integrates PR #34, PR #35, and PR #36 from **jingle-jew** so Sendspin / Media Session state remains active, metadata stays synced in the screensaver, and macOS native Home Assistant WebView audio fallback is safer.
+
+### Grouping, FLOW, Discover, And Library
+
+- Adds clearer group join/disconnect feedback with loading animation while Music Assistant applies the action.
+- Fixes group disconnect so the shared group volume state clears without needing to leave and re-open the page.
+- Keeps the player group selector visually aligned with the premium player card design.
+- Removes the front pin from queue-transfer player selection where it does not belong.
+- Changes FLOW multi-player behavior so choosing more than one player starts a join/group flow instead of trying to play content separately on each selected player.
+- Fixes "Clean all" so cleared/stopped players also lose stale local artwork instead of leaving old covers behind.
+- Keeps Discover open when changing player from inside Discover on tablet.
+- Places Discover style selection with the active player area on tablet, reducing the disconnected floating-control feeling.
+- Restores RadioBrowser stations in the library flow and keeps radio artwork fallback safer.
+- Adds grid/list view controls to the tablet Liked screen.
+
+### UI Polish
+
+- Restores the 5.7.0 magic-wand icon and the 5.7.0 mobile recommendation drawer button behavior.
+- Keeps the tablet recommendation drawer as a subtle edge arrow while the phone layout uses the original quick-action row button.
+- Shrinks tablet mute controls and trims volume rows so they feel less heavy.
+- Refines player-card pin placement, group add/remove controls, group action buttons, and mobile/tablet spacing.
+- Adds smooth fade-in and fade-out transitions for entering and leaving the screensaver.
+- Removes the experimental Crossfade control for now because Music Assistant/service support was not reliable enough for release.
+
+### Contributors
+
+- Special thanks to **jingle-jew / Julien Moreau B.** for PR #34, PR #35, PR #36, French wording work, testing feedback, and Sendspin / Media Session fixes.
+- Thanks again to Daniel Eduardo Gonzalez (Spanish), Donatas / donatassmarterhome (Lithuanian), Julien Moreau B. / jingle-jew (French), Dieghito72 (Italian), and @gao19970120 (Simplified Chinese) for localization contributions that continue to shape the release.
 
 ## What's New In 5.7.0
 
@@ -253,7 +320,7 @@ If HACS does not add the resource automatically, add:
 3. Add this Dashboard resource:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.7.0
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.7.1
 ```
 
 4. Add the card:
@@ -914,6 +981,7 @@ src/core/                             extracted foundation helpers
 src/config/                           config validators
 tests/                                regression coverage
 scripts/release.mjs                   release sync tooling
+RELEASE_NOTES_5.7.1.md                detailed GitHub release notes for the current release
 docs/brand/                           logo and brand assets
 docs/media/                           GitHub/HACS README screenshots and GIF
 docs/qa-matrix.md                     viewport/theme/interaction release gate
@@ -930,7 +998,7 @@ npm run lint
 npm test
 ```
 
-Current packaged version: `5.7.0`
+Current packaged version: `5.7.1`
 
 ## Release Readiness
 
@@ -974,7 +1042,8 @@ Credit and thanks:
 - [Embla Carousel](https://www.embla-carousel.com/) for the packaged swipe foundation.
 - Daniel Eduardo Gonzalez ([@danielxb-ar](https://github.com/danielxb-ar)) for the Spanish translation.
 - Donatas / donatassmarterhome for the Lithuanian translation.
-- Julien Moreau B. / jingle-jew for the French translation.
+- Julien Moreau B. / [jingle-jew](https://github.com/jingle-jew) for the French translation, French wording corrections, PR #34, PR #35, PR #36, Sendspin / Media Session improvements, and 5.7.1 testing feedback.
+- [@Dieghito72](https://github.com/Dieghito72) for the Italian translation contribution.
 - [@gao19970120](https://github.com/gao19970120) for the Simplified Chinese translation contribution.
 - Codex for helping turn a non-programmer's product and UX vision into a working release-ready card.
 
@@ -982,6 +1051,7 @@ Credit and thanks:
 
 - [Local deployment guide](./LOCAL_DEPLOYMENT.md)
 - [Publishing checklist](./PUBLISHING.md)
+- [5.7.1 release notes](./RELEASE_NOTES_5.7.1.md)
 - [QA matrix](./docs/qa-matrix.md)
 - [Repo assets checklist](./docs/repo-assets-checklist.md)
 - [Changelog](./CHANGELOG.md)

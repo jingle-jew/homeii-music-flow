@@ -13,6 +13,7 @@ describe("localization", () => {
   it("translates by key with English fallback", () => {
     expect(translate("he", "ui.home")).toBe("בית");
     expect(translate("fr", "ui.home")).toBe("Accueil");
+    expect(translate("it", "ui.now_playing")).toBe("In riproduzione");
     expect(translate("zh-CN", "ui.home")).toBe("首页");
     expect(translate("de", "ui.home")).toBe("Home");
     expect(translate("he", "missing.key", {}, "Fallback")).toBe("Fallback");
@@ -29,6 +30,7 @@ describe("localization", () => {
     expect(detectLanguage({ configLanguage: "es" })).toBe("es");
     expect(detectLanguage({ configLanguage: "fr" })).toBe("fr");
     expect(detectLanguage({ configLanguage: "he" })).toBe("he");
+    expect(detectLanguage({ configLanguage: "it-IT" })).toBe("it");
     expect(detectLanguage({ configLanguage: "lt" })).toBe("lt");
     expect(detectLanguage({ configLanguage: "zh-CN" })).toBe("zh");
     expect(detectLanguage({ configLanguage: "de" })).toBe("en");
@@ -45,6 +47,10 @@ describe("localization", () => {
       label: "Français",
     });
     expect(LANGUAGE_OPTIONS).toContainEqual({
+      value: "it-IT",
+      label: "Italiano",
+    });
+    expect(LANGUAGE_OPTIONS).toContainEqual({
       value: "lt",
       label: "Lithuanian / Lietuvių",
     });
@@ -58,6 +64,7 @@ describe("localization", () => {
     expect(isRtlLanguage("he")).toBe(true);
     expect(isRtlLanguage("en")).toBe(false);
     expect(isRtlLanguage("fr")).toBe(false);
+    expect(isRtlLanguage("it")).toBe(false);
   });
 
   it("keeps localized dictionaries aligned with English keys", () => {

@@ -40,8 +40,8 @@ https://github.com/user-attachments/assets/a0076e6e-0352-40f8-ac37-35737e717a80
   <a href="https://www.hacs.xyz/docs/use/download/download/">
     <img alt="Install HACS" src="https://img.shields.io/badge/Install-HACS-41BDF5?logo=homeassistant&logoColor=white">
   </a>
-  <a href="https://github.com/r11a/homeii-music-flow/releases">
-    <img alt="Download releases" src="https://img.shields.io/badge/Download-release-111111?logo=github">
+  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.0">
+    <img alt="Download HOMEii Flow 5.8.0" src="https://img.shields.io/badge/Download-v5.8.0-111111?logo=github">
   </a>
 </p>
 

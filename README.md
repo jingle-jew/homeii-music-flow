@@ -40,8 +40,8 @@ https://github.com/user-attachments/assets/a0076e6e-0352-40f8-ac37-35737e717a80
   <a href="https://www.hacs.xyz/docs/use/download/download/">
     <img alt="Install HACS" src="https://img.shields.io/badge/Install-HACS-41BDF5?logo=homeassistant&logoColor=white">
   </a>
-  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.0">
-    <img alt="Download HOMEii Flow 5.8.0" src="https://img.shields.io/badge/Download-v5.8.0-111111?logo=github">
+  <a href="https://github.com/r11a/homeii-music-flow/archive/refs/tags/v5.8.0.zip">
+    <img alt="Download HOMEii Flow 5.8.0 tag archive" src="https://img.shields.io/badge/Download-v5.8.0-111111?logo=github">
   </a>
 </p>
 
@@ -66,20 +66,15 @@ HOMEii Flow started from my own daily use of Home Assistant and Music Assistant.
 
 HOMEii Flow 5.8.0 is the next public release after 5.7.1, and it is one of the most important upgrades in the project so far. It keeps the polished music surface people already use, then rebuilds the foundation underneath it so the card is faster to evolve, easier to validate, and more reliable on real Home Assistant dashboards.
 
-The headline is **confidence**: cleaner architecture, smarter phone layouts, steadier artwork, safer queue transitions, richer lyrics in the screensaver, better library detail pages, and sharper Flow Assistant matching. The release makes HOMEii Flow feel less like a dashboard widget and more like a full music experience that happens to live inside Home Assistant.
-
-5.8.0 also adds a more flexible compact story. Phone dashboards can now choose Auto, Full, or Compact behavior; compact expand can be edge-to-edge or a floating window; and short/tight Section dashboard slots get better adaptive sizing instead of awkward cropping.
+The visible upgrade is smoother control across phones, wall tablets, and Section dashboards. The technical upgrade is lower risk: the runtime is now split into focused modules, backed by broader regression tests, and packaged as a HACS-ready `dist/` release with Sendspin, localization, Embla, and the HOMEii brand assets included.
 
 ## Why It Stands Out
 
 - **Sendspin browser player built in:** turn the current browser, phone, tablet, or wall panel into a Music Assistant playback target directly from the card, with a session that survives Dashboard page changes while the dashboard stays open.
 - **Hotel Mode for shared spaces:** a locked-down premium interface keeps the player beautiful while hiding advanced actions that guests or family should not accidentally trigger.
-- **Premium now-playing experience:** artwork-led layout, dynamic atmosphere, elegant controls, full-screen lyrics, and responsive visual polish.
-- **Adaptive phone and compact modes:** use HOMEii Flow as a full music surface, a dashboard-friendly compact card, an edge-to-edge popup, a floating compact window, or a tiny two-row mobile widget that still keeps the important controls close.
-- **Steadier queue and artwork transitions:** pending queue playback keeps title, artist, player, and cover art in sync while Music Assistant catches up.
-- **Lyrics that can live in the screensaver:** timed or plain lyrics can move from the lyrics modal into the screensaver surface beside the current artwork.
-- **FLOW guided music wizard:** a simple step-by-step music flow for choosing players, picking a mood or existing content, reviewing visual results, and starting playback without learning the full Music Assistant UI.
-- **Sharper Flow Assistant:** optional voice commands can launch music from the player, empty state, and screensaver, with better Hebrew, Latin metadata, playlist, artist, and fallback search matching.
+- **Premium now-playing experience:** artwork-led layout, dynamic atmosphere, elegant controls, lyrics, and responsive visual polish.
+- **Flexible dashboard fit:** use HOMEii Flow as a full music surface, compact card, edge-to-edge popup, floating compact window, or tiny two-row mobile widget.
+- **FLOW and Flow Assistant:** guided discovery and optional voice-style music requests help start playback without living inside the full Music Assistant UI.
 - **Studio / Control Room:** choose players, group rooms, control volumes, move playback, and manage multi-room listening.
 - **Mobile-first workflow:** queue, search, library, FLOW, actions, timers, announcements, settings, and player switching are designed for touch.
 - **Real Music Assistant library flow:** playlists, albums, artists, tracks, radio, favorites, recent listening, recommendations, tab search, and album/artist/playlist drill-in before playback.
@@ -90,7 +85,7 @@ The headline is **confidence**: cleaner architecture, smarter phone layouts, ste
 
 ## What's New In 5.8.0
 
-Version 5.8.0 is the next public release after 5.7.1. It is a bigger, more ambitious upgrade than the version number suggests: a cleaner runtime architecture, smarter phone and compact layouts, more reliable artwork and queue transitions, lyrics inside the screensaver, richer library detail flows, sharper Flow Assistant matching, and broader regression coverage.
+The detailed 5.8.0 changes are grouped below.
 
 ### Strongest User-Facing Upgrades
 

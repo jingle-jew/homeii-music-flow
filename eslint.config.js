@@ -37,7 +37,7 @@ export default [
     },
     rules: {
       "no-empty": ["error", { allowEmptyCatch: true }],
-      "no-unused-vars": ["warn", { args: "none", ignoreRestSiblings: true }],
+      "no-unused-vars": ["warn", { args: "none", caughtErrors: "none", ignoreRestSiblings: true }],
     },
   },
   {

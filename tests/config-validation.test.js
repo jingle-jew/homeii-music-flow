@@ -105,6 +105,8 @@ describe("config validators", () => {
         mobile_announcement_presets: ["hello"],
         mobile_compact_mode: true,
         mobile_compact_widget_mode: "mini",
+        mobile_compact_edge_to_edge: false,
+        mobile_layout_mode: "full",
         mobile_show_up_next: false,
         ambient_light_enabled: true,
         ambient_light_entities: ["light.living_room", "light.tv"],
@@ -114,7 +116,7 @@ describe("config validators", () => {
         ambient_light_cooldown: 8,
         screensaver_enabled: true,
         screensaver_controls_enabled: true,
-        screensaver_control_buttons: ["previous", "play_pause", "next", "mute", "power", "like", "voice"],
+        screensaver_control_buttons: ["previous", "play_pause", "next", "mute", "power", "like", "lyrics", "voice"],
         screensaver_clock_mode: "analog",
         screensaver_timeout_seconds: 90,
         screensaver_message: "Dinner is ready",
@@ -185,6 +187,24 @@ describe("config validators", () => {
 
     expect(() =>
       validateMobileCardEditorConfig({
+        mobile_compact_edge_to_edge: "off",
+      })
+    ).toThrow("mobile_compact_edge_to_edge must be a boolean");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        mobile_layout_mode: "phone",
+      })
+    ).toThrow("mobile_layout_mode must be one of: auto, full, compact");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        mobile_announcement_volume: "loud",
+      })
+    ).toThrow("mobile_announcement_volume must be a number");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
         mobile_library_default_layout: "cards",
       })
     ).toThrow("mobile_library_default_layout must be one of: grid, list");
@@ -225,7 +245,7 @@ describe("config validators", () => {
       validateMobileCardEditorConfig({
         screensaver_control_buttons: ["previous", "party"],
       })
-    ).toThrow("screensaver_control_buttons must contain only: previous, play_pause, next, mute, power, like, voice");
+    ).toThrow("screensaver_control_buttons must contain only: previous, play_pause, next, mute, power, like, lyrics, voice");
 
     expect(() =>
       validateMobileCardEditorConfig({

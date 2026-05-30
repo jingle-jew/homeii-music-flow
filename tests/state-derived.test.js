@@ -6,6 +6,7 @@ import {
   isCompactTileMode,
   mobileBackgroundMotionMode,
   mobileCompactModeEnabled,
+  mobileCompactWidgetMode,
   mobileDynamicThemeMode,
   mobileShowUpNextEnabled,
   normalizeSettingsSource,
@@ -29,6 +30,8 @@ describe("state derived helpers", () => {
 
   it("stabilizes compact and up-next toggles", () => {
     expect(mobileCompactModeEnabled({ mobileCompactMode: true })).toBe(true);
+    expect(mobileCompactWidgetMode({ mobileCompactWidgetMode: "MINI" })).toBe("mini");
+    expect(mobileCompactWidgetMode({ mobileCompactWidgetMode: "tiny" })).toBe("auto");
     expect(mobileShowUpNextEnabled({ mobileShowUpNext: false })).toBe(false);
     expect(isCompactTileMode({ mobileCompactMode: true, mobileCompactExpanded: false })).toBe(true);
   });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   entryTargetsCurrentMedia,
+  findQueueItemIndex,
   getQueueItemByIndexOrKey,
   getQueueItemKey,
   getQueueItemPlaybackId,
@@ -9,10 +10,15 @@ import {
   getQueueItemUri,
   mediaRefsEquivalent,
   mobileCurrentQueueIndex,
+  normalizeComparableText,
+  normalizeFiniteNumber,
   parseMediaReference,
+  queueItemMatchArtist,
+  queueItemMatchTitle,
   queueItemMatchesPlayer,
   queueItemPrimaryArtist,
   queueItemPrimaryTitle,
+  queueTitleArtistMatch,
   queueItemsContainCurrent,
   resolveMobileArtStackContext,
   resolveMobileUpNextItem,
@@ -49,6 +55,11 @@ describe("media queue foundation", () => {
     expect(getQueueItemUri(item)).toBe("spotify://track/123");
     expect(queueItemPrimaryTitle(item)).toBe("Track A");
     expect(queueItemPrimaryArtist(item)).toBe("Artist A");
+    expect(queueItemMatchTitle(item)).toBe("track a");
+    expect(queueItemMatchArtist(item)).toBe("artist a");
+    expect(queueTitleArtistMatch(item, "Track A", "Artist")).toBe(true);
+    expect(normalizeComparableText("  Track A  ")).toBe("track a");
+    expect(normalizeFiniteNumber("4")).toBe(4);
     expect(mobileCurrentQueueIndex("4")).toBe(4);
     expect(mobileCurrentQueueIndex("")).toBe(-1);
 
@@ -86,6 +97,7 @@ describe("media queue foundation", () => {
     expect(resolveMobileUpNextItem({ current_index: 0 }, items)?.queue_item_id).toBe("c");
     expect(queueItemsContainCurrent(items, { current_index: 1, current_item: null })).toBe(true);
     expect(resolveQueuePlayIndex(items, { queueItemId: "b" })).toBe(2);
+    expect(findQueueItemIndex(items, { queueItemId: "b" })).toBe(0);
     expect(getQueueItemByIndexOrKey(items, { fallbackUri: "spotify://track/c" })?.queue_item_id).toBe("c");
     expect(resolveQueuePlayIndex(items, {
       queueItemId: "1",

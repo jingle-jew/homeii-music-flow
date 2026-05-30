@@ -8,6 +8,7 @@ import {
   hslToRgb,
   isRgbTupleDark,
   mixRgb,
+  normalizeMaPalette,
   normalizeRgbTuple,
   resolveActiveAccentColor,
   resolveActiveAccentRgb,
@@ -74,5 +75,21 @@ describe("palette foundation", () => {
     expect(resolveActiveAccentColor(null, "#abcdef")).toBe("#abcdef");
     expect(resolveActiveAccentRgb({ accent_rgb: "1 2 3" }, "#abcdef")).toBe("1 2 3");
     expect(resolveActiveAccentRgb(null, "#abcdef")).toBe("171 205 239");
+  });
+
+  it("normalizes Music Assistant server palettes into card palette shape", () => {
+    const palette = normalizeMaPalette({
+      background_dark: [12, 18, 24],
+      background_light: [220, 230, 240],
+      primary: [120, 170, 220],
+      accent: [240, 90, 110],
+    }, { mode: "auto" });
+
+    expect(palette).toMatchObject({
+      accent: expect.stringMatching(/^#/),
+      accent_rgb: expect.any(String),
+      surface_rgb: expect.any(String),
+      glow_rgb: expect.any(String),
+    });
   });
 });

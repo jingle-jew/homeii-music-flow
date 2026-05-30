@@ -9,10 +9,20 @@ describe("state defaults", () => {
     expect(state.view).toBe("home");
     expect(state.queueItems).toEqual([]);
     expect(state.players).toEqual([]);
-    expect(state.lang).toBe("auto");
+    expect(state.lang).toBe("en");
     expect(state.cardTheme).toBe("auto");
+    expect(state.queueMutationPendingUntil).toBe(0);
+    expect(state.mobileQueuePlayPendingUntil).toBe(0);
+    expect(state.mobileQueuePlayPendingPlayerId).toBe("");
+    expect(state.lyricsOpen).toBe(false);
+    expect(state.screensaverLyricsOpen).toBe(false);
+    expect(state.lyricsTrackKey).toBe("");
+    expect(state.lyricsText).toBe("");
+    expect(state.lyricsLoading).toBe(false);
+    expect(state.quickMixRecommendationItems).toEqual([]);
     expect(state.controlRoomOpen).toBe(false);
     expect(state.controlRoomRenderSignature).toBe("");
+    expect(state.activePlayerHelperLastValue).toBeUndefined();
   });
 
   it("returns a fresh object on every call", () => {

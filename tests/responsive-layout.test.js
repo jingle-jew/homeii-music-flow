@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   defaultMobileMediaLayout,
   detectKeyboardLikeResize,
+  autoCompactRecommended,
+  panelViewportFillEnabled,
   resolveLayoutMode,
   resolveLayoutProfile,
   resolveResizeStrategy,
@@ -86,6 +88,23 @@ describe("responsive layout foundation", () => {
     })).toBe(false);
     expect(defaultMobileMediaLayout("tablet")).toBe("grid");
     expect(defaultMobileMediaLayout("mobile")).toBe("list");
+  });
+
+  it("detects panel fill and automatic compact recommendations", () => {
+    expect(panelViewportFillEnabled({
+      viewportHeight: 812,
+      hostTop: 0,
+      parentHeights: [812],
+    })).toBe(true);
+    expect(panelViewportFillEnabled({
+      viewportHeight: 812,
+      hostTop: 64,
+      parentHeights: [812],
+    })).toBe(false);
+
+    expect(autoCompactRecommended({ width: 320, height: 900 })).toBe(true);
+    expect(autoCompactRecommended({ width: 390, height: 760 })).toBe(false);
+    expect(autoCompactRecommended({ width: 560, height: 580 })).toBe(true);
   });
 
   it("resolves resize strategy without UI coupling", () => {

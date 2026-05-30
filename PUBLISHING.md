@@ -24,12 +24,12 @@
   - the HACS My Home Assistant button
   - the HACS download/install button
 
-## 2. Create the 5.7.1 release
+## 2. Create the 5.8.0 release
 
-- Create a Git tag named `v5.7.1`.
+- Create a Git tag named `v5.8.0`.
 - Create a GitHub release from that tag.
-- Title the release `5.7.1`.
-- Use the `5.7.1` section from `CHANGELOG.md` or `RELEASE_NOTES_5.7.1.md` as the release notes.
+- Title the release `HOMEii Music Flow 5.8.0`.
+- Use the `5.8.0` section from `CHANGELOG.md` or `RELEASE_NOTES_5.8.0.md` as the release notes.
 - Do not attach a custom release zip asset for HACS. Keep the complete installable runtime in `dist/` and let HACS use the normal repository release/tag contents.
 
 ## 3. Verify repository files after publishing
@@ -81,7 +81,7 @@ to:
 
 Then load:
 
-`/local/community/homeii-music-flow/homeii-music-flow.js?v=5.7.1`
+`/local/community/homeii-music-flow/homeii-music-flow.js?v=5.8.0`
 
 ## 7. Final pre-release smoke test
 

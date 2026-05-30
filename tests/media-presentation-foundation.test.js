@@ -4,14 +4,18 @@ import {
   artUrl,
   artistName,
   buildCurrentTrackInfo,
+  coercePlaybackSeconds,
   coerceLyricsRawText,
   coerceLyricsText,
   extractCurrentLyricsRawText,
   extractCurrentLyricsText,
   formatDuration,
   imageProxyUrl,
+  imageProxyIdUrl,
   imageUrl,
+  normalizeImageProxySize,
   normalizeMediaItem,
+  parsePlaybackTimestampMs,
   parseLrcLyrics,
   qualityBadgeLabel,
   sourceProviderMeta,
@@ -73,37 +77,82 @@ describe("media presentation foundation", () => {
   });
 
   it("resolves image urls and art urls consistently", () => {
+    expect(normalizeImageProxySize(72)).toBe(80);
+    expect(normalizeImageProxySize(300)).toBe(512);
+    expect(normalizeImageProxySize(920)).toBe(1024);
     expect(imageProxyUrl("cover/path.jpg", "spotify", 400, "https://ma.local")).toBe(
-      "https://ma.local/imageproxy?path=cover%2Fpath.jpg&provider=spotify&size=400",
+      "https://ma.local/imageproxy?path=cover%2Fpath.jpg&provider=spotify&size=512",
     );
     expect(imageProxyUrl("https://covers.example/album.jpg", "", 400, "https://ma.local")).toBe(
-      "https://ma.local/imageproxy?path=https%3A%2F%2Fcovers.example%2Falbum.jpg&size=400",
+      "https://ma.local/imageproxy?path=https%3A%2F%2Fcovers.example%2Falbum.jpg&size=512",
     );
-    expect(imageUrl("imageproxy?path=x")).toBe("/imageproxy?path=x");
+    expect(imageUrl("imageproxy?path=x")).toBe("/imageproxy?path=x&size=512");
     expect(imageUrl("https://covers.example/album.jpg", 300, { maUrl: "https://ma.local" })).toBe(
-      "https://ma.local/imageproxy?path=https%3A%2F%2Fcovers.example%2Falbum.jpg&size=300",
+      "https://ma.local/imageproxy?path=https%3A%2F%2Fcovers.example%2Falbum.jpg&size=512",
     );
     expect(imageUrl({ path: "cover/path.jpg", provider: "spotify" }, 300, { maUrl: "https://ma.local" })).toBe(
-      "https://ma.local/imageproxy?path=cover%2Fpath.jpg&provider=spotify&size=300",
+      "https://ma.local/imageproxy?path=cover%2Fpath.jpg&provider=spotify&size=512",
     );
     expect(imageUrl({ url: "https://covers.example/artist.jpg" }, 300, { maUrl: "https://ma.local" })).toBe(
-      "https://ma.local/imageproxy?path=https%3A%2F%2Fcovers.example%2Fartist.jpg&size=300",
+      "https://ma.local/imageproxy?path=https%3A%2F%2Fcovers.example%2Fartist.jpg&size=512",
+    );
+    expect(imageProxyIdUrl("a".repeat(64), 300, "https://ma.local")).toBe(
+      `https://ma.local/imageproxy/${"a".repeat(64)}?size=512&fmt=jpeg`,
+    );
+    expect(imageUrl({ proxy_id: "b".repeat(64), path: "legacy/path.jpg", provider: "spotify" }, 120, { maUrl: "https://ma.local" })).toBe(
+      `https://ma.local/imageproxy/${"b".repeat(64)}?size=160&fmt=jpeg`,
+    );
+    expect(imageUrl({
+      local_image_encoded: `${"/9j/"}${"a".repeat(96)}`,
+    }, 120, { maUrl: "https://ma.local" })).toBe(
+      `data:image/jpeg;base64,${"/9j/"}${"a".repeat(96)}`,
     );
     expect(artUrl({
       album: { metadata: { images: [{ path: "album/path.png", provider: "library" }] } },
     }, "https://ma.local")).toBe(
-      "https://ma.local/imageproxy?path=album%2Fpath.png&provider=library&size=300",
+      "https://ma.local/imageproxy?path=album%2Fpath.png&provider=library&size=512",
+    );
+    expect(artUrl({
+      media_item: {
+        metadata: {
+          images: [{ image_proxy_id: "c".repeat(64), fmt: "png" }],
+        },
+      },
+    }, "https://ma.local", 120)).toBe(
+      `https://ma.local/imageproxy/${"c".repeat(64)}?size=160&fmt=png`,
+    );
+    expect(artUrl({
+      media_item: { image: { path: "queue/path.png", provider: "library" } },
+    }, "https://ma.local")).toBe(
+      "https://ma.local/imageproxy?path=queue%2Fpath.png&provider=library&size=512",
+    );
+    expect(artUrl({
+      thumbnail: { path: "thumb/path.png", provider: "library" },
+    }, "https://ma.local")).toBe(
+      "https://ma.local/imageproxy?path=thumb%2Fpath.png&provider=library&size=512",
     );
   });
 
   it("formats artists, durations, and normalized media items", () => {
     expect(artistName({ artists: [{ name: "A" }, { name: "B" }] })).toBe("A, B");
     expect(formatDuration(245)).toBe("4:05");
+    expect(formatDuration("4:05")).toBe("4:05");
+    expect(coercePlaybackSeconds("PT4M05S")).toBe(245);
+    expect(coercePlaybackSeconds(245000)).toBe(245);
     expect(formatDuration(0)).toBe("0:00");
     expect(normalizeMediaItem({
       album: { image: { path: "folder/art.jpg", provider: "spotify" } },
     }, "https://ma.local")).toMatchObject({
-      image_url: "https://ma.local/imageproxy?path=folder%2Fart.jpg&provider=spotify&size=300",
+      image_url: "https://ma.local/imageproxy?path=folder%2Fart.jpg&provider=spotify&size=512",
     });
+  });
+
+  it("parses playback timestamps consistently across browser formats", () => {
+    const now = Date.UTC(2026, 4, 27, 12, 0, 5);
+    const explicitUtc = parsePlaybackTimestampMs("2026-05-27T12:00:00.123456+00:00");
+    const spaceSeparatedUtc = parsePlaybackTimestampMs("2026-05-27 12:00:00.123456", { now });
+    expect(explicitUtc).toBe(Date.UTC(2026, 4, 27, 12, 0, 0, 123));
+    expect(spaceSeparatedUtc).toBe(Date.UTC(2026, 4, 27, 12, 0, 0, 123));
+    expect(parsePlaybackTimestampMs(1800000000)).toBe(1800000000000);
   });
 });

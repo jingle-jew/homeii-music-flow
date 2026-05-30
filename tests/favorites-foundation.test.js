@@ -4,10 +4,13 @@ import {
   applyOptimisticFavoriteCache,
   buildCurrentMediaLikeMeta,
   buildOptimisticFavoriteEntry,
+  favoriteEntryArtist,
+  favoriteEntryTitle,
   favoriteRemoveArgsFromItem,
   findFavoriteEntryMatch,
   isEntryLiked,
   matchFavoriteLibraryItem,
+  normalizeComparableText,
   resolveCachedFavoriteRemoveArgs,
   resolveCurrentMediaFavoriteState,
 } from "../src/core/state/favorites.js";
@@ -44,6 +47,9 @@ describe("favorites foundation", () => {
       album: "Album A",
       image: "/art.jpg",
     });
+    expect(favoriteEntryTitle({ media_item: { name: "Track A" } })).toBe("Track A");
+    expect(favoriteEntryArtist({ media_item: { artists: [{ name: "Artist A" }] } })).toBe("Artist A");
+    expect(normalizeComparableText("  Track A  ")).toBe("track a");
   });
 
   it("finds favorite matches and removal args from liked items", () => {

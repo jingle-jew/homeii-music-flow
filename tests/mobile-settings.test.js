@@ -14,6 +14,7 @@ import {
   normalizeHomeShortcutPath,
   normalizeMobileFooterMode,
   normalizeMobileCompactWidgetMode,
+  normalizeMobileLayoutMode,
   normalizeMobileLibraryDefaultLayout,
   normalizeMobileLibraryTabs,
   normalizeMobileMainBarItems,
@@ -49,6 +50,8 @@ describe("mobile settings foundation", () => {
       night_mode_days: [1, 3, 5],
       mobile_compact_mode: true,
       mobile_compact_widget_mode: "MINI",
+      mobile_compact_edge_to_edge: false,
+      mobile_layout_mode: "FULL",
       mobile_library_default_layout: "GRID",
       mobile_show_up_next: false,
       mobile_footer_search_enabled: true,
@@ -91,7 +94,7 @@ describe("mobile settings foundation", () => {
       ambient_light_cooldown: "soon",
       screensaver_enabled: true,
       screensaver_controls_enabled: true,
-      screensaver_control_buttons: ["next", "voice", "bogus", "next"],
+      screensaver_control_buttons: ["next", "lyrics", "voice", "bogus", "next"],
       screensaver_clock_mode: "ANALOG",
       screensaver_timeout_seconds: 4,
       screensaver_message: "Enjoy the music",
@@ -134,6 +137,8 @@ describe("mobile settings foundation", () => {
     expect(state.mobileNightModeDays).toEqual([1, 3, 5]);
     expect(state.mobileCompactMode).toBe(true);
     expect(state.mobileCompactWidgetMode).toBe("mini");
+    expect(state.mobileCompactEdgeToEdge).toBe(false);
+    expect(state.mobileLayoutMode).toBe("full");
     expect(state.mobileLibraryDefaultLayout).toBe("grid");
     expect(state.mobileShowUpNext).toBe(false);
     expect(state.mobileFooterSearchEnabled).toBe(true);
@@ -156,6 +161,7 @@ describe("mobile settings foundation", () => {
     expect(state.mobileMainBarItems).toEqual(["theme", "settings"]);
     expect(state.mobileQuickActions).toEqual(["timer", "voice", "disconnect_all"]);
     expect(state.mobileAnnouncementPresets).toEqual(["One", "Two", "Three"]);
+    expect(state.mobileAnnouncementVolume).toBe(20);
     expect(state.mobileAnnouncementTtsEntity).toBe("tts.living_room");
     expect(state.mobileAnnouncementTtsLanguage).toBe("en-GB");
     expect(state.pinnedPlayerEntities).toEqual(["media_player.kitchen", "media_player.office"]);
@@ -167,7 +173,7 @@ describe("mobile settings foundation", () => {
     expect(state.ambientLightCooldown).toBe(8);
     expect(state.screensaverEnabled).toBe(true);
     expect(state.screensaverControlsEnabled).toBe(true);
-    expect(state.screensaverControlButtons).toEqual(["next", "voice"]);
+    expect(state.screensaverControlButtons).toEqual(["next", "lyrics", "voice"]);
     expect(state.screensaverClockMode).toBe("analog");
     expect(state.screensaverTimeoutSeconds).toBe(15);
     expect(state.screensaverMessage).toBe("Enjoy the music");
@@ -248,6 +254,8 @@ describe("mobile settings foundation", () => {
     expect(normalizeVoiceAssistantMode("bad")).toBe("hybrid");
     expect(normalizeMobileVolumeMode("invalid")).toBe("button");
     expect(normalizeMobileCompactWidgetMode("bad")).toBe("auto");
+    expect(normalizeMobileLayoutMode("COMPACT")).toBe("compact");
+    expect(normalizeMobileLayoutMode("bad")).toBe("auto");
     expect(normalizeMobileLibraryDefaultLayout("GRID")).toBe("grid");
     expect(normalizeMobileLibraryDefaultLayout("bad", "grid")).toBe("grid");
     expect(clampMobileFontScale(0.2)).toBe(0.5);

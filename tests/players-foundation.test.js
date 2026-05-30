@@ -123,6 +123,11 @@ describe("players foundation", () => {
       manualFrontUntil: 1000,
       now: 2000,
     })).toBe("media_player.living_room");
+    expect(resolvePreferredFrontPlayerEntity([livingRoom, { ...kitchen, state: "playing" }], {
+      manualFrontEntityId: "media_player.kitchen",
+      manualFrontUntil: 1000,
+      now: 2000,
+    })).toBe("media_player.kitchen");
     expect(resolvePreferredFrontPlayerEntity([kitchen], {
       pinnedEntityIds: ["media_player.kitchen"],
     })).toBe("media_player.kitchen");
@@ -130,6 +135,18 @@ describe("players foundation", () => {
       frontPinnedEntityId: "media_player.browser_tablet",
       currentEntityId: "media_player.browser_tablet",
     })).toBe("media_player.kitchen");
+    expect(resolvePreferredFrontPlayerEntity([
+      { ...livingRoom, entity_id: "media_player.office" },
+      { ...livingRoom, entity_id: "media_player.bedroom" },
+    ], {
+      orderedEntityIds: ["media_player.bedroom", "media_player.office"],
+    })).toBe("media_player.bedroom");
+    expect(resolvePreferredFrontPlayerEntity([
+      { ...kitchen, entity_id: "media_player.office", state: "idle", attributes: { friendly_name: "Office" } },
+      { ...kitchen, entity_id: "media_player.bedroom", state: "idle", attributes: { friendly_name: "Bedroom" } },
+    ], {
+      orderedEntityIds: ["media_player.bedroom", "media_player.office"],
+    })).toBe("media_player.bedroom");
   });
 
   it("finds players and favorite button entities from entity registries", () => {

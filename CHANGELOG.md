@@ -1,5 +1,87 @@
 # Changelog
 
+## 5.8.0 - 2026-05-30
+
+Next public release after 5.7.1, focused on architecture, mobile layout control, artwork and queue reliability, screensaver lyrics, library detail flows, Flow Assistant matching, and release confidence.
+
+Release focus:
+
+- Reworks the runtime into focused foundation modules for state, players, queue, favorites, media presentation, artwork, now-playing, responsive layout, palette handling, editor forms, RadioBrowser countries, and voice matching.
+- Adds phone layout modes: Auto, Full, and Compact.
+- Adds compact edge-to-edge control so compact expand can open edge-to-edge or as a floating window.
+- Hardens mobile queue transitions so title, artist, album, URI, artwork, and selected player stay aligned while Music Assistant catches up.
+- Adds lyrics support inside the screensaver, including an optional `lyrics` screensaver button.
+- Adds per-tab library search, richer album/artist/playlist detail surfaces, better loading feedback, and stronger item deduping.
+- Improves Flow Assistant matching for Hebrew speech, Latin/English metadata, artist requests, playlist requests, title-only matches, and fallback focused search.
+- Updates release tooling, cache-busting, dist artifact sync, version alignment, and runtime regression coverage for 5.8.0.
+
+Architecture and release tooling:
+
+- Adds `src/core/base-music-card.js` for the shared card runtime.
+- Adds `src/config/editor-forms.js` and `src/config/editor-element.js` for visual-editor schema and element setup.
+- Adds focused helper modules under `src/core/` for layout, palette, state, media, players, queue, favorites, RadioBrowser countries, and voice matching.
+- Copies `src/core` and `src/config` into `dist/` during release artifact sync.
+- Adds versioned cache-busting imports for localization, config, and core modules.
+- Updates package, source, dist runtime, localization imports, and editor tags to `5.8.0`.
+- Adds runtime baseline tests for source/dist/package version alignment, card/editor registration, editor shell setup, and bundled dist import.
+
+Mobile, compact, and dashboard fit:
+
+- Adds `mobile_layout_mode` with Auto, Full, and Compact options in settings and the visual editor.
+- Adds `mobile_compact_edge_to_edge` in settings and the visual editor.
+- Improves automatic compact recommendations for narrow and short dashboard slots.
+- Improves mini-widget selection and Section dashboard reserved height for compact layouts.
+- Allows forced full phone layouts on short/tight screens to scroll instead of cutting controls.
+- Improves tablet auto-fit and dense UI behavior when Night mode or Up Next are enabled.
+- Adds panel-fill and resize strategy helpers to reduce unnecessary heavy rebuilds.
+
+Artwork, queue, and now playing:
+
+- Adds decoded artwork caching and immediate image `src` rendering before decode completes.
+- Adds artwork prefetching for current, next, previous, nearby, and visible queue rows.
+- Adds stronger Music Assistant image-proxy handling, including image-proxy paths, proxy IDs, normalized sizes, base64 local images, thumbnails, covers, album artwork, media images, and nested metadata images.
+- Prevents new-track titles from pairing with old-track artwork during pending queue transitions.
+- Locks the target player during pending queue playback so another active player does not steal focus.
+- Adds queue mutation pending state for optimistic reorder/mutation flows.
+- Improves duration and timestamp parsing across numeric, string, ISO, and millisecond payloads.
+
+Lyrics and screensaver:
+
+- Adds `lyrics` to configurable screensaver controls.
+- Lets the screensaver open while lyrics are active.
+- Moves an open lyrics modal into screensaver lyrics mode without leaving the modal behind.
+- Adds tablet lyrics-to-screensaver behavior.
+- Refreshes lyrics when the current track changes.
+- Keeps screensaver lyrics active during playback or freshly paused state, then exits cleanly after inactivity.
+
+Library, search, radio, and favorites:
+
+- Adds per-tab library search queries and drafts.
+- Restores search focus after library rerenders.
+- Adds tab-specific filtering and mixed result grouping.
+- Adds media detail shells for albums, playlists, and artists.
+- Adds album browse selection and track-row rendering inside detail pages.
+- Adds visible feedback/loading states for library entries, category rows, radio country entries, detail heroes, layout buttons, search buttons, discovery items, and player focus controls.
+- Improves RadioBrowser country labels, translated common countries, and flag helpers.
+- Avoids classifying normal tracks as radio just because their title contains "radio".
+- Improves favorite matching, optimistic favorite cache behavior, and favorite removal argument resolution.
+
+Flow Assistant and player behavior:
+
+- Moves voice matching into a dedicated module.
+- Improves Hebrew and English command normalization.
+- Adds Hebrew-to-Latin phonetic matching against Latin Music Assistant metadata.
+- Improves natural playlist-by-artist and songs-by-artist requests.
+- Uses focused search when broad Music Assistant search fails or is too noisy.
+- Rejects unrelated search results instead of playing by media type alone.
+- Improves preferred front-player resolution with custom player order.
+- Deduplicates `active_player_helper_entity` writes.
+- Adds configurable `mobile_announcement_volume` and restores the previous volume after announcements.
+
+Existing foundations preserved:
+
+- Keeps Hotel Mode, HTTPS Music Assistant external URL support, This Device / Sendspin, Media Session screensaver behavior, Control Room / Studio, Quick Actions, POWER actions, auxiliary buttons, Night mode, sleep timer, start schedules, Up Next, Discovery mode, Quick Mix, recent playback history, local/Music Assistant liked modes, artwork swipe browsing, ambient light sync, grouped-player feedback, front-player pinning, and bundled English/Hebrew/Spanish/French/Italian/Lithuanian/Chinese localization.
+
 ## 5.7.1 - 2026-05-26
 
 Polish, safety, and hospitality release for the 5.7.x cycle.

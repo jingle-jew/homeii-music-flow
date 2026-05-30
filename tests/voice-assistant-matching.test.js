@@ -121,6 +121,54 @@ describe("Music Assistant player filtering", () => {
     expect(card._state.selectedPlayer).toBe(musicAssistantPlayer.entity_id);
     expect(card._state.musicAssistantIssueMessage).toBe("");
   });
+
+  it("keeps a manually selected idle player sticky while returning to the library picker", () => {
+    const card = createCard();
+    card._syncActivePlayerHelper = () => {};
+    card._syncNowPlayingUI = () => {};
+    card._renderPlayerSummary = () => {};
+    card._syncBrandPlayingState = () => {};
+    const livingRoom = {
+      entity_id: "media_player.living_room",
+      state: "playing",
+      attributes: { friendly_name: "Living Room", app_id: "music_assistant" },
+    };
+    const kitchen = {
+      entity_id: "media_player.kitchen",
+      state: "idle",
+      attributes: { friendly_name: "Kitchen", app_id: "music_assistant" },
+    };
+    card._hass = {
+      states: {
+        [livingRoom.entity_id]: livingRoom,
+        [kitchen.entity_id]: kitchen,
+      },
+    };
+    card._state.pinnedPlayerEntities = [livingRoom.entity_id];
+    card._loadPlayers();
+    expect(card._state.selectedPlayer).toBe(livingRoom.entity_id);
+
+    card._state.menuOpen = true;
+    card._state.menuPage = "players";
+    card._state.menuStack = ["library_playlists"];
+    card._selectPlayer(kitchen.entity_id, true);
+
+    expect(card._state.selectedPlayer).toBe(kitchen.entity_id);
+    expect(card._state.manualFrontPlayerUntil - Date.now()).toBeGreaterThan(4 * 60 * 1000);
+
+    card._loadPlayers();
+    expect(card._state.selectedPlayer).toBe(kitchen.entity_id);
+
+    card._state.menuOpen = false;
+    card._shortenManualFrontPlayerHold();
+    expect(card._state.manualFrontPlayerUntil - Date.now()).toBeGreaterThan(4 * 60 * 1000);
+    card._state.manualFrontPlayerUntil = Date.now() - 1;
+    kitchen.state = "playing";
+    card._loadPlayers();
+    expect(card._state.selectedPlayer).toBe(kitchen.entity_id);
+    expect(card._state.manualFrontPlayerUntil - Date.now()).toBeGreaterThan(4 * 60 * 1000);
+    card._clearManualFrontPlayer({ sync: false });
+  });
 });
 
 describe("now playing subtitle", () => {

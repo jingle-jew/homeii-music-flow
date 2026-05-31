@@ -93,9 +93,9 @@ function ensureHaEditorComponents() {
   } catch (_) {}
 }
 
-const HOMEII_CARD_VERSION = "5.8.2-beta.1";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v5821";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v5821";
+const HOMEII_CARD_VERSION = "5.8.2-beta.2";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v5822";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v5822";
 const AMBIENT_LIGHT_PAIR_PLAYER_PREFIX = "__homeii_ambient_light_pair_player_";
 const AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX = "__homeii_ambient_light_pair_lights_";
 
@@ -5276,10 +5276,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
 
   _mobileStackItemArtwork(item, position = "center") {
-    if (!item) return "";
     const isCurrent = position === "center";
     const size = 420;
     const selectedPlayer = this._getSelectedPlayer();
+    if (!item) {
+      return isCurrent
+        ? this._currentArtworkUrl(selectedPlayer, null, size, { preferPlayerArtwork: true })
+        : "";
+    }
     if (isCurrent && this._queueItemMatchesPendingMobilePlay(item)) {
       return this._displayArtworkForQueueItem(selectedPlayer, item, { pending: true, size });
     }

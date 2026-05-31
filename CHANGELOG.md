@@ -1,5 +1,19 @@
 # Changelog
 
+## 5.8.2-beta.2 - 2026-05-31
+
+Targeted beta follow-up for the main artwork placeholder regression on Music Assistant 2.8.x browser players.
+
+Release focus:
+
+- Falls back to the active player `entity_picture` when the mobile main artwork stack has no queue artwork/current queue item to display.
+- Prevents the phone main screen from rendering the artwork placeholder when Home Assistant already exposes valid `media_player_proxy` artwork for the selected player.
+- Adds runtime coverage for the Music Assistant 2.8.x browser-player payload shape reported in issue #41.
+
+Validation:
+
+- Targeted runtime and media foundation tests passed after the source fix.
+
 ## 5.8.2-beta.1 - 2026-05-31
 
 Beta validation release for the now-playing artwork regression reported after 5.8.0/5.8.1.

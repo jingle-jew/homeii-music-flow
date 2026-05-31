@@ -458,6 +458,42 @@ describe("runtime baseline", () => {
     expect(pendingSource.art).toContain("/imageproxy");
   });
 
+  it("uses player artwork in the mobile stack when queue artwork is unavailable", async () => {
+    await import("../src/homeii-music-flow.js?runtime-mobile-stack-player-art-fallback");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    const player = {
+      entity_id: "media_player.music_assistant_edge_on_windows",
+      state: "playing",
+      attributes: {
+        app_id: "music_assistant",
+        source: "Music Assistant Queue",
+        mass_player_type: "player",
+        active_queue: "ma_9en0v94t93",
+        media_content_id: "library://track/1874",
+        media_title: "Introduction",
+        media_artist: "B.B. King",
+        media_album_name: "Kansas City 1972",
+        entity_picture: "/api/media_player_proxy/media_player.music_assistant_edge_on_windows?token=abc&cache=5e5e1249decbcfcf",
+      },
+    };
+    card._state.selectedPlayer = player.entity_id;
+    card._state.players = [player];
+    card._state.queueItems = [];
+    card._state.maQueueState = { current_index: null, current_item: null };
+
+    const art = card._mobileStackItemArtwork(null, "center");
+    expect(art).toContain("/api/media_player_proxy/media_player.music_assistant_edge_on_windows");
+
+    const html = card._mobileArtworkStackHtml();
+    expect(html).toContain("<img");
+    expect(html).toContain("Introduction");
+    expect(html).not.toContain("art-stack-card center placeholder");
+  });
+
   it("renders pending artwork with an immediate image src before decode completes", async () => {
     await import("../src/homeii-music-flow.js?runtime-immediate-art-baseline");
     await Promise.resolve();

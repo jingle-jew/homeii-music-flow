@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Danish (`da`) localization. Adds `src/localization/da.js` with all 925 keys translated via DeepL using a glossary that locks brand names (HOMEii Flow, Music Assistant, Sendspin, Spotify, etc.) and music-domain terms (Library, Queue, Playlist, etc.) to consistent renderings. Registered in `src/localization/index.js` and exposed as "Dansk" in the language picker. Native Danish speaker review by submitter (Danish household using the card daily for kids' room dashboards).
+
 ## 5.8.1 - 2026-05-31
 
 Focused hotfix release for Music Assistant compatibility and artwork regressions found after 5.8.0.

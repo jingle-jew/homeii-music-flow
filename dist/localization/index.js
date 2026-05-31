@@ -1,15 +1,17 @@
-import en from "./en.js?v=5.8.1-8468eb524b";
-import es from "./es.js?v=5.8.1-16e5cabf8e";
-import fr from "./fr.js?v=5.8.1-53901fc467";
-import he from "./he.js?v=5.8.1-10e3feafaa";
-import it from "./it.js?v=5.8.1-f7b021fce1";
-import lt from "./lt.js?v=5.8.1-f34c389d46";
-import zh from "./zh.js?v=5.8.1-a33bc98f49";
+import en from "./en.js?v=5.8.1-9e122c742b";
+import da from "./da.js?v=5.8.1-ef0757fed6";
+import es from "./es.js?v=5.8.1-f080039ddc";
+import fr from "./fr.js?v=5.8.1-012da49900";
+import he from "./he.js?v=5.8.1-da05e2083c";
+import it from "./it.js?v=5.8.1-6e7aaa258a";
+import lt from "./lt.js?v=5.8.1-dbcade157a";
+import zh from "./zh.js?v=5.8.1-f14b2e9162";
 
 export const DEFAULT_LANGUAGE = "en";
 
 export const DICTIONARIES = Object.freeze({
   en,
+  da,
   es,
   fr,
   he,
@@ -23,6 +25,7 @@ export const RTL_LANGUAGE_CODES = Object.freeze(["he"]);
 export const LANGUAGE_OPTIONS = Object.freeze([
   { value: "auto", label: "Auto" },
   { value: "en", label: "English" },
+  { value: "da", label: "Dansk" },
   { value: "es", label: "Espa\u00f1ol" },
   { value: "fr", label: "Fran\u00e7ais" },
   { value: "he", label: "\u05e2\u05d1\u05e8\u05d9\u05ea / Hebrew" },

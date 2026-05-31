@@ -111,7 +111,7 @@ The visible upgrade is smoother control across phones, wall tablets, and Section
 - **Real Music Assistant library flow:** playlists, albums, artists, tracks, radio, favorites, recent listening, recommendations, tab search, and album/artist/playlist drill-in before playback.
 - **Performance profiles for weak devices:** Full, High, Low, and Ultra Lite modes let older tablets, wall panels, and slow browsers keep the card usable by reducing expensive effects without removing core controls.
 - **Smart-home aware listening:** optional Home Assistant light sync, screensaver display, and POWER actions let the card participate in the room without becoming mandatory setup.
-- **International and RTL ready:** English, Hebrew/RTL, Spanish, French, Italian, Lithuanian, and Simplified Chinese are bundled, with a documented path for more community translations.
+- **International and RTL ready:** English, Danish, Hebrew/RTL, Spanish, French, Italian, Lithuanian, and Simplified Chinese are bundled, with a documented path for more community translations.
 - **Release-ready package:** HACS-ready `dist/` output includes the card, Sendspin files, Embla swipe support, and the brand asset.
 
 ## What's New In 5.8.0

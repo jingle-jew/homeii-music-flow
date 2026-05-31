@@ -25,20 +25,41 @@ jobs:
           version="${TAG_NAME#v}"
           title="HOMEii Music Flow ${version}"
           notes_file="RELEASE_NOTES_${version}.md"
+          is_prerelease=false
+          if [[ "$version" == *-* ]]; then
+            is_prerelease=true
+          fi
           if [ ! -f "$notes_file" ]; then
             echo "Missing release notes file: $notes_file" >&2
             exit 1
           fi
           if gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release edit "$TAG_NAME" \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "$title" \
-              --notes-file "$notes_file" \
-              --latest
+            if [ "$is_prerelease" = true ]; then
+              gh release edit "$TAG_NAME" \
+                --repo "$GITHUB_REPOSITORY" \
+                --title "$title" \
+                --notes-file "$notes_file" \
+                --prerelease
+            else
+              gh release edit "$TAG_NAME" \
+                --repo "$GITHUB_REPOSITORY" \
+                --title "$title" \
+                --notes-file "$notes_file" \
+                --latest
+            fi
           else
-            gh release create "$TAG_NAME" \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "$title" \
-              --notes-file "$notes_file" \
-              --latest
+            if [ "$is_prerelease" = true ]; then
+              gh release create "$TAG_NAME" \
+                --repo "$GITHUB_REPOSITORY" \
+                --title "$title" \
+                --notes-file "$notes_file" \
+                --prerelease \
+                --latest=false
+            else
+              gh release create "$TAG_NAME" \
+                --repo "$GITHUB_REPOSITORY" \
+                --title "$title" \
+                --notes-file "$notes_file" \
+                --latest
+            fi
           fi

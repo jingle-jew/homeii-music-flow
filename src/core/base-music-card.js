@@ -974,7 +974,7 @@ export function createHomeiiBaseMusicCard({
     _versionedAssetUrl(url) {
       const value = String(url || "").trim();
       if (!value || /^data:/i.test(value) || /[?&]v=/.test(value)) return value;
-      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.8.0";
+      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.8.1";
       return `${value}${value.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
     }
 
@@ -4480,8 +4480,11 @@ export function createHomeiiBaseMusicCard({
     }
 
     _isMusicAssistantPlayer(player = null) {
+      const entityId = String(player?.entity_id || "").trim();
+      const knownPlayablePlayer = !!entityId && (this._state.players || []).some((entry) => entry?.entity_id === entityId);
       return !!(player && (
         this._isDirectMaPlayer(player)
+        || knownPlayablePlayer
         || HomeiiPlayersFoundation.isMusicAssistantPlayer(player, this._hass?.entities?.[player.entity_id])
       ));
     }
@@ -9507,6 +9510,12 @@ export function createHomeiiBaseMusicCard({
       return !!this._hass?.services?.[domain]?.[service];
     }
 
+    _hasMusicAssistantBackend() {
+      return this._hasService("music_assistant", "play_media")
+        || this._hasDirectMAConnection()
+        || !!String(this._resolvedConfigEntryId || this._config?.config_entry_id || "").trim();
+    }
+
     _hasMassQueueService(service) {
       return this._hasService("mass_queue", service);
     }
@@ -11855,7 +11864,11 @@ export function createHomeiiBaseMusicCard({
       const hassEntities = this._hass?.entities || {};
       const musicAssistantEntities = Object.values(hassStates)
         .filter((entity) => HomeiiPlayersFoundation.isMusicAssistantPlayer(entity, hassEntities?.[entity.entity_id]));
-      let entities = musicAssistantEntities;
+      const genericMediaPlayerEntities = Object.values(hassStates)
+        .filter((entity) => entity?.entity_id?.startsWith("media_player."));
+      let entities = musicAssistantEntities.length
+        ? musicAssistantEntities
+        : (this._hasMusicAssistantBackend() ? genericMediaPlayerEntities : []);
       if (!entities.length) {
         const message = this._handleMusicAssistantIssue(this._musicAssistantRequiredMessage());
         this._state.players = [];
@@ -12026,10 +12039,6 @@ export function createHomeiiBaseMusicCard({
         if (this._isDirectMaPlayer(entityId)) {
           return await this._playMediaOnDirectMaPlayer(entityId, uri, mediaType, enqueue, options);
         }
-        const shouldReplaceQueue = enqueue === "play" || enqueue === "shuffle";
-        if (shouldReplaceQueue) {
-          await this._clearQueueForPlayer(entityId);
-        }
         if (enqueue === "shuffle") {
           await this._callHaServiceRaw("media_player", "shuffle_set", { entity_id: entityId, shuffle: true });
         }
@@ -12097,7 +12106,6 @@ export function createHomeiiBaseMusicCard({
         setTimeout(() => this._ensureQueueSnapshot(true), 600);
         return;
       }
-      await this._clearQueueForPlayer(this._state.selectedPlayer);
       if (shuffle) {
         await this._callHaServiceRaw("media_player", "shuffle_set", { entity_id: this._state.selectedPlayer, shuffle: true });
       }

@@ -7613,6 +7613,7 @@ function createHomeiiBaseMusicEditor(deps = {}) {
       this._editorForm = null;
       this._editorUsePathBtn = null;
       this._editorPathHint = null;
+      this._editorSponsorLink = null;
       this._editorAmbientLightDraft = { player: "", lights: [] };
       this._editorBound = false;
       this._editorLastConfigKey = "";
@@ -7682,6 +7683,18 @@ function createHomeiiBaseMusicEditor(deps = {}) {
         return "/";
       }
     }
+    _editorSponsorTitle() {
+      return this._isHebrew() ? "תמיכה ב-homeii-music-flow" : "Sponsor homeii-music-flow";
+    }
+    _editorSponsorConfirmMessage() {
+      return this._isHebrew() ? "לפתוח את עמוד התמיכה ב-GitHub Sponsors?" : "Open the GitHub Sponsors page?";
+    }
+    _syncEditorSponsorLabels() {
+      if (!this._editorSponsorLink) return;
+      const label = this._editorSponsorTitle();
+      this._editorSponsorLink.setAttribute("title", label);
+      this._editorSponsorLink.setAttribute("aria-label", label);
+    }
     _ensureEditorShell() {
       if (this._editorRoot) return;
       const root = this.attachShadow({ mode: "open" });
@@ -7718,6 +7731,39 @@ function createHomeiiBaseMusicEditor(deps = {}) {
           overflow:hidden;
           text-overflow:ellipsis;
         }
+        .editor-actions {
+          flex:0 0 auto;
+          display:flex;
+          align-items:center;
+          gap:8px;
+        }
+        .editor-sponsor {
+          width:30px;
+          height:30px;
+          display:inline-grid;
+          place-items:center;
+          border-radius:999px;
+          color:var(--secondary-text-color, rgba(31,38,51,.62));
+          background:rgba(146,161,183,.08);
+          border:1px solid rgba(146,161,183,.14);
+          text-decoration:none;
+          transition:background .16s ease, border-color .16s ease, color .16s ease, transform .16s ease;
+        }
+        .editor-sponsor:hover {
+          color:#d14d72;
+          background:rgba(209,77,114,.09);
+          border-color:rgba(209,77,114,.22);
+          transform:translateY(-1px);
+        }
+        .editor-sponsor:focus-visible {
+          outline:2px solid color-mix(in srgb, var(--primary-color, #d14d72) 56%, transparent);
+          outline-offset:2px;
+        }
+        .editor-sponsor svg {
+          width:16px;
+          height:16px;
+          display:block;
+        }
         .editor-version {
           flex:0 0 auto;
           border-radius:999px;
@@ -7740,7 +7786,28 @@ function createHomeiiBaseMusicEditor(deps = {}) {
       <div class="editor-shell">
         <div class="editor-header">
           <div class="editor-title">homeii-music-flow</div>
-          <div class="editor-version">v${HOMEII_CARD_VERSION2}</div>
+          <div class="editor-actions">
+            <a
+              class="editor-sponsor"
+              href="https://github.com/sponsors/r11a"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="${this._esc(this._editorSponsorTitle())}"
+              aria-label="${this._esc(this._editorSponsorTitle())}"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path
+                  d="M20.8 4.6c-1.8-1.7-4.7-1.6-6.4.2L12 7.3 9.6 4.8C7.9 3 5 2.9 3.2 4.6 1.2 6.5 1.1 9.6 3 11.6l8.2 8.5c.4.4 1.1.4 1.5 0l8.2-8.5c2-2 1.9-5.1-.1-7Z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                ></path>
+              </svg>
+            </a>
+            <div class="editor-version">v${HOMEII_CARD_VERSION2}</div>
+          </div>
         </div>
         <ha-form id="editorForm"></ha-form>
       </div>
@@ -7749,9 +7816,21 @@ function createHomeiiBaseMusicEditor(deps = {}) {
       this._editorForm = root.querySelector("#editorForm");
       this._editorUsePathBtn = root.querySelector("#editorUseCurrentPath");
       this._editorPathHint = root.querySelector("#editorPathHint");
+      this._editorSponsorLink = root.querySelector(".editor-sponsor");
+      this._syncEditorSponsorLabels();
       this._refreshEditorShellClasses();
       if (!this._editorBound) {
         this._editorBound = true;
+        this._editorSponsorLink?.addEventListener("click", (event) => {
+          let confirmed = true;
+          try {
+            if (typeof window.confirm === "function") {
+              confirmed = window.confirm(this._editorSponsorConfirmMessage());
+            }
+          } catch (_) {
+          }
+          if (!confirmed) event.preventDefault?.();
+        });
         this._editorUsePathBtn?.addEventListener("click", () => {
           const currentPath = this._currentUiPath();
           this._config = {
@@ -7801,6 +7880,7 @@ function createHomeiiBaseMusicEditor(deps = {}) {
       this._ensureEditorShell();
       this.style.direction = this._isHebrew() ? "rtl" : "ltr";
       this._refreshEditorShellClasses();
+      this._syncEditorSponsorLabels();
       if (this._editorUsePathBtn) {
         this._editorUsePathBtn.textContent = homeiiEditorI18n2("ui.use_current_view_for_home_button");
       }
@@ -7814,7 +7894,8 @@ function createHomeiiBaseMusicEditor(deps = {}) {
     _editorPinnedPlayerOptions() {
       const states = this._hass?.states || {};
       const entities = this._hass?.entities || {};
-      const options = Object.values(states).filter((entity) => entity?.entity_id?.startsWith("media_player.")).filter((entity) => {
+      const mediaPlayers = Object.values(states).filter((entity) => entity?.entity_id?.startsWith("media_player."));
+      const musicAssistantPlayers = mediaPlayers.filter((entity) => {
         const registry = entities?.[entity.entity_id] || {};
         const registryText = [
           registry.platform,
@@ -7822,7 +7903,9 @@ function createHomeiiBaseMusicEditor(deps = {}) {
           registry.device_class
         ].filter(Boolean).join(" ").toLowerCase();
         return HomeiiPlayersFoundation2.isMusicAssistantPlayer(entity, registry) || registryText.includes("music_assistant") || registryText.includes("music assistant");
-      }).filter((entity) => !HomeiiPlayersFoundation2.isLikelyBrowserPlayer(entity)).map((entity) => ({
+      });
+      const hasMusicAssistantBackend = !!this._hass?.services?.music_assistant?.play_media || !!String(this._config?.ma_url || this._config?.config_entry_id || "").trim();
+      const options = (musicAssistantPlayers.length || !hasMusicAssistantBackend ? musicAssistantPlayers : mediaPlayers).filter((entity) => !HomeiiPlayersFoundation2.isLikelyBrowserPlayer(entity)).map((entity) => ({
         value: entity.entity_id,
         label: entity.attributes?.friendly_name || entity.entity_id
       })).sort((left, right) => String(left.label).localeCompare(String(right.label), void 0, { sensitivity: "base" }));
@@ -12532,7 +12615,9 @@ function createHomeiiBaseMusicCard({
       return HomeiiPlayersFoundation2.isLikelyBrowserPlayer(player);
     }
     _isMusicAssistantPlayer(player = null) {
-      return !!(player && (this._isDirectMaPlayer(player) || HomeiiPlayersFoundation2.isMusicAssistantPlayer(player, this._hass?.entities?.[player.entity_id])));
+      const entityId = String(player?.entity_id || "").trim();
+      const knownPlayablePlayer = !!entityId && (this._state.players || []).some((entry) => entry?.entity_id === entityId);
+      return !!(player && (this._isDirectMaPlayer(player) || knownPlayablePlayer || HomeiiPlayersFoundation2.isMusicAssistantPlayer(player, this._hass?.entities?.[player.entity_id])));
     }
     _getBrowserPlayers(players = this._state.players || []) {
       return HomeiiPlayersFoundation2.getBrowserPlayers(players);
@@ -17219,6 +17304,9 @@ function createHomeiiBaseMusicCard({
     _hasService(domain, service) {
       return !!this._hass?.services?.[domain]?.[service];
     }
+    _hasMusicAssistantBackend() {
+      return this._hasService("music_assistant", "play_media") || this._hasDirectMAConnection() || !!String(this._resolvedConfigEntryId || this._config?.config_entry_id || "").trim();
+    }
     _hasMassQueueService(service) {
       return this._hasService("mass_queue", service);
     }
@@ -19323,7 +19411,8 @@ function createHomeiiBaseMusicCard({
       const hassStates = this._hass?.states || {};
       const hassEntities = this._hass?.entities || {};
       const musicAssistantEntities = Object.values(hassStates).filter((entity) => HomeiiPlayersFoundation2.isMusicAssistantPlayer(entity, hassEntities?.[entity.entity_id]));
-      let entities = musicAssistantEntities;
+      const genericMediaPlayerEntities = Object.values(hassStates).filter((entity) => entity?.entity_id?.startsWith("media_player."));
+      let entities = musicAssistantEntities.length ? musicAssistantEntities : this._hasMusicAssistantBackend() ? genericMediaPlayerEntities : [];
       if (!entities.length) {
         const message = this._handleMusicAssistantIssue(this._musicAssistantRequiredMessage());
         this._state.players = [];
@@ -19480,10 +19569,6 @@ function createHomeiiBaseMusicCard({
         if (this._isDirectMaPlayer(entityId)) {
           return await this._playMediaOnDirectMaPlayer(entityId, uri, mediaType, enqueue, options);
         }
-        const shouldReplaceQueue = enqueue === "play" || enqueue === "shuffle";
-        if (shouldReplaceQueue) {
-          await this._clearQueueForPlayer(entityId);
-        }
         if (enqueue === "shuffle") {
           await this._callHaServiceRaw("media_player", "shuffle_set", { entity_id: entityId, shuffle: true });
         }
@@ -19545,7 +19630,6 @@ function createHomeiiBaseMusicCard({
         setTimeout(() => this._ensureQueueSnapshot(true), 600);
         return;
       }
-      await this._clearQueueForPlayer(this._state.selectedPlayer);
       if (shuffle) {
         await this._callHaServiceRaw("media_player", "shuffle_set", { entity_id: this._state.selectedPlayer, shuffle: true });
       }
@@ -23350,9 +23434,11 @@ function normalizeImageProxySize(size = 300) {
 function imageProxyIdUrl(proxyId = "", size = 300, maUrl = "", format = "jpeg") {
   const raw = String(proxyId || "").trim();
   if (!raw || !maUrl) return null;
+  if (!/^[0-9a-f]{64}$/i.test(raw)) return null;
   const baseUrl = String(maUrl || "").replace(/\/$/, "");
+  const normalizedId = raw.toLowerCase();
   const normalizedFormat = String(format || "jpeg").trim().toLowerCase() || "jpeg";
-  return `${baseUrl}/imageproxy/${encodeURIComponent(raw)}?size=${normalizeImageProxySize(size)}&fmt=${encodeURIComponent(normalizedFormat)}`;
+  return `${baseUrl}/imageproxy/${encodeURIComponent(normalizedId)}?size=${normalizeImageProxySize(size)}&fmt=${encodeURIComponent(normalizedFormat)}`;
 }
 function imageDataUrlFromEncoded(value = "") {
   const raw = String(value || "").trim();
@@ -24117,9 +24203,9 @@ function ensureHaEditorComponents() {
   } catch (_) {
   }
 }
-const HOMEII_CARD_VERSION = "5.8.0";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v580";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v580";
+const HOMEII_CARD_VERSION = "5.8.1";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v581";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v581";
 const AMBIENT_LIGHT_PAIR_PLAYER_PREFIX = "__homeii_ambient_light_pair_player_";
 const AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX = "__homeii_ambient_light_pair_lights_";
 const HomeiiEditorLocale = Object.freeze({
@@ -24272,6 +24358,7 @@ if (!Array.isArray(window.customCards)) window.customCards = [];
 class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   constructor() {
     super();
+    this._editMode = false;
     this._state.menuOpen = false;
     this._state.menuPage = "main";
     this._state.menuStack = [];
@@ -24999,6 +25086,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (this._state.screensaverOpen) this._syncScreensaverUi();
     this._hydrateSystemMobileState().catch(() => {
     });
+  }
+  set editMode(value) {
+    const enabled = value === true || String(value || "").toLowerCase() === "true";
+    if (this._editMode === enabled) return;
+    this._editMode = enabled;
+    if (!enabled) return;
+    clearTimeout(this._screensaverTimer);
+    this._screensaverTimer = null;
+    this._hideScreensaver?.();
+  }
+  get editMode() {
+    return this._editMode === true;
   }
   _getConfigValidator() {
     return HomeiiConfigValidators.validateMobileCardEditorConfig;
@@ -27052,6 +27151,31 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.ambientLightCooldown = cooldown;
     return cooldown;
   }
+  _isVisualEditorContext() {
+    if (this._editMode === true) return true;
+    const attr = String(this.getAttribute?.("edit-mode") || this.getAttribute?.("data-edit-mode") || "").toLowerCase();
+    if (attr === "true" || attr === "1") return true;
+    let node = this;
+    for (let depth = 0; node && depth < 14; depth += 1) {
+      const signature = [
+        node.localName,
+        node.tagName,
+        node.id,
+        node.className,
+        node.getAttribute?.("id"),
+        node.getAttribute?.("class")
+      ].map((value) => String(value || "").toLowerCase()).join(" ");
+      if (signature.includes("hui-card-preview") || signature.includes("hui-card-editor") || signature.includes("hui-dialog-edit-card") || signature.includes("hui-card-options") || signature.includes("lovelace-card-editor")) {
+        return true;
+      }
+      const root = node.getRootNode?.();
+      node = node.parentElement || node.parentNode || (root?.host && root.host !== node ? root.host : null);
+    }
+    return false;
+  }
+  _screensaverSuppressedByEditor() {
+    return this._isVisualEditorContext();
+  }
   _screensaverEnabled() {
     if (this._state.screensaverEnabled !== true) return false;
     const rect = this.getBoundingClientRect?.();
@@ -27329,6 +27453,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     clearTimeout(this._screensaverTimer);
     this._screensaverTimer = null;
     if (hide) this._hideScreensaver();
+    if (this._screensaverSuppressedByEditor()) {
+      this._hideScreensaver();
+      return;
+    }
     if (!this._screensaverEnabled() || !this.isConnected) return;
     if (this._screensaverVisibilityKnown && this._screensaverVisible === false) return;
     const defaultDelayMs = this._screensaverTimeoutSeconds() * 1e3;
@@ -27341,10 +27469,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }, timeoutMs);
   }
   _screensaverBlocked() {
-    return !!(this._state.menuOpen || this._state.controlRoomOpen || this._state.mobileHistoryDrawerOpen || this._state.voiceAssistantDialogOpen && this._state.voiceAssistantKeepScreensaver !== true || this.$("mobileQueueActionModal")?.classList?.contains("open") || this.$("mobileVolumePresetModal")?.classList?.contains("open") || this.$("mobileSmartVoiceModal")?.classList?.contains("open"));
+    return !!(this._screensaverSuppressedByEditor() || this._state.menuOpen || this._state.controlRoomOpen || this._state.mobileHistoryDrawerOpen || this._state.voiceAssistantDialogOpen && this._state.voiceAssistantKeepScreensaver !== true || this.$("mobileQueueActionModal")?.classList?.contains("open") || this.$("mobileVolumePresetModal")?.classList?.contains("open") || this.$("mobileSmartVoiceModal")?.classList?.contains("open"));
   }
   _showScreensaver(options = {}) {
     const force = options?.force === true;
+    if (this._screensaverSuppressedByEditor()) {
+      this._hideScreensaver();
+      return;
+    }
     if (!force && !this._screensaverEnabled()) return;
     const now = Date.now();
     const suppressUntil = Number(this._screensaverSuppressUntil || 0);
@@ -27546,6 +27678,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _openTabletLyricsScreensaver() {
     if (this._layoutModeConfig() !== "tablet") return false;
     if (!this._getSelectedPlayer()) return false;
+    if (this._screensaverSuppressedByEditor()) return false;
     this._screensaverSuppressUntil = 0;
     this._state.lyricsOpen = false;
     this._state.screensaverLyricsOpen = true;

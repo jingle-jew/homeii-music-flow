@@ -93,9 +93,9 @@ function ensureHaEditorComponents() {
   } catch (_) {}
 }
 
-const HOMEII_CARD_VERSION = "5.8.0";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v580";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v580";
+const HOMEII_CARD_VERSION = "5.8.1";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v581";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v581";
 const AMBIENT_LIGHT_PAIR_PLAYER_PREFIX = "__homeii_ambient_light_pair_player_";
 const AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX = "__homeii_ambient_light_pair_lights_";
 
@@ -276,6 +276,7 @@ if (!Array.isArray(window.customCards)) window.customCards = [];
 class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   constructor() {
     super();
+    this._editMode = false;
     this._state.menuOpen = false;
     this._state.menuPage = "main";
     this._state.menuStack = [];
@@ -769,6 +770,20 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._syncScreensaverClockVars();
     if (this._state.screensaverOpen) this._syncScreensaverUi();
     this._hydrateSystemMobileState().catch(() => {});
+  }
+
+  set editMode(value) {
+    const enabled = value === true || String(value || "").toLowerCase() === "true";
+    if (this._editMode === enabled) return;
+    this._editMode = enabled;
+    if (!enabled) return;
+    clearTimeout(this._screensaverTimer);
+    this._screensaverTimer = null;
+    this._hideScreensaver?.();
+  }
+
+  get editMode() {
+    return this._editMode === true;
   }
 
   _getConfigValidator() {
@@ -2748,6 +2763,39 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     return cooldown;
   }
 
+  _isVisualEditorContext() {
+    if (this._editMode === true) return true;
+    const attr = String(this.getAttribute?.("edit-mode") || this.getAttribute?.("data-edit-mode") || "").toLowerCase();
+    if (attr === "true" || attr === "1") return true;
+    let node = this;
+    for (let depth = 0; node && depth < 14; depth += 1) {
+      const signature = [
+        node.localName,
+        node.tagName,
+        node.id,
+        node.className,
+        node.getAttribute?.("id"),
+        node.getAttribute?.("class"),
+      ].map((value) => String(value || "").toLowerCase()).join(" ");
+      if (
+        signature.includes("hui-card-preview")
+        || signature.includes("hui-card-editor")
+        || signature.includes("hui-dialog-edit-card")
+        || signature.includes("hui-card-options")
+        || signature.includes("lovelace-card-editor")
+      ) {
+        return true;
+      }
+      const root = node.getRootNode?.();
+      node = node.parentElement || node.parentNode || (root?.host && root.host !== node ? root.host : null);
+    }
+    return false;
+  }
+
+  _screensaverSuppressedByEditor() {
+    return this._isVisualEditorContext();
+  }
+
   _screensaverEnabled() {
     if (this._state.screensaverEnabled !== true) return false;
     const rect = this.getBoundingClientRect?.();
@@ -3071,6 +3119,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     clearTimeout(this._screensaverTimer);
     this._screensaverTimer = null;
     if (hide) this._hideScreensaver();
+    if (this._screensaverSuppressedByEditor()) {
+      this._hideScreensaver();
+      return;
+    }
     if (!this._screensaverEnabled() || !this.isConnected) return;
     if (this._screensaverVisibilityKnown && this._screensaverVisible === false) return;
     const defaultDelayMs = this._screensaverTimeoutSeconds() * 1000;
@@ -3087,7 +3139,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _screensaverBlocked() {
     return !!(
-      this._state.menuOpen
+      this._screensaverSuppressedByEditor()
+      || this._state.menuOpen
       || this._state.controlRoomOpen
       || this._state.mobileHistoryDrawerOpen
       || (this._state.voiceAssistantDialogOpen && this._state.voiceAssistantKeepScreensaver !== true)
@@ -3099,6 +3152,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _showScreensaver(options = {}) {
     const force = options?.force === true;
+    if (this._screensaverSuppressedByEditor()) {
+      this._hideScreensaver();
+      return;
+    }
     if (!force && !this._screensaverEnabled()) return;
     const now = Date.now();
     const suppressUntil = Number(this._screensaverSuppressUntil || 0);
@@ -3307,6 +3364,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _openTabletLyricsScreensaver() {
     if (this._layoutModeConfig() !== "tablet") return false;
     if (!this._getSelectedPlayer()) return false;
+    if (this._screensaverSuppressedByEditor()) return false;
     this._screensaverSuppressUntil = 0;
     this._state.lyricsOpen = false;
     this._state.screensaverLyricsOpen = true;

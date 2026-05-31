@@ -157,9 +157,11 @@ export function normalizeImageProxySize(size = 300) {
 export function imageProxyIdUrl(proxyId = "", size = 300, maUrl = "", format = "jpeg") {
   const raw = String(proxyId || "").trim();
   if (!raw || !maUrl) return null;
+  if (!/^[0-9a-f]{64}$/i.test(raw)) return null;
   const baseUrl = String(maUrl || "").replace(/\/$/, "");
+  const normalizedId = raw.toLowerCase();
   const normalizedFormat = String(format || "jpeg").trim().toLowerCase() || "jpeg";
-  return `${baseUrl}/imageproxy/${encodeURIComponent(raw)}?size=${normalizeImageProxySize(size)}&fmt=${encodeURIComponent(normalizedFormat)}`;
+  return `${baseUrl}/imageproxy/${encodeURIComponent(normalizedId)}?size=${normalizeImageProxySize(size)}&fmt=${encodeURIComponent(normalizedFormat)}`;
 }
 
 function imageDataUrlFromEncoded(value = "") {

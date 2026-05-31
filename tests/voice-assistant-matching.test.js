@@ -99,6 +99,30 @@ describe("Music Assistant player filtering", () => {
     expect(card._state.musicAssistantIssueMessage).toContain("Music Assistant");
   });
 
+  it("uses generic media players as Music Assistant compatibility targets when the service exists", () => {
+    const card = createCard();
+    const genericPlayer = {
+      entity_id: "media_player.ceiling",
+      state: "idle",
+      attributes: { friendly_name: "Ceiling" },
+    };
+    card._hass = {
+      states: {
+        [genericPlayer.entity_id]: genericPlayer,
+      },
+      services: {
+        music_assistant: { play_media: {} },
+      },
+    };
+
+    card._loadPlayers();
+
+    expect(card._state.players).toEqual([genericPlayer]);
+    expect(card._state.selectedPlayer).toBe(genericPlayer.entity_id);
+    expect(card._state.musicAssistantIssueMessage).toBe("");
+    expect(card._isMusicAssistantPlayer(genericPlayer)).toBe(true);
+  });
+
   it("loads Music Assistant players identified by the entity registry", () => {
     const card = createCard();
     const musicAssistantPlayer = {
@@ -168,6 +192,58 @@ describe("Music Assistant player filtering", () => {
     expect(card._state.selectedPlayer).toBe(kitchen.entity_id);
     expect(card._state.manualFrontPlayerUntil - Date.now()).toBeGreaterThan(4 * 60 * 1000);
     card._clearManualFrontPlayer({ sync: false });
+  });
+
+  it("lets music_assistant.play_media replace playback without manually clearing first", async () => {
+    const card = createCard();
+    const calls = [];
+    card._state.selectedPlayer = "media_player.main";
+    card._clearQueueForPlayer = async () => calls.push({ domain: "homeii", service: "clear" });
+    card._callHaServiceRaw = async (domain, service, data) => calls.push({ domain, service, data });
+    card._toastMediaQueued = () => {};
+    card._playerByEntityId = () => ({ entity_id: "media_player.main", attributes: { friendly_name: "Main" } });
+
+    const ok = await card._playMediaOnPlayer("media_player.main", "spotify://album/one", "album", "play", { silent: true });
+
+    expect(ok).toBe(true);
+    expect(calls).toEqual([{
+      domain: "music_assistant",
+      service: "play_media",
+      data: {
+        entity_id: "media_player.main",
+        media_id: "spotify://album/one",
+        media_type: "album",
+        enqueue: "play",
+      },
+    }]);
+  });
+
+  it("sets shuffle before play_media without manually clearing the player", async () => {
+    const card = createCard();
+    const calls = [];
+    card._clearQueueForPlayer = async () => calls.push({ domain: "homeii", service: "clear" });
+    card._callHaServiceRaw = async (domain, service, data) => calls.push({ domain, service, data });
+
+    const ok = await card._playMediaOnPlayer("media_player.main", "spotify://playlist/mix", "playlist", "shuffle", { silent: true });
+
+    expect(ok).toBe(true);
+    expect(calls).toEqual([
+      {
+        domain: "media_player",
+        service: "shuffle_set",
+        data: { entity_id: "media_player.main", shuffle: true },
+      },
+      {
+        domain: "music_assistant",
+        service: "play_media",
+        data: {
+          entity_id: "media_player.main",
+          media_id: "spotify://playlist/mix",
+          media_type: "playlist",
+          enqueue: "play",
+        },
+      },
+    ]);
   });
 });
 

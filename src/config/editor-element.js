@@ -24,6 +24,7 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     this._editorForm = null;
     this._editorUsePathBtn = null;
     this._editorPathHint = null;
+    this._editorSponsorLink = null;
     this._editorAmbientLightDraft = { player: "", lights: [] };
     this._editorBound = false;
     this._editorLastConfigKey = "";
@@ -108,6 +109,23 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     }
   }
 
+  _editorSponsorTitle() {
+    return this._isHebrew() ? "תמיכה ב-homeii-music-flow" : "Sponsor homeii-music-flow";
+  }
+
+  _editorSponsorConfirmMessage() {
+    return this._isHebrew()
+      ? "לפתוח את עמוד התמיכה ב-GitHub Sponsors?"
+      : "Open the GitHub Sponsors page?";
+  }
+
+  _syncEditorSponsorLabels() {
+    if (!this._editorSponsorLink) return;
+    const label = this._editorSponsorTitle();
+    this._editorSponsorLink.setAttribute("title", label);
+    this._editorSponsorLink.setAttribute("aria-label", label);
+  }
+
   _ensureEditorShell() {
     if (this._editorRoot) return;
     const root = this.attachShadow({ mode: "open" });
@@ -144,6 +162,39 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
           overflow:hidden;
           text-overflow:ellipsis;
         }
+        .editor-actions {
+          flex:0 0 auto;
+          display:flex;
+          align-items:center;
+          gap:8px;
+        }
+        .editor-sponsor {
+          width:30px;
+          height:30px;
+          display:inline-grid;
+          place-items:center;
+          border-radius:999px;
+          color:var(--secondary-text-color, rgba(31,38,51,.62));
+          background:rgba(146,161,183,.08);
+          border:1px solid rgba(146,161,183,.14);
+          text-decoration:none;
+          transition:background .16s ease, border-color .16s ease, color .16s ease, transform .16s ease;
+        }
+        .editor-sponsor:hover {
+          color:#d14d72;
+          background:rgba(209,77,114,.09);
+          border-color:rgba(209,77,114,.22);
+          transform:translateY(-1px);
+        }
+        .editor-sponsor:focus-visible {
+          outline:2px solid color-mix(in srgb, var(--primary-color, #d14d72) 56%, transparent);
+          outline-offset:2px;
+        }
+        .editor-sponsor svg {
+          width:16px;
+          height:16px;
+          display:block;
+        }
         .editor-version {
           flex:0 0 auto;
           border-radius:999px;
@@ -166,7 +217,28 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
       <div class="editor-shell">
         <div class="editor-header">
           <div class="editor-title">homeii-music-flow</div>
-          <div class="editor-version">v${HOMEII_CARD_VERSION}</div>
+          <div class="editor-actions">
+            <a
+              class="editor-sponsor"
+              href="https://github.com/sponsors/r11a"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="${this._esc(this._editorSponsorTitle())}"
+              aria-label="${this._esc(this._editorSponsorTitle())}"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path
+                  d="M20.8 4.6c-1.8-1.7-4.7-1.6-6.4.2L12 7.3 9.6 4.8C7.9 3 5 2.9 3.2 4.6 1.2 6.5 1.1 9.6 3 11.6l8.2 8.5c.4.4 1.1.4 1.5 0l8.2-8.5c2-2 1.9-5.1-.1-7Z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                ></path>
+              </svg>
+            </a>
+            <div class="editor-version">v${HOMEII_CARD_VERSION}</div>
+          </div>
         </div>
         <ha-form id="editorForm"></ha-form>
       </div>
@@ -175,9 +247,20 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     this._editorForm = root.querySelector("#editorForm");
     this._editorUsePathBtn = root.querySelector("#editorUseCurrentPath");
     this._editorPathHint = root.querySelector("#editorPathHint");
+    this._editorSponsorLink = root.querySelector(".editor-sponsor");
+    this._syncEditorSponsorLabels();
     this._refreshEditorShellClasses();
     if (!this._editorBound) {
       this._editorBound = true;
+      this._editorSponsorLink?.addEventListener("click", (event) => {
+        let confirmed = true;
+        try {
+          if (typeof window.confirm === "function") {
+            confirmed = window.confirm(this._editorSponsorConfirmMessage());
+          }
+        } catch (_) {}
+        if (!confirmed) event.preventDefault?.();
+      });
       this._editorUsePathBtn?.addEventListener("click", () => {
         const currentPath = this._currentUiPath();
         this._config = {
@@ -230,6 +313,7 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     this._ensureEditorShell();
     this.style.direction = this._isHebrew() ? "rtl" : "ltr";
     this._refreshEditorShellClasses();
+    this._syncEditorSponsorLabels();
     if (this._editorUsePathBtn) {
       this._editorUsePathBtn.textContent = homeiiEditorI18n("ui.use_current_view_for_home_button");
     }
@@ -244,8 +328,9 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
   _editorPinnedPlayerOptions() {
     const states = this._hass?.states || {};
     const entities = this._hass?.entities || {};
-    const options = Object.values(states)
-      .filter((entity) => entity?.entity_id?.startsWith("media_player."))
+    const mediaPlayers = Object.values(states)
+      .filter((entity) => entity?.entity_id?.startsWith("media_player."));
+    const musicAssistantPlayers = mediaPlayers
       .filter((entity) => {
         const registry = entities?.[entity.entity_id] || {};
         const registryText = [
@@ -256,7 +341,10 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
         return HomeiiPlayersFoundation.isMusicAssistantPlayer(entity, registry)
           || registryText.includes("music_assistant")
           || registryText.includes("music assistant");
-      })
+      });
+    const hasMusicAssistantBackend = !!this._hass?.services?.music_assistant?.play_media
+      || !!String(this._config?.ma_url || this._config?.config_entry_id || "").trim();
+    const options = (musicAssistantPlayers.length || !hasMusicAssistantBackend ? musicAssistantPlayers : mediaPlayers)
       .filter((entity) => !HomeiiPlayersFoundation.isLikelyBrowserPlayer(entity))
       .map((entity) => ({
         value: entity.entity_id,

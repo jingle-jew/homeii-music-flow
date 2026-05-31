@@ -40,13 +40,13 @@ https://github.com/user-attachments/assets/a0076e6e-0352-40f8-ac37-35737e717a80
   <a href="https://www.hacs.xyz/docs/use/download/download/">
     <img alt="Install HACS" src="https://img.shields.io/badge/Install-HACS-41BDF5?logo=homeassistant&logoColor=white">
   </a>
-  <a href="https://github.com/r11a/homeii-music-flow/archive/refs/tags/v5.8.0.zip">
-    <img alt="Download HOMEii Flow 5.8.0 tag archive" src="https://img.shields.io/badge/Download-v5.8.0-111111?logo=github">
+  <a href="https://github.com/r11a/homeii-music-flow/archive/refs/tags/v5.8.1.zip">
+    <img alt="Download HOMEii Flow 5.8.1 tag archive" src="https://img.shields.io/badge/Download-v5.8.1-111111?logo=github">
   </a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/r11a/homeii-music-flow"><img alt="version" src="https://img.shields.io/badge/version-5.8.0-gold"></a>
+  <a href="https://github.com/r11a/homeii-music-flow"><img alt="version" src="https://img.shields.io/badge/version-5.8.1-gold"></a>
   <img alt="Home Assistant" src="https://img.shields.io/badge/Home%20Assistant-Dashboard-41BDF5">
   <img alt="Music Assistant" src="https://img.shields.io/badge/Music%20Assistant-required-7C5CFF">
   <img alt="Sendspin" src="https://img.shields.io/badge/Sendspin-browser%20player-18B6FF">
@@ -61,6 +61,19 @@ https://github.com/user-attachments/assets/a0076e6e-0352-40f8-ac37-35737e717a80
 HOMEii Flow is a custom Home Assistant Dashboard card for Music Assistant. It turns music control into a polished listening surface: visual, fast, personal, and comfortable on both wall tablets and phones.
 
 HOMEii Flow started from my own daily use of Home Assistant and Music Assistant. I wanted it to feel less like a technical dashboard widget and more like a real music app inside Home Assistant, so a lot of thought went into the flow, touch interactions, Hebrew/RTL comfort, wall-tablet behavior, mobile details, and the small moments that make choosing music feel natural at home.
+
+## 5.8.1 Hotfix Release
+
+HOMEii Flow 5.8.1 is a focused hotfix on top of 5.8.0 for Music Assistant compatibility and artwork regressions found after the 5.8.0 upgrade.
+
+- Restores Music Assistant 2.8.x player compatibility when Home Assistant exposes MA players as normal `media_player` entities without newer MA markers.
+- Keeps the Music Assistant requirement guard intact when the backend is genuinely unavailable.
+- Lets `music_assistant.play_media` handle replace playback instead of clearing the queue manually first, reducing wrapper/artwork timing races on browser-player flows.
+- Rejects invalid image-proxy IDs so older path/provider artwork URLs can still be used.
+- Keeps visual-editor player selectors usable in older MA/Home Assistant combinations.
+- Prevents the screensaver from opening while the card is being edited in the Home Assistant visual editor.
+
+The full 5.8.0 release overview remains below because 5.8.1 includes all 5.8.0 features.
 
 ## 5.8.0 Release Overview
 
@@ -329,7 +342,7 @@ If HACS does not add the resource automatically, add:
 3. Add this Dashboard resource:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.8.0
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.8.1
 ```
 
 4. Add the card:
@@ -990,7 +1003,8 @@ src/core/                             extracted foundation helpers
 src/config/                           config validators
 tests/                                regression coverage
 scripts/release.mjs                   release sync tooling
-RELEASE_NOTES_5.8.0.md                detailed GitHub release notes for the current release
+RELEASE_NOTES_5.8.1.md                detailed GitHub release notes for the current release
+RELEASE_NOTES_5.8.0.md                previous major release notes
 RELEASE_NOTES_5.7.1.md                previous public release notes
 docs/brand/                           logo and brand assets
 docs/media/                           GitHub/HACS README screenshots and GIF
@@ -1008,7 +1022,7 @@ npm run lint
 npm test
 ```
 
-Current packaged version: `5.8.0`
+Current packaged version: `5.8.1`
 
 ## Release Readiness
 
@@ -1061,6 +1075,7 @@ Credit and thanks:
 
 - [Local deployment guide](./LOCAL_DEPLOYMENT.md)
 - [Publishing checklist](./PUBLISHING.md)
+- [5.8.1 release notes](./RELEASE_NOTES_5.8.1.md)
 - [5.8.0 release notes](./RELEASE_NOTES_5.8.0.md)
 - [5.7.1 release notes](./RELEASE_NOTES_5.7.1.md)
 - [QA matrix](./docs/qa-matrix.md)

@@ -99,8 +99,12 @@ describe("media presentation foundation", () => {
     expect(imageProxyIdUrl("a".repeat(64), 300, "https://ma.local")).toBe(
       `https://ma.local/imageproxy/${"a".repeat(64)}?size=512&fmt=jpeg`,
     );
+    expect(imageProxyIdUrl("not-a-proxy-id", 300, "https://ma.local")).toBe(null);
     expect(imageUrl({ proxy_id: "b".repeat(64), path: "legacy/path.jpg", provider: "spotify" }, 120, { maUrl: "https://ma.local" })).toBe(
       `https://ma.local/imageproxy/${"b".repeat(64)}?size=160&fmt=jpeg`,
+    );
+    expect(imageUrl({ proxy_id: "short", path: "legacy/path.jpg", provider: "spotify" }, 120, { maUrl: "https://ma.local" })).toBe(
+      "https://ma.local/imageproxy?path=legacy%2Fpath.jpg&provider=spotify&size=160",
     );
     expect(imageUrl({
       local_image_encoded: `${"/9j/"}${"a".repeat(96)}`,

@@ -1,5 +1,25 @@
 # Changelog
 
+## 5.8.1 - 2026-05-31
+
+Focused hotfix release for Music Assistant compatibility and artwork regressions found after 5.8.0.
+
+Release focus:
+
+- Restores Music Assistant 2.8.x player compatibility when Home Assistant exposes MA players without the newer MA state/entity markers.
+- Keeps the Music Assistant requirement guard intact when the backend is genuinely missing.
+- Avoids manually clearing the player queue immediately before `music_assistant.play_media`, reducing race conditions that could drop queue wrappers and now-playing artwork on browser/Sendspin players.
+- Rejects invalid Music Assistant image-proxy IDs so artwork can fall back to the older path/provider image-proxy URL shape.
+- Keeps the visual editor usable with generic MA-backed media players in older MA/Home Assistant combinations.
+- Prevents the card screensaver from opening while the card is being edited in the Home Assistant visual editor.
+
+Validation:
+
+- Full Vitest suite passed.
+- Vite production build passed.
+- Full ESLint passed.
+- Release artifacts were regenerated and synced into `dist/`.
+
 ## 5.8.0 - 2026-05-30
 
 Next public release after 5.7.1, focused on architecture, mobile layout control, artwork and queue reliability, screensaver lyrics, library detail flows, Flow Assistant matching, and release confidence.

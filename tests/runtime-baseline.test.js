@@ -51,6 +51,22 @@ function installBrowserStubs() {
       const formNode = {
         addEventListener() {},
       };
+      const sponsorNode = {
+        attributes: {},
+        listeners: {},
+        addEventListener(type, handler) {
+          this.listeners[type] = handler;
+        },
+        dispatchEvent(event) {
+          this.listeners[event.type]?.(event);
+        },
+        getAttribute(name) {
+          return this.attributes[name];
+        },
+        setAttribute(name, value) {
+          this.attributes[name] = String(value);
+        },
+      };
       const shellNode = {
         classList: {
           toggle() {},
@@ -63,6 +79,7 @@ function installBrowserStubs() {
         querySelector(selector) {
           if (selector === "#editorForm") return formNode;
           if (selector === ".editor-shell") return shellNode;
+          if (selector === ".editor-sponsor") return sponsorNode;
           return null;
         },
         querySelectorAll() { return []; },
@@ -194,6 +211,14 @@ describe("runtime baseline", () => {
     });
 
     expect(editor._editorForm).toBeTruthy();
+    expect(editor.shadowRoot.innerHTML).toContain('class="editor-sponsor"');
+    expect(editor.shadowRoot.innerHTML).toContain('href="https://github.com/sponsors/r11a"');
+    expect(editor.shadowRoot.innerHTML).toContain('rel="noopener noreferrer"');
+    globalThis.window.confirm = vi.fn(() => false);
+    const preventDefault = vi.fn();
+    editor._editorSponsorLink.dispatchEvent({ type: "click", preventDefault });
+    expect(globalThis.window.confirm).toHaveBeenCalledWith("Open the GitHub Sponsors page?");
+    expect(preventDefault).toHaveBeenCalled();
     expect(Array.isArray(editor._editorForm.schema)).toBe(true);
     expect(editor._editorForm.data.mobile_quick_actions).toEqual(["voice", "search"]);
   });
@@ -412,6 +437,32 @@ describe("runtime baseline", () => {
     card._state.lyricsOpen = true;
 
     expect(card._screensaverBlocked()).toBe(false);
+  });
+
+  it("suppresses the screensaver while the card is open in the visual editor", async () => {
+    await import("../src/homeii-music-flow.js?runtime-editor-screensaver-block-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card.classList = createClassList();
+    card.shadowRoot = {
+      querySelector: () => ({ classList: createClassList() }),
+    };
+    card.$ = () => null;
+    card.offsetWidth = 900;
+    card.getBoundingClientRect = () => ({ width: 900, height: 700 });
+    card._state.screensaverEnabled = true;
+
+    expect(card._screensaverEnabled()).toBe(true);
+
+    card.editMode = true;
+
+    expect(card._screensaverEnabled()).toBe(true);
+    expect(card._screensaverBlocked()).toBe(true);
+    card._showScreensaver({ force: true });
+    expect(card._state.screensaverOpen).toBe(false);
   });
 
   it("moves an open lyrics modal into screensaver lyrics without leaving the modal behind", async () => {

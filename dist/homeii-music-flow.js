@@ -13924,15 +13924,20 @@ function createHomeiiBaseMusicCard({
       }
       let snapshot = null;
       try {
-        snapshot = await this._fetchMassQueueItemsSnapshot(player);
+        snapshot = await this._fetchMusicAssistantQueueSnapshot(player);
       } catch (_) {
         snapshot = null;
       }
-      if (!snapshot) {
+      if (!snapshot?.items?.length) {
         try {
-          snapshot = await this._fetchDirectControlRoomQueueSnapshot(player);
+          snapshot = await this._fetchMassQueueItemsSnapshot(player) || snapshot;
         } catch (_) {
-          snapshot = null;
+        }
+      }
+      if (!snapshot?.items?.length) {
+        try {
+          snapshot = await this._fetchDirectControlRoomQueueSnapshot(player) || snapshot;
+        } catch (_) {
         }
       }
       return snapshot;
@@ -17780,6 +17785,14 @@ function createHomeiiBaseMusicCard({
         items: normalizedItems
       };
     }
+    async _fetchMusicAssistantQueueSnapshot(player) {
+      if (!player?.entity_id) return null;
+      const queueId = this._queueIdForPlayer(player);
+      const payload = { entity_id: player.entity_id, limit: 250 };
+      if (queueId) payload.queue_id = queueId;
+      const snapshot = await this._callService("get_queue", payload, { includeConfigEntryId: false });
+      return this._normalizeQueueSnapshot(snapshot, player.entity_id);
+    }
     _guessCurrentQueueIndexFromItems(items = [], player = null) {
       if (!Array.isArray(items) || !items.length) return 0;
       const currentTitle = String(player?.attributes?.media_title || "").trim().toLowerCase();
@@ -20406,6 +20419,23 @@ function createHomeiiBaseMusicCard({
       const player = this._getSelectedPlayer();
       if (!player) return;
       const queueId = this._queueIdForPlayer(player);
+      try {
+        const normalized = await this._fetchMusicAssistantQueueSnapshot(player);
+        if (!isCurrentSnapshot()) return;
+        const queueData = normalized?.items?.length ? normalized : await this._fetchMassQueueItemsSnapshot(player);
+        if (!isCurrentSnapshot()) return;
+        if (queueData) {
+          this._applyQueueSnapshot(queueData.state, queueData.items, force);
+          return;
+        }
+      } catch (_) {
+        const queueData = await this._fetchMassQueueItemsSnapshot(player);
+        if (!isCurrentSnapshot()) return;
+        if (queueData) {
+          this._applyQueueSnapshot(queueData.state, queueData.items, force);
+          return;
+        }
+      }
       if (queueId && this._hasDirectMAConnection()) {
         try {
           const queueState = await this._callDirectMaCommand("player_queues/get", { queue_id: queueId });
@@ -20421,25 +20451,8 @@ function createHomeiiBaseMusicCard({
           }
           if (!isCurrentSnapshot()) return;
           this._applyQueueSnapshot(queueState, queueItems, force);
-          return;
         } catch (_) {
         }
-      }
-      try {
-        const payload = { entity_id: player.entity_id, limit: 250 };
-        if (queueId) payload.queue_id = queueId;
-        const snapshot = await this._callService("get_queue", payload, { includeConfigEntryId: false });
-        if (!isCurrentSnapshot()) return;
-        const normalized = this._normalizeQueueSnapshot(snapshot, player.entity_id);
-        const queueData = normalized?.items?.length ? normalized : await this._fetchMassQueueItemsSnapshot(player);
-        if (!isCurrentSnapshot()) return;
-        if (!queueData) return;
-        this._applyQueueSnapshot(queueData.state, queueData.items, force);
-      } catch (_) {
-        const queueData = await this._fetchMassQueueItemsSnapshot(player);
-        if (!isCurrentSnapshot()) return;
-        if (!queueData) return;
-        this._applyQueueSnapshot(queueData.state, queueData.items, force);
       }
     }
     _queueItemImageUrl(item, size = 120) {
@@ -24203,9 +24216,9 @@ function ensureHaEditorComponents() {
   } catch (_) {
   }
 }
-const HOMEII_CARD_VERSION = "5.8.1";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v581";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v581";
+const HOMEII_CARD_VERSION = "5.8.2-beta.1";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v5821";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v5821";
 const AMBIENT_LIGHT_PAIR_PLAYER_PREFIX = "__homeii_ambient_light_pair_player_";
 const AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX = "__homeii_ambient_light_pair_lights_";
 const HomeiiEditorLocale = Object.freeze({
@@ -29002,10 +29015,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     });
   }
   _displayArtworkForQueueItem(player = null, item = null, { pending = false, size = 420 } = {}) {
-    if (!item) return this._currentArtworkUrl(player, null, size, { preferPlayerArtwork: true });
+    const playerArt = this._currentArtworkUrl(player, item || null, size, { preferPlayerArtwork: true });
+    if (!item) return playerArt;
+    if (!pending && playerArt) return playerArt;
     const queueArt = this._queueItemArtworkUrl(item, size, player);
     if (queueArt) return queueArt;
-    return this._currentArtworkUrl(player, item, size, { preferPlayerArtwork: !pending });
+    return playerArt || this._currentArtworkUrl(player, item, size, { preferPlayerArtwork: !pending });
   }
   _mobileNowPlayingDisplaySource(player = null, currentQueueItem = null, stack = null) {
     return HomeiiNowPlayingFoundation.nowPlayingDisplaySource({

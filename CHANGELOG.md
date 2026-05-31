@@ -1,5 +1,24 @@
 # Changelog
 
+## 5.8.2-beta.1 - 2026-05-31
+
+Beta validation release for the now-playing artwork regression reported after 5.8.0/5.8.1.
+
+Release focus:
+
+- Restores the 5.7.x priority for current now-playing artwork by preferring the Home Assistant player artwork (`entity_picture` / media player proxy) before Music Assistant queue image-proxy artwork.
+- Loads selected-player and control-room queue snapshots through the Home Assistant Music Assistant service first, using Direct MA only as a fallback when the integration does not return usable queue items.
+- Keeps Music Assistant queue artwork priority for pending queue transitions so tapping a queue item still updates the title and artwork atomically while the player catches up.
+- Adds runtime regression coverage for HA-first queue snapshots, the current-artwork priority, and the pending queue-artwork exception.
+- Updates the release workflow so beta tags such as `v5.8.2-beta.1` are published as GitHub pre-releases and are not marked as Latest.
+
+Validation:
+
+- Targeted runtime and media foundation tests passed.
+- Full ESLint passed.
+- Vite production build passed.
+- Release artifacts were regenerated and synced into `dist/`.
+
 ## 5.8.1 - 2026-05-31
 
 Focused hotfix release for Music Assistant compatibility and artwork regressions found after 5.8.0.

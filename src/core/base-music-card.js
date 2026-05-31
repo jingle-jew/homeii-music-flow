@@ -974,7 +974,7 @@ export function createHomeiiBaseMusicCard({
     _versionedAssetUrl(url) {
       const value = String(url || "").trim();
       if (!value || /^data:/i.test(value) || /[?&]v=/.test(value)) return value;
-      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.8.1";
+      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.8.2-beta.1";
       return `${value}${value.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
     }
 
@@ -5963,9 +5963,12 @@ export function createHomeiiBaseMusicCard({
         }
       }
       let snapshot = null;
-      try { snapshot = await this._fetchMassQueueItemsSnapshot(player); } catch (_) { snapshot = null; }
-      if (!snapshot) {
-        try { snapshot = await this._fetchDirectControlRoomQueueSnapshot(player); } catch (_) { snapshot = null; }
+      try { snapshot = await this._fetchMusicAssistantQueueSnapshot(player); } catch (_) { snapshot = null; }
+      if (!snapshot?.items?.length) {
+        try { snapshot = await this._fetchMassQueueItemsSnapshot(player) || snapshot; } catch (_) {}
+      }
+      if (!snapshot?.items?.length) {
+        try { snapshot = await this._fetchDirectControlRoomQueueSnapshot(player) || snapshot; } catch (_) {}
       }
       return snapshot;
     }
@@ -10059,6 +10062,15 @@ export function createHomeiiBaseMusicCard({
       };
     }
 
+    async _fetchMusicAssistantQueueSnapshot(player) {
+      if (!player?.entity_id) return null;
+      const queueId = this._queueIdForPlayer(player);
+      const payload = { entity_id: player.entity_id, limit: 250 };
+      if (queueId) payload.queue_id = queueId;
+      const snapshot = await this._callService("get_queue", payload, { includeConfigEntryId: false });
+      return this._normalizeQueueSnapshot(snapshot, player.entity_id);
+    }
+
     _guessCurrentQueueIndexFromItems(items = [], player = null) {
       if (!Array.isArray(items) || !items.length) return 0;
       const currentTitle = String(player?.attributes?.media_title || "").trim().toLowerCase();
@@ -12950,6 +12962,25 @@ export function createHomeiiBaseMusicCard({
       const player = this._getSelectedPlayer();
       if (!player) return;
       const queueId = this._queueIdForPlayer(player);
+
+      try {
+        const normalized = await this._fetchMusicAssistantQueueSnapshot(player);
+        if (!isCurrentSnapshot()) return;
+        const queueData = normalized?.items?.length ? normalized : await this._fetchMassQueueItemsSnapshot(player);
+        if (!isCurrentSnapshot()) return;
+        if (queueData) {
+          this._applyQueueSnapshot(queueData.state, queueData.items, force);
+          return;
+        }
+      } catch (_) {
+        const queueData = await this._fetchMassQueueItemsSnapshot(player);
+        if (!isCurrentSnapshot()) return;
+        if (queueData) {
+          this._applyQueueSnapshot(queueData.state, queueData.items, force);
+          return;
+        }
+      }
+
       if (queueId && this._hasDirectMAConnection()) {
         try {
           const queueState = await this._callDirectMaCommand("player_queues/get", { queue_id: queueId });
@@ -12969,25 +13000,7 @@ export function createHomeiiBaseMusicCard({
           }
           if (!isCurrentSnapshot()) return;
           this._applyQueueSnapshot(queueState, queueItems, force);
-          return;
         } catch (_) {}
-      }
-
-      try {
-        const payload = { entity_id: player.entity_id, limit: 250 };
-        if (queueId) payload.queue_id = queueId;
-        const snapshot = await this._callService("get_queue", payload, { includeConfigEntryId: false });
-        if (!isCurrentSnapshot()) return;
-        const normalized = this._normalizeQueueSnapshot(snapshot, player.entity_id);
-        const queueData = normalized?.items?.length ? normalized : await this._fetchMassQueueItemsSnapshot(player);
-        if (!isCurrentSnapshot()) return;
-        if (!queueData) return;
-        this._applyQueueSnapshot(queueData.state, queueData.items, force);
-      } catch (_) {
-        const queueData = await this._fetchMassQueueItemsSnapshot(player);
-        if (!isCurrentSnapshot()) return;
-        if (!queueData) return;
-        this._applyQueueSnapshot(queueData.state, queueData.items, force);
       }
     }
 

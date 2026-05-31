@@ -248,6 +248,105 @@ describe("runtime baseline", () => {
     );
   });
 
+  it("loads selected-player queue snapshots through Home Assistant before direct Music Assistant", async () => {
+    await import("../src/homeii-music-flow.js?runtime-queue-ha-first-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    const player = {
+      entity_id: "media_player.main",
+      state: "playing",
+      attributes: {
+        active_queue: "queue-main",
+        media_content_id: "spotify://track/1",
+        media_title: "Track A",
+        media_artist: "Artist A",
+      },
+    };
+    const queueItem = {
+      queue_item_id: "queue-1",
+      sort_index: 0,
+      media_item: {
+        uri: "spotify://track/1",
+        name: "Track A",
+        media_type: "track",
+        artists: [{ name: "Artist A" }],
+      },
+    };
+    card._state.selectedPlayer = player.entity_id;
+    card._state.players = [player];
+    card._hasDirectMAConnection = vi.fn(() => true);
+    card._callDirectMaCommand = vi.fn(async () => ({ items: [] }));
+    card._fetchMassQueueItemsSnapshot = vi.fn(async () => null);
+    card._prefetchQueueArtworkWindow = vi.fn();
+    card._callService = vi.fn(async (service, payload, options) => {
+      expect(service).toBe("get_queue");
+      expect(payload).toMatchObject({ entity_id: player.entity_id, queue_id: "queue-main", limit: 250 });
+      expect(options).toEqual({ includeConfigEntryId: false });
+      return {
+        queue_state: { queue_id: "queue-main", current_index: 0, items: 1, current_item: queueItem },
+        items: [queueItem],
+      };
+    });
+
+    await card._ensureQueueSnapshot(true);
+
+    expect(card._callService).toHaveBeenCalledTimes(1);
+    expect(card._callDirectMaCommand).not.toHaveBeenCalled();
+    expect(card._fetchMassQueueItemsSnapshot).not.toHaveBeenCalled();
+    expect(card._state.maQueueState.queue_id).toBe("queue-main");
+    expect(card._state.queueItems).toHaveLength(1);
+    expect(card._state.queueItems[0].media_item.name).toBe("Track A");
+  });
+
+  it("uses direct Music Assistant queue snapshots only after Home Assistant queue lookups fail", async () => {
+    await import("../src/homeii-music-flow.js?runtime-queue-direct-fallback-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    const player = {
+      entity_id: "media_player.main",
+      state: "playing",
+      attributes: {
+        active_queue: "queue-main",
+        media_content_id: "spotify://track/2",
+        media_title: "Track B",
+      },
+    };
+    card._state.selectedPlayer = player.entity_id;
+    card._state.players = [player];
+    card._hasDirectMAConnection = vi.fn(() => true);
+    card._callService = vi.fn(async () => { throw new Error("HA queue unavailable"); });
+    card._fetchMassQueueItemsSnapshot = vi.fn(async () => null);
+    card._prefetchQueueArtworkWindow = vi.fn();
+    card._callDirectMaCommand = vi.fn(async (command) => {
+      if (command === "player_queues/get") return { queue_id: "queue-main", current_index: 1, items: 2 };
+      if (command === "player_queues/items") {
+        return {
+          items: [{
+            queue_item_id: "queue-2",
+            sort_index: 1,
+            media_item: { uri: "spotify://track/2", name: "Track B", media_type: "track" },
+          }],
+        };
+      }
+      return null;
+    });
+
+    await card._ensureQueueSnapshot(true);
+
+    expect(card._callService).toHaveBeenCalledTimes(1);
+    expect(card._fetchMassQueueItemsSnapshot).toHaveBeenCalledTimes(1);
+    expect(card._callDirectMaCommand).toHaveBeenCalledWith("player_queues/get", { queue_id: "queue-main" });
+    expect(card._callDirectMaCommand).toHaveBeenCalledWith("player_queues/items", { queue_id: "queue-main", limit: 50, offset: 0 });
+    expect(card._state.queueItems).toHaveLength(1);
+    expect(card._state.queueItems[0].media_item.name).toBe("Track B");
+  });
+
   it("keeps pending queue artwork and title atomic while the player still reports the previous track", async () => {
     vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
     await import("../src/homeii-music-flow.js?runtime-pending-display-baseline");
@@ -308,6 +407,55 @@ describe("runtime baseline", () => {
     expect(source.art).toContain("new.jpg");
     expect(source.art).not.toContain("old.jpg");
     expect(stableSource.art).toBe(source.art);
+  });
+
+  it("prefers Home Assistant player artwork for current now playing outside pending transitions", async () => {
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    await import("../src/homeii-music-flow.js?runtime-current-player-art-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._maUrl = "http://192.168.1.20:8095";
+    const player = {
+      entity_id: "media_player.main",
+      state: "playing",
+      attributes: {
+        active_queue: "queue-main",
+        media_content_id: "spotify://track/current",
+        media_title: "Current Track",
+        media_artist: "Current Artist",
+        entity_picture: "https://ha.local/api/media_player_proxy/media_player.main?token=abc",
+      },
+    };
+    const currentItem = {
+      queue_item_id: "queue-item-current",
+      sort_index: 2,
+      media_item: {
+        uri: "spotify://track/current",
+        name: "Current Track",
+        media_type: "track",
+        image: { path: "spotify/current.jpg", provider: "spotify" },
+        artists: [{ name: "Current Artist" }],
+      },
+    };
+    card._state.selectedPlayer = player.entity_id;
+    card._state.players = [player];
+    card._state.queueItems = [currentItem];
+    card._state.maQueueState = { current_index: 2, current_item: currentItem };
+
+    const source = card._mobileNowPlayingDisplaySource(player, currentItem, { current: currentItem });
+    expect(source.art).toContain("/api/media_player_proxy/media_player.main");
+    expect(source.art).not.toContain("/imageproxy");
+
+    card._state.mobileQueuePlayPendingUntil = Date.now() + 8500;
+    card._state.mobileQueuePlayPendingKey = card._getQueueItemPlaybackId(currentItem) || card._getQueueItemStableId(currentItem) || card._getQueueItemKey(currentItem);
+    card._state.mobileQueuePlayPendingUri = card._getQueueItemUri(currentItem);
+    card._state.mobileQueuePlayPendingIndex = 2;
+
+    const pendingSource = card._mobileNowPlayingDisplaySource(player, currentItem, { current: currentItem });
+    expect(pendingSource.art).toContain("/imageproxy");
   });
 
   it("renders pending artwork with an immediate image src before decode completes", async () => {

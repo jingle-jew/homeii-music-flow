@@ -93,9 +93,9 @@ function ensureHaEditorComponents() {
   } catch (_) {}
 }
 
-const HOMEII_CARD_VERSION = "5.8.1";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v581";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v581";
+const HOMEII_CARD_VERSION = "5.8.2-beta.1";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v5821";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v5821";
 const AMBIENT_LIGHT_PAIR_PLAYER_PREFIX = "__homeii_ambient_light_pair_player_";
 const AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX = "__homeii_ambient_light_pair_lights_";
 
@@ -4817,10 +4817,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
 
   _displayArtworkForQueueItem(player = null, item = null, { pending = false, size = 420 } = {}) {
-    if (!item) return this._currentArtworkUrl(player, null, size, { preferPlayerArtwork: true });
+    const playerArt = this._currentArtworkUrl(player, item || null, size, { preferPlayerArtwork: true });
+    if (!item) return playerArt;
+    if (!pending && playerArt) return playerArt;
     const queueArt = this._queueItemArtworkUrl(item, size, player);
     if (queueArt) return queueArt;
-    return this._currentArtworkUrl(player, item, size, { preferPlayerArtwork: !pending });
+    return playerArt || this._currentArtworkUrl(player, item, size, { preferPlayerArtwork: !pending });
   }
 
   _mobileNowPlayingDisplaySource(player = null, currentQueueItem = null, stack = null) {

@@ -1,0 +1,44 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${TAG_NAME#v}"
+          title="HOMEii Music Flow ${version}"
+          notes_file="RELEASE_NOTES_${version}.md"
+          if [ ! -f "$notes_file" ]; then
+            echo "Missing release notes file: $notes_file" >&2
+            exit 1
+          fi
+          if gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$TAG_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$title" \
+              --notes-file "$notes_file" \
+              --latest
+          else
+            gh release create "$TAG_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$title" \
+              --notes-file "$notes_file" \
+              --latest
+          fi

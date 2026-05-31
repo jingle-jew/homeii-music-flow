@@ -923,7 +923,9 @@ const messages$7 = Object.freeze({
   "ui.provider_playlists": "Provider playlists",
   "ui.hotel_mode": "Hotel Mode",
   "ui.hotel_mode_helper": "Minimal hotel-safe UI: player controls, volume, search, artwork browsing, and player selection only.",
-  "ui.style_and_genres": "Style and genres"
+  "ui.style_and_genres": "Style and genres",
+  "ui.card_id": "Card ID",
+  "ui.card_id_helper": "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."
 });
 const messages$6 = Object.freeze({
   "ui.a_guided_music_wizard": "En guidet musikguide",
@@ -1016,6 +1018,8 @@ const messages$6 = Object.freeze({
   "ui.card_configuration": "Kortkonfiguration",
   "ui.card_height": "Kortets højde",
   "ui.card_height_in_pixels": "Kortets højde i pixels.",
+  "ui.card_id": "Card ID",
+  "ui.card_id_helper": "Unik slug (bogstaver, tal, '-', '_'). Sæt denne værdi, når du kører flere HOMEii Flow dashboards i samme browser, så hvert dashboard beholder sin egen afspillervælger, tema, layout og andre indstillinger. Lad være tom for at dele tilstand med alle andre HOMEii Flow-kort i denne browser (oprindelig adfærd).",
   "ui.card_settings_are_managed_from_the_visual_editor": "Kortindstillingerne styres fra den visuelle editor",
   "ui.change_song": "Skift sang",
   "ui.change_track": "Skift spor",
@@ -2777,7 +2781,9 @@ const messages$5 = Object.freeze({
   "ui.choose_which_buttons_appear_on_the_screensaver": "Elige exactamente qué botones aparecen en el salvapantallas, incluidos FLOW ASSISTANT y los botones anterior y siguiente.",
   "ui.hotel_mode": "Modo hotel",
   "ui.hotel_mode_helper": "Interfaz mínima segura para hotel: solo controles del reproductor, volumen, búsqueda, navegación por carátulas y selección de reproductor.",
-  "ui.style_and_genres": "Estilos y géneros"
+  "ui.style_and_genres": "Estilos y géneros",
+  "ui.card_id": "Card ID",
+  "ui.card_id_helper": "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."
 });
 const messages$4 = Object.freeze({
   "ui.a_guided_music_wizard": "Un assistant musical guidé",
@@ -3704,7 +3710,9 @@ const messages$4 = Object.freeze({
   "ui.provider_playlists": "Listes de lecture du fournisseur",
   "ui.hotel_mode": "Mode hôtel",
   "ui.hotel_mode_helper": "Interface minimale sécurisée pour l'hôtel : commandes du lecteur, volume, recherche, navigation dans les pochettes et sélection du lecteur uniquement.",
-  "ui.style_and_genres": "Styles et genres"
+  "ui.style_and_genres": "Styles et genres",
+  "ui.card_id": "Card ID",
+  "ui.card_id_helper": "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."
 });
 const messages$3 = Object.freeze({
   "ui.a_guided_music_wizard": "אשף מוזיקה ברור ומהיר",
@@ -4631,7 +4639,9 @@ const messages$3 = Object.freeze({
   "ui.microphone_permission_or_browser_blocked": "הדפדפן חסם את זיהוי הדיבור. בדוק הרשאות מיקרופון והגדרות זיהוי בדפדפן.",
   "ui.hotel_mode": "מצב מלון",
   "ui.hotel_mode_helper": "ממשק מצב מלון מינימלי: פקדי נגן, ווליום, חיפוש, דפדוף בעטיפות ובחירת נגן בלבד.",
-  "ui.style_and_genres": "סגנונות וז'אנרים"
+  "ui.style_and_genres": "סגנונות וז'אנרים",
+  "ui.card_id": "Card ID",
+  "ui.card_id_helper": "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."
 });
 const messages$2 = Object.freeze({
   "ui.a_guided_music_wizard": "Un assistente musicale guidato",
@@ -5558,7 +5568,9 @@ const messages$2 = Object.freeze({
   "ui.provider_playlists": "Playlist del fornitore",
   "ui.hotel_mode": "Modalità hotel",
   "ui.hotel_mode_helper": "Interfaccia minima sicura per hotel: solo controlli del riproduttore, volume, ricerca, navigazione copertine e selezione del riproduttore.",
-  "ui.style_and_genres": "Stili e generi"
+  "ui.style_and_genres": "Stili e generi",
+  "ui.card_id": "Card ID",
+  "ui.card_id_helper": "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."
 });
 const messages$1 = Object.freeze({
   "ui.a_guided_music_wizard": "Valdomas muzikos vedlys",
@@ -6485,7 +6497,9 @@ const messages$1 = Object.freeze({
   "ui.choose_which_buttons_appear_on_the_screensaver": "Choose exactly which buttons appear on the screensaver, including FLOW ASSISTANT, previous and next.",
   "ui.hotel_mode": "Viešbučio režimas",
   "ui.hotel_mode_helper": "Minimali viešbučiui saugi sąsaja: tik grotuvo valdymas, garsumas, paieška, viršelių naršymas ir grotuvo pasirinkimas.",
-  "ui.style_and_genres": "Stiliai ir žanrai"
+  "ui.style_and_genres": "Stiliai ir žanrai",
+  "ui.card_id": "Card ID",
+  "ui.card_id_helper": "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."
 });
 const messages = Object.freeze({
   "ui.a_guided_music_wizard": "引导式音乐向导",
@@ -7412,7 +7426,9 @@ const messages = Object.freeze({
   "ui.choose_which_buttons_appear_on_the_screensaver": "Choose exactly which buttons appear on the screensaver, including FLOW ASSISTANT, previous and next.",
   "ui.hotel_mode": "酒店模式",
   "ui.hotel_mode_helper": "适合酒店的极简安全界面：仅保留播放器控制、音量、搜索、封面浏览和播放器选择。",
-  "ui.style_and_genres": "风格和流派"
+  "ui.style_and_genres": "风格和流派",
+  "ui.card_id": "Card ID",
+  "ui.card_id_helper": "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."
 });
 const DEFAULT_LANGUAGE = "en";
 const DICTIONARIES = Object.freeze({
@@ -7552,10 +7568,23 @@ function assertStringArrayValuesIfDefined(value, key, allowedValues) {
     throw new Error(`${key} must contain only: ${allowedValues.join(", ")}`);
   }
 }
+const CARD_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+function assertCardIdIfDefined(value, key) {
+  if (value == null) return;
+  if (typeof value !== "string") throw new Error(`${key} must be a string`);
+  const trimmed = value.trim();
+  if (trimmed === "") return;
+  if (!CARD_ID_PATTERN.test(trimmed)) {
+    throw new Error(
+      `${key} must be 1-64 characters of letters, digits, '-' or '_'`
+    );
+  }
+}
 function validateBaseCardEditorConfig(config) {
   if (!config || typeof config !== "object" || Array.isArray(config)) {
     throw new Error("Card config must be an object");
   }
+  assertCardIdIfDefined(config.card_id, "card_id");
   assertStringIfDefined(config.config_entry_id, "config_entry_id");
   assertStringIfDefined(config.ma_url, "ma_url");
   assertStringIfDefined(config.music_assistant_external_url, "music_assistant_external_url");
@@ -7701,6 +7730,7 @@ function homeiiRadioBrowserCountrySelectorOptions(translateFn = null, language =
 }
 function getBaseCardConfigForm$1() {
   const labels = {
+    card_id: homeiiEditorI18n$1("ui.card_id", {}, "Card ID"),
     config_entry_id: "Config Entry ID",
     ma_url: homeiiEditorI18n$1("ui.music_assistant_url"),
     music_assistant_external_url: "Music Assistant external URL",
@@ -7725,6 +7755,7 @@ function getBaseCardConfigForm$1() {
     popup_opacity: homeiiEditorI18n$1("ui.popup_opacity")
   };
   const helpers = {
+    card_id: homeiiEditorI18n$1("ui.card_id_helper", {}, "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."),
     config_entry_id: homeiiEditorI18n$1("ui.music_assistant_config_entry_id_if_you_want_direct_integration_lookup_th"),
     ma_url: homeiiEditorI18n$1("ui.leave_empty_if_the_card_should_use_home_assistant_only"),
     music_assistant_external_url: "Optional HTTPS Music Assistant URL for HTTPS dashboards, Nabu Casa, and Companion App browser-player connections.",
@@ -7786,6 +7817,7 @@ function getBaseCardConfigForm$1() {
             flatten: true,
             column_min_width: "220px",
             schema: [
+              { name: "card_id", selector: { text: {} } },
               { name: "config_entry_id", selector: { text: {} } },
               { name: "ma_url", selector: { text: { type: "url" } } },
               { name: "music_assistant_external_url", selector: { text: { type: "url" } } },
@@ -7947,6 +7979,7 @@ function getMobileEditorTexts() {
       player_sort_mode: homeiiEditorI18n$1("ui.player_sort"),
       player_order_entities: homeiiEditorI18n$1("ui.player_order"),
       ...playerOrderSlotLabels,
+      card_id: homeiiEditorI18n$1("ui.card_id", {}, "Card ID"),
       config_entry_id: "Config Entry ID",
       ma_url: homeiiEditorI18n$1("ui.music_assistant_url"),
       music_assistant_external_url: "Music Assistant external URL",
@@ -7963,6 +7996,7 @@ function getMobileEditorTexts() {
       use_mass_queue_send_command: homeiiEditorI18n$1("ui.mass_queue_send_command_fallback")
     },
     helpers: {
+      card_id: homeiiEditorI18n$1("ui.card_id_helper", {}, "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."),
       settings_source: homeiiEditorI18n$1("ui.choose_whether_settings_are_controlled_from_the_in_card_ui_or_from_the_c"),
       layout_mode: homeiiEditorI18n$1("ui.auto_chooses_mobile_or_tablet_based_on_actual_width"),
       height: homeiiEditorI18n$1("ui.card_height_in_pixels"),
@@ -8327,6 +8361,7 @@ function getMobileCardConfigForm$1() {
             flatten: true,
             column_min_width: "220px",
             schema: [
+              { name: "card_id", selector: { text: {} } },
               { name: "config_entry_id", selector: { text: {} } },
               { name: "ma_url", selector: { text: { type: "url" } } },
               { name: "music_assistant_external_url", selector: { text: { type: "url" } } },
@@ -9183,6 +9218,7 @@ function createHomeiiBaseMusicCard({
   HOMEII_VISIBLE_LANGUAGE_OPTIONS: HOMEII_VISIBLE_LANGUAGE_OPTIONS2,
   HomeiiStateFoundation: HomeiiStateFoundation2,
   HomeiiConfigValidators: HomeiiConfigValidators2,
+  HomeiiCardIdFoundation: HomeiiCardIdFoundation2,
   HomeiiResponsiveFoundation: HomeiiResponsiveFoundation2,
   HomeiiMediaQueueFoundation: HomeiiMediaQueueFoundation2,
   HomeiiMediaPresentationFoundation: HomeiiMediaPresentationFoundation2,
@@ -9320,7 +9356,7 @@ function createHomeiiBaseMusicCard({
       this._homeiiBrandLogoCandidates = null;
       try {
         const configuredLanguage = this._config.language || "en";
-        const storedLanguage = localStorage.getItem("homeii_music_flow_lang");
+        const storedLanguage = localStorage.getItem(this._lsKey("homeii_music_flow_lang"));
         const configControlsLanguage = typeof this._usesVisualSettings === "function" && this._usesVisualSettings();
         const configuredLanguageBase = String(configuredLanguage || "").trim().toLowerCase().replace("_", "-").split("-")[0];
         const hasExplicitNonDefaultLanguage = configuredLanguageBase && configuredLanguageBase !== "en" && configuredLanguageBase !== "auto";
@@ -9329,12 +9365,12 @@ function createHomeiiBaseMusicCard({
         this._state.lang = this._config.language || "en";
       }
       try {
-        this._state.cardTheme = localStorage.getItem("homeii_music_flow_theme") || this._config.theme_mode || "auto";
+        this._state.cardTheme = localStorage.getItem(this._lsKey("homeii_music_flow_theme")) || this._config.theme_mode || "auto";
       } catch (_) {
         this._state.cardTheme = this._config.theme_mode || "auto";
       }
       try {
-        this._state.tracksLayout = localStorage.getItem("homeii_music_flow_tracks_layout") || "list";
+        this._state.tracksLayout = localStorage.getItem(this._lsKey("homeii_music_flow_tracks_layout")) || "list";
       } catch (_) {
         this._state.tracksLayout = "list";
       }
@@ -12666,7 +12702,7 @@ function createHomeiiBaseMusicCard({
     _toggleLanguage() {
       this._state.lang = this._nextLanguageCode();
       try {
-        localStorage.setItem("homeii_music_flow_lang", this._state.lang);
+        localStorage.setItem(this._lsKey("homeii_music_flow_lang"), this._state.lang);
       } catch (_) {
       }
       const currentTheme = this._state.cardTheme;
@@ -12722,7 +12758,7 @@ function createHomeiiBaseMusicCard({
       const effective = this._effectiveTheme();
       this._state.cardTheme = effective === "dark" ? "light" : "dark";
       try {
-        localStorage.setItem("homeii_music_flow_theme", this._state.cardTheme);
+        localStorage.setItem(this._lsKey("homeii_music_flow_theme"), this._state.cardTheme);
       } catch (_) {
       }
       const card = this.shadowRoot.querySelector(".card");
@@ -12742,6 +12778,9 @@ function createHomeiiBaseMusicCard({
       if (!player) return false;
       const attrs = player.attributes || {};
       return player.state === "playing" || player.state === "paused" || !!attrs.media_title || !!attrs.active_queue;
+    }
+    _lsKey(baseKey) {
+      return HomeiiCardIdFoundation2 ? HomeiiCardIdFoundation2.scopeStorageKey(baseKey, this._config?.card_id) : baseKey;
     }
     _thisDeviceStorageKey() {
       return `homeii-this-device-player::${this._maBrowserUrl() || this._config?.ma_url || location.origin || "default"}`;
@@ -14069,7 +14108,7 @@ function createHomeiiBaseMusicCard({
     }
     _saveMobileRecentHistory() {
       try {
-        localStorage.setItem("homeii_music_flow_mobile_recent_history", JSON.stringify((this._state.mobileRecentHistory || []).slice(0, 10)));
+        localStorage.setItem(this._lsKey("homeii_music_flow_mobile_recent_history"), JSON.stringify((this._state.mobileRecentHistory || []).slice(0, 10)));
       } catch (_) {
       }
     }
@@ -15154,7 +15193,7 @@ function createHomeiiBaseMusicCard({
       }
     }
     _controlRoomScenesStorageKey() {
-      return "homeii_music_flow_control_room_scenes_v1";
+      return this._lsKey("homeii_music_flow_control_room_scenes_v1");
     }
     _normalizeControlRoomScene(scene = {}, index = 0) {
       const rawId = String(scene?.id || `custom:${Date.now()}_${index}`).trim();
@@ -16608,10 +16647,10 @@ function createHomeiiBaseMusicCard({
       });
     }
     _likedStorageKey() {
-      return "homeii_music_flow_likes_v2";
+      return this._lsKey("homeii_music_flow_likes_v2");
     }
     _likedMetaStorageKey() {
-      return "homeii_music_flow_like_meta_v2";
+      return this._lsKey("homeii_music_flow_like_meta_v2");
     }
     _loadLikedUris() {
       if (!this._likedUris) {
@@ -17585,7 +17624,7 @@ function createHomeiiBaseMusicCard({
     _setTracksLayout(layout) {
       this._state.tracksLayout = layout === "grid" ? "grid" : "list";
       try {
-        localStorage.setItem("homeii_music_flow_tracks_layout", this._state.tracksLayout);
+        localStorage.setItem(this._lsKey("homeii_music_flow_tracks_layout"), this._state.tracksLayout);
       } catch (_) {
       }
       if (this._state.view === "tracks") this._renderTracks();
@@ -24057,6 +24096,26 @@ const HomeiiArtworkFoundationSource = /* @__PURE__ */ Object.freeze(/* @__PURE__
   queueArtworkPrefetchUrls,
   queueItemArtworkCacheKey
 }, Symbol.toStringTag, { value: "Module" }));
+const VALID_CARD_ID = /^[A-Za-z0-9_-]{1,64}$/;
+const SCOPE_SEPARATOR = "__";
+function normalizeCardId(value) {
+  const id = String(value ?? "").trim();
+  if (!id) return "";
+  return VALID_CARD_ID.test(id) ? id : "";
+}
+function isValidCardId(value) {
+  return normalizeCardId(value) !== "";
+}
+function scopeStorageKey(baseKey, cardId) {
+  const id = normalizeCardId(cardId);
+  return id ? `${baseKey}${SCOPE_SEPARATOR}${id}` : baseKey;
+}
+const HomeiiCardIdFoundationSource = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  isValidCardId,
+  normalizeCardId,
+  scopeStorageKey
+}, Symbol.toStringTag, { value: "Module" }));
 function queueItemIdentityAccessors(accessors = {}) {
   return {
     getQueueItemPlaybackId: accessors.getQueueItemPlaybackId || (() => ""),
@@ -25227,6 +25286,9 @@ const HomeiiArtworkFoundation = Object.freeze({
 const HomeiiNowPlayingFoundation = Object.freeze({
   ...HomeiiNowPlayingFoundationSource
 });
+const HomeiiCardIdFoundation = Object.freeze({
+  ...HomeiiCardIdFoundationSource
+});
 configureHomeiiEditorForms({
   homeiiEditorI18n,
   homeiiEditorLabelFor,
@@ -25249,6 +25311,7 @@ const HomeiiBaseMusicCard = createHomeiiBaseMusicCard({
   HOMEII_VISIBLE_LANGUAGE_OPTIONS,
   HomeiiStateFoundation,
   HomeiiConfigValidators,
+  HomeiiCardIdFoundation,
   HomeiiResponsiveFoundation,
   HomeiiMediaQueueFoundation,
   HomeiiMediaPresentationFoundation,
@@ -25483,13 +25546,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._boundMobileMenuScroll = this._handleMobileMenuScroll.bind(this);
     this._boundMobileMediaInput = this._handleMobileMediaInput.bind(this);
     this._boundScreensaverActivity = this._handleScreensaverActivity.bind(this);
+    this._loadStoredState();
+  }
+  _loadStoredState() {
     try {
-      this._state.mobileCustomColor = localStorage.getItem("homeii_music_flow_mobile_custom_color") || "#f5a623";
+      this._state.mobileCustomColor = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_custom_color")) || "#f5a623";
     } catch (_) {
     }
     try {
-      const storedPerformanceProfile = localStorage.getItem("homeii_music_flow_mobile_performance_profile");
-      const storedPerformanceMode = localStorage.getItem("homeii_music_flow_mobile_performance_mode");
+      const storedPerformanceProfile = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_performance_profile"));
+      const storedPerformanceMode = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_performance_mode"));
       if (storedPerformanceProfile !== null || storedPerformanceMode !== null) {
         const legacyPerformanceMode = storedPerformanceMode !== null ? JSON.parse(storedPerformanceMode) : false;
         const performanceProfile2 = HomeiiMobileSettingsFoundation.normalizePerformanceProfile(storedPerformanceProfile, legacyPerformanceMode);
@@ -25500,96 +25566,96 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     } catch (_) {
     }
     try {
-      this._state.mobileDynamicThemeMode = localStorage.getItem("homeii_music_flow_mobile_dynamic_theme_mode") || "auto";
+      this._state.mobileDynamicThemeMode = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_dynamic_theme_mode")) || "auto";
     } catch (_) {
     }
     try {
-      this._state.mobileBackgroundMotionMode = localStorage.getItem("homeii_music_flow_mobile_background_motion_mode") || "subtle";
+      this._state.mobileBackgroundMotionMode = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_background_motion_mode")) || "subtle";
     } catch (_) {
     }
     try {
-      this._state.mobileCustomTextTone = localStorage.getItem("homeii_music_flow_mobile_custom_text") || "light";
+      this._state.mobileCustomTextTone = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_custom_text")) || "light";
     } catch (_) {
     }
     try {
-      this._state.frontPinnedPlayerEntity = localStorage.getItem("homeii_music_flow_front_pinned_player") || "";
+      this._state.frontPinnedPlayerEntity = localStorage.getItem(this._lsKey("homeii_music_flow_front_pinned_player")) || "";
     } catch (_) {
     }
     try {
-      this._state.mobileFontScale = Math.max(0.5, Math.min(1.5, Number(localStorage.getItem("homeii_music_flow_mobile_font_scale") || 1) || 1));
+      this._state.mobileFontScale = Math.max(0.5, Math.min(1.5, Number(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_font_scale")) || 1) || 1));
     } catch (_) {
     }
     try {
-      this._state.mobileIconScale = HomeiiMobileSettingsFoundation.clampMobileIconScale(localStorage.getItem("homeii_music_flow_mobile_icon_scale") || 1);
+      this._state.mobileIconScale = HomeiiMobileSettingsFoundation.clampMobileIconScale(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_icon_scale")) || 1);
     } catch (_) {
     }
     this._loadControlRoomScenesFromStorage();
     try {
-      this._state.mobileNightMode = localStorage.getItem("homeii_music_flow_mobile_night_mode") || "off";
+      this._state.mobileNightMode = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_night_mode")) || "off";
     } catch (_) {
     }
     try {
-      this._state.mobileNightModeStart = localStorage.getItem("homeii_music_flow_mobile_night_start") || "22:00";
+      this._state.mobileNightModeStart = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_night_start")) || "22:00";
     } catch (_) {
     }
     try {
-      this._state.mobileNightModeEnd = localStorage.getItem("homeii_music_flow_mobile_night_end") || "06:00";
+      this._state.mobileNightModeEnd = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_night_end")) || "06:00";
     } catch (_) {
     }
     try {
-      this._state.mobileNightModeDays = this._normalizeNightModeDays(localStorage.getItem("homeii_music_flow_mobile_night_days"));
+      this._state.mobileNightModeDays = this._normalizeNightModeDays(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_night_days")));
     } catch (_) {
     }
     try {
-      this._state.mobileSleepTimerEndsAt = Number(localStorage.getItem("homeii_music_flow_mobile_sleep_timer_at") || 0) || 0;
+      this._state.mobileSleepTimerEndsAt = Number(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_sleep_timer_at")) || 0) || 0;
     } catch (_) {
     }
     try {
-      this._state.mobileSleepTimerPlayer = localStorage.getItem("homeii_music_flow_mobile_sleep_timer_player") || "";
+      this._state.mobileSleepTimerPlayer = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_sleep_timer_player")) || "";
     } catch (_) {
     }
     try {
-      this._state.mobileSleepTimerOrigin = localStorage.getItem("homeii_music_flow_mobile_sleep_timer_origin") || "";
+      this._state.mobileSleepTimerOrigin = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_sleep_timer_origin")) || "";
     } catch (_) {
     }
     try {
-      this._state.mobileStartTimerEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_start_timer_enabled") ?? "false");
+      this._state.mobileStartTimerEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_start_timer_enabled")) ?? "false");
     } catch (_) {
     }
     try {
-      this._state.mobileStartTimerTime = this._normalizeClockTime(localStorage.getItem("homeii_music_flow_mobile_start_timer_time") || "07:00", "07:00");
+      this._state.mobileStartTimerTime = this._normalizeClockTime(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_start_timer_time")) || "07:00", "07:00");
     } catch (_) {
     }
     try {
-      this._state.mobileStartTimerPlayer = localStorage.getItem("homeii_music_flow_mobile_start_timer_player") || "";
+      this._state.mobileStartTimerPlayer = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_start_timer_player")) || "";
     } catch (_) {
     }
     try {
-      this._state.mobileStartTimerPlaylist = localStorage.getItem("homeii_music_flow_mobile_start_timer_playlist") || "";
+      this._state.mobileStartTimerPlaylist = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_start_timer_playlist")) || "";
     } catch (_) {
     }
     try {
-      this._state.mobileStartTimerPlaylistName = localStorage.getItem("homeii_music_flow_mobile_start_timer_playlist_name") || "";
+      this._state.mobileStartTimerPlaylistName = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_start_timer_playlist_name")) || "";
     } catch (_) {
     }
     try {
-      this._state.mobileStartTimerVolume = Math.max(0, Math.min(100, Number(localStorage.getItem("homeii_music_flow_mobile_start_timer_volume") || 35) || 35));
+      this._state.mobileStartTimerVolume = Math.max(0, Math.min(100, Number(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_start_timer_volume")) || 35) || 35));
     } catch (_) {
     }
     try {
-      this._state.mobileStartTimerDays = this._normalizeNightModeDays(localStorage.getItem("homeii_music_flow_mobile_start_timer_days"));
+      this._state.mobileStartTimerDays = this._normalizeNightModeDays(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_start_timer_days")));
     } catch (_) {
     }
     try {
-      this._state.mobileStartTimerLastRunKey = localStorage.getItem("homeii_music_flow_mobile_start_timer_last_run") || "";
+      this._state.mobileStartTimerLastRunKey = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_start_timer_last_run")) || "";
     } catch (_) {
     }
     try {
-      this._state.mobileSchedulesTab = localStorage.getItem("homeii_music_flow_mobile_schedules_tab") || "timers";
+      this._state.mobileSchedulesTab = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_schedules_tab")) || "timers";
     } catch (_) {
     }
     try {
-      const schedules = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_start_schedules") || "[]");
+      const schedules = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_start_schedules")) || "[]");
       if (Array.isArray(schedules)) this._state.mobileStartSchedules = schedules.map((schedule, index) => this._normalizeScheduledStartSchedule(schedule, index));
     } catch (_) {
     }
@@ -25608,126 +25674,126 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._state.mobileStartScheduleEditId = "schedule_legacy";
     }
     try {
-      this._state.mobileLyricsSyncEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_lyrics_sync") ?? "true");
+      this._state.mobileLyricsSyncEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_lyrics_sync")) ?? "true");
     } catch (_) {
     }
     try {
-      this._state.mobileLyricsSyncOffsetMs = Math.max(-1e4, Math.min(1e4, Number(localStorage.getItem("homeii_music_flow_mobile_lyrics_offset_ms") || 0) || 0));
+      this._state.mobileLyricsSyncOffsetMs = Math.max(-1e4, Math.min(1e4, Number(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_lyrics_offset_ms")) || 0) || 0));
     } catch (_) {
     }
     try {
-      this._state.mobileLyricsFontScale = Math.max(0.75, Math.min(1.4, Number(localStorage.getItem("homeii_music_flow_mobile_lyrics_font_scale") || 1) || 1));
+      this._state.mobileLyricsFontScale = Math.max(0.75, Math.min(1.4, Number(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_lyrics_font_scale")) || 1) || 1));
     } catch (_) {
     }
     try {
-      this._state.mobileCompactMode = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_compact_mode") ?? "false");
+      this._state.mobileCompactMode = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_compact_mode")) ?? "false");
     } catch (_) {
     }
     try {
-      this._state.mobileCompactWidgetMode = HomeiiMobileSettingsFoundation.normalizeMobileCompactWidgetMode(localStorage.getItem("homeii_music_flow_mobile_compact_widget_mode") || "auto");
+      this._state.mobileCompactWidgetMode = HomeiiMobileSettingsFoundation.normalizeMobileCompactWidgetMode(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_compact_widget_mode")) || "auto");
     } catch (_) {
     }
     try {
-      this._state.mobileCompactEdgeToEdge = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_compact_edge_to_edge") ?? "true");
+      this._state.mobileCompactEdgeToEdge = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_compact_edge_to_edge")) ?? "true");
     } catch (_) {
     }
     try {
-      this._state.mobileLayoutMode = HomeiiMobileSettingsFoundation.normalizeMobileLayoutMode(localStorage.getItem("homeii_music_flow_mobile_layout_mode") || "auto");
+      this._state.mobileLayoutMode = HomeiiMobileSettingsFoundation.normalizeMobileLayoutMode(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_layout_mode")) || "auto");
     } catch (_) {
     }
     try {
       this._state.mobileLibraryDefaultLayout = HomeiiMobileSettingsFoundation.normalizeMobileLibraryDefaultLayout(
-        localStorage.getItem("homeii_music_flow_mobile_library_default_layout") || "",
+        localStorage.getItem(this._lsKey("homeii_music_flow_mobile_library_default_layout")) || "",
         this._defaultMobileMediaLayout()
       );
       this._state.mobileMediaLayout = this._state.mobileLibraryDefaultLayout;
     } catch (_) {
     }
     try {
-      this._state.mobileShowUpNext = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_show_up_next") ?? "false");
+      this._state.mobileShowUpNext = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_show_up_next")) ?? "false");
     } catch (_) {
     }
     try {
-      const rawHistory = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_recent_history") || "[]");
+      const rawHistory = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_recent_history")) || "[]");
       if (Array.isArray(rawHistory)) this._state.mobileRecentHistory = rawHistory.slice(0, 10);
     } catch (_) {
     }
     try {
-      this._state.mobileLibrarySort = localStorage.getItem("homeii_music_flow_mobile_library_sort") || "name_asc";
+      this._state.mobileLibrarySort = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_library_sort")) || "name_asc";
     } catch (_) {
     }
     try {
-      this._state.mobileFooterSearchEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_footer_search") ?? "false");
+      this._state.mobileFooterSearchEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_footer_search")) ?? "false");
     } catch (_) {
     }
     try {
-      this._state.mobileStudioShortcutEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_studio_shortcut") ?? "true");
+      this._state.mobileStudioShortcutEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_studio_shortcut")) ?? "true");
     } catch (_) {
     }
     try {
-      this._state.mobileFooterMode = localStorage.getItem("homeii_music_flow_mobile_footer_mode") || "both";
+      this._state.mobileFooterMode = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_footer_mode")) || "both";
     } catch (_) {
     }
     try {
-      this._state.mobileHomeShortcutEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_home_shortcut") ?? "false");
+      this._state.mobileHomeShortcutEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_home_shortcut")) ?? "false");
     } catch (_) {
     }
     try {
-      this._state.mobileHomeShortcutPath = localStorage.getItem("homeii_music_flow_mobile_home_shortcut_path") || "/";
+      this._state.mobileHomeShortcutPath = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_home_shortcut_path")) || "/";
     } catch (_) {
     }
     try {
-      this._state.mobileVolumeMode = localStorage.getItem("homeii_music_flow_mobile_volume_mode") || "button";
+      this._state.mobileVolumeMode = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_volume_mode")) || "button";
     } catch (_) {
     }
     try {
-      this._state.mobileVolumeStepButtonsEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_volume_step_buttons") ?? "false");
+      this._state.mobileVolumeStepButtonsEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_volume_step_buttons")) ?? "false");
     } catch (_) {
     }
     try {
-      this._state.mobileVolumeStepPercent = HomeiiMobileSettingsFoundation.clampMobileVolumeStepPercent(localStorage.getItem("homeii_music_flow_mobile_volume_step_percent") || 5);
+      this._state.mobileVolumeStepPercent = HomeiiMobileSettingsFoundation.clampMobileVolumeStepPercent(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_volume_step_percent")) || 5);
     } catch (_) {
     }
     try {
-      this._state.mobileMicMode = localStorage.getItem("homeii_music_flow_mobile_mic_mode") || "smart";
+      this._state.mobileMicMode = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_mic_mode")) || "smart";
     } catch (_) {
     }
     try {
-      this._state.voiceAssistantEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_voice_assistant_enabled") ?? "false");
+      this._state.voiceAssistantEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_voice_assistant_enabled")) ?? "false");
     } catch {
     }
     try {
-      this._state.voiceAssistantMode = HomeiiMobileSettingsFoundation.normalizeVoiceAssistantMode(localStorage.getItem("homeii_music_flow_voice_assistant_mode") || "hybrid");
+      this._state.voiceAssistantMode = HomeiiMobileSettingsFoundation.normalizeVoiceAssistantMode(localStorage.getItem(this._lsKey("homeii_music_flow_voice_assistant_mode")) || "hybrid");
     } catch {
     }
     try {
-      this._state.voiceAssistantAgentId = localStorage.getItem("homeii_music_flow_voice_assistant_agent_id") || "";
+      this._state.voiceAssistantAgentId = localStorage.getItem(this._lsKey("homeii_music_flow_voice_assistant_agent_id")) || "";
     } catch {
     }
     try {
-      this._state.voiceAssistantSpeakFeedback = JSON.parse(localStorage.getItem("homeii_music_flow_voice_assistant_speak_feedback") ?? "false");
+      this._state.voiceAssistantSpeakFeedback = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_voice_assistant_speak_feedback")) ?? "false");
     } catch {
     }
     try {
-      this._state.mobileSwipeMode = localStorage.getItem("homeii_music_flow_mobile_swipe_mode") || "browse";
+      this._state.mobileSwipeMode = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_swipe_mode")) || "browse";
     } catch (_) {
     }
     try {
-      this._state.mobileRadioBrowserCountry = localStorage.getItem("homeii_music_flow_mobile_radio_country") || "all";
+      this._state.mobileRadioBrowserCountry = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_radio_country")) || "all";
     } catch (_) {
     }
     try {
-      const rawTabs = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_library_tabs") || "[]");
+      const rawTabs = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_library_tabs")) || "[]");
       if (Array.isArray(rawTabs) && rawTabs.length) this._state.mobileLibraryTabs = rawTabs;
     } catch (_) {
     }
     try {
-      const rawMainBar = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_main_bar_items") || "[]");
+      const rawMainBar = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_main_bar_items")) || "[]");
       if (Array.isArray(rawMainBar) && rawMainBar.length) this._state.mobileMainBarItems = rawMainBar;
     } catch (_) {
     }
     try {
-      const storedQuickActions = localStorage.getItem("homeii_music_flow_mobile_quick_actions");
+      const storedQuickActions = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_quick_actions"));
       if (storedQuickActions !== null) {
         const rawQuickActions = JSON.parse(storedQuickActions);
         if (Array.isArray(rawQuickActions)) this._state.mobileQuickActions = rawQuickActions;
@@ -25735,150 +25801,150 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     } catch (_) {
     }
     try {
-      const rawPinned = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_pinned_players") || "[]");
+      const rawPinned = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_pinned_players")) || "[]");
       if (Array.isArray(rawPinned)) this._state.pinnedPlayerEntities = rawPinned.filter(Boolean);
     } catch (_) {
     }
     if (!Array.isArray(this._state.pinnedPlayerEntities) || !this._state.pinnedPlayerEntities.length) {
       try {
-        const legacyPinned = localStorage.getItem("homeii_music_flow_mobile_pinned_player") || "";
+        const legacyPinned = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_pinned_player")) || "";
         this._state.pinnedPlayerEntities = legacyPinned ? [legacyPinned] : [];
       } catch (_) {
       }
     }
     try {
-      this._state.mobileLikedMode = localStorage.getItem("homeii_music_flow_mobile_liked_mode") || "ma";
+      this._state.mobileLikedMode = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_liked_mode")) || "ma";
     } catch (_) {
     }
     try {
-      const presets = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_announcement_presets") || "[]");
+      const presets = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_announcement_presets")) || "[]");
       if (Array.isArray(presets) && presets.length) {
         this._state.mobileAnnouncementPresets = this._isDefaultAnnouncementPresetSet(presets) ? this._defaultAnnouncementPresets() : presets.slice(0, 3);
       }
     } catch (_) {
     }
     try {
-      const announcementVolume = Number(localStorage.getItem("homeii_music_flow_mobile_announcement_volume"));
+      const announcementVolume = Number(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_announcement_volume")));
       if (Number.isFinite(announcementVolume)) this._state.mobileAnnouncementVolume = Math.max(20, Math.min(50, announcementVolume));
     } catch (_) {
     }
     try {
-      this._state.mobileAnnouncementTtsEntity = localStorage.getItem("homeii_music_flow_mobile_announcement_tts_entity") || this._config?.announcement_tts_entity || "";
+      this._state.mobileAnnouncementTtsEntity = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_announcement_tts_entity")) || this._config?.announcement_tts_entity || "";
     } catch (_) {
     }
     try {
-      this._state.mobileAnnouncementTtsLanguage = this._normalizeAnnouncementLanguage(localStorage.getItem("homeii_music_flow_mobile_announcement_tts_language") || this._config?.announcement_tts_language || "auto");
+      this._state.mobileAnnouncementTtsLanguage = this._normalizeAnnouncementLanguage(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_announcement_tts_language")) || this._config?.announcement_tts_language || "auto");
     } catch (_) {
     }
     try {
-      this._state.ambientLightEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_ambient_light_enabled") ?? "false");
+      this._state.ambientLightEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_ambient_light_enabled")) ?? "false");
     } catch {
     }
     try {
-      this._state.ambientLightEntities = HomeiiMobileSettingsFoundation.normalizeEntityList(JSON.parse(localStorage.getItem("homeii_music_flow_ambient_light_entities") || "[]"));
+      this._state.ambientLightEntities = HomeiiMobileSettingsFoundation.normalizeEntityList(JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_ambient_light_entities")) || "[]"));
     } catch {
     }
     try {
-      this._state.ambientLightPlayerMap = HomeiiMobileSettingsFoundation.normalizeStringArray(JSON.parse(localStorage.getItem("homeii_music_flow_ambient_light_player_map") || "[]"));
+      this._state.ambientLightPlayerMap = HomeiiMobileSettingsFoundation.normalizeStringArray(JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_ambient_light_player_map")) || "[]"));
     } catch {
     }
     try {
-      this._state.ambientLightBrightness = HomeiiMobileSettingsFoundation.clampPercent(localStorage.getItem("homeii_music_flow_ambient_light_brightness") || 35, 35, { min: 1, max: 100 });
+      this._state.ambientLightBrightness = HomeiiMobileSettingsFoundation.clampPercent(localStorage.getItem(this._lsKey("homeii_music_flow_ambient_light_brightness")) || 35, 35, { min: 1, max: 100 });
     } catch {
     }
     try {
-      this._state.ambientLightTransition = HomeiiMobileSettingsFoundation.clampSeconds(localStorage.getItem("homeii_music_flow_ambient_light_transition") || 3, 3, { min: 0, max: 120 });
+      this._state.ambientLightTransition = HomeiiMobileSettingsFoundation.clampSeconds(localStorage.getItem(this._lsKey("homeii_music_flow_ambient_light_transition")) || 3, 3, { min: 0, max: 120 });
     } catch {
     }
     try {
-      this._state.ambientLightCooldown = HomeiiMobileSettingsFoundation.clampSeconds(localStorage.getItem("homeii_music_flow_ambient_light_cooldown") || 8, 8, { min: 0, max: 120 });
+      this._state.ambientLightCooldown = HomeiiMobileSettingsFoundation.clampSeconds(localStorage.getItem(this._lsKey("homeii_music_flow_ambient_light_cooldown")) || 8, 8, { min: 0, max: 120 });
     } catch {
     }
     try {
-      this._state.screensaverEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_screensaver_enabled") ?? "false");
+      this._state.screensaverEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_enabled")) ?? "false");
     } catch {
     }
     try {
-      this._state.screensaverControlsEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_screensaver_controls_enabled") ?? "false");
+      this._state.screensaverControlsEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_controls_enabled")) ?? "false");
     } catch {
     }
     try {
-      const storedScreensaverButtons = localStorage.getItem("homeii_music_flow_screensaver_control_buttons");
+      const storedScreensaverButtons = localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_control_buttons"));
       if (storedScreensaverButtons !== null) {
         this._state.screensaverControlButtons = HomeiiMobileSettingsFoundation.normalizeScreensaverControlButtons(JSON.parse(storedScreensaverButtons), ["previous", "next"]);
       }
     } catch {
     }
     try {
-      this._state.screensaverClockMode = HomeiiMobileSettingsFoundation.normalizeScreensaverClockMode(localStorage.getItem("homeii_music_flow_screensaver_clock_mode") || "digital");
+      this._state.screensaverClockMode = HomeiiMobileSettingsFoundation.normalizeScreensaverClockMode(localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_clock_mode")) || "digital");
     } catch {
     }
     try {
-      this._state.screensaverTimeoutSeconds = HomeiiMobileSettingsFoundation.clampSeconds(localStorage.getItem("homeii_music_flow_screensaver_timeout_seconds") || 90, 90, { min: 15, max: 3600 });
+      this._state.screensaverTimeoutSeconds = HomeiiMobileSettingsFoundation.clampSeconds(localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_timeout_seconds")) || 90, 90, { min: 15, max: 3600 });
     } catch {
     }
     try {
-      this._state.screensaverMessage = localStorage.getItem("homeii_music_flow_screensaver_message") || "";
+      this._state.screensaverMessage = localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_message")) || "";
     } catch {
     }
     try {
-      this._state.screensaverClockSize = HomeiiMobileSettingsFoundation.clampNumber(localStorage.getItem("homeii_music_flow_screensaver_clock_size") || 1, 1, { min: 0.75, max: 1.45 });
+      this._state.screensaverClockSize = HomeiiMobileSettingsFoundation.clampNumber(localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_clock_size")) || 1, 1, { min: 0.75, max: 1.45 });
     } catch {
     }
     try {
-      this._state.screensaverClockX = HomeiiMobileSettingsFoundation.clampNumber(localStorage.getItem("homeii_music_flow_screensaver_clock_x") || 82, 82, { min: 8, max: 92 });
+      this._state.screensaverClockX = HomeiiMobileSettingsFoundation.clampNumber(localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_clock_x")) || 82, 82, { min: 8, max: 92 });
     } catch {
     }
     try {
-      this._state.screensaverClockY = HomeiiMobileSettingsFoundation.clampNumber(localStorage.getItem("homeii_music_flow_screensaver_clock_y") || 24, 24, { min: 8, max: 70 });
+      this._state.screensaverClockY = HomeiiMobileSettingsFoundation.clampNumber(localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_clock_y")) || 24, 24, { min: 8, max: 70 });
     } catch {
     }
     try {
-      this._state.powerButtonEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_power_button_enabled") ?? "false");
+      this._state.powerButtonEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_power_button_enabled")) ?? "false");
     } catch {
     }
     try {
-      this._state.powerButtonName = localStorage.getItem("homeii_music_flow_power_button_name") || "";
+      this._state.powerButtonName = localStorage.getItem(this._lsKey("homeii_music_flow_power_button_name")) || "";
     } catch {
     }
     try {
-      this._state.powerButtonIcon = HomeiiMobileSettingsFoundation.normalizeAuxiliaryButtonIcon(localStorage.getItem("homeii_music_flow_power_button_icon") || "power");
+      this._state.powerButtonIcon = HomeiiMobileSettingsFoundation.normalizeAuxiliaryButtonIcon(localStorage.getItem(this._lsKey("homeii_music_flow_power_button_icon")) || "power");
     } catch {
     }
     try {
-      this._state.powerButtonAction = HomeiiMobileSettingsFoundation.normalizePowerButtonAction(localStorage.getItem("homeii_music_flow_power_button_action") || "stop_player");
+      this._state.powerButtonAction = HomeiiMobileSettingsFoundation.normalizePowerButtonAction(localStorage.getItem(this._lsKey("homeii_music_flow_power_button_action")) || "stop_player");
     } catch {
     }
     try {
-      this._state.powerButtonEntity = localStorage.getItem("homeii_music_flow_power_button_entity") || "";
+      this._state.powerButtonEntity = localStorage.getItem(this._lsKey("homeii_music_flow_power_button_entity")) || "";
     } catch {
     }
     try {
-      this._state.auxiliaryButtons = HomeiiMobileSettingsFoundation.normalizeAuxiliaryButtons(JSON.parse(localStorage.getItem("homeii_music_flow_auxiliary_buttons") || "{}")).slice(1);
+      this._state.auxiliaryButtons = HomeiiMobileSettingsFoundation.normalizeAuxiliaryButtons(JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_auxiliary_buttons")) || "{}")).slice(1);
     } catch {
     }
     try {
-      this._state.discoveryModeEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_discovery_mode_enabled") ?? "true");
+      this._state.discoveryModeEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_discovery_mode_enabled")) ?? "true");
     } catch {
     }
     try {
-      this._state.discoveryCategoryKey = localStorage.getItem("homeii_music_flow_discovery_category_key") || "pop";
+      this._state.discoveryCategoryKey = localStorage.getItem(this._lsKey("homeii_music_flow_discovery_category_key")) || "pop";
     } catch {
     }
     try {
-      this._state.discoveryGenreKey = localStorage.getItem("homeii_music_flow_discovery_genre_key") || "all";
+      this._state.discoveryGenreKey = localStorage.getItem(this._lsKey("homeii_music_flow_discovery_genre_key")) || "all";
     } catch {
     }
     try {
-      this._state.excludedPlayerEntities = HomeiiMobileSettingsFoundation.normalizePinnedPlayerEntityList(JSON.parse(localStorage.getItem("homeii_music_flow_excluded_players") || "[]"));
+      this._state.excludedPlayerEntities = HomeiiMobileSettingsFoundation.normalizePinnedPlayerEntityList(JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_excluded_players")) || "[]"));
     } catch {
     }
     try {
-      this._state.playerSortMode = HomeiiMobileSettingsFoundation.normalizePlayerSortMode(localStorage.getItem("homeii_music_flow_player_sort_mode") || "default");
+      this._state.playerSortMode = HomeiiMobileSettingsFoundation.normalizePlayerSortMode(localStorage.getItem(this._lsKey("homeii_music_flow_player_sort_mode")) || "default");
     } catch {
     }
     try {
-      this._state.playerOrderEntities = HomeiiMobileSettingsFoundation.normalizePinnedPlayerEntityList(JSON.parse(localStorage.getItem("homeii_music_flow_player_order") || "[]"));
+      this._state.playerOrderEntities = HomeiiMobileSettingsFoundation.normalizePinnedPlayerEntityList(JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_player_order")) || "[]"));
     } catch {
     }
   }
@@ -26010,6 +26076,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       ...config,
       settings_source: HomeiiStateFoundation.normalizeSettingsSource(config?.settings_source)
     });
+    this._loadStoredState();
     this._applyConfiguredMobileSettings();
     this._syncScreensaverClockVars();
     if (this._state.screensaverOpen) this._syncScreensaverUi();
@@ -27531,59 +27598,59 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
   _writeSchedulesToLocalStorage() {
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_enabled", JSON.stringify(!!this._state.mobileStartTimerEnabled));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_enabled"), JSON.stringify(!!this._state.mobileStartTimerEnabled));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_time", this._normalizeClockTime(this._state.mobileStartTimerTime || "07:00", "07:00"));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_time"), this._normalizeClockTime(this._state.mobileStartTimerTime || "07:00", "07:00"));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_player", this._state.mobileStartTimerPlayer || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_player"), this._state.mobileStartTimerPlayer || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_playlist", this._state.mobileStartTimerPlaylist || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_playlist"), this._state.mobileStartTimerPlaylist || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_playlist_name", this._state.mobileStartTimerPlaylistName || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_playlist_name"), this._state.mobileStartTimerPlaylistName || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_volume", String(Math.max(0, Math.min(100, Number(this._state.mobileStartTimerVolume || 35) || 35))));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_volume"), String(Math.max(0, Math.min(100, Number(this._state.mobileStartTimerVolume || 35) || 35))));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_days", JSON.stringify(this._scheduledStartDays()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_days"), JSON.stringify(this._scheduledStartDays()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_last_run", this._state.mobileStartTimerLastRunKey || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_last_run"), this._state.mobileStartTimerLastRunKey || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_schedules", JSON.stringify(this._scheduledStartSchedules()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_schedules"), JSON.stringify(this._scheduledStartSchedules()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_schedules_tab", this._state.mobileSchedulesTab || "timers");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_schedules_tab"), this._state.mobileSchedulesTab || "timers");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_night_mode", this._mobileNightMode());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_mode"), this._mobileNightMode());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_night_start", this._normalizeClockTime(this._state.mobileNightModeStart || "22:00", "22:00"));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_start"), this._normalizeClockTime(this._state.mobileNightModeStart || "22:00", "22:00"));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_night_end", this._normalizeClockTime(this._state.mobileNightModeEnd || "06:00", "06:00"));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_end"), this._normalizeClockTime(this._state.mobileNightModeEnd || "06:00", "06:00"));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_night_days", JSON.stringify(this._nightModeDays()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_days"), JSON.stringify(this._nightModeDays()));
     } catch (_) {
     }
   }
@@ -27633,195 +27700,195 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const storedBackgroundMotionMode = ["off", "subtle", "strong", "extreme"].includes(String(this._state.mobileBackgroundMotionMode || "subtle").toLowerCase()) ? String(this._state.mobileBackgroundMotionMode || "subtle").toLowerCase() : "subtle";
     const storedPerformanceProfile = HomeiiMobileSettingsFoundation.normalizePerformanceProfile(this._state.performanceProfile, this._state.performanceMode);
     try {
-      localStorage.setItem("homeii_music_flow_mobile_custom_color", this._state.mobileCustomColor || "#f5a623");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_custom_color"), this._state.mobileCustomColor || "#f5a623");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_performance_profile", storedPerformanceProfile);
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_performance_profile"), storedPerformanceProfile);
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_performance_mode", JSON.stringify(!!this._state.performanceMode));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_performance_mode"), JSON.stringify(!!this._state.performanceMode));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_dynamic_theme_mode", storedDynamicThemeMode);
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_dynamic_theme_mode"), storedDynamicThemeMode);
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_background_motion_mode", storedBackgroundMotionMode);
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_background_motion_mode"), storedBackgroundMotionMode);
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_custom_text", this._state.mobileCustomTextTone || "light");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_custom_text"), this._state.mobileCustomTextTone || "light");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_font_scale", String(this._state.mobileFontScale || 1));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_font_scale"), String(this._state.mobileFontScale || 1));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_icon_scale", String(this._mobileIconScale()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_icon_scale"), String(this._mobileIconScale()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_night_mode", this._mobileNightMode());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_mode"), this._mobileNightMode());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_night_start", this._normalizeClockTime(this._state.mobileNightModeStart || "22:00", "22:00"));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_start"), this._normalizeClockTime(this._state.mobileNightModeStart || "22:00", "22:00"));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_night_end", this._normalizeClockTime(this._state.mobileNightModeEnd || "06:00", "06:00"));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_end"), this._normalizeClockTime(this._state.mobileNightModeEnd || "06:00", "06:00"));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_night_days", JSON.stringify(this._nightModeDays()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_days"), JSON.stringify(this._nightModeDays()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_sleep_timer_at", String(Number(this._state.mobileSleepTimerEndsAt || 0) || 0));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_sleep_timer_at"), String(Number(this._state.mobileSleepTimerEndsAt || 0) || 0));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_sleep_timer_player", this._state.mobileSleepTimerPlayer || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_sleep_timer_player"), this._state.mobileSleepTimerPlayer || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_sleep_timer_origin", this._state.mobileSleepTimerOrigin || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_sleep_timer_origin"), this._state.mobileSleepTimerOrigin || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_enabled", JSON.stringify(!!this._state.mobileStartTimerEnabled));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_enabled"), JSON.stringify(!!this._state.mobileStartTimerEnabled));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_time", this._normalizeClockTime(this._state.mobileStartTimerTime || "07:00", "07:00"));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_time"), this._normalizeClockTime(this._state.mobileStartTimerTime || "07:00", "07:00"));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_player", this._state.mobileStartTimerPlayer || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_player"), this._state.mobileStartTimerPlayer || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_playlist", this._state.mobileStartTimerPlaylist || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_playlist"), this._state.mobileStartTimerPlaylist || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_playlist_name", this._state.mobileStartTimerPlaylistName || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_playlist_name"), this._state.mobileStartTimerPlaylistName || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_volume", String(Math.max(0, Math.min(100, Number(this._state.mobileStartTimerVolume || 35) || 35))));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_volume"), String(Math.max(0, Math.min(100, Number(this._state.mobileStartTimerVolume || 35) || 35))));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_days", JSON.stringify(this._scheduledStartDays()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_days"), JSON.stringify(this._scheduledStartDays()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_last_run", this._state.mobileStartTimerLastRunKey || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_last_run"), this._state.mobileStartTimerLastRunKey || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_schedules", JSON.stringify(this._scheduledStartSchedules()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_schedules"), JSON.stringify(this._scheduledStartSchedules()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_schedules_tab", this._state.mobileSchedulesTab || "timers");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_schedules_tab"), this._state.mobileSchedulesTab || "timers");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_lyrics_sync", JSON.stringify(this._state.mobileLyricsSyncEnabled !== false));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_lyrics_sync"), JSON.stringify(this._state.mobileLyricsSyncEnabled !== false));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_lyrics_offset_ms", String(this._lyricsSyncOffsetMs()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_lyrics_offset_ms"), String(this._lyricsSyncOffsetMs()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_lyrics_font_scale", String(this._lyricsFontScale()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_lyrics_font_scale"), String(this._lyricsFontScale()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_compact_mode", JSON.stringify(!!this._state.mobileCompactMode));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_compact_mode"), JSON.stringify(!!this._state.mobileCompactMode));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_compact_widget_mode", this._mobileCompactWidgetMode());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_compact_widget_mode"), this._mobileCompactWidgetMode());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_compact_edge_to_edge", JSON.stringify(this._mobileCompactEdgeToEdgeEnabled()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_compact_edge_to_edge"), JSON.stringify(this._mobileCompactEdgeToEdgeEnabled()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_layout_mode", this._mobileLayoutMode());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_layout_mode"), this._mobileLayoutMode());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_library_default_layout", this._defaultMobileMediaLayout());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_library_default_layout"), this._defaultMobileMediaLayout());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_show_up_next", JSON.stringify(this._mobileShowUpNextEnabled()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_show_up_next"), JSON.stringify(this._mobileShowUpNextEnabled()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_footer_search", JSON.stringify(!!this._state.mobileFooterSearchEnabled));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_footer_search"), JSON.stringify(!!this._state.mobileFooterSearchEnabled));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_studio_shortcut", JSON.stringify(this._mobileStudioShortcutEnabled()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_studio_shortcut"), JSON.stringify(this._mobileStudioShortcutEnabled()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_footer_mode", this._state.mobileFooterMode || "both");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_footer_mode"), this._state.mobileFooterMode || "both");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_home_shortcut", JSON.stringify(!!this._state.mobileHomeShortcutEnabled));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_home_shortcut"), JSON.stringify(!!this._state.mobileHomeShortcutEnabled));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_home_shortcut_path", this._mobileHomeShortcutPath());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_home_shortcut_path"), this._mobileHomeShortcutPath());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_volume_mode", this._mobileVolumeMode());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_volume_mode"), this._mobileVolumeMode());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_volume_step_buttons", JSON.stringify(this._mobileVolumeStepButtonsEnabled()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_volume_step_buttons"), JSON.stringify(this._mobileVolumeStepButtonsEnabled()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_volume_step_percent", String(this._mobileVolumeStepPercent()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_volume_step_percent"), String(this._mobileVolumeStepPercent()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_mic_mode", this._mobileMicMode());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_mic_mode"), this._mobileMicMode());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_voice_assistant_enabled", JSON.stringify(this._voiceAssistantEnabled()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_voice_assistant_enabled"), JSON.stringify(this._voiceAssistantEnabled()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_voice_assistant_mode", this._voiceAssistantMode());
+      localStorage.setItem(this._lsKey("homeii_music_flow_voice_assistant_mode"), this._voiceAssistantMode());
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_voice_assistant_agent_id", this._voiceAssistantAgentId());
+      localStorage.setItem(this._lsKey("homeii_music_flow_voice_assistant_agent_id"), this._voiceAssistantAgentId());
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_voice_assistant_speak_feedback", JSON.stringify(this._voiceAssistantSpeakFeedbackEnabled()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_voice_assistant_speak_feedback"), JSON.stringify(this._voiceAssistantSpeakFeedbackEnabled()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_library_tabs", JSON.stringify(this._mobileLibraryTabs()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_library_tabs"), JSON.stringify(this._mobileLibraryTabs()));
     } catch (_) {
     }
     try {
@@ -27830,155 +27897,155 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         hidePlayers: false,
         fallbackItems: this._defaultMobileMainBarItems()
       });
-      localStorage.setItem("homeii_music_flow_mobile_main_bar_items", JSON.stringify(storedMainBarItems));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_main_bar_items"), JSON.stringify(storedMainBarItems));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_quick_actions", JSON.stringify(this._mobileQuickActions()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_quick_actions"), JSON.stringify(this._mobileQuickActions()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_liked_mode", this._state.mobileLikedMode || "ma");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_liked_mode"), this._state.mobileLikedMode || "ma");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_swipe_mode", this._state.mobileSwipeMode || "play");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_swipe_mode"), this._state.mobileSwipeMode || "play");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_radio_country", this._mobileRadioBrowserCountry());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_radio_country"), this._mobileRadioBrowserCountry());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_announcement_presets", JSON.stringify(this._state.mobileAnnouncementPresets || []));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_announcement_presets"), JSON.stringify(this._state.mobileAnnouncementPresets || []));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_announcement_volume", String(this._announcementVolumePct()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_announcement_volume"), String(this._announcementVolumePct()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_announcement_tts_entity", this._state.mobileAnnouncementTtsEntity || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_announcement_tts_entity"), this._state.mobileAnnouncementTtsEntity || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_announcement_tts_language", this._announcementLanguageSetting());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_announcement_tts_language"), this._announcementLanguageSetting());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_ambient_light_enabled", JSON.stringify(!!this._state.ambientLightEnabled));
+      localStorage.setItem(this._lsKey("homeii_music_flow_ambient_light_enabled"), JSON.stringify(!!this._state.ambientLightEnabled));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_ambient_light_entities", JSON.stringify(this._ambientLightEntities()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_ambient_light_entities"), JSON.stringify(this._ambientLightEntities()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_ambient_light_player_map", JSON.stringify(this._ambientLightPlayerMap()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_ambient_light_player_map"), JSON.stringify(this._ambientLightPlayerMap()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_ambient_light_brightness", String(this._ambientLightBrightness()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_ambient_light_brightness"), String(this._ambientLightBrightness()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_ambient_light_transition", String(this._ambientLightTransition()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_ambient_light_transition"), String(this._ambientLightTransition()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_ambient_light_cooldown", String(this._ambientLightCooldown()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_ambient_light_cooldown"), String(this._ambientLightCooldown()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_screensaver_enabled", JSON.stringify(!!this._state.screensaverEnabled));
+      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_enabled"), JSON.stringify(!!this._state.screensaverEnabled));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_screensaver_controls_enabled", JSON.stringify(!!this._state.screensaverControlsEnabled));
+      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_controls_enabled"), JSON.stringify(!!this._state.screensaverControlsEnabled));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_screensaver_control_buttons", JSON.stringify(this._screensaverControlButtons({ includeDisabled: true })));
+      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_control_buttons"), JSON.stringify(this._screensaverControlButtons({ includeDisabled: true })));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_screensaver_clock_mode", this._screensaverClockMode());
+      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_clock_mode"), this._screensaverClockMode());
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_screensaver_timeout_seconds", String(this._screensaverTimeoutSeconds()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_timeout_seconds"), String(this._screensaverTimeoutSeconds()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_screensaver_message", this._screensaverMessage());
+      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_message"), this._screensaverMessage());
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_screensaver_clock_size", String(this._screensaverClockSize()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_clock_size"), String(this._screensaverClockSize()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_screensaver_clock_x", String(this._screensaverClockX()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_clock_x"), String(this._screensaverClockX()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_screensaver_clock_y", String(this._screensaverClockY()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_clock_y"), String(this._screensaverClockY()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_power_button_enabled", JSON.stringify(!!this._state.powerButtonEnabled));
+      localStorage.setItem(this._lsKey("homeii_music_flow_power_button_enabled"), JSON.stringify(!!this._state.powerButtonEnabled));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_power_button_name", this._state.powerButtonName || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_power_button_name"), this._state.powerButtonName || "");
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_power_button_icon", this._powerButtonIcon());
+      localStorage.setItem(this._lsKey("homeii_music_flow_power_button_icon"), this._powerButtonIcon());
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_power_button_action", this._powerButtonAction());
+      localStorage.setItem(this._lsKey("homeii_music_flow_power_button_action"), this._powerButtonAction());
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_power_button_entity", this._powerButtonEntity());
+      localStorage.setItem(this._lsKey("homeii_music_flow_power_button_entity"), this._powerButtonEntity());
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_auxiliary_buttons", JSON.stringify(this._auxiliaryButtonsConfigPayload()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_auxiliary_buttons"), JSON.stringify(this._auxiliaryButtonsConfigPayload()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_discovery_mode_enabled", JSON.stringify(this._discoveryModeEnabled()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_discovery_mode_enabled"), JSON.stringify(this._discoveryModeEnabled()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_discovery_category_key", this._state.discoveryCategoryKey || "pop");
+      localStorage.setItem(this._lsKey("homeii_music_flow_discovery_category_key"), this._state.discoveryCategoryKey || "pop");
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_discovery_genre_key", this._state.discoveryGenreKey || "all");
+      localStorage.setItem(this._lsKey("homeii_music_flow_discovery_genre_key"), this._state.discoveryGenreKey || "all");
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_pinned_players", JSON.stringify(this._pinnedPlayerPreferences()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_pinned_players"), JSON.stringify(this._pinnedPlayerPreferences()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_pinned_player", this._pinnedPlayerPreference());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_pinned_player"), this._pinnedPlayerPreference());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_excluded_players", JSON.stringify(this._excludedPlayerPreferences()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_excluded_players"), JSON.stringify(this._excludedPlayerPreferences()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_player_sort_mode", this._playerSortMode());
+      localStorage.setItem(this._lsKey("homeii_music_flow_player_sort_mode"), this._playerSortMode());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_player_order", JSON.stringify(this._playerOrderPreferences()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_player_order"), JSON.stringify(this._playerOrderPreferences()));
     } catch (_) {
     }
   }
@@ -28922,7 +28989,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (exists && !this._isPlayerExcluded(entityId)) return entityId;
     this._state.frontPinnedPlayerEntity = "";
     try {
-      localStorage.removeItem("homeii_music_flow_front_pinned_player");
+      localStorage.removeItem(this._lsKey("homeii_music_flow_front_pinned_player"));
     } catch (_) {
     }
     return "";
@@ -29052,8 +29119,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const nextEntityId = String(entityId || "").trim();
     this._state.frontPinnedPlayerEntity = nextEntityId;
     try {
-      if (nextEntityId) localStorage.setItem("homeii_music_flow_front_pinned_player", nextEntityId);
-      else localStorage.removeItem("homeii_music_flow_front_pinned_player");
+      if (nextEntityId) localStorage.setItem(this._lsKey("homeii_music_flow_front_pinned_player"), nextEntityId);
+      else localStorage.removeItem(this._lsKey("homeii_music_flow_front_pinned_player"));
     } catch (_) {
     }
   }
@@ -52754,7 +52821,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.discoverySessionSeed = Date.now() + Math.floor(Math.random() * 1e5);
     this._state.discoveryExpandedUri = "";
     try {
-      localStorage.setItem("homeii_music_flow_discovery_category_key", this._state.discoveryCategoryKey || "pop");
+      localStorage.setItem(this._lsKey("homeii_music_flow_discovery_category_key"), this._state.discoveryCategoryKey || "pop");
     } catch {
     }
     await this._renderMobileMenu();
@@ -52764,7 +52831,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.discoverySessionSeed = Date.now() + Math.floor(Math.random() * 1e5);
     this._state.discoveryExpandedUri = "";
     try {
-      localStorage.setItem("homeii_music_flow_discovery_genre_key", this._state.discoveryGenreKey || "all");
+      localStorage.setItem(this._lsKey("homeii_music_flow_discovery_genre_key"), this._state.discoveryGenreKey || "all");
     } catch {
     }
     await this._renderMobileMenu();
@@ -56622,7 +56689,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (langBtn?.dataset.settingLang) {
       this._state.lang = langBtn.dataset.settingLang;
       try {
-        localStorage.setItem("homeii_music_flow_lang", this._state.lang);
+        localStorage.setItem(this._lsKey("homeii_music_flow_lang"), this._state.lang);
       } catch (_) {
       }
       this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
@@ -56632,7 +56699,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (themeBtn?.dataset.settingTheme) {
       this._state.cardTheme = themeBtn.dataset.settingTheme;
       try {
-        localStorage.setItem("homeii_music_flow_theme", this._state.cardTheme);
+        localStorage.setItem(this._lsKey("homeii_music_flow_theme"), this._state.cardTheme);
       } catch (_) {
       }
       this._persistMobileAppearance();
@@ -57321,7 +57388,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (e.target?.id === "mobileLanguageSelect") {
       this._state.lang = e.target.value || "en";
       try {
-        localStorage.setItem("homeii_music_flow_lang", this._state.lang);
+        localStorage.setItem(this._lsKey("homeii_music_flow_lang"), this._state.lang);
       } catch (_) {
       }
       this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
@@ -57542,7 +57609,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (e.target?.id === "mobileLibrarySortSelect") {
       this._state.mobileLibrarySort = e.target.value || "name_asc";
       try {
-        localStorage.setItem("homeii_music_flow_mobile_library_sort", this._state.mobileLibrarySort);
+        localStorage.setItem(this._lsKey("homeii_music_flow_mobile_library_sort"), this._state.mobileLibrarySort);
       } catch (_) {
       }
       this._cache.library.clear();

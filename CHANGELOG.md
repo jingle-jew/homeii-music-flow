@@ -5,6 +5,15 @@
 ### Added
 
 - Danish (`da`) localization. Adds `src/localization/da.js` with all 925 keys translated via DeepL using a glossary that locks brand names (HOMEii Flow, Music Assistant, Sendspin, Spotify, etc.) and music-domain terms (Library, Queue, Playlist, etc.) to consistent renderings. Registered in `src/localization/index.js` and exposed as "Dansk" in the language picker. Native Danish speaker review by submitter (Danish household using the card daily for kids' room dashboards).
+- Optional `card_id` YAML key. When set, the card namespaces every browser-storage key (theme, layout, excluded players, pinned player, screensaver settings, etc.) by the chosen id. This lets two or more HOMEii Flow dashboards run in the same browser without overwriting each other's in-card customizations, which previously happened because all settings were stored under shared global keys. Cards that omit `card_id` keep the original shared-state behaviour, so existing setups are unaffected.
+- `src/core/state/card-id.js` foundation module with `normalizeCardId`, `isValidCardId`, and `scopeStorageKey` helpers, covered by `tests/card-id-foundation.test.js` and `tests/card-id-isolation.test.js`.
+- `card_id` validator in `src/config/validators.js` (enforces a 1-64 character slug of letters, digits, `-`, or `_`).
+- `card_id` field in the visual editor (Connection And Behavior section) for both the base and mobile config forms.
+- README section "Running Multiple Dashboards In One Browser" explaining when and how to use `card_id`.
+
+### Migration note
+
+Adding `card_id` to a card that previously had no `card_id` will appear to reset that card's in-card customizations once. The old global values stay in localStorage under their original keys (no data is destroyed) — the card just now reads from card-scoped keys. Reconfigure once via the in-card Settings panel.
 
 ## 5.8.1 - 2026-05-31
 

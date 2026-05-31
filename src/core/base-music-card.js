@@ -3,6 +3,7 @@ export function createHomeiiBaseMusicCard({
   HOMEII_VISIBLE_LANGUAGE_OPTIONS,
   HomeiiStateFoundation,
   HomeiiConfigValidators,
+  HomeiiCardIdFoundation,
   HomeiiResponsiveFoundation,
   HomeiiMediaQueueFoundation,
   HomeiiMediaPresentationFoundation,
@@ -149,7 +150,7 @@ export function createHomeiiBaseMusicCard({
 
       try {
         const configuredLanguage = this._config.language || "en";
-        const storedLanguage = localStorage.getItem("homeii_music_flow_lang");
+        const storedLanguage = localStorage.getItem(this._lsKey("homeii_music_flow_lang"));
         const configControlsLanguage = typeof this._usesVisualSettings === "function" && this._usesVisualSettings();
         const configuredLanguageBase = String(configuredLanguage || "")
           .trim()
@@ -165,12 +166,12 @@ export function createHomeiiBaseMusicCard({
       }
 
       try {
-        this._state.cardTheme = localStorage.getItem("homeii_music_flow_theme") || this._config.theme_mode || "auto";
+        this._state.cardTheme = localStorage.getItem(this._lsKey("homeii_music_flow_theme")) || this._config.theme_mode || "auto";
       } catch (_) {
         this._state.cardTheme = this._config.theme_mode || "auto";
       }
       try {
-        this._state.tracksLayout = localStorage.getItem("homeii_music_flow_tracks_layout") || "list";
+        this._state.tracksLayout = localStorage.getItem(this._lsKey("homeii_music_flow_tracks_layout")) || "list";
       } catch (_) {
         this._state.tracksLayout = "list";
       }
@@ -3637,7 +3638,7 @@ export function createHomeiiBaseMusicCard({
 
     _toggleLanguage() {
       this._state.lang = this._nextLanguageCode();
-      try { localStorage.setItem("homeii_music_flow_lang", this._state.lang); } catch (_) {}
+      try { localStorage.setItem(this._lsKey("homeii_music_flow_lang"), this._state.lang); } catch (_) {}
 
       const currentTheme = this._state.cardTheme;
       const currentPlayer = this._state.selectedPlayer;
@@ -3692,7 +3693,7 @@ export function createHomeiiBaseMusicCard({
     _toggleCardTheme() {
       const effective = this._effectiveTheme();
       this._state.cardTheme = effective === "dark" ? "light" : "dark";
-      try { localStorage.setItem("homeii_music_flow_theme", this._state.cardTheme); } catch (_) {}
+      try { localStorage.setItem(this._lsKey("homeii_music_flow_theme"), this._state.cardTheme); } catch (_) {}
       const card = this.shadowRoot.querySelector(".card");
       if (card) {
         card.classList.remove("theme-dark", "theme-light");
@@ -3712,6 +3713,12 @@ export function createHomeiiBaseMusicCard({
       if (!player) return false;
       const attrs = player.attributes || {};
       return player.state === "playing" || player.state === "paused" || !!attrs.media_title || !!attrs.active_queue;
+    }
+
+    _lsKey(baseKey) {
+      return HomeiiCardIdFoundation
+        ? HomeiiCardIdFoundation.scopeStorageKey(baseKey, this._config?.card_id)
+        : baseKey;
     }
 
     _thisDeviceStorageKey() {
@@ -5068,7 +5075,7 @@ export function createHomeiiBaseMusicCard({
 
     _saveMobileRecentHistory() {
       try {
-        localStorage.setItem("homeii_music_flow_mobile_recent_history", JSON.stringify((this._state.mobileRecentHistory || []).slice(0, 10)));
+        localStorage.setItem(this._lsKey("homeii_music_flow_mobile_recent_history"), JSON.stringify((this._state.mobileRecentHistory || []).slice(0, 10)));
       } catch (_) {}
     }
 
@@ -6269,7 +6276,7 @@ export function createHomeiiBaseMusicCard({
     }
 
     _controlRoomScenesStorageKey() {
-      return "homeii_music_flow_control_room_scenes_v1";
+      return this._lsKey("homeii_music_flow_control_room_scenes_v1");
     }
 
     _normalizeControlRoomScene(scene = {}, index = 0) {
@@ -7800,11 +7807,11 @@ export function createHomeiiBaseMusicCard({
     }
 
     _likedStorageKey() {
-      return "homeii_music_flow_likes_v2";
+      return this._lsKey("homeii_music_flow_likes_v2");
     }
 
     _likedMetaStorageKey() {
-      return "homeii_music_flow_like_meta_v2";
+      return this._lsKey("homeii_music_flow_like_meta_v2");
     }
 
     _loadLikedUris() {
@@ -8796,7 +8803,7 @@ export function createHomeiiBaseMusicCard({
 
     _setTracksLayout(layout) {
       this._state.tracksLayout = layout === "grid" ? "grid" : "list";
-      try { localStorage.setItem("homeii_music_flow_tracks_layout", this._state.tracksLayout); } catch (_) {}
+      try { localStorage.setItem(this._lsKey("homeii_music_flow_tracks_layout"), this._state.tracksLayout); } catch (_) {}
       if (this._state.view === "tracks") this._renderTracks();
     }
 

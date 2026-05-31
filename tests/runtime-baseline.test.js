@@ -347,6 +347,104 @@ describe("runtime baseline", () => {
     expect(card._state.queueItems[0].media_item.name).toBe("Track B");
   });
 
+  it("does not use a not_loaded Music Assistant config entry for service calls", async () => {
+    await import("../src/homeii-music-flow.js?runtime-ma-not-loaded-config-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._hass = {
+      connection: {
+        sendMessagePromise: vi.fn(async () => [
+          { entry_id: "ma-entry", domain: "music_assistant", state: "not_loaded" },
+        ]),
+      },
+    };
+
+    await expect(card._ensureConfigEntryId(true)).resolves.toBe("");
+    expect(card._resolvedConfigEntryId).toBe("ma-entry");
+    expect(card._resolvedConfigEntryState).toBe("not_loaded");
+    expect(card._hasUsableMusicAssistantConfigEntry()).toBe(false);
+  });
+
+  it("loads library items through direct Music Assistant when the HA entry is not loaded", async () => {
+    await import("../src/homeii-music-flow.js?runtime-library-direct-entry-fallback-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._hasDirectMAConnection = vi.fn(() => true);
+    card._callService = vi.fn(async () => {
+      throw new Error("Music Assistant entry not_loaded");
+    });
+    card._callDirectMaCommand = vi.fn(async () => ({
+      items: [{
+        item_id: "playlist-1",
+        provider: "library",
+        media_type: "playlist",
+        name: "Morning Flow",
+      }],
+    }));
+
+    const items = await card._fetchLibrary("playlist", "sort_name", 50, false);
+
+    expect(card._callService).toHaveBeenCalledWith("get_library", {
+      media_type: "playlist",
+      order_by: "sort_name",
+      limit: 50,
+    });
+    expect(card._callDirectMaCommand).toHaveBeenCalledWith("music/playlists/library_items", {
+      limit: 50,
+      offset: 0,
+      order_by: "sort_name",
+    });
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      media_type: "playlist",
+      name: "Morning Flow",
+    });
+    expect(card._state.musicAssistantIssueMessage).toBe("");
+  });
+
+  it("falls back to direct Music Assistant playback when HA reports the MA entry is not loaded", async () => {
+    await import("../src/homeii-music-flow.js?runtime-play-direct-entry-fallback-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    const player = {
+      entity_id: "media_player.ceiling",
+      state: "playing",
+      attributes: {
+        friendly_name: "Ceiling",
+        active_queue: "queue-ceiling",
+      },
+    };
+    card._state.players = [player];
+    card._hasDirectMAConnection = vi.fn(() => true);
+    card._callHaServiceRaw = vi.fn(async () => {
+      throw new Error("Music Assistant entry not_loaded");
+    });
+    card._callDirectMaCommand = vi.fn(async () => ({}));
+    card._toastMediaQueued = vi.fn();
+
+    const ok = await card._playMediaOnPlayer(player.entity_id, "library://playlist/1", "playlist", "play", {
+      label: "Morning Flow",
+    });
+
+    expect(ok).toBe(true);
+    expect(card._callDirectMaCommand).toHaveBeenCalledWith("player_queues/play_media", {
+      queue_id: "queue-ceiling",
+      media: "library://playlist/1",
+      option: "replace",
+      radio_mode: false,
+    });
+    expect(card._toastMediaQueued).toHaveBeenCalledWith("Morning Flow", "Ceiling");
+  });
+
   it("keeps pending queue artwork and title atomic while the player still reports the previous track", async () => {
     vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
     await import("../src/homeii-music-flow.js?runtime-pending-display-baseline");

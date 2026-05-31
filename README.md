@@ -47,7 +47,7 @@ https://github.com/user-attachments/assets/a0076e6e-0352-40f8-ac37-35737e717a80
 
 <p align="center">
   <a href="https://github.com/r11a/homeii-music-flow"><img alt="stable version" src="https://img.shields.io/badge/stable-5.8.1-gold"></a>
-  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.2-beta.2"><img alt="beta version" src="https://img.shields.io/badge/beta-5.8.2--beta.2-8A63D2"></a>
+  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.2-beta.3"><img alt="beta version" src="https://img.shields.io/badge/beta-5.8.2--beta.3-8A63D2"></a>
   <img alt="Home Assistant" src="https://img.shields.io/badge/Home%20Assistant-Dashboard-41BDF5">
   <img alt="Music Assistant" src="https://img.shields.io/badge/Music%20Assistant-required-7C5CFF">
   <img alt="Sendspin" src="https://img.shields.io/badge/Sendspin-browser%20player-18B6FF">
@@ -63,20 +63,21 @@ HOMEii Flow is a custom Home Assistant Dashboard card for Music Assistant. It tu
 
 HOMEii Flow started from my own daily use of Home Assistant and Music Assistant. I wanted it to feel less like a technical dashboard widget and more like a real music app inside Home Assistant, so a lot of thought went into the flow, touch interactions, Hebrew/RTL comfort, wall-tablet behavior, mobile details, and the small moments that make choosing music feel natural at home.
 
-## 5.8.2 Beta 2
+## 5.8.2 Beta 3
 
-HOMEii Flow 5.8.2 Beta 2 is a targeted pre-release follow-up for the main artwork placeholder regression reported after the 5.8.0/5.8.1 upgrade.
+HOMEii Flow 5.8.2 Beta 3 is a targeted pre-release follow-up for Music Assistant setups where Home Assistant reports the MA config entry as `not_loaded` while direct Music Assistant access is configured.
 
-- Falls back to Home Assistant player artwork (`entity_picture` / media player proxy) when the phone main artwork stack has no queue artwork/current queue item available.
-- Prevents the main artwork area from rendering a placeholder when a Music Assistant browser player already exposes valid player artwork.
-- Keeps the Beta 1 now-playing artwork priority and HA-first queue snapshot fixes.
+- Avoids using a discovered Music Assistant config entry when Home Assistant reports it as unavailable.
+- Falls back to the direct Music Assistant API for library browsing when HA-side MA service calls fail.
+- Falls back to direct queue playback for selected players that expose an active MA queue when `music_assistant.play_media` is unavailable.
+- Keeps the Beta 1 and Beta 2 artwork fixes.
 
-Beta download: [v5.8.2-beta.2](https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.2-beta.2)
+Beta download: [v5.8.2-beta.3](https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.2-beta.3)
 
 Stable users can remain on 5.8.1. Beta users should hard refresh Home Assistant or use:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.8.2-beta.2
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.8.2-beta.3
 ```
 
 ## 5.8.1 Hotfix Release
@@ -1020,7 +1021,8 @@ src/core/                             extracted foundation helpers
 src/config/                           config validators
 tests/                                regression coverage
 scripts/release.mjs                   release sync tooling
-RELEASE_NOTES_5.8.2-beta.2.md         detailed GitHub release notes for the current beta
+RELEASE_NOTES_5.8.2-beta.3.md         detailed GitHub release notes for the current beta
+RELEASE_NOTES_5.8.2-beta.2.md         previous beta release notes
 RELEASE_NOTES_5.8.2-beta.1.md         previous beta release notes
 RELEASE_NOTES_5.8.1.md                previous stable hotfix release notes
 RELEASE_NOTES_5.8.0.md                previous major release notes
@@ -1041,7 +1043,7 @@ npm run lint
 npm test
 ```
 
-Current packaged version: `5.8.2-beta.2`
+Current packaged version: `5.8.2-beta.3`
 
 ## Release Readiness
 
@@ -1094,6 +1096,7 @@ Credit and thanks:
 
 - [Local deployment guide](./LOCAL_DEPLOYMENT.md)
 - [Publishing checklist](./PUBLISHING.md)
+- [5.8.2 Beta 3 release notes](./RELEASE_NOTES_5.8.2-beta.3.md)
 - [5.8.2 Beta 2 release notes](./RELEASE_NOTES_5.8.2-beta.2.md)
 - [5.8.2 Beta 1 release notes](./RELEASE_NOTES_5.8.2-beta.1.md)
 - [5.8.1 release notes](./RELEASE_NOTES_5.8.1.md)

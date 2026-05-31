@@ -28,6 +28,7 @@ export function createHomeiiBaseMusicCard({
       this._config = {};
       this._built = false;
       this._resolvedConfigEntryId = "";
+      this._resolvedConfigEntryState = "";
 
       this._state = HomeiiStateFoundation.createBaseBrowserState();
 
@@ -974,7 +975,7 @@ export function createHomeiiBaseMusicCard({
     _versionedAssetUrl(url) {
       const value = String(url || "").trim();
       if (!value || /^data:/i.test(value) || /[?&]v=/.test(value)) return value;
-      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.8.2-beta.2";
+      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.8.2-beta.3";
       return `${value}${value.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
     }
 
@@ -9516,7 +9517,13 @@ export function createHomeiiBaseMusicCard({
     _hasMusicAssistantBackend() {
       return this._hasService("music_assistant", "play_media")
         || this._hasDirectMAConnection()
-        || !!String(this._resolvedConfigEntryId || this._config?.config_entry_id || "").trim();
+        || this._hasUsableMusicAssistantConfigEntry();
+    }
+
+    _hasUsableMusicAssistantConfigEntry() {
+      if (String(this._config?.config_entry_id || "").trim()) return true;
+      return !!String(this._resolvedConfigEntryId || "").trim()
+        && (!this._resolvedConfigEntryState || this._resolvedConfigEntryState === "loaded");
     }
 
     _hasMassQueueService(service) {
@@ -9922,9 +9929,12 @@ export function createHomeiiBaseMusicCard({
       const explicit = String(this._config?.config_entry_id || "").trim();
       if (explicit && !force) {
         this._resolvedConfigEntryId = explicit;
+        this._resolvedConfigEntryState = "configured";
         return explicit;
       }
-      if (this._resolvedConfigEntryId && !force) return this._resolvedConfigEntryId;
+      if (this._resolvedConfigEntryId && !force) {
+        return this._hasUsableMusicAssistantConfigEntry() ? this._resolvedConfigEntryId : "";
+      }
       try {
         const entries = await this._withTimeout(this._hass.connection.sendMessagePromise({
           type: "config_entries/get",
@@ -9936,12 +9946,15 @@ export function createHomeiiBaseMusicCard({
           || list.find((entry) => entry?.state === "not_loaded")
           || list[0];
         this._resolvedConfigEntryId = preferred?.entry_id || "";
+        this._resolvedConfigEntryState = String(preferred?.state || "").trim();
         if (!this._resolvedConfigEntryId || preferred?.state && preferred.state !== "loaded") {
           this._handleMusicAssistantIssue(preferred?.state ? `Music Assistant entry ${preferred.state}` : this._musicAssistantSetupMessage());
+          return "";
         }
         return this._resolvedConfigEntryId;
       } catch (error) {
         this._resolvedConfigEntryId = explicit || "";
+        this._resolvedConfigEntryState = explicit ? "configured" : "";
         if (!explicit) this._handleMusicAssistantIssue(error);
         return this._resolvedConfigEntryId;
       }
@@ -10152,11 +10165,81 @@ export function createHomeiiBaseMusicCard({
         return raw?.items ?? (Array.isArray(raw) ? raw : []);
       } catch (error) {
         if (this._isMusicAssistantAvailabilityError(error)) {
+          try {
+            const directItems = await this._fetchLibraryDirect(mediaType, orderBy, limit, favoritesOnly, search);
+            if (Array.isArray(directItems)) {
+              this._state.musicAssistantIssueMessage = "";
+              return directItems;
+            }
+          } catch (directError) {
+            this._debugLog("warn", "[HOMEii Flow] direct Music Assistant library fallback failed", directError);
+          }
           this._handleMusicAssistantIssue(error);
           return [];
         }
         throw error;
       }
+    }
+
+    _libraryCommandSegment(mediaType = "") {
+      const type = String(mediaType || "").toLowerCase();
+      return {
+        album: "albums",
+        artist: "artists",
+        genre: "genres",
+        playlist: "playlists",
+        podcast: "podcasts",
+        radio: "radios",
+        track: "tracks",
+      }[type] || "";
+    }
+
+    _libraryResultGroup(mediaType = "") {
+      const type = String(mediaType || "").toLowerCase();
+      if (type === "radio") return "radio";
+      if (type === "podcast") return "podcasts";
+      if (type === "album") return "albums";
+      if (type === "artist") return "artists";
+      if (type === "track") return "tracks";
+      if (type === "playlist") return "playlists";
+      if (type === "genre") return "genres";
+      return "";
+    }
+
+    _libraryItemsFromDirectPayload(payload, mediaType = "playlist") {
+      const group = this._libraryResultGroup(mediaType);
+      if (!group) return [];
+      const normalized = this._normalizeSearchResponse({ [group]: payload });
+      const raw = payload?.response ?? payload?.result ?? payload;
+      const items = Array.isArray(normalized?.[group]) && normalized[group].length
+        ? normalized[group]
+        : (Array.isArray(raw?.items) ? raw.items : (Array.isArray(raw) ? raw : []))
+          .map((item) => this._normalizeSearchItem(item, mediaType));
+      const seen = new Set();
+      return items.filter((item) => {
+        const uri = String(item?.uri || item?.media_item?.uri || "").trim();
+        const name = String(item?.name || item?.title || item?.media_item?.name || "").trim().toLowerCase();
+        const provider = String(item?.provider || item?.provider_id || item?.provider_domain || item?.media_item?.provider || "").trim().toLowerCase();
+        const key = uri || `${provider}:${name}`;
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+
+    async _fetchLibraryDirect(mediaType, orderBy = "sort_name", limit = 500, favoritesOnly = false, search = "") {
+      if (!this._hasDirectMAConnection()) return null;
+      const segment = this._libraryCommandSegment(mediaType);
+      if (!segment) return null;
+      const data = {
+        limit: Math.max(1, Math.min(1000, Number(limit) || 500)),
+        offset: 0,
+      };
+      if (orderBy) data.order_by = orderBy;
+      if (favoritesOnly) data.favorite = true;
+      if (search) data.search = search;
+      const raw = await this._callDirectMaCommand(`music/${segment}/library_items`, data);
+      return this._libraryItemsFromDirectPayload(raw, mediaType);
     }
 
     async _getLibrary(mediaType, orderBy = "sort_name", limit = 500, favoritesOnly = false) {
@@ -11506,6 +11589,12 @@ export function createHomeiiBaseMusicCard({
         } catch (_) {}
       }
       if (this._hasSearchResults(globalResults)) return globalResults;
+      try {
+        const directResults = await this._searchDirectMusicAssistant(q, 25);
+        if (this._hasSearchResults(directResults)) return directResults;
+      } catch (error) {
+        this._debugLog("warn", "[HOMEii Flow] direct Music Assistant search fallback failed", error);
+      }
       const [radioRes, podcastRes, albumRes, artistRes, trackRes, playlistRes] = await Promise.allSettled([
         this._fetchLibrary("radio", "sort_name", 50, false, q),
         this._fetchLibrary("podcast", "sort_name", 50, false, q),
@@ -11522,6 +11611,30 @@ export function createHomeiiBaseMusicCard({
         tracks: trackRes.status === "fulfilled" ? trackRes.value : [],
         playlists: playlistRes.status === "fulfilled" ? playlistRes.value : [],
       };
+    }
+
+    async _searchDirectMusicAssistant(query = "", limit = 25) {
+      const q = String(query || "").trim();
+      if (!q || !this._hasDirectMAConnection()) return this._emptySearchResults();
+      const mediaTypes = ["radio", "podcast", "album", "artist", "track", "playlist", "genre"];
+      const attempts = [
+        { search_query: q, media_types: mediaTypes, limit, library_only: false },
+        { search: q, media_types: mediaTypes, limit, library_only: false },
+        { query: q, media_types: mediaTypes, limit, library_only: false },
+        { name: q, media_type: mediaTypes, limit },
+      ];
+      let lastError = null;
+      for (const args of attempts) {
+        try {
+          const raw = await this._callDirectMaCommand("music/search", args);
+          const results = this._normalizeSearchResponse(raw);
+          if (this._hasSearchResults(results)) return results;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      if (lastError) throw lastError;
+      return this._emptySearchResults();
     }
 
     _rejectWsPending(error = new Error("MA WS disconnected")) {
@@ -12069,6 +12182,13 @@ export function createHomeiiBaseMusicCard({
         if (entityId === this._state.selectedPlayer) setTimeout(() => this._ensureQueueSnapshot(true), 600);
         return true;
       } catch (error) {
+        if (this._isMusicAssistantAvailabilityError(error) && this._hasDirectMAConnection()) {
+          try {
+            return await this._playMediaOnDirectMaPlayer(entityId, uri, mediaType, enqueue, options);
+          } catch (directError) {
+            this._debugLog("warn", "[HOMEii Flow] direct Music Assistant play fallback failed", directError);
+          }
+        }
         if (!options.silent) {
           if (this._isMusicAssistantAvailabilityError(error)) this._handleMusicAssistantIssue(error);
           else this._toastError(this._i18n("ui.could_not_play_label", { label }));
@@ -12108,7 +12228,8 @@ export function createHomeiiBaseMusicCard({
     async _playAll(items = [], shuffle = false) {
       if (!items.length) return;
       if (!this._state.selectedPlayer) return this._toast(this._i18n("ui.select_a_player_first"));
-      if (this._isDirectMaPlayer(this._state.selectedPlayer)) {
+      const selectedPlayer = this._getSelectedPlayer();
+      if (this._isDirectMaPlayer(this._state.selectedPlayer) || (this._hasDirectMAConnection() && this._directMaQueueId(selectedPlayer))) {
         const playable = items.map((item) => item?.uri).filter(Boolean);
         if (!playable.length) return;
         await this._playMediaOnPlayer(this._state.selectedPlayer, playable, items[0]?.media_type || "track", shuffle ? "shuffle" : "play", {

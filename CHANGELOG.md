@@ -1,5 +1,20 @@
 # Changelog
 
+## 5.8.2-beta.3 - 2026-05-31
+
+Targeted beta follow-up for Music Assistant setups where Home Assistant reports the MA config entry as `not_loaded` while direct Music Assistant access is configured.
+
+Release focus:
+
+- Stops using a discovered Music Assistant config entry when Home Assistant reports that entry as anything other than `loaded`.
+- Falls back to the direct Music Assistant API for library browsing when HA service calls fail because the MA config entry is unavailable.
+- Falls back to direct Music Assistant queue playback for selected players that expose an active queue when `music_assistant.play_media` fails with an MA availability error.
+- Adds regression coverage for `Music Assistant entry not_loaded`, direct library fallback, and direct playback fallback.
+
+Validation:
+
+- Targeted runtime, player foundation, and voice-assistant matching tests passed after the source fix.
+
 ## 5.8.2-beta.2 - 2026-05-31
 
 Targeted beta follow-up for the main artwork placeholder regression on Music Assistant 2.8.x browser players.

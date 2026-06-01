@@ -47,7 +47,7 @@ https://github.com/user-attachments/assets/a0076e6e-0352-40f8-ac37-35737e717a80
 
 <p align="center">
   <a href="https://github.com/r11a/homeii-music-flow"><img alt="stable version" src="https://img.shields.io/badge/stable-5.8.1-gold"></a>
-  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.2-beta.3"><img alt="beta version" src="https://img.shields.io/badge/beta-5.8.2--beta.3-8A63D2"></a>
+  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.2-beta.4"><img alt="beta version" src="https://img.shields.io/badge/beta-5.8.2--beta.4-8A63D2"></a>
   <img alt="Home Assistant" src="https://img.shields.io/badge/Home%20Assistant-Dashboard-41BDF5">
   <img alt="Music Assistant" src="https://img.shields.io/badge/Music%20Assistant-required-7C5CFF">
   <img alt="Sendspin" src="https://img.shields.io/badge/Sendspin-browser%20player-18B6FF">
@@ -63,21 +63,22 @@ HOMEii Flow is a custom Home Assistant Dashboard card for Music Assistant. It tu
 
 HOMEii Flow started from my own daily use of Home Assistant and Music Assistant. I wanted it to feel less like a technical dashboard widget and more like a real music app inside Home Assistant, so a lot of thought went into the flow, touch interactions, Hebrew/RTL comfort, wall-tablet behavior, mobile details, and the small moments that make choosing music feel natural at home.
 
-## 5.8.2 Beta 3
+## 5.8.2 Beta 4
 
-HOMEii Flow 5.8.2 Beta 3 is a targeted pre-release follow-up for Music Assistant setups where Home Assistant reports the MA config entry as `not_loaded` while direct Music Assistant access is configured.
+HOMEii Flow 5.8.2 Beta 4 is a targeted pre-release follow-up for Music Assistant troubleshooting, invalid direct URL handling, Danish localization, and low-resource artwork cache behavior.
 
-- Avoids using a discovered Music Assistant config entry when Home Assistant reports it as unavailable.
-- Falls back to the direct Music Assistant API for library browsing when HA-side MA service calls fail.
-- Falls back to direct queue playback for selected players that expose an active MA queue when `music_assistant.play_media` is unavailable.
-- Keeps the Beta 1 and Beta 2 artwork fixes.
+- Adds an in-card Diagnostics screen under Settings > Music Assistant with a copyable report for GitHub issues.
+- Detects Home Assistant Music Assistant ingress URLs that were accidentally used as `ma_url` and avoids repeated Direct API request loops after `404`/`405` failures.
+- Scales the decoded artwork cache by `performance_profile`, reducing memory pressure on `lite` and `ultra_lite` dashboards.
+- Adds Danish (`da`) localization and language-picker support.
+- Keeps the Beta 1, Beta 2, and Beta 3 artwork and Music Assistant compatibility fixes.
 
-Beta download: [v5.8.2-beta.3](https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.2-beta.3)
+Beta download: [v5.8.2-beta.4](https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.2-beta.4)
 
 Stable users can remain on 5.8.1. Beta users should hard refresh Home Assistant or use:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.8.2-beta.3
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.8.2-beta.4
 ```
 
 ## 5.8.1 Hotfix Release
@@ -1021,7 +1022,8 @@ src/core/                             extracted foundation helpers
 src/config/                           config validators
 tests/                                regression coverage
 scripts/release.mjs                   release sync tooling
-RELEASE_NOTES_5.8.2-beta.3.md         detailed GitHub release notes for the current beta
+RELEASE_NOTES_5.8.2-beta.4.md         detailed GitHub release notes for the current beta
+RELEASE_NOTES_5.8.2-beta.3.md         previous beta release notes
 RELEASE_NOTES_5.8.2-beta.2.md         previous beta release notes
 RELEASE_NOTES_5.8.2-beta.1.md         previous beta release notes
 RELEASE_NOTES_5.8.1.md                previous stable hotfix release notes
@@ -1043,7 +1045,7 @@ npm run lint
 npm test
 ```
 
-Current packaged version: `5.8.2-beta.3`
+Current packaged version: `5.8.2-beta.4`
 
 ## Release Readiness
 
@@ -1090,12 +1092,14 @@ Credit and thanks:
 - Julien Moreau B. / [jingle-jew](https://github.com/jingle-jew) for the French translation, French wording corrections, PR #34, PR #35, PR #36, Sendspin / Media Session improvements, and 5.7.x testing feedback.
 - [@Dieghito72](https://github.com/Dieghito72) for the Italian translation contribution.
 - [@gao19970120](https://github.com/gao19970120) for the Simplified Chinese translation contribution.
+- [@TheBamse](https://github.com/TheBamse) for the Danish translation contribution and performance-focused PRs.
 - Codex for helping turn a non-programmer's product and UX vision into a working release-ready card.
 
 ## Documentation
 
 - [Local deployment guide](./LOCAL_DEPLOYMENT.md)
 - [Publishing checklist](./PUBLISHING.md)
+- [5.8.2 Beta 4 release notes](./RELEASE_NOTES_5.8.2-beta.4.md)
 - [5.8.2 Beta 3 release notes](./RELEASE_NOTES_5.8.2-beta.3.md)
 - [5.8.2 Beta 2 release notes](./RELEASE_NOTES_5.8.2-beta.2.md)
 - [5.8.2 Beta 1 release notes](./RELEASE_NOTES_5.8.2-beta.1.md)

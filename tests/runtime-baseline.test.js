@@ -408,6 +408,55 @@ describe("runtime baseline", () => {
     expect(card._state.musicAssistantIssueMessage).toBe("");
   });
 
+  it("does not treat the Home Assistant Music Assistant ingress URL as a direct MA API URL", async () => {
+    await import("../src/homeii-music-flow.js?runtime-direct-ma-ingress-guard-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card.classList = createClassList();
+    card.setConfig({
+      type: "custom:homeii-music-flow",
+      ma_url: "http://homeassistant.local:8123/d5369777_music_assistant",
+    });
+
+    expect(card._isLikelyHomeAssistantIngressMaUrl(card._maBrowserUrl())).toBe(true);
+    expect(card._hasDirectMAConnection()).toBe(false);
+    await expect(card._callDirectMaCommand("players/all")).rejects.toThrow(/ingress/i);
+  });
+
+  it("backs off direct Music Assistant API retries after an invalid ma_url returns 405", async () => {
+    await import("../src/homeii-music-flow.js?runtime-direct-ma-405-backoff-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card.classList = createClassList();
+    card.setConfig({
+      type: "custom:homeii-music-flow",
+      ma_url: "http://192.168.2.61:8095",
+    });
+
+    const originalFetch = globalThis.fetch;
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 405,
+      text: async () => "Method Not Allowed",
+    }));
+    globalThis.fetch = fetchMock;
+    try {
+      await expect(card._callDirectMaCommand("players/all")).rejects.toThrow(/direct api/i);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(card._hasDirectMAConnection()).toBe(false);
+      await expect(card._callDirectMaCommand("players/all")).rejects.toThrow(/direct api/i);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("falls back to direct Music Assistant playback when HA reports the MA entry is not loaded", async () => {
     await import("../src/homeii-music-flow.js?runtime-play-direct-entry-fallback-baseline");
     await Promise.resolve();

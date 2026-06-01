@@ -1,5 +1,23 @@
 # Changelog
 
+## 5.8.2-beta.4 - 2026-06-01
+
+Targeted beta follow-up for Music Assistant troubleshooting, invalid direct URL handling, Danish localization, and low-resource artwork cache behavior.
+
+Release focus:
+
+- Adds an in-card Diagnostics screen under Settings > Music Assistant that checks Home Assistant connectivity, Music Assistant services/config entry state, visible MA players, selected player, `ma_url`, mixed-content risk, direct MA API reachability, WebSocket status, and a small library smoke test.
+- Adds a copyable diagnostics report so users can paste one clean report into GitHub issues instead of scattering logs across discussion threads.
+- Treats Home Assistant Music Assistant ingress URLs as invalid `ma_url` values for Direct MA API use and tells the user to leave `ma_url` empty or use the direct Music Assistant Web Server URL.
+- Adds a short cooldown after failed direct MA API calls such as `404`/`405`, preventing repeated request storms when `ma_url` points to the wrong endpoint.
+- Scales the decoded artwork LRU cache by `performance_profile`, reducing memory pressure for `lite` and `ultra_lite` dashboards while keeping the default profile unchanged.
+- Adds Danish (`da`) localization and exposes it in the language picker.
+
+Validation:
+
+- Targeted runtime, localization, and state-derived tests passed after the source fixes.
+- Full lint, full Vitest, production build, and release artifact sync were run for the final beta package.
+
 ## 5.8.2-beta.3 - 2026-05-31
 
 Targeted beta follow-up for Music Assistant setups where Home Assistant reports the MA config entry as `not_loaded` while direct Music Assistant access is configured.

@@ -94,9 +94,9 @@ function ensureHaEditorComponents() {
   } catch (_) {}
 }
 
-const HOMEII_CARD_VERSION = "5.8.2-beta.3";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v5823";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v5823";
+const HOMEII_CARD_VERSION = "5.8.2-beta.4";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v5824";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v5824";
 const AMBIENT_LIGHT_PAIR_PLAYER_PREFIX = "__homeii_ambient_light_pair_player_";
 const AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX = "__homeii_ambient_light_pair_lights_";
 
@@ -342,6 +342,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.mobileHistoryDrawerOpen = false;
     this._state.mobileHistoryDrawerTab = "recent";
     this._state.mobileSettingsScrollTop = 0;
+    this._state.diagnosticsStatus = "idle";
+    this._state.diagnosticsItems = [];
+    this._state.diagnosticsRunAt = 0;
     this._state.controlRoomRestoreAfterMenu = false;
     this._state.controlRoomRenderedHtml = "";
     this._state.controlRoomRenderSignature = "";
@@ -4528,6 +4531,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       main: "menu",
       discovery: "grid",
       settings: "settings",
+      diagnostics: "info",
       queue: "queue",
       players: "speaker",
       players_active: "stats",
@@ -12839,6 +12843,103 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .menu-body.sheet-settings {
           overflow-anchor:none;
           scroll-behavior:auto;
+        }
+        .diagnostics-shell {
+          gap:12px;
+        }
+        .diagnostics-actions {
+          display:flex;
+          align-items:center;
+          gap:10px;
+          flex-wrap:wrap;
+        }
+        .diagnostic-summary {
+          margin-top:4px;
+          padding:10px 12px;
+          border-radius:14px;
+          background:rgba(255,255,255,.07);
+          border:1px solid rgba(255,255,255,.1);
+          font-size:13px;
+          font-weight:850;
+          line-height:1.35;
+        }
+        .theme-light .diagnostic-summary {
+          background:rgba(255,255,255,.72);
+          border-color:rgba(123,139,164,.18);
+        }
+        .diagnostics-list {
+          display:grid;
+          gap:10px;
+        }
+        .diagnostic-row {
+          display:grid;
+          grid-template-columns:36px minmax(0,1fr);
+          gap:10px;
+          align-items:start;
+          padding:12px;
+          border-radius:16px;
+          background:rgba(255,255,255,.07);
+          border:1px solid rgba(255,255,255,.1);
+        }
+        .theme-light .diagnostic-row {
+          background:rgba(255,255,255,.78);
+          border-color:rgba(123,139,164,.2);
+        }
+        .diagnostic-status {
+          width:32px;
+          height:32px;
+          border-radius:12px;
+          display:grid;
+          place-items:center;
+          background:rgba(255,255,255,.08);
+          color:rgba(255,255,255,.74);
+        }
+        .diagnostic-status .ui-ic {
+          width:18px;
+          height:18px;
+        }
+        .diagnostic-row.status-ok .diagnostic-status {
+          color:#5be58f;
+          background:rgba(91,229,143,.12);
+        }
+        .diagnostic-row.status-fail .diagnostic-status {
+          color:#ff7d8a;
+          background:rgba(255,125,138,.13);
+        }
+        .diagnostic-row.status-warn .diagnostic-status {
+          color:#ffd47a;
+          background:rgba(255,212,122,.13);
+        }
+        .diagnostic-copy {
+          min-width:0;
+          display:grid;
+          gap:4px;
+        }
+        .diagnostic-title {
+          font-size:14px;
+          font-weight:950;
+        }
+        .diagnostic-value {
+          font-size:12px;
+          font-weight:850;
+          color:rgba(255,255,255,.72);
+          overflow-wrap:anywhere;
+        }
+        .diagnostic-detail {
+          font-size:12px;
+          line-height:1.4;
+          color:rgba(255,255,255,.58);
+          overflow-wrap:anywhere;
+        }
+        .theme-light .diagnostic-status {
+          background:rgba(238,243,248,.86);
+          color:#546172;
+        }
+        .theme-light .diagnostic-value {
+          color:rgba(31,38,51,.68);
+        }
+        .theme-light .diagnostic-detail {
+          color:rgba(31,38,51,.54);
         }
         .card.layout-tablet .menu-body {
           padding:14px 16px 16px;
@@ -26288,6 +26389,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       "players_active",
       "sleep_timer",
       "announcements",
+      "diagnostics",
       "queue",
       "transfer",
       "group",
@@ -28486,6 +28588,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           <div class="settings-label">Music Assistant</div>
           <div class="settings-actions">
             <button class="settings-pill active" data-menu-action="open_app">${this._i18n("ui.open_full_interface")}</button>
+            <button class="settings-pill" data-menu-nav="diagnostics">${this._esc(this._m("Diagnostics", "אבחון"))}</button>
           </div>
         </div>
         <div class="settings-group smart-home-settings-card">
@@ -28610,6 +28713,234 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
                 <div class="settings-version">Version ${HOMEII_CARD_VERSION}</div>
       </div>
     `;
+  }
+
+  _diagnosticStatusLabel(status = "info") {
+    const normalized = String(status || "info").toLowerCase();
+    if (normalized === "ok") return "OK";
+    if (normalized === "fail") return "X";
+    if (normalized === "warn") return "!";
+    return "i";
+  }
+
+  _diagnosticItem(status, title, detail = "", value = "") {
+    return {
+      status: ["ok", "fail", "warn", "info"].includes(String(status || "").toLowerCase()) ? String(status).toLowerCase() : "info",
+      title: String(title || "").trim(),
+      detail: String(detail || "").trim(),
+      value: String(value || "").trim(),
+    };
+  }
+
+  _sanitizeDiagnosticUrl(value = "") {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    try {
+      const parsed = new URL(raw, typeof window !== "undefined" ? window.location.href : "http://homeii.local");
+      ["token", "auth", "access_token"].forEach((key) => parsed.searchParams.delete(key));
+      return parsed.toString().replace(/\/$/, "");
+    } catch (_) {
+      return raw.replace(/(token|access_token|auth)=([^&\s]+)/gi, "$1=<redacted>");
+    }
+  }
+
+  _diagnosticsSummary(items = this._state.diagnosticsItems || []) {
+    const list = Array.isArray(items) ? items : [];
+    const failures = list.filter((item) => item.status === "fail").length;
+    const warnings = list.filter((item) => item.status === "warn").length;
+    if (!list.length) return this._m("Run a quick Music Assistant health check.", "הרץ בדיקת תקינות קצרה ל-Music Assistant.");
+    if (failures) return this._m(`${failures} check${failures === 1 ? "" : "s"} need attention.`, `${failures} בדיקות דורשות טיפול.`);
+    if (warnings) return this._m(`${warnings} check${warnings === 1 ? "" : "s"} need review.`, `${warnings} בדיקות דורשות בדיקה.`);
+    return this._m("All core checks passed.", "כל בדיקות הליבה עברו בהצלחה.");
+  }
+
+  _diagnosticRowHtml(item = {}) {
+    const status = String(item.status || "info").toLowerCase();
+    const icon = status === "ok" ? this._iconSvg("check") : status === "fail" ? this._iconSvg("close") : this._iconSvg("info");
+    return `
+      <div class="diagnostic-row status-${this._esc(status)}">
+        <div class="diagnostic-status" aria-label="${this._esc(this._diagnosticStatusLabel(status))}">${icon}</div>
+        <div class="diagnostic-copy">
+          <div class="diagnostic-title">${this._esc(item.title || "")}</div>
+          ${item.value ? `<div class="diagnostic-value">${this._esc(item.value)}</div>` : ""}
+          ${item.detail ? `<div class="diagnostic-detail">${this._esc(item.detail)}</div>` : ""}
+        </div>
+      </div>`;
+  }
+
+  _diagnosticsMenuHtml() {
+    const items = Array.isArray(this._state.diagnosticsItems) ? this._state.diagnosticsItems : [];
+    const running = this._state.diagnosticsStatus === "running";
+    const ranAt = Number(this._state.diagnosticsRunAt || 0);
+    const ranAtText = ranAt ? new Date(ranAt).toLocaleString() : "";
+    return `
+      <div class="settings-shell diagnostics-shell">
+        <div class="settings-group diagnostics-card">
+          <div class="settings-label">${this._esc(this._m("HOMEii Diagnostics", "אבחון HOMEii"))}</div>
+          <div class="settings-hint">${this._esc(this._m("Checks the Home Assistant connection, Music Assistant integration, players, ma_url, direct API, and a small library smoke test.", "בודק חיבור ל-Home Assistant, אינטגרציית Music Assistant, נגנים, ma_url, API ישיר ובדיקת ספרייה קטנה."))}</div>
+          <div class="settings-actions diagnostics-actions">
+            <button class="settings-pill active" data-menu-action="run_diagnostics" ${running ? "disabled" : ""}>${this._esc(running ? this._m("Running...", "מריץ...") : this._m("Run diagnostics", "הרץ בדיקה"))}</button>
+            <button class="settings-pill" data-menu-action="copy_diagnostics" ${items.length ? "" : "disabled"}>${this._esc(this._m("Copy report", "העתק דוח"))}</button>
+          </div>
+          <div class="diagnostic-summary">${this._esc(this._diagnosticsSummary(items))}</div>
+          ${ranAtText ? `<div class="settings-hint">${this._esc(this._m("Last run", "הרצה אחרונה"))}: ${this._esc(ranAtText)}</div>` : ""}
+        </div>
+        ${running ? `<div class="notice open">${this._esc(this._m("Running checks...", "מריץ בדיקות..."))}</div>` : ""}
+        ${items.length ? `<div class="diagnostics-list">${items.map((item) => this._diagnosticRowHtml(item)).join("")}</div>` : `<div class="notice open">${this._esc(this._m("No diagnostics have been run yet.", "עדיין לא הורצה בדיקה."))}</div>`}
+      </div>`;
+  }
+
+  async _runDiagnostics() {
+    if (this._state.diagnosticsStatus === "running") return;
+    this._state.diagnosticsStatus = "running";
+    this._state.diagnosticsItems = [];
+    if (this._state.menuOpen && this._state.menuPage === "diagnostics") await this._renderMobileMenu();
+
+    const items = [];
+    const add = (status, title, detail = "", value = "") => items.push(this._diagnosticItem(status, title, detail, value));
+    const hassReady = !!(this._hass && this._hass.states && this._hass.services);
+    const maUrl = this._maBrowserUrl();
+    const directIssue = maUrl ? this._directMaSetupIssue(maUrl) : "";
+    const musicAssistantServices = Object.keys(this._hass?.services?.music_assistant || {});
+    const hassStates = this._hass?.states || {};
+    const hassEntities = this._hass?.entities || {};
+    const haMusicAssistantPlayers = Object.values(hassStates)
+      .filter((entity) => HomeiiPlayersFoundation.isMusicAssistantPlayer(entity, hassEntities?.[entity.entity_id]));
+    const directPlayers = Array.isArray(this._directMaPlayers) ? this._directMaPlayers : [];
+    const selectedPlayer = this._getSelectedPlayer();
+
+    add("ok", "Card version", "HOMEii Flow runtime is loaded.", HOMEII_CARD_VERSION);
+    add(hassReady ? "ok" : "fail", "Home Assistant frontend", hassReady ? "The card can read Home Assistant state and services." : "The card does not have a usable Home Assistant frontend object.");
+    add(musicAssistantServices.length ? "ok" : "fail", "Music Assistant services", musicAssistantServices.length ? `${musicAssistantServices.length} service(s) are exposed by Home Assistant.` : "No music_assistant services are exposed by Home Assistant.");
+
+    if (this._hass?.connection?.sendMessagePromise) {
+      try {
+        const entries = await this._withTimeout(this._hass.connection.sendMessagePromise({
+          type: "config_entries/get",
+          domain: "music_assistant",
+        }), this._musicAssistantTimeoutMs(), this._timeoutMessage("Music Assistant config lookup"));
+        const list = Array.isArray(entries) ? entries : [];
+        const preferred = list.find((entry) => entry?.state === "loaded")
+          || list.find((entry) => entry?.state === "setup_retry")
+          || list.find((entry) => entry?.state === "not_loaded")
+          || list[0];
+        if (preferred?.entry_id) {
+          this._resolvedConfigEntryId = preferred.entry_id;
+          this._resolvedConfigEntryState = String(preferred.state || "").trim();
+          add(preferred.state === "loaded" ? "ok" : "warn", "Music Assistant config entry", preferred.state === "loaded" ? "Home Assistant reports the Music Assistant entry as loaded." : "Home Assistant reports the Music Assistant entry as not fully loaded.", String(preferred.state || "unknown"));
+        } else {
+          add("fail", "Music Assistant config entry", "No Music Assistant config entry was returned by Home Assistant.");
+        }
+      } catch (error) {
+        add("warn", "Music Assistant config entry", error?.message || "Could not read Home Assistant config entries.");
+      }
+    } else {
+      add("warn", "Music Assistant config entry", "Home Assistant connection API is not available in this frontend context.");
+    }
+
+    add(haMusicAssistantPlayers.length || directPlayers.length ? "ok" : "fail", "Music Assistant players", `${haMusicAssistantPlayers.length} Home Assistant player(s), ${directPlayers.length} direct player(s).`);
+    if (!selectedPlayer) {
+      add("fail", "Selected player", "No selected player is available.");
+    } else {
+      const selectedName = selectedPlayer.attributes?.friendly_name || selectedPlayer.entity_id || "";
+      const selectedIsMa = this._isMusicAssistantPlayer(selectedPlayer);
+      const excluded = this._isPlayerExcluded?.(selectedPlayer);
+      add(selectedIsMa && !excluded ? "ok" : "warn", "Selected player", excluded ? "The selected player is currently excluded in HOMEii settings." : (selectedIsMa ? "Selected player looks usable." : "Selected player does not look like a Music Assistant player."), selectedName);
+    }
+
+    if (!maUrl) {
+      add("info", "ma_url", "Empty is OK for the normal Home Assistant integration path.", "(empty)");
+    } else if (directIssue) {
+      add("fail", "ma_url", directIssue, this._sanitizeDiagnosticUrl(maUrl));
+    } else {
+      add("ok", "ma_url", "Direct Music Assistant URL is configured and does not look like Home Assistant ingress.", this._sanitizeDiagnosticUrl(maUrl));
+    }
+
+    if (typeof window !== "undefined" && window.location?.protocol === "https:" && maUrl) {
+      try {
+        const parsed = new URL(maUrl, window.location.href);
+        add(parsed.protocol === "https:" ? "ok" : "fail", "Mixed content", parsed.protocol === "https:" ? "Dashboard and direct MA URL both use HTTPS." : this._maMixedContentMessage());
+      } catch (_) {
+        add("warn", "Mixed content", "Could not parse ma_url for mixed-content validation.");
+      }
+    } else {
+      add("info", "Mixed content", "No HTTPS/HTTP conflict detected from the current dashboard context.");
+    }
+
+    if (maUrl && !directIssue) {
+      try {
+        const rawPlayers = await this._callDirectMaCommand("players/all", { return_unavailable: true, return_disabled: false });
+        const count = Array.isArray(rawPlayers) ? rawPlayers.length : (Array.isArray(rawPlayers?.players) ? rawPlayers.players.length : 0);
+        add("ok", "Direct Music Assistant API", `Direct API responded with ${count} player(s).`);
+      } catch (error) {
+        add("fail", "Direct Music Assistant API", error?.message || "Direct API request failed.");
+      }
+    } else {
+      add("info", "Direct Music Assistant API", maUrl ? "Skipped because ma_url needs attention." : "Skipped because ma_url is empty.");
+    }
+
+    if (maUrl && this._maToken) {
+      add(this._state.wsReady ? "ok" : "warn", "Direct Music Assistant WebSocket", this._state.wsReady ? "Realtime WebSocket is connected." : "Realtime is configured but not currently connected.");
+    } else if (maUrl) {
+      add("info", "Direct Music Assistant WebSocket", "No ma_token is configured; REST fallback can still be tested.");
+    } else {
+      add("info", "Direct Music Assistant WebSocket", "Skipped because ma_url is empty.");
+    }
+
+    if (musicAssistantServices.length || this._hasDirectMAConnection()) {
+      try {
+        const albums = await this._fetchLibrary("album", "sort_name", 1, false);
+        add(Array.isArray(albums) && albums.length ? "ok" : "warn", "Library smoke test", Array.isArray(albums) && albums.length ? "Albums returned at least one item." : "Library request completed but returned no albums. This can be OK for an empty library.");
+      } catch (error) {
+        add("fail", "Library smoke test", error?.message || "Library request failed.");
+      }
+    } else {
+      add("fail", "Library smoke test", "Skipped because neither Home Assistant Music Assistant services nor a valid direct MA connection are available.");
+    }
+
+    this._state.diagnosticsItems = items;
+    this._state.diagnosticsStatus = "done";
+    this._state.diagnosticsRunAt = Date.now();
+    if (this._state.menuOpen && this._state.menuPage === "diagnostics") await this._renderMobileMenu();
+  }
+
+  _diagnosticsReportText() {
+    const items = Array.isArray(this._state.diagnosticsItems) ? this._state.diagnosticsItems : [];
+    const lines = [
+      "HOMEii Music Flow Diagnostics",
+      `Version: ${HOMEII_CARD_VERSION}`,
+      `Generated: ${new Date(this._state.diagnosticsRunAt || Date.now()).toISOString()}`,
+      `HA URL: ${typeof window !== "undefined" ? window.location?.origin || "" : ""}`,
+      `ma_url: ${this._maBrowserUrl() ? this._sanitizeDiagnosticUrl(this._maBrowserUrl()) : "(empty)"}`,
+      `ma_token configured: ${this._maToken ? "yes" : "no"}`,
+      `selected_player: ${this._state.selectedPlayer || "(none)"}`,
+      "",
+      "Checks:",
+      ...items.map((item) => `- [${String(item.status || "info").toUpperCase()}] ${item.title}${item.value ? `: ${item.value}` : ""}${item.detail ? ` - ${item.detail}` : ""}`),
+    ];
+    return lines.join("\n").replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer <redacted>");
+  }
+
+  async _copyDiagnosticsReport() {
+    const report = this._diagnosticsReportText();
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(report);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = report;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        textarea.remove();
+      }
+      this._toastSuccess(this._m("Diagnostics report copied", "דוח האבחון הועתק"));
+    } catch (error) {
+      this._toastError(error?.message || this._m("Could not copy diagnostics report", "לא הצלחתי להעתיק את דוח האבחון"));
+    }
   }
 
   _libraryTabMeta(tab) {
@@ -31365,7 +31696,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
                     ? "sheet-transfer"
                     : page === "announcements"
                       ? "sheet-announcements"
-                      : page === "settings"
+                      : page === "settings" || page === "diagnostics"
                         ? "sheet-settings"
                         : page === "sleep_timer"
                           ? "sheet-schedules"
@@ -31408,6 +31739,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (page === "settings") {
       this._setMobileMenuHeader(this._i18n("ui.settings"), this._menuPageIcon(page));
       body.innerHTML = this._settingsMenuHtml();
+      finishMenuRender();
+      return;
+    }
+    if (page === "diagnostics") {
+      this._setMobileMenuHeader(this._m("Diagnostics", "אבחון"), this._menuPageIcon(page));
+      body.innerHTML = this._diagnosticsMenuHtml();
       finishMenuRender();
       return;
     }
@@ -32075,6 +32412,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         "clear_group",
       ].includes(action.dataset.menuAction)) return;
       if (action.dataset.menuAction === "open_app") return this._openMusicAssistant();
+      if (action.dataset.menuAction === "run_diagnostics") {
+        await this._runDiagnostics();
+        return;
+      }
+      if (action.dataset.menuAction === "copy_diagnostics") {
+        await this._copyDiagnosticsReport();
+        return;
+      }
       if (action.dataset.menuAction === "connect_this_device") return this._connectThisDevicePlayer();
       if (action.dataset.menuAction === "disconnect_this_device") return this._disconnectThisDevicePlayer();
       if (action.dataset.menuAction === "toggle_lang") return this._toggleLanguage();

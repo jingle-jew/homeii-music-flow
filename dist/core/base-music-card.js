@@ -48,6 +48,7 @@ export function createHomeiiBaseMusicCard({
       this._wsPending = new Map();
       this._wsMsgId = 100;
       this._maReconnectTimer = null;
+      this._directMaFailure = null;
 
       this._imgObserver = null;
       this._imgObserverRoot = null;
@@ -179,6 +180,8 @@ export function createHomeiiBaseMusicCard({
       this._maUrl = this._normalizeMaConfigUrl(this._config.ma_url);
       this._maExternalUrl = this._normalizeMaConfigUrl(this._config.music_assistant_external_url || this._config.ma_external_url);
       this._maToken = this._config.ma_token || "";
+      const nextDirectMaUrl = this._maBrowserUrl();
+      if (this._directMaFailure && this._directMaFailure.url !== nextDirectMaUrl) this._directMaFailure = null;
       this._resolvedConfigEntryId = String(this._config.config_entry_id || "").trim();
       this._resetMeasuredLayoutState();
       this._closeTransientEditorLayoutState();
@@ -618,14 +621,6 @@ export function createHomeiiBaseMusicCard({
       return this._hass?.themes?.darkMode ? "dark" : "light";
     }
 
-    _hasDirectMAConnection() {
-      return !!this._maBrowserUrl();
-    }
-
-    _hasRealtimeDirectMA() {
-      return !!(this._maBrowserUrl() && this._maToken);
-    }
-
     _normalizeMaConfigUrl(value = "") {
       return String(value || "").trim().replace(/\/$/, "");
     }
@@ -636,6 +631,99 @@ export function createHomeiiBaseMusicCard({
       const pageIsHttps = typeof window !== "undefined" && window.location?.protocol === "https:";
       if (pageIsHttps && externalUrl) return externalUrl;
       return internalUrl || externalUrl;
+    }
+
+    _isLikelyHomeAssistantIngressMaUrl(value = "") {
+      const raw = String(value || "").trim();
+      if (!raw) return false;
+      try {
+        const parsed = new URL(raw, typeof window !== "undefined" ? window.location.href : "http://homeii.local");
+        const path = String(parsed.pathname || "").toLowerCase();
+        return /(^|\/)[a-z0-9]+_music_assistant(\/|$)/.test(path) || path.includes("_music_assistant");
+      } catch (_) {
+        return raw.toLowerCase().includes("_music_assistant");
+      }
+    }
+
+    _directMaIngressMessage() {
+      return this._localText(
+        "The configured ma_url points to the Home Assistant Music Assistant ingress page, not the direct Music Assistant API. Leave ma_url empty for the normal Home Assistant integration path, or use the Music Assistant Web Server URL, for example http://host:8095.",
+        "כתובת ma_url שהוגדרה מצביעה למסך ה-ingress של Music Assistant בתוך Home Assistant, ולא ל-API הישיר של Music Assistant. השאר ma_url ריק לשימוש רגיל דרך Home Assistant, או השתמש בכתובת Web Server ישירה, למשל http://host:8095."
+      );
+    }
+
+    _directMaUnavailableMessage(status = 0, error = null) {
+      if (status === 404 || status === 405) {
+        return this._localText(
+          "The configured ma_url does not expose the Music Assistant direct API. Leave ma_url empty for the normal Home Assistant integration path, or use the Music Assistant Web Server URL, for example http://host:8095.",
+          "כתובת ma_url שהוגדרה לא חושפת את ה-API הישיר של Music Assistant. השאר ma_url ריק לשימוש רגיל דרך Home Assistant, או השתמש בכתובת Web Server ישירה, למשל http://host:8095."
+        );
+      }
+      const detail = String(error?.message || error || "").trim();
+      return this._localText(
+        `Direct Music Assistant API is not reachable${detail ? `: ${detail}` : ""}`,
+        `ה-API הישיר של Music Assistant לא זמין${detail ? `: ${detail}` : ""}`
+      );
+    }
+
+    _directMaSetupIssue(url = this._maBrowserUrl()) {
+      const value = this._normalizeMaConfigUrl(url);
+      if (!value) return "";
+      if (this._isLikelyHomeAssistantIngressMaUrl(value)) return this._directMaIngressMessage();
+      try {
+        this._assertMaBrowserUrlSecure(value);
+      } catch (error) {
+        return error?.message || this._maMixedContentMessage();
+      }
+      return "";
+    }
+
+    _directMaCooldownIssue(url = this._maBrowserUrl()) {
+      const failure = this._directMaFailure;
+      if (!failure?.blockedUntil) return "";
+      const value = this._normalizeMaConfigUrl(url);
+      if (!value || failure.url !== value) return "";
+      if (Date.now() >= Number(failure.blockedUntil || 0)) return "";
+      return failure.message || this._directMaUnavailableMessage(failure.status, failure.error);
+    }
+
+    _handleDirectMaConfigurationIssue(message = "") {
+      const text = String(message || "").trim();
+      if (!text) return "";
+      this._state.musicAssistantIssueMessage = text;
+      this._notifyCardIssue("direct-ma-url", text, "error", 45000);
+      return text;
+    }
+
+    _recordDirectMaFailure(url = this._maBrowserUrl(), error = null, status = 0) {
+      const value = this._normalizeMaConfigUrl(url);
+      if (!value) return "";
+      const message = this._isLikelyHomeAssistantIngressMaUrl(value)
+        ? this._directMaIngressMessage()
+        : this._directMaUnavailableMessage(status, error);
+      const cooldown = (status === 404 || status === 405 || this._isLikelyHomeAssistantIngressMaUrl(value)) ? 60000 : 15000;
+      this._directMaFailure = {
+        url: value,
+        status: Number(status || 0) || 0,
+        message,
+        blockedUntil: Date.now() + cooldown,
+      };
+      this._handleDirectMaConfigurationIssue(message);
+      return message;
+    }
+
+    _clearDirectMaFailure(url = this._maBrowserUrl()) {
+      const value = this._normalizeMaConfigUrl(url);
+      if (!this._directMaFailure || !value || this._directMaFailure.url === value) this._directMaFailure = null;
+    }
+
+    _hasDirectMAConnection() {
+      const maUrl = this._maBrowserUrl();
+      return !!maUrl && !this._directMaSetupIssue(maUrl) && !this._directMaCooldownIssue(maUrl);
+    }
+
+    _hasRealtimeDirectMA() {
+      return !!(this._hasDirectMAConnection() && this._maToken);
     }
 
     _maArtworkBaseUrl() {
@@ -975,7 +1063,7 @@ export function createHomeiiBaseMusicCard({
     _versionedAssetUrl(url) {
       const value = String(url || "").trim();
       if (!value || /^data:/i.test(value) || /[?&]v=/.test(value)) return value;
-      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.8.2-beta.3";
+      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.8.2-beta.4";
       return `${value}${value.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
     }
 
@@ -11656,7 +11744,16 @@ export function createHomeiiBaseMusicCard({
     _connectMA() {
       clearTimeout(this._maReconnectTimer);
       this._maReconnectTimer = null;
-      if (!this._hasRealtimeDirectMA()) {
+      const maUrl = this._maBrowserUrl();
+      const directIssue = maUrl ? this._directMaSetupIssue(maUrl) || this._directMaCooldownIssue(maUrl) : "";
+      if (directIssue) {
+        this._rejectWsPending(new Error(directIssue));
+        this._state.wsReady = false;
+        this._syncStatus();
+        this._handleDirectMaConfigurationIssue(directIssue);
+        return;
+      }
+      if (!maUrl || !this._maToken) {
         this._rejectWsPending(new Error("MA WS disabled"));
         this._state.wsReady = false;
         this._syncStatus();
@@ -11669,21 +11766,6 @@ export function createHomeiiBaseMusicCard({
           this._ws.close();
         } catch (_) {}
         this._ws = null;
-      }
-      const maUrl = this._maBrowserUrl();
-      try {
-        this._assertMaBrowserUrlSecure(maUrl);
-      } catch (error) {
-        this._state.wsReady = false;
-        this._syncStatus();
-        this._handleMusicAssistantIssue(error?.message || this._maMixedContentMessage());
-        this._notifyCardIssue("ma-mixed-content", error?.message || this._maMixedContentMessage(), "error", 45000);
-        return;
-      }
-      if (!maUrl) {
-        this._state.wsReady = false;
-        this._syncStatus();
-        return;
       }
       const wsUrl = maUrl.replace(/^http:\/\//, "ws://").replace(/^https:\/\//, "wss://") + "/ws";
       try {
@@ -11764,7 +11846,11 @@ export function createHomeiiBaseMusicCard({
       if (!maUrl) {
         throw new Error("Direct Music Assistant API is not configured");
       }
-      this._assertMaBrowserUrlSecure(maUrl);
+      const directIssue = this._directMaSetupIssue(maUrl) || this._directMaCooldownIssue(maUrl);
+      if (directIssue) {
+        this._handleDirectMaConfigurationIssue(directIssue);
+        throw new Error(directIssue);
+      }
       const headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",
@@ -11786,6 +11872,9 @@ export function createHomeiiBaseMusicCard({
             args,
           }),
         });
+      } catch (error) {
+        const message = this._recordDirectMaFailure(maUrl, error, 0) || (error?.message || `${command} failed`);
+        throw new Error(message);
       } finally {
         if (timeout) clearTimeout(timeout);
       }
@@ -11797,8 +11886,14 @@ export function createHomeiiBaseMusicCard({
         raw = { error: rawText || `${command} failed` };
       }
       if (!response.ok || raw?.error_code) {
-        throw new Error(raw?.details || raw?.error || `${command} failed`);
+        const error = new Error(raw?.details || raw?.error || `${command} failed`);
+        if (!response.ok) {
+          const message = this._recordDirectMaFailure(maUrl, error, response.status);
+          throw new Error(message || error.message);
+        }
+        throw error;
       }
+      this._clearDirectMaFailure(maUrl);
       return raw?.result ?? raw;
     }
 

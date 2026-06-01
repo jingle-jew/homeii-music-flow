@@ -12,6 +12,7 @@ import {
 describe("localization", () => {
   it("translates by key with English fallback", () => {
     expect(translate("he", "ui.home")).toBe("בית");
+    expect(translate("da", "ui.home")).toBe("Hjem");
     expect(translate("fr", "ui.home")).toBe("Accueil");
     expect(translate("it", "ui.now_playing")).toBe("In riproduzione");
     expect(translate("zh-CN", "ui.home")).toBe("首页");
@@ -38,6 +39,10 @@ describe("localization", () => {
   });
 
   it("offers community languages in the language picker options", () => {
+    expect(LANGUAGE_OPTIONS).toContainEqual({
+      value: "da",
+      label: "Dansk",
+    });
     expect(LANGUAGE_OPTIONS).toContainEqual({
       value: "es",
       label: "Español",

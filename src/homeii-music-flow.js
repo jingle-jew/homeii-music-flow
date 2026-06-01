@@ -28270,9 +28270,20 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     `;
   }
 
+  // Mirrors the namespacing pattern from PR #43 (feat/per-card-state-isolation).
+  // When that lands, this helper can be replaced with the global _lsKey() it introduces.
+  // Cards without card_id keep the unsuffixed key; cards with card_id get a per-card namespace
+  // so two HOMEii Flow cards on the same dashboard don't share accordion open/closed state.
+  _settingsLsKey(base) {
+    const cardId = this._config?.card_id;
+    if (!cardId) return base;
+    const trimmed = String(cardId).trim();
+    return trimmed ? `${base}__${trimmed}` : base;
+  }
+
   _settingsAccordionOpenSet() {
     try {
-      const raw = localStorage.getItem("homeii_music_flow_settings_accordion_open");
+      const raw = localStorage.getItem(this._settingsLsKey("homeii_music_flow_settings_accordion_open"));
       if (!raw) return new Set();
       const arr = JSON.parse(raw);
       return new Set(Array.isArray(arr) ? arr : []);
@@ -28282,7 +28293,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _persistSettingsAccordionOpen(set) {
     try {
       localStorage.setItem(
-        "homeii_music_flow_settings_accordion_open",
+        this._settingsLsKey("homeii_music_flow_settings_accordion_open"),
         JSON.stringify(Array.from(set))
       );
     } catch (_) {}

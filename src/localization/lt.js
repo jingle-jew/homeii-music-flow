@@ -626,7 +626,7 @@ const messages = Object.freeze({
   "ui.settings_section_announcements": "Skelbimai",
   "ui.settings_section_display": "Ekranas",
   "ui.settings_section_music_assistant": "Music Assistant",
-  "ui.settings_section_players_library": "Žaidėjai ir biblioteka",
+  "ui.settings_section_players_library": "Grotuvai ir biblioteka",
   "ui.settings_section_quick_actions_bar": "Greitieji veiksmai ir juosta",
   "ui.settings_section_smart_home": "Smart Home & ekrano užsklanda",
   "ui.settings_section_voice_assistant": "Balso asistentas",

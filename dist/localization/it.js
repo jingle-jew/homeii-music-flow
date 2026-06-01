@@ -638,7 +638,7 @@ const messages = Object.freeze({
   "ui.settings_section_announcements": "Annunci",
   "ui.settings_section_display": "Display",
   "ui.settings_section_music_assistant": "Music Assistant",
-  "ui.settings_section_players_library": "Giocatori e biblioteca",
+  "ui.settings_section_players_library": "Lettori e biblioteca",
   "ui.settings_section_quick_actions_bar": "Azioni rapide e barra",
   "ui.settings_section_smart_home": "Casa intelligente e screensaver",
   "ui.settings_section_voice_assistant": "Assistente vocale",

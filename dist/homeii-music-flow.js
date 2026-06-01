@@ -2492,7 +2492,7 @@ const messages$5 = Object.freeze({
   "ui.settings_section_announcements": "Anuncios",
   "ui.settings_section_display": "Mostrar",
   "ui.settings_section_music_assistant": "Music Assistant",
-  "ui.settings_section_players_library": "Jugadores y Biblioteca",
+  "ui.settings_section_players_library": "Reproductores y biblioteca",
   "ui.settings_section_quick_actions_bar": "Acciones rápidas y barra",
   "ui.settings_section_smart_home": "Hogar inteligente y salvapantallas",
   "ui.settings_section_voice_assistant": "Asistente de voz",
@@ -3438,7 +3438,7 @@ const messages$4 = Object.freeze({
   "ui.settings_section_announcements": "Annonces",
   "ui.settings_section_display": "Affichage",
   "ui.settings_section_music_assistant": "Music Assistant",
-  "ui.settings_section_players_library": "Joueurs et bibliothèque",
+  "ui.settings_section_players_library": "Lecteurs et bibliothèque",
   "ui.settings_section_quick_actions_bar": "Actions rapides et barre",
   "ui.settings_section_smart_home": "Maison intelligente et économiseur d'écran",
   "ui.settings_section_voice_assistant": "Assistant vocal",
@@ -4372,7 +4372,7 @@ const messages$3 = Object.freeze({
   "ui.settings_section_announcements": "הודעות",
   "ui.settings_section_display": "תצוגה",
   "ui.settings_section_music_assistant": "Music Assistant",
-  "ui.settings_section_players_library": "שחקנים וספרייה",
+  "ui.settings_section_players_library": "נגנים וספרייה",
   "ui.settings_section_quick_actions_bar": "פעולות מהירות וסרגל",
   "ui.settings_section_smart_home": "בית חכם ושומר מסך",
   "ui.settings_section_voice_assistant": "עוזר קולי",
@@ -5306,7 +5306,7 @@ const messages$2 = Object.freeze({
   "ui.settings_section_announcements": "Annunci",
   "ui.settings_section_display": "Display",
   "ui.settings_section_music_assistant": "Music Assistant",
-  "ui.settings_section_players_library": "Giocatori e biblioteca",
+  "ui.settings_section_players_library": "Lettori e biblioteca",
   "ui.settings_section_quick_actions_bar": "Azioni rapide e barra",
   "ui.settings_section_smart_home": "Casa intelligente e screensaver",
   "ui.settings_section_voice_assistant": "Assistente vocale",
@@ -6228,7 +6228,7 @@ const messages$1 = Object.freeze({
   "ui.settings_section_announcements": "Skelbimai",
   "ui.settings_section_display": "Ekranas",
   "ui.settings_section_music_assistant": "Music Assistant",
-  "ui.settings_section_players_library": "Žaidėjai ir biblioteka",
+  "ui.settings_section_players_library": "Grotuvai ir biblioteka",
   "ui.settings_section_quick_actions_bar": "Greitieji veiksmai ir juosta",
   "ui.settings_section_smart_home": "Smart Home & ekrano užsklanda",
   "ui.settings_section_voice_assistant": "Balso asistentas",
@@ -53066,9 +53066,19 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       </details>
     `;
   }
+  // Mirrors the namespacing pattern from PR #43 (feat/per-card-state-isolation).
+  // When that lands, this helper can be replaced with the global _lsKey() it introduces.
+  // Cards without card_id keep the unsuffixed key; cards with card_id get a per-card namespace
+  // so two HOMEii Flow cards on the same dashboard don't share accordion open/closed state.
+  _settingsLsKey(base) {
+    const cardId = this._config?.card_id;
+    if (!cardId) return base;
+    const trimmed = String(cardId).trim();
+    return trimmed ? `${base}__${trimmed}` : base;
+  }
   _settingsAccordionOpenSet() {
     try {
-      const raw = localStorage.getItem("homeii_music_flow_settings_accordion_open");
+      const raw = localStorage.getItem(this._settingsLsKey("homeii_music_flow_settings_accordion_open"));
       if (!raw) return /* @__PURE__ */ new Set();
       const arr = JSON.parse(raw);
       return new Set(Array.isArray(arr) ? arr : []);
@@ -53079,7 +53089,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _persistSettingsAccordionOpen(set) {
     try {
       localStorage.setItem(
-        "homeii_music_flow_settings_accordion_open",
+        this._settingsLsKey("homeii_music_flow_settings_accordion_open"),
         JSON.stringify(Array.from(set))
       );
     } catch (_) {

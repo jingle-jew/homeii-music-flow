@@ -638,7 +638,7 @@ const messages = Object.freeze({
   "ui.settings_section_announcements": "הודעות",
   "ui.settings_section_display": "תצוגה",
   "ui.settings_section_music_assistant": "Music Assistant",
-  "ui.settings_section_players_library": "שחקנים וספרייה",
+  "ui.settings_section_players_library": "נגנים וספרייה",
   "ui.settings_section_quick_actions_bar": "פעולות מהירות וסרגל",
   "ui.settings_section_smart_home": "בית חכם ושומר מסך",
   "ui.settings_section_voice_assistant": "עוזר קולי",

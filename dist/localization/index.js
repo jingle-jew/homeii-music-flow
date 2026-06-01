@@ -1,10 +1,10 @@
 import en from "./en.js?v=5.8.1-faea80c563";
 import da from "./da.js?v=5.8.1-3f259cdaae";
-import es from "./es.js?v=5.8.1-9502fd4243";
-import fr from "./fr.js?v=5.8.1-fc06ad93c2";
-import he from "./he.js?v=5.8.1-051d63e058";
-import it from "./it.js?v=5.8.1-9b85bb89e5";
-import lt from "./lt.js?v=5.8.1-efcd93f170";
+import es from "./es.js?v=5.8.1-5cc8a17feb";
+import fr from "./fr.js?v=5.8.1-6d4ad61447";
+import he from "./he.js?v=5.8.1-a98dfde447";
+import it from "./it.js?v=5.8.1-d1881c5015";
+import lt from "./lt.js?v=5.8.1-ab0309db8e";
 import zh from "./zh.js?v=5.8.1-4d41098f2d";
 
 export const DEFAULT_LANGUAGE = "en";

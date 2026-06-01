@@ -633,6 +633,13 @@ const messages$7 = Object.freeze({
   "ui.set_volume": "Set volume",
   "ui.set_the_visual_order_of_quick_actions": "Set the visual order. Only selected Quick Actions are shown; unselected items are ignored.",
   "ui.settings": "Settings",
+  "ui.settings_section_announcements": "Announcements",
+  "ui.settings_section_display": "Display",
+  "ui.settings_section_music_assistant": "Music Assistant",
+  "ui.settings_section_players_library": "Players & Library",
+  "ui.settings_section_quick_actions_bar": "Quick Actions & Bar",
+  "ui.settings_section_smart_home": "Smart Home & Screensaver",
+  "ui.settings_section_voice_assistant": "Voice Assistant",
   "ui.settings_source": "Settings source",
   "ui.show_ma_button": "Show MA button",
   "ui.show_or_hide_the_inline_next_track_row_in_now_playing": "Show or hide the inline next-track row in Now Playing.",
@@ -1560,6 +1567,13 @@ const messages$6 = Object.freeze({
   "ui.set_volume": "Indstil lydstyrken",
   "ui.set_the_visual_order_of_quick_actions": "Indstil den visuelle rækkefølge. Kun valgte Quick Handlinger vises; ikke-valgte elementer ignoreres.",
   "ui.settings": "Indstillinger",
+  "ui.settings_section_announcements": "Annonceringer",
+  "ui.settings_section_display": "Visning",
+  "ui.settings_section_music_assistant": "Music Assistant",
+  "ui.settings_section_players_library": "Afspillere & Bibliotek",
+  "ui.settings_section_quick_actions_bar": "Hurtige Handlinger & Bar",
+  "ui.settings_section_smart_home": "Smart hjem & Screensaver",
+  "ui.settings_section_voice_assistant": "Stemmeassistent",
   "ui.settings_source": "Kilde til indstillinger",
   "ui.show_ma_button": "Vis MA-knap",
   "ui.show_or_hide_the_inline_next_track_row_in_now_playing": "Vis eller skjul den indbyggede række med næste spor i Spiller nu.",
@@ -2475,6 +2489,13 @@ const messages$5 = Object.freeze({
   "ui.set_sleep_timer": "Configurar temporizador de apagado",
   "ui.set_volume": "Configurar volumen",
   "ui.settings": "Configuración",
+  "ui.settings_section_announcements": "Anuncios",
+  "ui.settings_section_display": "Mostrar",
+  "ui.settings_section_music_assistant": "Music Assistant",
+  "ui.settings_section_players_library": "Jugadores y Biblioteca",
+  "ui.settings_section_quick_actions_bar": "Acciones rápidas y barra",
+  "ui.settings_section_smart_home": "Hogar inteligente y salvapantallas",
+  "ui.settings_section_voice_assistant": "Asistente de voz",
   "ui.settings_source": "Origen de la configuración",
   "ui.show_ma_button": "Mostrar botón de MA",
   "ui.show_or_hide_the_inline_next_track_row_in_now_playing": "Muestra u oculta la fila integrada de la siguiente pista en Reproduciendo ahora.",
@@ -3414,6 +3435,13 @@ const messages$4 = Object.freeze({
   "ui.set_volume": "Régler le volume",
   "ui.set_the_visual_order_of_quick_actions": "Réorganiser. Seules les actions rapides sélectionnées sont affichées ; les éléments non sélectionnés sont ignorés.",
   "ui.settings": "Paramètres",
+  "ui.settings_section_announcements": "Annonces",
+  "ui.settings_section_display": "Affichage",
+  "ui.settings_section_music_assistant": "Music Assistant",
+  "ui.settings_section_players_library": "Joueurs et bibliothèque",
+  "ui.settings_section_quick_actions_bar": "Actions rapides et barre",
+  "ui.settings_section_smart_home": "Maison intelligente et économiseur d'écran",
+  "ui.settings_section_voice_assistant": "Assistant vocal",
   "ui.settings_source": "Source des paramètres",
   "ui.show_ma_button": "Afficher le bouton MA",
   "ui.show_or_hide_the_inline_next_track_row_in_now_playing": "Afficher ou masquer la piste suivante dans Lecture en cours.",
@@ -4341,6 +4369,13 @@ const messages$3 = Object.freeze({
   "ui.set_volume": "קבע ווליום",
   "ui.set_the_visual_order_of_quick_actions": "קובע את הסדר הוויזואלי. רק פעולות מהירות שסומנו יוצגו; פריטים שלא סומנו יתעלמו.",
   "ui.settings": "הגדרות",
+  "ui.settings_section_announcements": "הודעות",
+  "ui.settings_section_display": "תצוגה",
+  "ui.settings_section_music_assistant": "Music Assistant",
+  "ui.settings_section_players_library": "שחקנים וספרייה",
+  "ui.settings_section_quick_actions_bar": "פעולות מהירות וסרגל",
+  "ui.settings_section_smart_home": "בית חכם ושומר מסך",
+  "ui.settings_section_voice_assistant": "עוזר קולי",
   "ui.settings_source": "מקור ההגדרות",
   "ui.show_ma_button": "כפתור MA",
   "ui.show_or_hide_the_inline_next_track_row_in_now_playing": "מציג או מסתיר את שורת השיר הבא במסך הניגון.",
@@ -5268,6 +5303,13 @@ const messages$2 = Object.freeze({
   "ui.set_volume": "Imposta volume",
   "ui.set_the_visual_order_of_quick_actions": "Imposta l'ordine visivo. Verranno mostrate solo le Azioni Rapide selezionate; gli elementi non selezionati saranno ignorati.",
   "ui.settings": "Impostazioni",
+  "ui.settings_section_announcements": "Annunci",
+  "ui.settings_section_display": "Display",
+  "ui.settings_section_music_assistant": "Music Assistant",
+  "ui.settings_section_players_library": "Giocatori e biblioteca",
+  "ui.settings_section_quick_actions_bar": "Azioni rapide e barra",
+  "ui.settings_section_smart_home": "Casa intelligente e screensaver",
+  "ui.settings_section_voice_assistant": "Assistente vocale",
   "ui.settings_source": "Sorgente impostazioni",
   "ui.show_ma_button": "Mostra pulsante MA",
   "ui.show_or_hide_the_inline_next_track_row_in_now_playing": "Mostra o nascondi la riga integrata del brano successivo in 'In Riproduzione'.",
@@ -6183,6 +6225,13 @@ const messages$1 = Object.freeze({
   "ui.set_sleep_timer": "Nustatyti išsijungimo laikmatį",
   "ui.set_volume": "Nustatyti garsumą",
   "ui.settings": "Nustatymai",
+  "ui.settings_section_announcements": "Skelbimai",
+  "ui.settings_section_display": "Ekranas",
+  "ui.settings_section_music_assistant": "Music Assistant",
+  "ui.settings_section_players_library": "Žaidėjai ir biblioteka",
+  "ui.settings_section_quick_actions_bar": "Greitieji veiksmai ir juosta",
+  "ui.settings_section_smart_home": "Smart Home & ekrano užsklanda",
+  "ui.settings_section_voice_assistant": "Balso asistentas",
   "ui.settings_source": "Nustatymų šaltinis",
   "ui.show_ma_button": "Rodyti MA mygtuką",
   "ui.show_or_hide_the_inline_next_track_row_in_now_playing": "Rodyti/slėpti sekančio kūrinio eilutę grojimo lange.",
@@ -7114,6 +7163,13 @@ const messages = Object.freeze({
   "ui.set_volume": "设置音量",
   "ui.set_the_visual_order_of_quick_actions": "设置显示顺序。只显示已勾选的快捷操作；未勾选的项目会被忽略。",
   "ui.settings": "设置",
+  "ui.settings_section_announcements": "公告",
+  "ui.settings_section_display": "显示屏",
+  "ui.settings_section_music_assistant": "Music Assistant",
+  "ui.settings_section_players_library": "播放器和图书馆",
+  "ui.settings_section_quick_actions_bar": "快速操作和栏",
+  "ui.settings_section_smart_home": "智能家居和屏幕保护程序",
+  "ui.settings_section_voice_assistant": "语音助理",
   "ui.settings_source": "设置来源",
   "ui.show_ma_button": "显示 MA 按钮",
   "ui.show_or_hide_the_inline_next_track_row_in_now_playing": "显示或隐藏正在播放界面中的“即将播放”行。",
@@ -41598,8 +41654,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         }
         .settings-shell {
           display:grid;
+          grid-template-columns: minmax(0, 1fr);
           gap:16px;
           align-content:start;
+          width: 100%;
+          box-sizing: border-box;
         }
         .rtl .settings-shell,
         .rtl .settings-card {
@@ -41611,6 +41670,68 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           direction:rtl;
           text-align:right;
         }
+        .settings-accordion {
+          display: block;
+          width: 100%;
+          min-width: 100%;
+          justify-self: stretch;
+          grid-column: 1 / -1;
+          box-sizing: border-box;
+        }
+        .settings-accordion-summary {
+          list-style: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 14px 16px;
+          border-radius: 18px;
+          background: rgba(255,255,255,.08);
+          border: 1px solid rgba(255,255,255,.12);
+          backdrop-filter: blur(18px);
+          -webkit-backdrop-filter: blur(18px);
+          user-select: none;
+          min-height: 24px;
+          width: 100%;
+          min-width: 100%;
+          box-sizing: border-box;
+        }
+        .theme-light .settings-accordion-summary {
+          background: rgba(255,255,255,.72);
+          border-color: rgba(147,161,183,.2);
+        }
+        .settings-accordion-summary::-webkit-details-marker { display: none; }
+        .settings-accordion-summary:hover { filter: brightness(1.05); }
+        .settings-accordion-title {
+          flex: 1;
+          font-weight: 700;
+          font-size: 14px;
+          letter-spacing: .02em;
+        }
+        .settings-accordion-summary > svg,
+        .settings-accordion-summary .settings-accordion-chevron {
+          width: 18px;
+          height: 18px;
+          flex: 0 0 18px;
+          transition: transform 160ms ease;
+          opacity: .7;
+        }
+        .settings-accordion[open] > .settings-accordion-summary > svg,
+        .settings-accordion[open] > .settings-accordion-summary .settings-accordion-chevron {
+          transform: rotate(90deg);
+        }
+        .settings-accordion[open] > .settings-accordion-summary {
+          border-bottom-left-radius: 0;
+          border-bottom-right-radius: 0;
+          border-bottom: none;
+        }
+        .settings-accordion > .settings-group {
+          margin-top: 0;
+          border-top: none;
+          border-top-left-radius: 0;
+          border-top-right-radius: 0;
+        }
+        .settings-accordion:not([open]) > .settings-group { display: none; }
         .settings-group {
           display:grid;
           gap:10px;
@@ -49906,6 +50027,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this.$("mobileMenuBody")?.addEventListener("change", this._boundMobileMenuChange);
     this.$("mobileMenuBody")?.addEventListener("keydown", this._boundMobileMenuKeydown);
     this.$("mobileMenuBody")?.addEventListener("scroll", this._boundMobileMenuScroll, { passive: true });
+    this.$("mobileMenuBody")?.addEventListener("toggle", (e) => {
+      const det = e.target?.closest?.("details.settings-accordion");
+      if (!det) return;
+      const id = det.dataset.settingsAccordion;
+      if (!id) return;
+      const set = this._settingsAccordionOpenSet();
+      if (det.open) set.add(id);
+      else set.delete(id);
+      this._persistSettingsAccordionOpen(set);
+    }, true);
     this._bindProgressSeekBar(this.$("progressBar"));
     this.$("mobileVolPctLabel")?.addEventListener("click", () => this._openMobileVolumePresets());
     this.$("volSlider")?.addEventListener("input", (e) => {
@@ -51089,7 +51220,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
    *                          the heavy path.
    */
   _refreshAfterSettingsChange(categories = {}) {
-    if (categories.unknown) {
+    if (categories.unknown || categories.mainBarChanged) {
       this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
       return;
     }
@@ -51098,12 +51229,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.mobileSettingsScrollTop = scrollTop;
     if (categories.playerListChanged) {
       this._loadPlayers();
+      if (typeof this._renderPlayerSummary === "function") this._renderPlayerSummary();
     }
-    if (categories.pinnedChanged) {
-      if (typeof this._refreshFrontPinnedPlayer === "function") this._refreshFrontPinnedPlayer();
+    if (categories.quickActionsChanged) {
+      if (typeof this._syncActiveQuickActionRow === "function") {
+        this._syncActiveQuickActionRow({ force: true });
+      }
     }
-    void categories.mainBarChanged;
-    void categories.quickActionsChanged;
     void categories.libraryTabsChanged;
     this._openMobileMenu("settings", { scrollTop });
     this._restoreMobileMenuScroll(scrollTop, "settings");
@@ -52920,8 +53052,53 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _settingsPill(label, value, current, attr = "data-setting-value") {
     return `<button class="settings-pill ${value === current ? "active" : ""}" ${attr}="${this._esc(value)}">${this._esc(label)}</button>`;
   }
+  _settingsAccordionWrap(id, title, body) {
+    const openSet = this._settingsAccordionOpenSet();
+    const isOpen = openSet.has(id);
+    const chevron = `<svg class="settings-accordion-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    return `
+      <details class="settings-accordion" data-settings-accordion="${this._esc(id)}"${isOpen ? " open" : ""}>
+        <summary class="settings-accordion-summary">
+          <span class="settings-accordion-title">${this._esc(title)}</span>
+          ${chevron}
+        </summary>
+        ${body}
+      </details>
+    `;
+  }
+  _settingsAccordionOpenSet() {
+    try {
+      const raw = localStorage.getItem("homeii_music_flow_settings_accordion_open");
+      if (!raw) return /* @__PURE__ */ new Set();
+      const arr = JSON.parse(raw);
+      return new Set(Array.isArray(arr) ? arr : []);
+    } catch (_) {
+      return /* @__PURE__ */ new Set();
+    }
+  }
+  _persistSettingsAccordionOpen(set) {
+    try {
+      localStorage.setItem(
+        "homeii_music_flow_settings_accordion_open",
+        JSON.stringify(Array.from(set))
+      );
+    } catch (_) {
+    }
+  }
   _settingsMenuHtml() {
     this._loadPlayers();
+    return `<div class="settings-shell">
+      ${this._settingsAccordionWrap("display", this._i18n("ui.settings_section_display", {}, "Display"), this._settingsSectionDisplay())}
+      ${this._settingsAccordionWrap("players_library", this._i18n("ui.settings_section_players_library", {}, "Players & Library"), this._settingsSectionPlayersLibrary())}
+      ${this._settingsAccordionWrap("quick_actions_bar", this._i18n("ui.settings_section_quick_actions_bar", {}, "Quick Actions Bar"), this._settingsSectionQuickActionsBar())}
+      ${this._settingsAccordionWrap("voice_assistant", this._i18n("ui.settings_section_voice_assistant", {}, "Voice Assistant"), this._settingsSectionVoiceAssistant())}
+      ${this._settingsAccordionWrap("smart_home", this._i18n("ui.settings_section_smart_home", {}, "Smart Home"), this._settingsSectionSmartHome())}
+      ${this._settingsAccordionWrap("announcements", this._i18n("ui.settings_section_announcements", {}, "Announcements"), this._settingsSectionAnnouncements())}
+      ${this._settingsAccordionWrap("music_assistant", this._i18n("ui.settings_section_music_assistant", {}, "Music Assistant"), this._settingsSectionMusicAssistant())}
+      <div class="settings-version">Version ${HOMEII_CARD_VERSION}</div>
+    </div>`;
+  }
+  _settingsSectionDisplay() {
     const theme = this._state.cardTheme === "light" || this._state.cardTheme === "custom" ? this._state.cardTheme : "dark";
     const performanceProfile2 = this._performanceProfile();
     const dynamicThemeMode = this._mobileDynamicThemeMode();
@@ -52933,82 +53110,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const compactWidgetMode = this._mobileCompactWidgetMode();
     const showUpNext = this._mobileShowUpNextEnabled();
     const footerMode = this._mobileFooterMode();
-    const volumeMode = this._mobileVolumeMode();
-    const volumeStepButtonsEnabled = this._mobileVolumeStepButtonsEnabled();
-    const volumeStepPercent = this._mobileVolumeStepPercent();
     const micMode = this._mobileMicMode();
-    const voiceAssistantEnabled = this._voiceAssistantEnabled();
-    const voiceAssistantMode = this._voiceAssistantMode();
-    const voiceAssistantSpeakFeedback = this._voiceAssistantSpeakFeedbackEnabled();
-    const voiceAssistantAgentOptions = this._voiceAssistantAgentOptions();
     const homeShortcut = this._mobileHomeShortcutEnabled();
-    const studioShortcut = this._mobileStudioShortcutEnabled();
-    const likedMode = this._useMaLikedMode() ? "ma" : "local";
-    const mainBarOptions = [
-      ["search", this._i18n("ui.search")],
-      ["library", this._i18n("ui.library")],
-      ["players", this._i18n("ui.players")],
-      ["actions", this._i18n("ui.actions_2")],
-      ["settings", this._i18n("ui.settings")],
-      ["theme", this._i18n("ui.theme_toggle")]
-    ];
-    const tabOptions = [
-      ["library_playlists", this._i18n("ui.playlists")],
-      ["library_artists", this._i18n("ui.artists")],
-      ["library_albums", this._i18n("ui.albums")],
-      ["library_tracks", this._i18n("ui.tracks")],
-      ["library_radio", this._i18n("ui.radio")],
-      ["library_podcasts", this._i18n("ui.podcasts")],
-      ["library_liked", this._i18n("ui.liked")],
-      ["library_search", this._i18n("ui.search")]
-    ];
-    const selectedTabs = new Set(this._mobileLibraryTabs());
-    const libraryDefaultLayout = this._defaultMobileMediaLayout();
-    const selectedMainBar = new Set(this._mobileMainBarItems());
-    const quickActionOptions = this._mobileQuickActionOptions();
-    const quickActions = this._mobileQuickActions();
-    const selectedQuickActions = new Set(quickActions);
-    const radioCountry = this._mobileRadioBrowserCountry();
-    const radioCountryOptions = this._radioBrowserCountryOptions();
-    const pinnedPlayers = new Set(this._pinnedPlayerPreferences());
-    const excludedPlayers = new Set(this._excludedPlayerPreferences());
-    const playerSortMode = this._playerSortMode();
-    const playerOrder = this._playerOrderPreferences();
-    const playerOptions = this._pinnedPlayerOptionPlayers([], { includeExcluded: true }).map((player) => [player.entity_id, player.attributes?.friendly_name || player.entity_id]);
-    const visibleMainBarOptions = mainBarOptions;
-    const showStudioMainBarOption = this._controlRoomEnabled();
-    const announcementLanguage = this._announcementLanguageSetting();
-    const announcementLanguageOptions = this._announcementLanguageOptions();
-    const settingsMainBarLocked = !this._usesVisualSettings();
-    const ambientEntitiesText = this._ambientLightEntities().join(", ");
-    const ambientPlayerMapText = this._ambientLightPlayerMap().join("\n");
-    const screensaverClockMode = this._screensaverClockMode();
-    const screensaverControlButtons = this._screensaverControlButtons({ includeDisabled: true });
-    const selectedScreensaverControlButtons = new Set(screensaverControlButtons);
-    const screensaverControlOptions = this._screensaverControlButtonOptions();
-    const powerButtonAction = this._powerButtonAction();
-    const auxiliaryButtonConfigs = this._auxiliaryButtonConfigs();
-    const auxiliaryIconOptions = [
-      ["power", this._i18n("ui.power")],
-      ["home", this._i18n("ui.home")],
-      ["speaker", this._i18n("ui.players")],
-      ["music_note", this._i18n("ui.music")],
-      ["wand", this._i18n("ui.surprise_me")],
-      ["grid", this._i18n("ui.actions_2")],
-      ["settings", this._i18n("ui.settings")],
-      ["heart_outline", this._i18n("ui.like_2")],
-      ["play", this._i18n("ui.play")],
-      ["stop", this._i18n("ui.stop_all")],
-      ["radio", this._i18n("ui.radio")],
-      ["timer", this._i18n("ui.timer")],
-      ["info", this._i18n("ui.info")]
-    ];
-    auxiliaryButtonConfigs.forEach((button) => {
-      const icon = String(button?.icon || "").trim();
-      if (icon && !auxiliaryIconOptions.some(([value]) => value === icon)) auxiliaryIconOptions.unshift([icon, icon]);
-    });
     return `
-      <div class="settings-shell">
         <div class="settings-group">
           <div class="settings-label">${this._i18n("ui.language")}</div>
           ${this._settingsLanguageSelectHtml()}
@@ -53109,6 +53213,30 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           <div class="settings-label">${this._i18n("ui.home_path")}</div>
           <input class="media-sort-select settings-select" id="mobileHomeShortcutPathInput" type="text" value="${this._esc(this._mobileHomeShortcutPath())}" placeholder="/lovelace/home" aria-label="${this._esc(this._i18n("ui.home_path"))}">
           <div class="settings-hint">${this._i18n("ui.use_any_home_assistant_path_example_lovelace_home")}</div>
+        </div>`;
+  }
+  _settingsSectionPlayersLibrary() {
+    const pinnedPlayers = new Set(this._pinnedPlayerPreferences());
+    const excludedPlayers = new Set(this._excludedPlayerPreferences());
+    const playerSortMode = this._playerSortMode();
+    const playerOrder = this._playerOrderPreferences();
+    const playerOptions = this._pinnedPlayerOptionPlayers([], { includeExcluded: true }).map((player) => [player.entity_id, player.attributes?.friendly_name || player.entity_id]);
+    const tabOptions = [
+      ["library_playlists", this._i18n("ui.playlists")],
+      ["library_artists", this._i18n("ui.artists")],
+      ["library_albums", this._i18n("ui.albums")],
+      ["library_tracks", this._i18n("ui.tracks")],
+      ["library_radio", this._i18n("ui.radio")],
+      ["library_podcasts", this._i18n("ui.podcasts")],
+      ["library_liked", this._i18n("ui.liked")],
+      ["library_search", this._i18n("ui.search")]
+    ];
+    const selectedTabs = new Set(this._mobileLibraryTabs());
+    const libraryDefaultLayout = this._defaultMobileMediaLayout();
+    const radioCountry = this._mobileRadioBrowserCountry();
+    const radioCountryOptions = this._radioBrowserCountryOptions();
+    return `
+        <div class="settings-group">
           <div class="settings-label">${this._i18n("ui.pinned_players")}</div>
           <div class="settings-check-grid">
             ${playerOptions.length ? playerOptions.map(([value, label]) => `
@@ -53149,33 +53277,49 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             </div>
           ` : ``}
         </div>
-        <div class="settings-group voice-assistant-settings-card">
-          <div class="settings-label">${this._flowAssistantLabel()}</div>
+        <div class="settings-group">
+          <div class="settings-label">${this._i18n("ui.library_pages")}</div>
           <div class="settings-pills">
-            ${this._settingsPill(this._i18n("ui.enabled"), "on", voiceAssistantEnabled ? "on" : "off", "data-setting-voice-assistant")}
-            ${this._settingsPill(this._i18n("ui.disabled"), "off", voiceAssistantEnabled ? "on" : "off", "data-setting-voice-assistant")}
+            ${this._settingsPill(this._i18n("ui.grid"), "grid", libraryDefaultLayout, "data-setting-library-default-layout")}
+            ${this._settingsPill(this._i18n("ui.list"), "list", libraryDefaultLayout, "data-setting-library-default-layout")}
           </div>
-          <div class="settings-label">${this._i18n("ui.voice_assistant_mode")}</div>
-          <div class="settings-pills">
-            ${this._settingsPill(this._i18n("ui.hybrid_music_plus_assist"), "hybrid", voiceAssistantMode, "data-setting-voice-assistant-mode")}
-            ${this._settingsPill(this._i18n("ui.music_only"), "music", voiceAssistantMode, "data-setting-voice-assistant-mode")}
-            ${this._settingsPill(this._i18n("ui.assist_only"), "assist", voiceAssistantMode, "data-setting-voice-assistant-mode")}
+          <div class="settings-hint">${this._i18n("ui.choose_how_library_pages_open_grid_or_list_can_still_be_changed_manually", {}, this._m("Choose how library pages open. You can still switch Grid/List inside the library.", "בחר איך דפי הספריה ייפתחו. עדיין אפשר להחליף ידנית בתוך הספריה."))}</div>
+          <div class="settings-check-grid">
+            ${tabOptions.map(([value, label]) => `
+              <label class="settings-check-pill">
+                <input type="checkbox" data-setting-library-tab="${this._esc(value)}" ${selectedTabs.has(value) ? "checked" : ""}>
+                <span>${this._esc(label)}</span>
+              </label>`).join("")}
           </div>
-          <div class="settings-hint">${this._i18n("ui.hybrid_handles_music_locally_and_sends_unknown_commands_to_assist")}</div>
-          <div class="settings-label">${this._i18n("ui.assist_agent")}</div>
-          <select class="media-sort-select settings-select" id="voiceAssistantAgentSelect" aria-label="${this._esc(this._i18n("ui.assist_agent"))}">
-            ${voiceAssistantAgentOptions.map((option) => `
-              <option value="${this._esc(option.value)}" ${option.value === this._voiceAssistantAgentId() ? "selected" : ""}>${this._esc(option.label)}</option>
-            `).join("")}
+          <div class="settings-label">Radio Browser</div>
+          <select class="media-sort-select settings-select" id="mobileRadioCountrySelect" aria-label="${this._esc(this._i18n("ui.radio_browser_country"))}">
+            ${radioCountryOptions.map(([value, label]) => `<option value="${this._esc(value)}" ${value === radioCountry ? "selected" : ""}>${this._esc(label)}</option>`).join("")}
           </select>
-          <div class="settings-hint">${this._i18n("ui.optional_assist_agent_leave_empty_for_home_assistant_default")}</div>
-          <div class="settings-label">${this._i18n("ui.voice_feedback")}</div>
-          <div class="settings-pills">
-            ${this._settingsPill(this._i18n("ui.enabled"), "on", voiceAssistantSpeakFeedback ? "on" : "off", "data-setting-voice-feedback")}
-            ${this._settingsPill(this._i18n("ui.disabled"), "off", voiceAssistantSpeakFeedback ? "on" : "off", "data-setting-voice-feedback")}
-          </div>
-          <div class="settings-hint">${this._i18n("ui.speak_voice_assistant_responses_out_loud")}</div>
-        </div>
+          <div class="settings-hint">${this._i18n("ui.choose_a_country_or_all_countries_to_browse_every_country_inside_the_rad")}</div>
+        </div>`;
+  }
+  _settingsSectionQuickActionsBar() {
+    const quickActionOptions = this._mobileQuickActionOptions();
+    const quickActions = this._mobileQuickActions();
+    const selectedQuickActions = new Set(quickActions);
+    const mainBarOptions = [
+      ["search", this._i18n("ui.search")],
+      ["library", this._i18n("ui.library")],
+      ["players", this._i18n("ui.players")],
+      ["actions", this._i18n("ui.actions_2")],
+      ["settings", this._i18n("ui.settings")],
+      ["theme", this._i18n("ui.theme_toggle")]
+    ];
+    const visibleMainBarOptions = mainBarOptions;
+    const selectedMainBar = new Set(this._mobileMainBarItems());
+    const showStudioMainBarOption = this._controlRoomEnabled();
+    const studioShortcut = this._mobileStudioShortcutEnabled();
+    const settingsMainBarLocked = !this._usesVisualSettings();
+    const volumeMode = this._mobileVolumeMode();
+    const volumeStepButtonsEnabled = this._mobileVolumeStepButtonsEnabled();
+    const volumeStepPercent = this._mobileVolumeStepPercent();
+    const likedMode = this._useMaLikedMode() ? "ma" : "local";
+    return `
         <div class="settings-group quick-actions-settings-card">
           <div class="settings-label">${this._i18n("ui.quick_actions")}</div>
           <div class="settings-check-grid quick-actions-grid">
@@ -53237,33 +53381,71 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             ${this._settingsPill("Music Assistant", "ma", likedMode, "data-setting-liked-mode")}
             ${this._config?.allow_local_likes === true ? this._settingsPill(this._i18n("ui.local"), "local", likedMode, "data-setting-liked-mode") : ""}
           </div>
-          <div class="settings-label">Radio Browser</div>
-          <select class="media-sort-select settings-select" id="mobileRadioCountrySelect" aria-label="${this._esc(this._i18n("ui.radio_browser_country"))}">
-            ${radioCountryOptions.map(([value, label]) => `<option value="${this._esc(value)}" ${value === radioCountry ? "selected" : ""}>${this._esc(label)}</option>`).join("")}
-          </select>
-          <div class="settings-hint">${this._i18n("ui.choose_a_country_or_all_countries_to_browse_every_country_inside_the_rad")}</div>
-        </div>
-        <div class="settings-group">
-          <div class="settings-label">${this._i18n("ui.library_pages")}</div>
+        </div>`;
+  }
+  _settingsSectionVoiceAssistant() {
+    const voiceAssistantEnabled = this._voiceAssistantEnabled();
+    const voiceAssistantMode = this._voiceAssistantMode();
+    const voiceAssistantSpeakFeedback = this._voiceAssistantSpeakFeedbackEnabled();
+    const voiceAssistantAgentOptions = this._voiceAssistantAgentOptions();
+    return `
+        <div class="settings-group voice-assistant-settings-card">
+          <div class="settings-label">${this._flowAssistantLabel()}</div>
           <div class="settings-pills">
-            ${this._settingsPill(this._i18n("ui.grid"), "grid", libraryDefaultLayout, "data-setting-library-default-layout")}
-            ${this._settingsPill(this._i18n("ui.list"), "list", libraryDefaultLayout, "data-setting-library-default-layout")}
+            ${this._settingsPill(this._i18n("ui.enabled"), "on", voiceAssistantEnabled ? "on" : "off", "data-setting-voice-assistant")}
+            ${this._settingsPill(this._i18n("ui.disabled"), "off", voiceAssistantEnabled ? "on" : "off", "data-setting-voice-assistant")}
           </div>
-          <div class="settings-hint">${this._i18n("ui.choose_how_library_pages_open_grid_or_list_can_still_be_changed_manually", {}, this._m("Choose how library pages open. You can still switch Grid/List inside the library.", "בחר איך דפי הספריה ייפתחו. עדיין אפשר להחליף ידנית בתוך הספריה."))}</div>
-          <div class="settings-check-grid">
-            ${tabOptions.map(([value, label]) => `
-              <label class="settings-check-pill">
-                <input type="checkbox" data-setting-library-tab="${this._esc(value)}" ${selectedTabs.has(value) ? "checked" : ""}>
-                <span>${this._esc(label)}</span>
-              </label>`).join("")}
+          <div class="settings-label">${this._i18n("ui.voice_assistant_mode")}</div>
+          <div class="settings-pills">
+            ${this._settingsPill(this._i18n("ui.hybrid_music_plus_assist"), "hybrid", voiceAssistantMode, "data-setting-voice-assistant-mode")}
+            ${this._settingsPill(this._i18n("ui.music_only"), "music", voiceAssistantMode, "data-setting-voice-assistant-mode")}
+            ${this._settingsPill(this._i18n("ui.assist_only"), "assist", voiceAssistantMode, "data-setting-voice-assistant-mode")}
           </div>
-        </div>
-        <div class="settings-group">
-          <div class="settings-label">Music Assistant</div>
-          <div class="settings-actions">
-            <button class="settings-pill active" data-menu-action="open_app">${this._i18n("ui.open_full_interface")}</button>
+          <div class="settings-hint">${this._i18n("ui.hybrid_handles_music_locally_and_sends_unknown_commands_to_assist")}</div>
+          <div class="settings-label">${this._i18n("ui.assist_agent")}</div>
+          <select class="media-sort-select settings-select" id="voiceAssistantAgentSelect" aria-label="${this._esc(this._i18n("ui.assist_agent"))}">
+            ${voiceAssistantAgentOptions.map((option) => `
+              <option value="${this._esc(option.value)}" ${option.value === this._voiceAssistantAgentId() ? "selected" : ""}>${this._esc(option.label)}</option>
+            `).join("")}
+          </select>
+          <div class="settings-hint">${this._i18n("ui.optional_assist_agent_leave_empty_for_home_assistant_default")}</div>
+          <div class="settings-label">${this._i18n("ui.voice_feedback")}</div>
+          <div class="settings-pills">
+            ${this._settingsPill(this._i18n("ui.enabled"), "on", voiceAssistantSpeakFeedback ? "on" : "off", "data-setting-voice-feedback")}
+            ${this._settingsPill(this._i18n("ui.disabled"), "off", voiceAssistantSpeakFeedback ? "on" : "off", "data-setting-voice-feedback")}
           </div>
-        </div>
+          <div class="settings-hint">${this._i18n("ui.speak_voice_assistant_responses_out_loud")}</div>
+        </div>`;
+  }
+  _settingsSectionSmartHome() {
+    const ambientEntitiesText = this._ambientLightEntities().join(", ");
+    const ambientPlayerMapText = this._ambientLightPlayerMap().join("\n");
+    const screensaverClockMode = this._screensaverClockMode();
+    const screensaverControlButtons = this._screensaverControlButtons({ includeDisabled: true });
+    const selectedScreensaverControlButtons = new Set(screensaverControlButtons);
+    const screensaverControlOptions = this._screensaverControlButtonOptions();
+    const powerButtonAction = this._powerButtonAction();
+    const auxiliaryButtonConfigs = this._auxiliaryButtonConfigs();
+    const auxiliaryIconOptions = [
+      ["power", this._i18n("ui.power")],
+      ["home", this._i18n("ui.home")],
+      ["speaker", this._i18n("ui.players")],
+      ["music_note", this._i18n("ui.music")],
+      ["wand", this._i18n("ui.surprise_me")],
+      ["grid", this._i18n("ui.actions_2")],
+      ["settings", this._i18n("ui.settings")],
+      ["heart_outline", this._i18n("ui.like_2")],
+      ["play", this._i18n("ui.play")],
+      ["stop", this._i18n("ui.stop_all")],
+      ["radio", this._i18n("ui.radio")],
+      ["timer", this._i18n("ui.timer")],
+      ["info", this._i18n("ui.info")]
+    ];
+    auxiliaryButtonConfigs.forEach((button) => {
+      const icon = String(button?.icon || "").trim();
+      if (icon && !auxiliaryIconOptions.some(([value]) => value === icon)) auxiliaryIconOptions.unshift([icon, icon]);
+    });
+    return `
         <div class="settings-group smart-home-settings-card">
           <div class="settings-label">${this._i18n("ui.smart_home")}</div>
           <div class="settings-label">${this._i18n("ui.ambient_light")}</div>
@@ -53369,7 +53551,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             ${this._settingsPill(this._i18n("ui.enabled"), "on", this._discoveryModeEnabled() ? "on" : "off", "data-setting-discovery-mode")}
             ${this._settingsPill(this._i18n("ui.disabled"), "off", this._discoveryModeEnabled() ? "on" : "off", "data-setting-discovery-mode")}
           </div>
-        </div>
+        </div>`;
+  }
+  _settingsSectionAnnouncements() {
+    const announcementLanguage = this._announcementLanguageSetting();
+    const announcementLanguageOptions = this._announcementLanguageOptions();
+    return `
         <div class="settings-group">
           <div class="settings-label">${this._i18n("ui.announcement_presets")}</div>
           ${(this._state.mobileAnnouncementPresets || []).slice(0, 3).map((preset, index) => `
@@ -53382,10 +53569,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             ${announcementLanguageOptions.map(([value, label]) => `<option value="${this._esc(value)}" ${value === announcementLanguage ? "selected" : ""}>${this._esc(label)}</option>`).join("")}
           </select>
           <div class="settings-hint">${this._i18n("ui.text_announcements_use_home_assistant_tts_into_the_selected_music_assist")}</div>
-        </div>
-                <div class="settings-version">Version ${HOMEII_CARD_VERSION}</div>
-      </div>
-    `;
+        </div>`;
+  }
+  _settingsSectionMusicAssistant() {
+    return `
+        <div class="settings-group">
+          <div class="settings-label">Music Assistant</div>
+          <div class="settings-actions">
+            <button class="settings-pill active" data-menu-action="open_app">${this._i18n("ui.open_full_interface")}</button>
+          </div>
+        </div>`;
   }
   _libraryTabMeta(tab) {
     const map = {

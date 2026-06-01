@@ -2,8 +2,14 @@
 
 ## Unreleased
 
+### Changed
+
+- Settings: high-frequency toggles (pinned players, excluded players, Quick Actions, Quick Actions reorder, main bar items, library tabs, player sort, player-order reorder, screensaver controls, discovery mode) no longer rebuild the entire card on each click. A new `_refreshAfterSettingsChange()` helper re-renders only the surfaces affected by the change. Per-click long-task time on dev hardware drops from ~50 ms to 0 ms (under the perception threshold for all clicks). Bigger gains expected in production where `_loadPlayers()` and `_init()` do meaningfully more work.
+- Settings: the Settings panel is now organized into 7 collapsible accordion sections (Display, Players & Library, Quick Actions & Bar, Voice Assistant, Smart Home & Screensaver, Announcements, Music Assistant) using native `<details>/<summary>` for keyboard and screen-reader accessibility. Last-opened sections are persisted to `localStorage` (`homeii_music_flow_settings_accordion_open`) so re-opening Settings lands the user where they were. The 467-line `_settingsMenuHtml()` is split into 7 per-section builder methods plus a small `_settingsAccordionWrap()` helper.
+
 ### Added
 
+- 7 new localization keys for the Settings section titles (`ui.settings_section_announcements`, `ui.settings_section_display`, `ui.settings_section_music_assistant`, `ui.settings_section_players_library`, `ui.settings_section_quick_actions_bar`, `ui.settings_section_smart_home`, `ui.settings_section_voice_assistant`) in all 8 bundled locales. English and Danish translations are native; the remaining 6 (Spanish, French, Hebrew, Italian, Lithuanian, Simplified Chinese) are DeepL-translated and welcome refinement from native speakers.
 - Danish (`da`) localization. Adds `src/localization/da.js` with all 925 keys translated via DeepL using a glossary that locks brand names (HOMEii Flow, Music Assistant, Sendspin, Spotify, etc.) and music-domain terms (Library, Queue, Playlist, etc.) to consistent renderings. Registered in `src/localization/index.js` and exposed as "Dansk" in the language picker. Native Danish speaker review by submitter (Danish household using the card daily for kids' room dashboards).
 
 ## 5.8.1 - 2026-05-31

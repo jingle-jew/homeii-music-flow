@@ -51071,6 +51071,43 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._openMobileMenu("settings", { scrollTop });
     this._restoreMobileMenuScroll(scrollTop, "settings");
   }
+  /**
+   * Lightweight refresh after a Settings change. Re-renders ONLY the
+   * Settings menu body and any specifically-affected surface, instead of
+   * rebuilding the entire card. Preserves scroll. Falls through to the
+   * heavy _reopenSettingsMenuPreservingScroll if `categories.unknown` is true.
+   *
+   * Categories (all optional, default false):
+   *   playerListChanged    — Pinned/excluded set changed; reload player list
+   *                          and refresh the player chip strip.
+   *   pinnedChanged        — Pinned player set changed; also re-evaluate the
+   *                          front-pinned player.
+   *   mainBarChanged       — Main-bar item visibility changed.
+   *   quickActionsChanged  — Quick-action selection or order changed.
+   *   libraryTabsChanged   — Library tab visibility changed.
+   *   unknown              — Caller is not sure what changed; fall back to
+   *                          the heavy path.
+   */
+  _refreshAfterSettingsChange(categories = {}) {
+    if (categories.unknown) {
+      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      return;
+    }
+    const body = this.$("mobileMenuBody");
+    const scrollTop = Math.max(0, Number(body?.scrollTop ?? this._state.mobileSettingsScrollTop ?? 0) || 0);
+    this._state.mobileSettingsScrollTop = scrollTop;
+    if (categories.playerListChanged) {
+      this._loadPlayers();
+    }
+    if (categories.pinnedChanged) {
+      if (typeof this._refreshFrontPinnedPlayer === "function") this._refreshFrontPinnedPlayer();
+    }
+    void categories.mainBarChanged;
+    void categories.quickActionsChanged;
+    void categories.libraryTabsChanged;
+    this._openMobileMenu("settings", { scrollTop });
+    this._restoreMobileMenuScroll(scrollTop, "settings");
+  }
   _openMobileMenu(page = "main", options = {}) {
     const nextPage = this._normalizeMobileMenuPage(page);
     if (nextPage === "settings" && this._usesVisualSettings()) {
@@ -56280,7 +56317,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._flashInteraction(quickActionMoveBtn);
       this._state.mobileQuickActions = actions;
       this._persistMobileAppearance();
-      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      this._refreshAfterSettingsChange({ quickActionsChanged: true });
       return;
     }
     const playerOrderMoveBtn = e.target.closest("[data-setting-player-order-move]");
@@ -56304,8 +56341,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._state.playerOrderEntities = actions;
       this._state.playerSortMode = "custom";
       this._persistMobileAppearance();
-      this._loadPlayers();
-      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      this._refreshAfterSettingsChange({ playerListChanged: true });
       return;
     }
     const announcementPresetBtn = e.target.closest("[data-announcement-preset-fill]");
@@ -56726,7 +56762,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._state.screensaverControlsEnabled = screensaverControlsBtn.dataset.settingScreensaverControls === "on";
       this._persistMobileAppearance();
       this._syncScreensaverUi();
-      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      this._refreshAfterSettingsChange({});
       return;
     }
     const powerButtonBtn = e.target.closest("[data-setting-power-button]");
@@ -56742,7 +56778,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._flashInteraction(discoveryModeBtn);
       this._state.discoveryModeEnabled = discoveryModeBtn.dataset.settingDiscoveryMode === "on";
       this._persistMobileAppearance();
-      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      this._refreshAfterSettingsChange({});
       return;
     }
     const nightModeBtn = e.target.closest("[data-setting-night-mode]");
@@ -57579,8 +57615,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (e.target?.id === "playerSortModeSelect") {
       this._state.playerSortMode = HomeiiMobileSettingsFoundation.normalizePlayerSortMode(e.target.value || "default");
       this._persistMobileAppearance();
-      this._loadPlayers();
-      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      this._refreshAfterSettingsChange({ playerListChanged: true });
       return;
     }
     const pinnedPlayerCheckbox = e.target?.closest?.("input[data-setting-pinned-player]");
@@ -57595,7 +57630,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       if (this._state.selectedPlayer && !this._resolvedPinnedPlayerEntities().includes(this._state.selectedPlayer)) {
         this._state.selectedPlayer = this._resolvedPinnedPlayerEntity() || this._state.selectedPlayer;
       }
-      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      this._refreshAfterSettingsChange({ playerListChanged: true, pinnedChanged: true });
       return;
     }
     const excludedPlayerCheckbox = e.target?.closest?.("input[data-setting-excluded-player]");
@@ -57610,7 +57645,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       if (this._state.selectedPlayer && this._isPlayerExcluded(this._state.selectedPlayer)) {
         this._state.selectedPlayer = this._resolvedPinnedPlayerEntity() || this._state.players?.[0]?.entity_id || null;
       }
-      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      this._refreshAfterSettingsChange({ playerListChanged: true });
       return;
     }
     const tabCheckbox = e.target?.closest?.("input[data-setting-library-tab]");
@@ -57622,7 +57657,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const next = Array.from(current);
       this._state.mobileLibraryTabs = next.length ? next : this._defaultMobileLibraryTabs();
       this._persistMobileAppearance();
-      this._reopenSettingsMenuPreservingScroll();
+      this._refreshAfterSettingsChange({ libraryTabsChanged: true });
       return;
     }
     const mainBarCheckbox = e.target?.closest?.("input[data-setting-main-bar-item]");
@@ -57638,7 +57673,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const next = Array.from(current);
       this._state.mobileMainBarItems = next.length ? next : this._defaultMobileMainBarItems();
       this._persistMobileAppearance();
-      this._reopenSettingsMenuPreservingScroll({ rebuild: true });
+      this._refreshAfterSettingsChange({ mainBarChanged: true });
       return;
     }
     const quickActionCheckbox = e.target?.closest?.("input[data-setting-quick-action]");
@@ -57651,7 +57686,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._state.mobileQuickActions = next;
       if (item === "home") this._state.mobileHomeShortcutEnabled = !!quickActionCheckbox.checked;
       this._persistMobileAppearance();
-      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      this._refreshAfterSettingsChange({ quickActionsChanged: true });
       return;
     }
     const screensaverControlCheckbox = e.target?.closest?.("input[data-setting-screensaver-control]");

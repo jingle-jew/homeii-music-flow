@@ -8,6 +8,8 @@ This beta focuses on Diagnostic v2, visual-editor diagnostics, Sendspin/browser 
 - Prevents relative Music Assistant `/imageproxy` artwork paths from being treated as Home Assistant artwork URLs when no direct Music Assistant base URL is configured.
 - Keeps Home Assistant `media_player_proxy` artwork working for player/current-track artwork in integration-only setups.
 - Reports direct Music Assistant and Sendspin browser access as optional diagnostics when the Home Assistant integration is loaded, instead of making those warnings look like a total setup failure.
+- Redacts Home Assistant, Music Assistant, Sendspin, and artwork hostnames from diagnostics output by default.
+- Adds a close button to the visual-editor diagnostics panel.
 
 ## Added
 
@@ -16,6 +18,7 @@ This beta focuses on Diagnostic v2, visual-editor diagnostics, Sendspin/browser 
 - Adds a Diagnostics button to the Home Assistant visual editor near the version label.
 - Keeps diagnostics visible with green OK, red FAIL, yellow WARN, and blue INFO status rows.
 - Adds a copyable Diagnostic v2 report that includes browser and viewport details for GitHub issues.
+- Adds a Queue artwork sample check and keeps the existing Library coverage / Library artwork sample checks.
 
 ## Testing Notes
 

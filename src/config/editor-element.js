@@ -26,6 +26,7 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     this._editorPathHint = null;
     this._editorSponsorLink = null;
     this._editorDiagnosticsBtn = null;
+    this._editorDiagnosticsCloseBtn = null;
     this._editorDiagnosticsPanel = null;
     this._editorDiagnosticsSummaryNode = null;
     this._editorDiagnosticsList = null;
@@ -148,13 +149,75 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
   _editorSanitizeDiagnosticUrl(value = "") {
     const raw = String(value || "").trim();
     if (!raw) return "";
-    try {
-      const parsed = new URL(raw, typeof window !== "undefined" ? window.location.href : "http://homeii.local");
-      ["token", "auth", "access_token"].forEach((key) => parsed.searchParams.delete(key));
-      return parsed.toString().replace(/\/$/, "");
-    } catch (_) {
+    if (/(https?|wss?):\/\/<[^>]+>/i.test(raw)) {
       return raw.replace(/(token|access_token|auth)=([^&\s]+)/gi, "$1=<redacted>");
     }
+    try {
+      const parsed = new URL(raw, typeof window !== "undefined" ? window.location.href : "http://homeii.local");
+      const port = parsed.port ? `:${parsed.port}` : "";
+      return `${parsed.protocol}//${this._editorDiagnosticHostPrivacyLabel(parsed.hostname)}${port}${this._editorDiagnosticPathPrivacyLabel(parsed.pathname)}`;
+    } catch (_) {
+      return raw
+        .replace(/(https?|wss?):\/\/[^\s]+/gi, (match) => this._editorSanitizeDiagnosticUrl(match))
+        .replace(/(token|access_token|auth)=([^&\s]+)/gi, "$1=<redacted>");
+    }
+  }
+
+  _editorDiagnosticHostPrivacyLabel(hostname = "") {
+    const host = String(hostname || "").trim().toLowerCase().replace(/^\[|\]$/g, "");
+    if (!host) return "<host-redacted>";
+    if (host === "localhost") return "<localhost>";
+    if (host.endsWith(".ui.nabu.casa")) return "<redacted-nabu-casa>";
+    const currentHost = typeof window !== "undefined" ? String(window.location?.hostname || "").toLowerCase() : "";
+    if (currentHost && host === currentHost) return "<home-assistant-host>";
+    if (this._editorIsPrivateNetworkHost(host)) return "<private-host>";
+    return "<external-host>";
+  }
+
+  _editorDiagnosticPathPrivacyLabel(pathname = "") {
+    const path = String(pathname || "").trim();
+    if (!path || path === "/") return "";
+    const lower = path.toLowerCase();
+    if (lower.includes("_music_assistant")) return "/<ha-ingress-music-assistant>";
+    if (lower === "/sendspin") return "/sendspin";
+    if (lower.endsWith("/sendspin")) return "/<path-redacted>/sendspin";
+    if (lower.includes("/api/media_player_proxy/")) return "/api/media_player_proxy/<entity>";
+    if (lower.includes("/imageproxy")) return "/imageproxy";
+    if (lower === "/api") return "/api";
+    if (lower.endsWith("/api")) return "/<path-redacted>/api";
+    return "/<path-redacted>";
+  }
+
+  _editorDiagnosticUrlDescription(value = "") {
+    const raw = String(value || "").trim();
+    if (!raw) return "(empty)";
+    try {
+      const parsed = new URL(raw, typeof window !== "undefined" ? window.location.href : "http://homeii.local");
+      const protocol = parsed.protocol.replace(/:$/, "") || "unknown";
+      const hostLabel = this._editorDiagnosticHostPrivacyLabel(parsed.hostname);
+      const hostType = hostLabel
+        .replace(/[<>]/g, "")
+        .replace("redacted-", "");
+      const pathLabel = this._editorDiagnosticPathPrivacyLabel(parsed.pathname) || "/";
+      return `protocol=${protocol}, host_type=${hostType}, port=${parsed.port || "default"}, path=${pathLabel}`;
+    } catch (_) {
+      return "invalid or unparseable URL";
+    }
+  }
+
+  _editorRedactDiagnosticText(text = "") {
+    let output = String(text || "").replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer <redacted>");
+    [
+      this._editorCurrentOrigin(),
+      this._editorMaBrowserUrl(),
+    ].filter(Boolean).forEach((url) => {
+      output = output.split(String(url)).join(this._editorSanitizeDiagnosticUrl(url));
+    });
+    try {
+      const sendspinUrl = this._editorMaBrowserUrl() ? this._editorSendspinWsUrl() : "";
+      if (sendspinUrl) output = output.split(sendspinUrl).join(this._editorSanitizeDiagnosticUrl(sendspinUrl));
+    } catch (_) {}
+    return output.replace(/(https?|wss?):\/\/[^\s]+/gi, (match) => this._editorSanitizeDiagnosticUrl(match));
   }
 
   _editorCurrentOrigin() {
@@ -338,8 +401,11 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
       "Source: visual editor",
       `Browser: ${this._editorBrowserSummary()}`,
       `Viewport: ${this._editorViewportSummary()}`,
-      `HA URL: ${this._editorCurrentOrigin()}`,
+      "Privacy: external/private hostnames are redacted by default.",
+      `HA URL: ${this._editorCurrentOrigin() ? this._editorSanitizeDiagnosticUrl(this._editorCurrentOrigin()) : ""}`,
+      `HA URL detail: ${this._editorDiagnosticUrlDescription(this._editorCurrentOrigin())}`,
       `ma_url: ${maUrl ? this._editorSanitizeDiagnosticUrl(maUrl) : "(empty)"}`,
+      `ma_url detail: ${this._editorDiagnosticUrlDescription(maUrl)}`,
       `access_path: ${this._editorAccessDetail(maUrl)}`,
       `ma_token configured: ${this._config?.ma_token ? "yes" : "no"}`,
       `config_entry_id configured: ${String(this._config?.config_entry_id || "").trim() ? "yes" : "no"}`,
@@ -347,7 +413,7 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
       "Checks:",
       ...items.map((item) => `- [${String(item.status || "info").toUpperCase()}] ${item.title}${item.value ? `: ${item.value}` : ""}${item.detail ? ` - ${item.detail}` : ""}`),
     ];
-    return lines.join("\n").replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer <redacted>");
+    return this._editorRedactDiagnosticText(lines.join("\n"));
   }
 
   _editorDiagnosticsSummary(items = this._editorDiagnosticsItems || []) {
@@ -408,6 +474,7 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     add("ok", "Diagnostics version", "Diagnostic v2 is active.", "v2");
     add("info", "Browser", this._editorBrowserSummary());
     add("info", "Viewport", this._editorViewportSummary());
+    add("info", "Diagnostic privacy", "External/private hostnames are redacted in visible and copied diagnostic output.");
     add(this._hass ? "ok" : "fail", "Home Assistant frontend", this._hass ? "Editor has a Home Assistant frontend object." : "Editor does not have a Home Assistant frontend object.");
     add(services.length ? "ok" : "fail", "Music Assistant services", services.length ? `${services.length} service(s) are exposed by Home Assistant.` : "No music_assistant services are exposed by Home Assistant.");
     add(services.length ? "ok" : "warn", "Integration mode", services.length ? "Core card features can run through Home Assistant. HTTP/HTTPS only affects optional Direct/Sendspin browser access." : "Home Assistant does not expose music_assistant services.");
@@ -438,7 +505,7 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     } else if (directIssue) {
       add(services.length ? "warn" : "fail", "ma_url", directIssue, this._editorSanitizeDiagnosticUrl(maUrl));
     } else {
-      add("ok", "ma_url", "Direct Music Assistant URL is configured and does not look like Home Assistant ingress.", this._editorSanitizeDiagnosticUrl(maUrl));
+      add("ok", "ma_url", `Direct Music Assistant URL is configured. Browser reachability is checked separately. ${this._editorDiagnosticUrlDescription(maUrl)}`, this._editorSanitizeDiagnosticUrl(maUrl));
     }
     add(maUrl ? (this._editorAccessDetail(maUrl).includes("looks external") ? "ok" : "warn") : "info", "Access path", this._editorAccessDetail(maUrl));
 
@@ -639,7 +706,14 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
         .editor-diagnostics-panel[hidden] {
           display:none;
         }
+        .editor-diagnostics-head {
+          display:flex;
+          align-items:flex-start;
+          justify-content:space-between;
+          gap:10px;
+        }
         .editor-diagnostics-summary {
+          flex:1 1 auto;
           padding:9px 11px;
           border-radius:12px;
           font-size:13px;
@@ -648,6 +722,26 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
           color:var(--primary-text-color, #1f2633);
           background:rgba(146,161,183,.12);
           border:1px solid rgba(146,161,183,.18);
+        }
+        .editor-diagnostics-close {
+          flex:0 0 auto;
+          width:32px;
+          height:32px;
+          display:inline-grid;
+          place-items:center;
+          border-radius:999px;
+          border:1px solid rgba(146,161,183,.22);
+          background:rgba(255,255,255,.72);
+          color:var(--secondary-text-color, rgba(31,38,51,.68));
+          font:inherit;
+          font-size:13px;
+          line-height:1;
+          font-weight:900;
+          cursor:pointer;
+        }
+        .editor-diagnostics-close:hover {
+          background:rgba(255,255,255,.94);
+          color:var(--primary-text-color, #1f2633);
         }
         .editor-diagnostics-list {
           display:grid;
@@ -744,7 +838,10 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
           </div>
         </div>
         <div class="editor-diagnostics-panel" id="editorDiagnosticsPanel" hidden>
-          <div class="editor-diagnostics-summary" id="editorDiagnosticsSummary"></div>
+          <div class="editor-diagnostics-head">
+            <div class="editor-diagnostics-summary" id="editorDiagnosticsSummary"></div>
+            <button class="editor-diagnostics-close" id="editorDiagnosticsClose" type="button" title="Close diagnostics" aria-label="Close diagnostics">X</button>
+          </div>
           <div class="editor-diagnostics-list" id="editorDiagnosticsList"></div>
         </div>
         <ha-form id="editorForm"></ha-form>
@@ -756,6 +853,7 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     this._editorPathHint = root.querySelector("#editorPathHint");
     this._editorSponsorLink = root.querySelector(".editor-sponsor");
     this._editorDiagnosticsBtn = root.querySelector(".editor-diagnostics");
+    this._editorDiagnosticsCloseBtn = root.querySelector("#editorDiagnosticsClose");
     this._editorDiagnosticsPanel = root.querySelector("#editorDiagnosticsPanel");
     this._editorDiagnosticsSummaryNode = root.querySelector("#editorDiagnosticsSummary");
     this._editorDiagnosticsList = root.querySelector("#editorDiagnosticsList");
@@ -774,6 +872,9 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
       });
       this._editorDiagnosticsBtn?.addEventListener("click", () => {
         this._copyEditorDiagnosticsReport();
+      });
+      this._editorDiagnosticsCloseBtn?.addEventListener("click", () => {
+        if (this._editorDiagnosticsPanel) this._editorDiagnosticsPanel.hidden = true;
       });
       this._editorUsePathBtn?.addEventListener("click", () => {
         const currentPath = this._currentUiPath();

@@ -70,6 +70,8 @@ HOMEii Flow 5.8.2 Beta 5 is a targeted pre-release follow-up for Diagnostic v2, 
 - Upgrades Settings > Music Assistant > Diagnostics to Diagnostic v2 with browser, viewport, access path, Direct MA, Sendspin, queue, library, and artwork checks.
 - Adds a Diagnostics button to the Home Assistant visual editor near the version label.
 - Keeps diagnostics visible with green OK, red FAIL, yellow WARN, and blue INFO rows, plus a copyable report for GitHub issues.
+- Redacts external/private hostnames in diagnostics output by default while keeping protocol, host type, port, and path category for troubleshooting.
+- Adds queue-artwork diagnostics alongside the existing library-artwork checks.
 - Treats the Home Assistant Music Assistant integration as the primary supported path, so the card can keep working normally even when Direct MA access is not configured.
 - Avoids broken artwork placeholders caused by Music Assistant `/imageproxy` paths when the browser cannot directly reach Music Assistant.
 - Keeps the Beta 1 through Beta 4 artwork, Music Assistant compatibility, Danish localization, and performance fixes.

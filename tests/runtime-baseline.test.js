@@ -21,7 +21,9 @@ const originalGlobals = {
   CustomEvent: globalThis.CustomEvent,
   customElements: globalThis.customElements,
   document: globalThis.document,
+  fetch: globalThis.fetch,
   HTMLElement: globalThis.HTMLElement,
+  navigator: globalThis.navigator,
   window: globalThis.window,
 };
 
@@ -82,6 +84,19 @@ function installBrowserStubs() {
           this.attributes[name] = String(value);
         },
       };
+      const diagnosticsCloseNode = {
+        attributes: {},
+        listeners: {},
+        addEventListener(type, handler) {
+          this.listeners[type] = handler;
+        },
+        dispatchEvent(event) {
+          this.listeners[event.type]?.(event);
+        },
+        setAttribute(name, value) {
+          this.attributes[name] = String(value);
+        },
+      };
       const diagnosticsPanelNode = {
         hidden: true,
       };
@@ -105,6 +120,7 @@ function installBrowserStubs() {
           if (selector === ".editor-shell") return shellNode;
           if (selector === ".editor-sponsor") return sponsorNode;
           if (selector === ".editor-diagnostics") return diagnosticsButtonNode;
+          if (selector === "#editorDiagnosticsClose") return diagnosticsCloseNode;
           if (selector === "#editorDiagnosticsPanel") return diagnosticsPanelNode;
           if (selector === "#editorDiagnosticsSummary") return diagnosticsSummaryNode;
           if (selector === "#editorDiagnosticsList") return diagnosticsListNode;
@@ -178,7 +194,13 @@ describe("runtime baseline", () => {
     globalThis.customElements = originalGlobals.customElements;
     globalThis.CustomEvent = originalGlobals.CustomEvent;
     globalThis.document = originalGlobals.document;
+    globalThis.fetch = originalGlobals.fetch;
     globalThis.HTMLElement = originalGlobals.HTMLElement;
+    Object.defineProperty(globalThis, "navigator", {
+      value: originalGlobals.navigator,
+      configurable: true,
+      writable: true,
+    });
     globalThis.window = originalGlobals.window;
   });
 
@@ -302,6 +324,129 @@ describe("runtime baseline", () => {
     expect(editor._editorDiagnosticsList.innerHTML).toContain("editor-diagnostic-row");
     expect(editor._editorDiagnosticsList.innerHTML).toContain("status-ok");
     expect(editor._editorDiagnosticsList.innerHTML).toContain("status-info");
+  });
+
+  it("redacts external diagnostic URLs and closes the visual editor diagnostics panel", async () => {
+    await import("../src/homeii-music-flow.js?runtime-editor-diagnostics-privacy-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    globalThis.window.location = {
+      href: "https://abc123.ui.nabu.casa/lovelace/music",
+      origin: "https://abc123.ui.nabu.casa",
+      protocol: "https:",
+      hostname: "abc123.ui.nabu.casa",
+    };
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      writable: true,
+      value: {
+      userAgent: "Mozilla/5.0 Edg/148.0.0.0",
+      platform: "Win32",
+      language: "en-US",
+      maxTouchPoints: 10,
+      },
+    });
+
+    const EditorCtor = globalThis.customElements.get("homeii-music-flow-editor");
+    const editor = new EditorCtor();
+    editor.connectedCallback();
+    editor.setConfig({
+      type: "custom:homeii-music-flow",
+      ma_url: "https://mass.546866031.xyz",
+      ma_token: "secret-token",
+    });
+    editor.hass = {
+      services: {
+        music_assistant: {
+          play_media: {},
+          get_library: {},
+        },
+      },
+      states: {},
+      entities: {},
+      connection: {
+        sendMessagePromise: vi.fn(async () => [
+          { entry_id: "ma-entry", domain: "music_assistant", state: "loaded" },
+        ]),
+      },
+    };
+    globalThis.fetch = vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+
+    const report = await editor._runEditorDiagnostics();
+
+    expect(report).not.toContain("abc123.ui.nabu.casa");
+    expect(report).not.toContain("mass.546866031.xyz");
+    expect(report).not.toContain("secret-token");
+    expect(report).toContain("https://<redacted-nabu-casa>");
+    expect(report).toContain("https://<external-host>");
+    expect(report).toContain("host_type=external-host");
+    expect(editor._editorDiagnosticsList.innerHTML).not.toContain("mass.546866031.xyz");
+    expect(editor._editorDiagnosticsPanel.hidden).toBe(false);
+
+    editor._editorDiagnosticsCloseBtn.dispatchEvent({ type: "click" });
+    expect(editor._editorDiagnosticsPanel.hidden).toBe(true);
+  });
+
+  it("reports queue artwork samples without leaking artwork hostnames", async () => {
+    await import("../src/homeii-music-flow.js?runtime-queue-diagnostics-privacy-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    globalThis.window.location = {
+      href: "https://abc123.ui.nabu.casa/lovelace/music",
+      origin: "https://abc123.ui.nabu.casa",
+      protocol: "https:",
+      hostname: "abc123.ui.nabu.casa",
+    };
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._maUrl = "https://mass.546866031.xyz";
+    card._hass = {
+      states: {},
+      services: {
+        music_assistant: {
+          get_queue: {},
+        },
+      },
+    };
+    card._hasMassQueueService = vi.fn(() => false);
+    card._hasDirectMAConnection = vi.fn(() => false);
+    card._fetchMusicAssistantQueueSnapshot = vi.fn(async () => ({
+      state: {
+        current_index: 0,
+        items: 1,
+      },
+      items: [
+        card._normalizeQueueItem({
+          queue_item_id: "queue-1",
+          media_item: {
+            name: "Queue Track",
+            metadata: {
+              images: [{ path: "spotify/cover.jpg", provider: "spotify" }],
+            },
+          },
+        }, 0),
+      ],
+    }));
+
+    const items = [];
+    await card._diagnosticQueueRows((status, title, detail = "", value = "") => {
+      items.push(card._diagnosticItem(status, title, detail, value));
+    }, {
+      entity_id: "media_player.office",
+      attributes: {
+        active_queue: "ma_queue",
+      },
+    });
+
+    const queueArtwork = items.find((item) => item.title === "Queue artwork sample");
+    expect(queueArtwork?.status).toBe("ok");
+    expect(queueArtwork?.value).toContain("https://<external-host>");
+    expect(queueArtwork?.value).not.toContain("mass.546866031.xyz");
   });
 
   it("resolves Music Assistant 2.9 queue artwork payloads", async () => {

@@ -9,6 +9,9 @@ Release focus:
 - Upgrades the in-card Diagnostics screen to Diagnostic v2 with browser, viewport, Home Assistant URL, access path, mixed-content, Direct Music Assistant, Sendspin endpoint/support, queue, library, and artwork checks.
 - Keeps diagnostics readable in the UI with green OK, red FAIL, yellow WARN, and blue INFO rows, plus a copyable report for GitHub issues.
 - Adds a Diagnostics button to the Home Assistant visual editor near the version label, so setup checks can be run before opening the full card settings screen.
+- Redacts external/private hostnames in visible and copied diagnostics output by default, while preserving protocol, host type, port, and path category for troubleshooting.
+- Adds a Queue artwork sample check so diagnostics can distinguish between an empty/unreachable queue and queue items whose artwork cannot be resolved.
+- Adds a close button to the visual-editor diagnostics panel.
 - Treats the Home Assistant Music Assistant integration as the primary supported path: playback, HA queue snapshots, selected-player checks, and player artwork can still work when direct Music Assistant access is not configured.
 - Avoids rendering Music Assistant `/imageproxy` paths as broken Home Assistant artwork when the browser cannot directly reach Music Assistant.
 - Reports Direct/Sendspin issues as optional access-path diagnostics when the Home Assistant integration is available, rather than implying that the whole card is broken.

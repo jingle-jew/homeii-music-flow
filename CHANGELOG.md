@@ -1,5 +1,22 @@
 # Changelog
 
+## 5.8.2-beta.8 - 2026-06-03
+
+Focused beta follow-up for issue #28 after beta 7 exposed the next Home Assistant service-call layer.
+
+Release focus:
+
+- Keeps exposed `music_assistant` services as a valid integration signal even when the config entry reports `not_loaded`.
+- Still passes the discovered `config_entry_id` to Home Assistant `music_assistant` service calls when the services require it, fixing `required key not provided @ data['config_entry_id']` library failures.
+- Removes `queue_id` from the Home Assistant `music_assistant.get_queue` diagnostic path so HA receives only the selected `entity_id`.
+- Improves Diagnostic v3 wording for generic HA fallback players, so Alexa/other fallback entities are no longer described as strict Music Assistant-marked players.
+- Softens queue diagnostics when a fallback selected player has no Music Assistant queue identity.
+
+Validation:
+
+- Targeted lint and runtime/settings regression tests passed before the release version bump.
+- Full lint, full Vitest, production build, and release artifact sync were run for the final beta package.
+
 ## 5.8.2-beta.7 - 2026-06-02
 
 Targeted beta follow-up for issue #28, Diagnostic v3, and the phone Queue Flow entry point.

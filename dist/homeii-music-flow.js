@@ -19341,7 +19341,7 @@ function createHomeiiBaseMusicCard({
         return explicit;
       }
       if (this._resolvedConfigEntryId && !force) {
-        return this._hasUsableMusicAssistantConfigEntry() ? this._resolvedConfigEntryId : "";
+        return this._hasUsableMusicAssistantConfigEntry() || this._hasMusicAssistantServiceSignal() ? this._resolvedConfigEntryId : "";
       }
       try {
         const entries = await this._withTimeout(this._hass.connection.sendMessagePromise({
@@ -19353,9 +19353,9 @@ function createHomeiiBaseMusicCard({
         this._resolvedConfigEntryId = preferred?.entry_id || "";
         this._resolvedConfigEntryState = String(preferred?.state || "").trim();
         if (!this._resolvedConfigEntryId || preferred?.state && preferred.state !== "loaded") {
-          if (this._hasMusicAssistantServiceSignal()) {
+          if (this._resolvedConfigEntryId && this._hasMusicAssistantServiceSignal()) {
             this._state.musicAssistantIssueMessage = "";
-            return "";
+            return this._resolvedConfigEntryId;
           }
           this._handleMusicAssistantIssue(preferred?.state ? `Music Assistant entry ${preferred.state}` : this._musicAssistantSetupMessage());
           return "";
@@ -19442,9 +19442,7 @@ function createHomeiiBaseMusicCard({
     }
     async _fetchMusicAssistantQueueSnapshot(player) {
       if (!player?.entity_id) return null;
-      const queueId = this._queueIdForPlayer(player);
       const payload = { entity_id: player.entity_id };
-      if (queueId) payload.queue_id = queueId;
       const snapshot = await this._callService("get_queue", payload, { includeConfigEntryId: false });
       return this._normalizeQueueSnapshot(snapshot, player.entity_id);
     }
@@ -25998,9 +25996,9 @@ function ensureHaEditorComponents() {
   } catch (_) {
   }
 }
-const HOMEII_CARD_VERSION = "5.8.2-beta.7";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v5827";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v5827";
+const HOMEII_CARD_VERSION = "5.8.2-beta.8";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v5828";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v5828";
 const AMBIENT_LIGHT_PAIR_PLAYER_PREFIX = "__homeii_ambient_light_pair_player_";
 const AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX = "__homeii_ambient_light_pair_lights_";
 const HomeiiEditorLocale = Object.freeze({
@@ -55007,6 +55005,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (!markers.length) markers.push("no strict MA markers");
     return markers.join(", ");
   }
+  _diagnosticIsStrictMusicAssistantPlayer(player = null, hassEntities = this._hass?.entities || {}) {
+    return !!(this._isDirectMaPlayer?.(player) || HomeiiPlayersFoundation.isMusicAssistantPlayer(player, hassEntities?.[player?.entity_id]));
+  }
   async _diagnosticQueueRows(add, selectedPlayer = null) {
     if (!selectedPlayer) {
       add("fail", "Queue snapshot", "No selected player is available, so queue checks cannot run.");
@@ -55041,7 +55042,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     } else if (best) {
       add("warn", "Queue snapshot", `${detail}. Queue API is reachable but returned no items; this can be normal for an idle/empty queue.`);
     } else {
-      add("fail", "Queue snapshot", detail);
+      const strictPlayer = this._diagnosticIsStrictMusicAssistantPlayer(selectedPlayer);
+      const fallbackPlayer = !strictPlayer && this._isGenericMusicAssistantFallbackPlayer?.(selectedPlayer);
+      add(fallbackPlayer && !queueId ? "warn" : "fail", "Queue snapshot", fallbackPlayer && !queueId ? `${detail}. The selected player is using the generic HA fallback and has no active_queue/queue_id, so Home Assistant may not be able to resolve a Music Assistant queue for it.` : detail);
     }
     const queueItems = Array.isArray(best?.snapshot?.items) ? best.snapshot.items : [];
     if (!queueItems.length) {
@@ -55236,10 +55239,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       add("fail", "Selected player", "No selected player is available.");
     } else {
       const selectedName = selectedPlayer.attributes?.friendly_name || selectedPlayer.entity_id || "";
-      const selectedIsMa = this._isMusicAssistantPlayer(selectedPlayer);
-      const selectedFallback = !selectedIsMa && this._isGenericMusicAssistantFallbackPlayer?.(selectedPlayer);
+      const selectedStrictMa = this._diagnosticIsStrictMusicAssistantPlayer(selectedPlayer, hassEntities);
+      const selectedFallback = !selectedStrictMa && this._isGenericMusicAssistantFallbackPlayer?.(selectedPlayer);
       const excluded = this._isPlayerExcluded?.(selectedPlayer);
-      add((selectedIsMa || selectedFallback) && !excluded ? "ok" : "warn", "Selected player", excluded ? "The selected player is currently excluded in HOMEii settings." : selectedIsMa ? "Selected player has Music Assistant markers." : selectedFallback ? "Selected player has no strict MA markers, but integration fallback can use it." : "Selected player does not look usable for Music Assistant.", `${selectedName} | ${this._diagnosticPlayerMarkerSummary(selectedPlayer, hassEntities)}`);
+      add((selectedStrictMa || selectedFallback) && !excluded ? "ok" : "warn", "Selected player", excluded ? "The selected player is currently excluded in HOMEii settings." : selectedStrictMa ? "Selected player has strict Music Assistant markers." : selectedFallback ? "Selected player has no strict MA markers; HOMEii is using the generic Home Assistant fallback." : "Selected player does not look usable for Music Assistant.", `${selectedName} | ${this._diagnosticPlayerMarkerSummary(selectedPlayer, hassEntities)}`);
     }
     if (!maUrl) {
       add(hasIntegrationServices ? "ok" : "info", "ma_url", "Empty is OK for the normal Home Assistant integration path. Direct API and Sendspin need a separate direct Music Assistant URL.", "(empty)");

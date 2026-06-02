@@ -529,8 +529,9 @@ describe("runtime baseline", () => {
     card._prefetchQueueArtworkWindow = vi.fn();
     card._callService = vi.fn(async (service, payload, options) => {
       expect(service).toBe("get_queue");
-      expect(payload).toMatchObject({ entity_id: player.entity_id, queue_id: "queue-main" });
+      expect(payload).toMatchObject({ entity_id: player.entity_id });
       expect(payload).not.toHaveProperty("limit");
+      expect(payload).not.toHaveProperty("queue_id");
       expect(options).toEqual({ includeConfigEntryId: false });
       return {
         queue_state: { queue_id: "queue-main", current_index: 0, items: 1, current_item: queueItem },
@@ -615,7 +616,7 @@ describe("runtime baseline", () => {
     expect(card._hasUsableMusicAssistantConfigEntry()).toBe(false);
   });
 
-  it("uses Home Assistant Music Assistant services without config_entry_id when the entry lookup is not loaded", async () => {
+  it("passes discovered config_entry_id to Home Assistant Music Assistant services even when the entry lookup is not_loaded", async () => {
     await import("../src/homeii-music-flow.js?runtime-ma-service-signal-fallback-baseline");
     await Promise.resolve();
     await vi.runAllTimersAsync();
@@ -643,7 +644,7 @@ describe("runtime baseline", () => {
       type: "call_service",
       domain: "music_assistant",
       service: "get_library",
-      service_data: { media_type: "album" },
+      service_data: { config_entry_id: "ma-entry", media_type: "album" },
     }));
     expect(card._resolvedConfigEntryId).toBe("ma-entry");
     expect(card._resolvedConfigEntryState).toBe("not_loaded");
@@ -675,7 +676,9 @@ describe("runtime baseline", () => {
       states: {
         [player.entity_id]: player,
       },
-      entities: {},
+      entities: {
+        [player.entity_id]: { platform: "alexa_media" },
+      },
     };
 
     card._loadPlayers();
@@ -685,6 +688,8 @@ describe("runtime baseline", () => {
     expect(card._playerByEntityId(player.entity_id)).toBe(player);
     expect(card._state.selectedPlayer).toBe(player.entity_id);
     expect(card._state.musicAssistantIssueMessage).toBe("");
+    expect(card._diagnosticIsStrictMusicAssistantPlayer(player, card._hass.entities)).toBe(false);
+    expect(card._diagnosticPlayerMarkerSummary(player, card._hass.entities)).toContain("registry_platform=alexa_media");
   });
 
   it("reports browser-blocked Direct API as optional when the HA Music Assistant integration is available", async () => {

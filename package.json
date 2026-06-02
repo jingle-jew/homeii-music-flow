@@ -1,6 +1,6 @@
 {
   "name": "homeii-music-flow",
-  "version": "5.8.2-beta.7",
+  "version": "5.8.2-beta.8",
   "description": "Premium Home Assistant Music Assistant dashboard card with a mobile-first visual player and built-in editor.",
   "private": true,
   "license": "MIT",

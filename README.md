@@ -47,7 +47,7 @@ https://github.com/user-attachments/assets/a0076e6e-0352-40f8-ac37-35737e717a80
 
 <p align="center">
   <a href="https://github.com/r11a/homeii-music-flow"><img alt="stable version" src="https://img.shields.io/badge/stable-5.8.1-gold"></a>
-  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.2-beta.7"><img alt="beta version" src="https://img.shields.io/badge/beta-5.8.2--beta.7-8A63D2"></a>
+  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.2-beta.8"><img alt="beta version" src="https://img.shields.io/badge/beta-5.8.2--beta.8-8A63D2"></a>
   <img alt="Home Assistant" src="https://img.shields.io/badge/Home%20Assistant-Dashboard-41BDF5">
   <img alt="Music Assistant" src="https://img.shields.io/badge/Music%20Assistant-required-7C5CFF">
   <img alt="Sendspin" src="https://img.shields.io/badge/Sendspin-browser%20player-18B6FF">
@@ -63,24 +63,23 @@ HOMEii Flow is a custom Home Assistant Dashboard card for Music Assistant. It tu
 
 HOMEii Flow started from my own daily use of Home Assistant and Music Assistant. I wanted it to feel less like a technical dashboard widget and more like a real music app inside Home Assistant, so a lot of thought went into the flow, touch interactions, Hebrew/RTL comfort, wall-tablet behavior, mobile details, and the small moments that make choosing music feel natural at home.
 
-## 5.8.2 Beta 7
+## 5.8.2 Beta 8
 
-HOMEii Flow 5.8.2 Beta 7 focuses on issue #28, Diagnostic v3, and a cleaner phone Queue Flow entry point.
+HOMEii Flow 5.8.2 Beta 8 is a focused follow-up for issue #28 after the beta 7 diagnostics exposed the next service-call layer.
 
-- Lets the card keep working through the Home Assistant Music Assistant integration even when the MA config entry lookup reports `not_loaded` but HA still exposes `music_assistant` services.
-- Uses generic HA `media_player` entities as compatibility fallback targets only when Music Assistant services exist.
-- Improves diagnostics to Diagnostic v3 with integration signals, strict/fallback player markers, queue providers, library providers, browser-blocked Direct API classification, and the existing privacy redaction.
-- Treats browser-blocked Direct API/CORS failures as optional when the HA integration path is available, instead of making the whole card look broken.
-- Removes the phone Queue Flow button above the artwork and keeps Queue Flow available only as a Quick Action option.
-- Removes the invalid `limit` parameter from the HA `music_assistant.get_queue` diagnostic path.
-- Keeps the Beta 1 through Beta 6 artwork, Music Assistant compatibility, Danish localization, diagnostics, and performance fixes.
+- Keeps the beta 7 integration signal fallback, but now still passes the discovered `config_entry_id` to Home Assistant `music_assistant` service calls when those services require it.
+- Fixes library/service calls that failed with `required key not provided @ data['config_entry_id']` in some Home Assistant / Music Assistant setups.
+- Removes `queue_id` from the Home Assistant `music_assistant.get_queue` diagnostic path so HA only receives the selected `entity_id`.
+- Improves Diagnostic v3 wording for generic HA fallback players so Alexa/other `media_player` entities are not described as strict Music Assistant-marked players.
+- Makes queue diagnostics less fatal when the selected fallback player has no `active_queue` / `queue_id` identity.
+- Keeps the Beta 1 through Beta 7 artwork, Music Assistant compatibility, Danish localization, diagnostics, and performance fixes.
 
-Beta download: [v5.8.2-beta.7](https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.2-beta.7)
+Beta download: [v5.8.2-beta.8](https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.2-beta.8)
 
 Stable users can remain on 5.8.1. Beta users should hard refresh Home Assistant or use:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.8.2-beta.7
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.8.2-beta.8
 ```
 
 ## 5.8.1 Hotfix Release
@@ -1024,7 +1023,8 @@ src/core/                             extracted foundation helpers
 src/config/                           config validators
 tests/                                regression coverage
 scripts/release.mjs                   release sync tooling
-RELEASE_NOTES_5.8.2-beta.7.md         detailed GitHub release notes for the current beta
+RELEASE_NOTES_5.8.2-beta.8.md         detailed GitHub release notes for the current beta
+RELEASE_NOTES_5.8.2-beta.7.md         previous beta release notes
 RELEASE_NOTES_5.8.2-beta.6.md         previous beta release notes
 RELEASE_NOTES_5.8.2-beta.5.md         previous beta release notes
 RELEASE_NOTES_5.8.2-beta.4.md         previous beta release notes
@@ -1050,7 +1050,7 @@ npm run lint
 npm test
 ```
 
-Current packaged version: `5.8.2-beta.7`
+Current packaged version: `5.8.2-beta.8`
 
 ## Release Readiness
 
@@ -1104,6 +1104,7 @@ Credit and thanks:
 
 - [Local deployment guide](./LOCAL_DEPLOYMENT.md)
 - [Publishing checklist](./PUBLISHING.md)
+- [5.8.2 Beta 8 release notes](./RELEASE_NOTES_5.8.2-beta.8.md)
 - [5.8.2 Beta 7 release notes](./RELEASE_NOTES_5.8.2-beta.7.md)
 - [5.8.2 Beta 6 release notes](./RELEASE_NOTES_5.8.2-beta.6.md)
 - [5.8.2 Beta 5 release notes](./RELEASE_NOTES_5.8.2-beta.5.md)

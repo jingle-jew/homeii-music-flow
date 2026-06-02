@@ -1095,7 +1095,7 @@ export function createHomeiiBaseMusicCard({
     _versionedAssetUrl(url) {
       const value = String(url || "").trim();
       if (!value || /^data:/i.test(value) || /[?&]v=/.test(value)) return value;
-      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.8.2-beta.7";
+      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.8.2-beta.8";
       return `${value}${value.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
     }
 
@@ -10071,7 +10071,9 @@ export function createHomeiiBaseMusicCard({
         return explicit;
       }
       if (this._resolvedConfigEntryId && !force) {
-        return this._hasUsableMusicAssistantConfigEntry() ? this._resolvedConfigEntryId : "";
+        return (this._hasUsableMusicAssistantConfigEntry() || this._hasMusicAssistantServiceSignal())
+          ? this._resolvedConfigEntryId
+          : "";
       }
       try {
         const entries = await this._withTimeout(this._hass.connection.sendMessagePromise({
@@ -10086,9 +10088,9 @@ export function createHomeiiBaseMusicCard({
         this._resolvedConfigEntryId = preferred?.entry_id || "";
         this._resolvedConfigEntryState = String(preferred?.state || "").trim();
         if (!this._resolvedConfigEntryId || preferred?.state && preferred.state !== "loaded") {
-          if (this._hasMusicAssistantServiceSignal()) {
+          if (this._resolvedConfigEntryId && this._hasMusicAssistantServiceSignal()) {
             this._state.musicAssistantIssueMessage = "";
-            return "";
+            return this._resolvedConfigEntryId;
           }
           this._handleMusicAssistantIssue(preferred?.state ? `Music Assistant entry ${preferred.state}` : this._musicAssistantSetupMessage());
           return "";
@@ -10220,9 +10222,7 @@ export function createHomeiiBaseMusicCard({
 
     async _fetchMusicAssistantQueueSnapshot(player) {
       if (!player?.entity_id) return null;
-      const queueId = this._queueIdForPlayer(player);
       const payload = { entity_id: player.entity_id };
-      if (queueId) payload.queue_id = queueId;
       const snapshot = await this._callService("get_queue", payload, { includeConfigEntryId: false });
       return this._normalizeQueueSnapshot(snapshot, player.entity_id);
     }

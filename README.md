@@ -47,7 +47,7 @@ https://github.com/user-attachments/assets/a0076e6e-0352-40f8-ac37-35737e717a80
 
 <p align="center">
   <a href="https://github.com/r11a/homeii-music-flow"><img alt="stable version" src="https://img.shields.io/badge/stable-5.8.1-gold"></a>
-  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.2-beta.4"><img alt="beta version" src="https://img.shields.io/badge/beta-5.8.2--beta.4-8A63D2"></a>
+  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.2-beta.5"><img alt="beta version" src="https://img.shields.io/badge/beta-5.8.2--beta.5-8A63D2"></a>
   <img alt="Home Assistant" src="https://img.shields.io/badge/Home%20Assistant-Dashboard-41BDF5">
   <img alt="Music Assistant" src="https://img.shields.io/badge/Music%20Assistant-required-7C5CFF">
   <img alt="Sendspin" src="https://img.shields.io/badge/Sendspin-browser%20player-18B6FF">
@@ -63,22 +63,23 @@ HOMEii Flow is a custom Home Assistant Dashboard card for Music Assistant. It tu
 
 HOMEii Flow started from my own daily use of Home Assistant and Music Assistant. I wanted it to feel less like a technical dashboard widget and more like a real music app inside Home Assistant, so a lot of thought went into the flow, touch interactions, Hebrew/RTL comfort, wall-tablet behavior, mobile details, and the small moments that make choosing music feel natural at home.
 
-## 5.8.2 Beta 4
+## 5.8.2 Beta 5
 
-HOMEii Flow 5.8.2 Beta 4 is a targeted pre-release follow-up for Music Assistant troubleshooting, invalid direct URL handling, Danish localization, and low-resource artwork cache behavior.
+HOMEii Flow 5.8.2 Beta 5 is a targeted pre-release follow-up for Diagnostic v2, visual-editor diagnostics, Sendspin/browser checks, and Home Assistant integration-first operation.
 
-- Adds an in-card Diagnostics screen under Settings > Music Assistant with a copyable report for GitHub issues.
-- Detects Home Assistant Music Assistant ingress URLs that were accidentally used as `ma_url` and avoids repeated Direct API request loops after `404`/`405` failures.
-- Scales the decoded artwork cache by `performance_profile`, reducing memory pressure on `lite` and `ultra_lite` dashboards.
-- Adds Danish (`da`) localization and language-picker support.
-- Keeps the Beta 1, Beta 2, and Beta 3 artwork and Music Assistant compatibility fixes.
+- Upgrades Settings > Music Assistant > Diagnostics to Diagnostic v2 with browser, viewport, access path, Direct MA, Sendspin, queue, library, and artwork checks.
+- Adds a Diagnostics button to the Home Assistant visual editor near the version label.
+- Keeps diagnostics visible with green OK, red FAIL, yellow WARN, and blue INFO rows, plus a copyable report for GitHub issues.
+- Treats the Home Assistant Music Assistant integration as the primary supported path, so the card can keep working normally even when Direct MA access is not configured.
+- Avoids broken artwork placeholders caused by Music Assistant `/imageproxy` paths when the browser cannot directly reach Music Assistant.
+- Keeps the Beta 1 through Beta 4 artwork, Music Assistant compatibility, Danish localization, and performance fixes.
 
-Beta download: [v5.8.2-beta.4](https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.2-beta.4)
+Beta download: [v5.8.2-beta.5](https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.2-beta.5)
 
 Stable users can remain on 5.8.1. Beta users should hard refresh Home Assistant or use:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.8.2-beta.4
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.8.2-beta.5
 ```
 
 ## 5.8.1 Hotfix Release
@@ -1022,7 +1023,8 @@ src/core/                             extracted foundation helpers
 src/config/                           config validators
 tests/                                regression coverage
 scripts/release.mjs                   release sync tooling
-RELEASE_NOTES_5.8.2-beta.4.md         detailed GitHub release notes for the current beta
+RELEASE_NOTES_5.8.2-beta.5.md         detailed GitHub release notes for the current beta
+RELEASE_NOTES_5.8.2-beta.4.md         previous beta release notes
 RELEASE_NOTES_5.8.2-beta.3.md         previous beta release notes
 RELEASE_NOTES_5.8.2-beta.2.md         previous beta release notes
 RELEASE_NOTES_5.8.2-beta.1.md         previous beta release notes
@@ -1045,7 +1047,7 @@ npm run lint
 npm test
 ```
 
-Current packaged version: `5.8.2-beta.4`
+Current packaged version: `5.8.2-beta.5`
 
 ## Release Readiness
 
@@ -1099,6 +1101,7 @@ Credit and thanks:
 
 - [Local deployment guide](./LOCAL_DEPLOYMENT.md)
 - [Publishing checklist](./PUBLISHING.md)
+- [5.8.2 Beta 5 release notes](./RELEASE_NOTES_5.8.2-beta.5.md)
 - [5.8.2 Beta 4 release notes](./RELEASE_NOTES_5.8.2-beta.4.md)
 - [5.8.2 Beta 3 release notes](./RELEASE_NOTES_5.8.2-beta.3.md)
 - [5.8.2 Beta 2 release notes](./RELEASE_NOTES_5.8.2-beta.2.md)

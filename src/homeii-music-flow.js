@@ -94,9 +94,9 @@ function ensureHaEditorComponents() {
   } catch (_) {}
 }
 
-const HOMEII_CARD_VERSION = "5.8.2-beta.4";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v5824";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v5824";
+const HOMEII_CARD_VERSION = "5.8.2-beta.5";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v5825";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v5825";
 const AMBIENT_LIGHT_PAIR_PLAYER_PREFIX = "__homeii_ambient_light_pair_player_";
 const AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX = "__homeii_ambient_light_pair_lights_";
 
@@ -12909,6 +12909,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .diagnostic-row.status-warn .diagnostic-status {
           color:#ffd47a;
           background:rgba(255,212,122,.13);
+        }
+        .diagnostic-row.status-info .diagnostic-status {
+          color:#7db7ff;
+          background:rgba(125,183,255,.13);
         }
         .diagnostic-copy {
           min-width:0;
@@ -28744,6 +28748,196 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
   }
 
+  _diagnosticBrowserSummary() {
+    const nav = typeof navigator !== "undefined" ? navigator : (typeof window !== "undefined" ? window.navigator : {});
+    const ua = String(nav?.userAgent || "");
+    const matchers = [
+      ["Edge", /Edg\/([\d.]+)/i],
+      ["Chrome iOS", /CriOS\/([\d.]+)/i],
+      ["Firefox iOS", /FxiOS\/([\d.]+)/i],
+      ["Firefox", /Firefox\/([\d.]+)/i],
+      ["Samsung Internet", /SamsungBrowser\/([\d.]+)/i],
+      ["Chrome", /Chrome\/([\d.]+)/i],
+      ["Safari", /Version\/([\d.]+).*Safari/i],
+    ];
+    const found = matchers.map(([name, pattern]) => {
+      const match = ua.match(pattern);
+      return match ? `${name} ${match[1]}` : "";
+    }).find(Boolean) || (ua ? "Unknown browser" : "Browser unavailable");
+    const appHints = [];
+    if (/Home Assistant|HomeAssistant|io\.homeassistant|HA Companion/i.test(ua)) appHints.push("HA Companion");
+    if (/\bwv\b|Android.*Version\/[\d.]+.*Chrome/i.test(ua)) appHints.push("Android WebView");
+    if (/iPhone|iPad|iPod/i.test(ua) && /Safari/i.test(ua) && !/CriOS|FxiOS|EdgiOS/i.test(ua)) appHints.push("iOS WebKit");
+    const platform = String(nav?.platform || nav?.userAgentData?.platform || "").trim();
+    return [found, platform, ...appHints].filter(Boolean).join(" / ");
+  }
+
+  _diagnosticViewportSummary() {
+    const win = typeof window !== "undefined" ? window : {};
+    const nav = typeof navigator !== "undefined" ? navigator : win.navigator;
+    const width = Number(win.innerWidth || this.getBoundingClientRect?.().width || this.offsetWidth || 0);
+    const height = Number(win.innerHeight || this.getBoundingClientRect?.().height || this.offsetHeight || 0);
+    const dpr = Number(win.devicePixelRatio || 1);
+    const touch = Number(nav?.maxTouchPoints || 0);
+    const language = String(nav?.language || this._hass?.locale?.language || this._hass?.language || "").trim();
+    return `${Math.round(width)}x${Math.round(height)}, DPR ${Number.isFinite(dpr) ? dpr.toFixed(2).replace(/\.00$/, "") : "?"}, touch ${touch}${language ? `, lang ${language}` : ""}`;
+  }
+
+  _diagnosticCurrentOrigin() {
+    try {
+      return typeof window !== "undefined" ? (window.location?.origin || window.location?.href || "") : "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  _diagnosticUrlHasMixedContentRisk(url = "") {
+    const raw = String(url || "").trim();
+    if (!raw || typeof window === "undefined" || window.location?.protocol !== "https:") return false;
+    try {
+      return new URL(raw, window.location.href).protocol === "http:";
+    } catch (_) {
+      return /^http:\/\//i.test(raw);
+    }
+  }
+
+  _diagnosticAccessDetail(url = "") {
+    const raw = String(url || "").trim();
+    if (!raw) return "Integration mode: the browser talks to Home Assistant only.";
+    try {
+      const parsed = new URL(raw, typeof window !== "undefined" ? window.location.href : "http://homeii.local");
+      const maLocal = this._isPrivateNetworkHost?.(parsed.hostname);
+      const haHost = typeof window !== "undefined" ? String(window.location?.hostname || "") : "";
+      const haLocal = this._isPrivateNetworkHost?.(haHost);
+      if (maLocal && haHost && !haLocal) {
+        return "Music Assistant URL is local/private while Home Assistant looks external. Direct/Sendspin will only work through local network, VPN, or an HTTPS external MA URL.";
+      }
+      if (maLocal) return "Music Assistant URL is local/private. Direct/Sendspin should work only from the local network or VPN.";
+      return "Music Assistant URL looks externally routable from this browser.";
+    } catch (_) {
+      return "Could not parse Music Assistant URL for local/external access checks.";
+    }
+  }
+
+  _diagnosticSnapshotCount(snapshot = null) {
+    const itemCount = Array.isArray(snapshot?.items) ? snapshot.items.length : 0;
+    const stateCount = Number(snapshot?.state?.items ?? snapshot?.state?.items_count ?? snapshot?.items_count);
+    if (itemCount) return itemCount;
+    return Number.isFinite(stateCount) && stateCount >= 0 ? Math.round(stateCount) : 0;
+  }
+
+  async _diagnosticQueueRows(add, selectedPlayer = null) {
+    if (!selectedPlayer) {
+      add("fail", "Queue snapshot", "No selected player is available, so queue checks cannot run.");
+      return;
+    }
+    const queueId = this._queueIdForPlayer?.(selectedPlayer) || this._directMaQueueId?.(selectedPlayer) || "";
+    add(queueId ? "ok" : "warn", "Queue identity", queueId ? "Selected player exposes an active queue id." : "Selected player does not expose active_queue/queue_id. Some queue APIs may still infer it from the entity.", queueId || "(none)");
+
+    const attempts = [];
+    const snapshots = [];
+    const runAttempt = async (label, fn) => {
+      try {
+        const snapshot = await fn();
+        const count = this._diagnosticSnapshotCount(snapshot);
+        attempts.push(`${label}: ${snapshot ? `${count} item(s)` : "no snapshot"}`);
+        if (snapshot) snapshots.push({ label, snapshot, count });
+      } catch (error) {
+        attempts.push(`${label}: ${error?.message || "failed"}`);
+      }
+    };
+
+    await runAttempt("HA get_queue", () => this._fetchMusicAssistantQueueSnapshot(selectedPlayer));
+    if (this._hasMassQueueService?.("get_queue_items")) {
+      await runAttempt("mass_queue get_queue_items", () => this._fetchMassQueueItemsSnapshot(selectedPlayer));
+    }
+    if (this._hasDirectMAConnection?.()) {
+      await runAttempt("Direct player_queues", () => this._fetchDirectControlRoomQueueSnapshot(selectedPlayer));
+    }
+
+    const best = snapshots.sort((left, right) => right.count - left.count)[0];
+    const detail = attempts.join("; ") || "No queue providers were available.";
+    if (best?.count > 0) {
+      add("ok", "Queue snapshot", detail, `${best.label}: ${best.count}`);
+    } else if (best) {
+      add("warn", "Queue snapshot", `${detail}. Queue API is reachable but returned no items; this can be normal for an idle/empty queue.`);
+    } else {
+      add("fail", "Queue snapshot", detail);
+    }
+  }
+
+  async _diagnosticLibraryRows(add, musicAssistantServices = []) {
+    if (!musicAssistantServices.length && !this._hasDirectMAConnection?.()) {
+      add("fail", "Library coverage", "Skipped because neither Home Assistant Music Assistant services nor a valid direct MA connection are available.");
+      return;
+    }
+
+    const types = ["playlist", "artist", "album", "track", "radio"];
+    const results = await Promise.all(types.map(async (type) => {
+      try {
+        const items = await this._fetchLibrary(type, "sort_name", 3, false);
+        return { type, items: Array.isArray(items) ? items : [], error: "" };
+      } catch (error) {
+        return { type, items: [], error: error?.message || "failed" };
+      }
+    }));
+    const parts = results.map((result) => {
+      const artCount = result.items.filter((item) => this._artUrl(item, { size: 160 })).length;
+      return `${result.type}:${result.error ? `error(${result.error})` : `${result.items.length} item(s), ${artCount} art`}`;
+    });
+    const totalItems = results.reduce((sum, result) => sum + result.items.length, 0);
+    const failures = results.filter((result) => result.error).length;
+    add(totalItems ? "ok" : (failures === results.length ? "fail" : "warn"), "Library coverage", parts.join("; "));
+
+    const sampleResult = results.find((result) => result.items.length);
+    const sample = sampleResult?.items?.[0] || null;
+    if (!sample) {
+      add("warn", "Library artwork sample", "No library item was returned, so artwork URL inference could not be checked.");
+      return;
+    }
+    const art = this._artUrl(sample, { size: 300 });
+    const sampleName = sample.name || sample.title || sample.media_item?.name || sampleResult.type;
+    if (!art) {
+      add("warn", "Library artwork sample", "A library item was returned, but HOMEii could not infer an artwork URL from it.", `${sampleResult.type}: ${sampleName}`);
+      return;
+    }
+    const mixed = this._diagnosticUrlHasMixedContentRisk(art);
+    add(mixed ? "warn" : "ok", "Library artwork sample", mixed ? "Artwork resolves to HTTP while the dashboard is HTTPS, so the browser may block it." : "Artwork URL was inferred for a sample library item.", `${sampleResult.type}: ${sampleName} -> ${this._sanitizeDiagnosticUrl(art)}`);
+  }
+
+  _diagnosticSendspinRows(add, maUrl = "", directIssue = "", hasIntegrationServices = false) {
+    const win = typeof window !== "undefined" ? window : {};
+    const hasWebSocket = typeof WebSocket !== "undefined" || typeof win.WebSocket !== "undefined";
+    const hasAudioContext = typeof AudioContext !== "undefined" || typeof win.AudioContext !== "undefined" || typeof win.webkitAudioContext !== "undefined";
+    const hasAudioElement = typeof document !== "undefined" && typeof document.createElement === "function";
+    const supportDetail = `WebSocket ${hasWebSocket ? "yes" : "no"}, AudioContext ${hasAudioContext ? "yes" : "no"}, audio element ${hasAudioElement ? "yes" : "no"}`;
+    add(hasWebSocket && hasAudioElement ? "ok" : "fail", "Sendspin browser support", supportDetail);
+
+    const session = this._localSendspinGlobalSession?.(false);
+    const connected = !!(session?.connected || this._localSendspinConnected);
+    const connecting = !!(session?.connecting || this._localSendspinConnecting);
+    const desired = !!(session?.desired || this._isLocalSendspinDesired?.());
+    const playerId = this._peekLocalSendspinPlayerId?.() || "";
+    add(connected ? "ok" : (connecting || desired ? "warn" : "info"), "Sendspin local runtime", `${connected ? "connected" : (connecting ? "connecting" : (desired ? "desired but not connected" : "not active"))}${playerId ? `, player id ${playerId}` : ""}`);
+
+    if (!maUrl) {
+      add("info", "Sendspin endpoint", "This-device Sendspin playback needs a direct Music Assistant URL and token. Core playback through the Home Assistant integration can still work normally.", hasIntegrationServices ? "integration mode" : "(empty)");
+    } else if (directIssue) {
+      add(hasIntegrationServices ? "warn" : "fail", "Sendspin endpoint", `Direct browser access is not ready: ${directIssue}`, this._sanitizeDiagnosticUrl(maUrl));
+    } else if (!this._maToken) {
+      add("warn", "Sendspin endpoint", "Direct Music Assistant URL is available, but ma_token is missing.");
+    } else {
+      try {
+        const wsUrl = this._localSendspinWsUrl();
+        add(hasWebSocket ? "ok" : "fail", "Sendspin endpoint", "Computed Sendspin WebSocket endpoint. This readiness check does not open a socket.", this._sanitizeDiagnosticUrl(wsUrl));
+      } catch (error) {
+        add("fail", "Sendspin endpoint", error?.message || "Could not compute Sendspin WebSocket endpoint.");
+      }
+    }
+
+    add(maUrl ? (this._diagnosticAccessDetail(maUrl).includes("looks external") ? "ok" : "warn") : "info", "Sendspin access mode", this._diagnosticAccessDetail(maUrl));
+  }
+
   _diagnosticsSummary(items = this._state.diagnosticsItems || []) {
     const list = Array.isArray(items) ? items : [];
     const failures = list.filter((item) => item.status === "fail").length;
@@ -28777,7 +28971,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       <div class="settings-shell diagnostics-shell">
         <div class="settings-group diagnostics-card">
           <div class="settings-label">${this._esc(this._m("HOMEii Diagnostics", "אבחון HOMEii"))}</div>
-          <div class="settings-hint">${this._esc(this._m("Checks the Home Assistant connection, Music Assistant integration, players, ma_url, direct API, and a small library smoke test.", "בודק חיבור ל-Home Assistant, אינטגרציית Music Assistant, נגנים, ma_url, API ישיר ובדיקת ספרייה קטנה."))}</div>
+          <div class="settings-hint">${this._esc(this._m("Diagnostic v2 checks Home Assistant integration mode, browser context, players, queue, library artwork, direct MA, and Sendspin readiness.", "Diagnostic v2 בודק מצב אינטגרציה, דפדפן, נגנים, תור, תמונות ספרייה, Direct MA ו-Sendspin."))}</div>
           <div class="settings-actions diagnostics-actions">
             <button class="settings-pill active" data-menu-action="run_diagnostics" ${running ? "disabled" : ""}>${this._esc(running ? this._m("Running...", "מריץ...") : this._m("Run diagnostics", "הרץ בדיקה"))}</button>
             <button class="settings-pill" data-menu-action="copy_diagnostics" ${items.length ? "" : "disabled"}>${this._esc(this._m("Copy report", "העתק דוח"))}</button>
@@ -28802,6 +28996,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const maUrl = this._maBrowserUrl();
     const directIssue = maUrl ? this._directMaSetupIssue(maUrl) : "";
     const musicAssistantServices = Object.keys(this._hass?.services?.music_assistant || {});
+    const hasIntegrationServices = musicAssistantServices.length > 0;
     const hassStates = this._hass?.states || {};
     const hassEntities = this._hass?.entities || {};
     const haMusicAssistantPlayers = Object.values(hassStates)
@@ -28810,8 +29005,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const selectedPlayer = this._getSelectedPlayer();
 
     add("ok", "Card version", "HOMEii Flow runtime is loaded.", HOMEII_CARD_VERSION);
+    add("ok", "Diagnostics version", "Diagnostic v2 is active.", "v2");
+    add("info", "Browser", this._diagnosticBrowserSummary());
+    add("info", "Viewport", this._diagnosticViewportSummary());
+    add(this._diagnosticCurrentOrigin() ? "ok" : "warn", "Home Assistant URL", this._diagnosticCurrentOrigin() || "Could not read current Home Assistant origin.");
     add(hassReady ? "ok" : "fail", "Home Assistant frontend", hassReady ? "The card can read Home Assistant state and services." : "The card does not have a usable Home Assistant frontend object.");
     add(musicAssistantServices.length ? "ok" : "fail", "Music Assistant services", musicAssistantServices.length ? `${musicAssistantServices.length} service(s) are exposed by Home Assistant.` : "No music_assistant services are exposed by Home Assistant.");
+    add(hasIntegrationServices ? "ok" : "warn", "Integration mode", hasIntegrationServices ? "Core card features can run through the Home Assistant Music Assistant integration. HTTP/HTTPS mixed-content rules only affect optional Direct/Sendspin browser access." : "Home Assistant does not expose music_assistant services, so the card must rely on direct Music Assistant access where possible.");
 
     if (this._hass?.connection?.sendMessagePromise) {
       try {
@@ -28849,17 +29049,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
 
     if (!maUrl) {
-      add("info", "ma_url", "Empty is OK for the normal Home Assistant integration path.", "(empty)");
+      add(hasIntegrationServices ? "ok" : "info", "ma_url", "Empty is OK for the normal Home Assistant integration path. Direct API and Sendspin need a separate direct Music Assistant URL.", "(empty)");
     } else if (directIssue) {
-      add("fail", "ma_url", directIssue, this._sanitizeDiagnosticUrl(maUrl));
+      add(hasIntegrationServices ? "warn" : "fail", "ma_url", directIssue, this._sanitizeDiagnosticUrl(maUrl));
     } else {
       add("ok", "ma_url", "Direct Music Assistant URL is configured and does not look like Home Assistant ingress.", this._sanitizeDiagnosticUrl(maUrl));
     }
+    add(maUrl ? (this._diagnosticAccessDetail(maUrl).includes("looks external") ? "ok" : "warn") : "info", "Access path", this._diagnosticAccessDetail(maUrl));
 
     if (typeof window !== "undefined" && window.location?.protocol === "https:" && maUrl) {
       try {
         const parsed = new URL(maUrl, window.location.href);
-        add(parsed.protocol === "https:" ? "ok" : "fail", "Mixed content", parsed.protocol === "https:" ? "Dashboard and direct MA URL both use HTTPS." : this._maMixedContentMessage());
+        add(parsed.protocol === "https:" ? "ok" : (hasIntegrationServices ? "warn" : "fail"), "Mixed content", parsed.protocol === "https:" ? "Dashboard and direct MA URL both use HTTPS." : `${this._maMixedContentMessage()} Core Home Assistant integration mode can still work because the browser talks to Home Assistant.`);
       } catch (_) {
         add("warn", "Mixed content", "Could not parse ma_url for mixed-content validation.");
       }
@@ -28887,16 +29088,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       add("info", "Direct Music Assistant WebSocket", "Skipped because ma_url is empty.");
     }
 
-    if (musicAssistantServices.length || this._hasDirectMAConnection()) {
-      try {
-        const albums = await this._fetchLibrary("album", "sort_name", 1, false);
-        add(Array.isArray(albums) && albums.length ? "ok" : "warn", "Library smoke test", Array.isArray(albums) && albums.length ? "Albums returned at least one item." : "Library request completed but returned no albums. This can be OK for an empty library.");
-      } catch (error) {
-        add("fail", "Library smoke test", error?.message || "Library request failed.");
-      }
-    } else {
-      add("fail", "Library smoke test", "Skipped because neither Home Assistant Music Assistant services nor a valid direct MA connection are available.");
-    }
+    this._diagnosticSendspinRows(add, maUrl, directIssue, hasIntegrationServices);
+    await this._diagnosticQueueRows(add, selectedPlayer);
+    await this._diagnosticLibraryRows(add, musicAssistantServices);
 
     this._state.diagnosticsItems = items;
     this._state.diagnosticsStatus = "done";
@@ -28908,10 +29102,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const items = Array.isArray(this._state.diagnosticsItems) ? this._state.diagnosticsItems : [];
     const lines = [
       "HOMEii Music Flow Diagnostics",
+      "Diagnostics: v2",
       `Version: ${HOMEII_CARD_VERSION}`,
       `Generated: ${new Date(this._state.diagnosticsRunAt || Date.now()).toISOString()}`,
+      `Browser: ${this._diagnosticBrowserSummary()}`,
+      `Viewport: ${this._diagnosticViewportSummary()}`,
       `HA URL: ${typeof window !== "undefined" ? window.location?.origin || "" : ""}`,
       `ma_url: ${this._maBrowserUrl() ? this._sanitizeDiagnosticUrl(this._maBrowserUrl()) : "(empty)"}`,
+      `access_path: ${this._diagnosticAccessDetail(this._maBrowserUrl())}`,
       `ma_token configured: ${this._maToken ? "yes" : "no"}`,
       `selected_player: ${this._state.selectedPlayer || "(none)"}`,
       "",

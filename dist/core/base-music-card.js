@@ -841,6 +841,7 @@ export function createHomeiiBaseMusicCard({
         const currentProtocol = typeof window !== "undefined" ? window.location?.protocol : "";
         const target = new URL(raw);
         if (target.hostname === currentHost) return false;
+        if (!currentHost) return currentProtocol === "https:" && target.protocol === "http:";
         if (!this._isPrivateNetworkHost(currentHost) && this._isPrivateNetworkHost(target.hostname)) return true;
         return currentProtocol === "https:" && target.protocol === "http:" && this._isPrivateNetworkHost(target.hostname);
       } catch (_) {
@@ -885,6 +886,18 @@ export function createHomeiiBaseMusicCard({
       }
     }
 
+    _isMaImageProxyPath(url = "") {
+      const raw = String(url || "").trim();
+      if (!raw) return false;
+      if (/^\/?imageproxy(?:[/?]|$)/i.test(raw)) return true;
+      try {
+        const parsed = new URL(raw, this._maArtworkBaseUrl() || this._currentWindowOrigin() || undefined);
+        return /\/imageproxy(?:[/?]|$)/i.test(parsed.pathname);
+      } catch {
+        return raw.includes("/imageproxy?");
+      }
+    }
+
     _normalizeArtworkUrl(value = "", { size = 300, cacheKey = "" } = {}) {
       const raw = String(value || "").trim();
       if (!raw) return "";
@@ -899,8 +912,10 @@ export function createHomeiiBaseMusicCard({
           const origin = this._currentWindowOrigin();
           resolved = origin ? new URL(resolved, origin).toString() : resolved;
         } else if (resolved.startsWith("/imageproxy")) {
+          if (!maArtworkBaseUrl) return "";
           resolved = maArtworkBaseUrl ? new URL(resolved, maArtworkBaseUrl).toString() : resolved;
         } else if (resolved.startsWith("imageproxy?") || resolved.startsWith("imageproxy/")) {
+          if (!maArtworkBaseUrl) return "";
           resolved = maArtworkBaseUrl ? new URL(`/${resolved}`, maArtworkBaseUrl).toString() : `/${resolved}`;
         } else if (resolved.startsWith("/")) {
           const origin = this._currentWindowOrigin();
@@ -912,6 +927,8 @@ export function createHomeiiBaseMusicCard({
       if (resolved.includes("/imageproxy?") || resolved.includes("/imageproxy/")) {
         resolved = HomeiiMediaPresentationFoundation.normalizeImageProxyUrl(resolved, size, maArtworkBaseUrl);
       }
+      if (this._isMaImageProxyPath(resolved) && !/^https?:\/\//i.test(resolved)) return "";
+      if (this._isRemoteUnsafeArtworkUrl(resolved)) return "";
       return this._cacheBustedArtworkUrl(resolved, cacheKey);
     }
 
@@ -1063,7 +1080,7 @@ export function createHomeiiBaseMusicCard({
     _versionedAssetUrl(url) {
       const value = String(url || "").trim();
       if (!value || /^data:/i.test(value) || /[?&]v=/.test(value)) return value;
-      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.8.2-beta.4";
+      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.8.2-beta.5";
       return `${value}${value.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
     }
 

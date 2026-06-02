@@ -1,5 +1,23 @@
 # Changelog
 
+## 5.8.2-beta.5 - 2026-06-02
+
+Targeted beta follow-up for Diagnostic v2, visual-editor diagnostics, Sendspin/browser diagnostics, and Home Assistant integration-first operation.
+
+Release focus:
+
+- Upgrades the in-card Diagnostics screen to Diagnostic v2 with browser, viewport, Home Assistant URL, access path, mixed-content, Direct Music Assistant, Sendspin endpoint/support, queue, library, and artwork checks.
+- Keeps diagnostics readable in the UI with green OK, red FAIL, yellow WARN, and blue INFO rows, plus a copyable report for GitHub issues.
+- Adds a Diagnostics button to the Home Assistant visual editor near the version label, so setup checks can be run before opening the full card settings screen.
+- Treats the Home Assistant Music Assistant integration as the primary supported path: playback, HA queue snapshots, selected-player checks, and player artwork can still work when direct Music Assistant access is not configured.
+- Avoids rendering Music Assistant `/imageproxy` paths as broken Home Assistant artwork when the browser cannot directly reach Music Assistant.
+- Reports Direct/Sendspin issues as optional access-path diagnostics when the Home Assistant integration is available, rather than implying that the whole card is broken.
+
+Validation:
+
+- Targeted runtime and media foundation tests passed after the source fixes.
+- Full lint, full Vitest, production build, and release artifact sync were run for the final beta package.
+
 ## 5.8.2-beta.4 - 2026-06-01
 
 Targeted beta follow-up for Music Assistant troubleshooting, invalid direct URL handling, Danish localization, and low-resource artwork cache behavior.

@@ -67,6 +67,30 @@ function installBrowserStubs() {
           this.attributes[name] = String(value);
         },
       };
+      const diagnosticsButtonNode = {
+        attributes: {},
+        disabled: false,
+        listeners: {},
+        textContent: "Diagnostics",
+        addEventListener(type, handler) {
+          this.listeners[type] = handler;
+        },
+        dispatchEvent(event) {
+          this.listeners[event.type]?.(event);
+        },
+        setAttribute(name, value) {
+          this.attributes[name] = String(value);
+        },
+      };
+      const diagnosticsPanelNode = {
+        hidden: true,
+      };
+      const diagnosticsSummaryNode = {
+        textContent: "",
+      };
+      const diagnosticsListNode = {
+        innerHTML: "",
+      };
       const shellNode = {
         classList: {
           toggle() {},
@@ -80,6 +104,10 @@ function installBrowserStubs() {
           if (selector === "#editorForm") return formNode;
           if (selector === ".editor-shell") return shellNode;
           if (selector === ".editor-sponsor") return sponsorNode;
+          if (selector === ".editor-diagnostics") return diagnosticsButtonNode;
+          if (selector === "#editorDiagnosticsPanel") return diagnosticsPanelNode;
+          if (selector === "#editorDiagnosticsSummary") return diagnosticsSummaryNode;
+          if (selector === "#editorDiagnosticsList") return diagnosticsListNode;
           return null;
         },
         querySelectorAll() { return []; },
@@ -212,6 +240,8 @@ describe("runtime baseline", () => {
 
     expect(editor._editorForm).toBeTruthy();
     expect(editor.shadowRoot.innerHTML).toContain('class="editor-sponsor"');
+    expect(editor.shadowRoot.innerHTML).toContain('class="editor-diagnostics"');
+    expect(editor.shadowRoot.innerHTML).toContain('id="editorDiagnosticsPanel"');
     expect(editor.shadowRoot.innerHTML).toContain('href="https://github.com/sponsors/r11a"');
     expect(editor.shadowRoot.innerHTML).toContain('rel="noopener noreferrer"');
     globalThis.window.confirm = vi.fn(() => false);
@@ -221,6 +251,57 @@ describe("runtime baseline", () => {
     expect(preventDefault).toHaveBeenCalled();
     expect(Array.isArray(editor._editorForm.schema)).toBe(true);
     expect(editor._editorForm.data.mobile_quick_actions).toEqual(["voice", "search"]);
+  });
+
+  it("builds a visual editor diagnostics v2 report with visible status rows", async () => {
+    await import("../src/homeii-music-flow.js?runtime-editor-diagnostics-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const EditorCtor = globalThis.customElements.get("homeii-music-flow-editor");
+    const editor = new EditorCtor();
+    editor.connectedCallback();
+    editor.setConfig({
+      type: "custom:homeii-music-flow",
+      ma_url: "",
+    });
+    editor.hass = {
+      services: {
+        music_assistant: {
+          play_media: {},
+          get_library: {},
+        },
+      },
+      states: {
+        "media_player.office": {
+          entity_id: "media_player.office",
+          state: "playing",
+          attributes: {
+            app_id: "music_assistant",
+            friendly_name: "Office",
+            mass_player_type: "player",
+          },
+        },
+      },
+      entities: {},
+      connection: {
+        sendMessagePromise: vi.fn(async () => [
+          { entry_id: "ma-entry", domain: "music_assistant", state: "loaded" },
+        ]),
+      },
+    };
+
+    const report = await editor._runEditorDiagnostics();
+
+    expect(report).toContain("HOMEii Music Flow Editor Diagnostics");
+    expect(report).toContain("Diagnostics: v2");
+    expect(report).toContain("Integration mode");
+    expect(report).toContain("Sendspin endpoint");
+    expect(editor._editorDiagnosticsItems.length).toBeGreaterThan(0);
+    expect(editor._editorDiagnosticsPanel.hidden).toBe(false);
+    expect(editor._editorDiagnosticsList.innerHTML).toContain("editor-diagnostic-row");
+    expect(editor._editorDiagnosticsList.innerHTML).toContain("status-ok");
+    expect(editor._editorDiagnosticsList.innerHTML).toContain("status-info");
   });
 
   it("resolves Music Assistant 2.9 queue artwork payloads", async () => {
@@ -246,6 +327,21 @@ describe("runtime baseline", () => {
     expect(card._queueItemImageUrl(normalized, 120)).toBe(
       "https://ma.local/imageproxy?path=spotify%2Fcover.jpg&provider=spotify&size=160",
     );
+  });
+
+  it("does not treat relative Music Assistant imageproxy paths as Home Assistant artwork in integration-only mode", async () => {
+    await import("../src/homeii-music-flow.js?runtime-integration-only-art-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._maUrl = "";
+    card._maExternalUrl = "";
+
+    expect(card._artUrl({ image: "/imageproxy?path=spotify%2Fcover.jpg" })).toBe("");
+    expect(card._artUrl({ image: "imageproxy?path=spotify%2Fcover.jpg" })).toBe("");
+    expect(card._artUrl({ image: "/api/media_player_proxy/media_player.office?token=abc" })).toContain("/api/media_player_proxy/media_player.office");
   });
 
   it("loads selected-player queue snapshots through Home Assistant before direct Music Assistant", async () => {

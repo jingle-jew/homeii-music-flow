@@ -25,6 +25,13 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     this._editorUsePathBtn = null;
     this._editorPathHint = null;
     this._editorSponsorLink = null;
+    this._editorDiagnosticsBtn = null;
+    this._editorDiagnosticsPanel = null;
+    this._editorDiagnosticsSummaryNode = null;
+    this._editorDiagnosticsList = null;
+    this._editorDiagnosticsItems = [];
+    this._editorDiagnosticsReport = "";
+    this._editorDiagnosticsRunning = false;
     this._editorAmbientLightDraft = { player: "", lights: [] };
     this._editorBound = false;
     this._editorLastConfigKey = "";
@@ -126,6 +133,396 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     this._editorSponsorLink.setAttribute("aria-label", label);
   }
 
+  _editorNormalizeUrl(value = "") {
+    return String(value || "").trim().replace(/\/$/, "");
+  }
+
+  _editorMaBrowserUrl() {
+    const internalUrl = this._editorNormalizeUrl(this._config?.ma_url);
+    const externalUrl = this._editorNormalizeUrl(this._config?.music_assistant_external_url || this._config?.ma_external_url);
+    const pageIsHttps = typeof window !== "undefined" && window.location?.protocol === "https:";
+    if (pageIsHttps && externalUrl) return externalUrl;
+    return internalUrl || externalUrl;
+  }
+
+  _editorSanitizeDiagnosticUrl(value = "") {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    try {
+      const parsed = new URL(raw, typeof window !== "undefined" ? window.location.href : "http://homeii.local");
+      ["token", "auth", "access_token"].forEach((key) => parsed.searchParams.delete(key));
+      return parsed.toString().replace(/\/$/, "");
+    } catch (_) {
+      return raw.replace(/(token|access_token|auth)=([^&\s]+)/gi, "$1=<redacted>");
+    }
+  }
+
+  _editorCurrentOrigin() {
+    try {
+      return typeof window !== "undefined" ? (window.location?.origin || window.location?.href || "") : "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  _editorBrowserSummary() {
+    const nav = typeof navigator !== "undefined" ? navigator : (typeof window !== "undefined" ? window.navigator : {});
+    const ua = String(nav?.userAgent || "");
+    const matchers = [
+      ["Edge", /Edg\/([\d.]+)/i],
+      ["Chrome iOS", /CriOS\/([\d.]+)/i],
+      ["Firefox iOS", /FxiOS\/([\d.]+)/i],
+      ["Firefox", /Firefox\/([\d.]+)/i],
+      ["Samsung Internet", /SamsungBrowser\/([\d.]+)/i],
+      ["Chrome", /Chrome\/([\d.]+)/i],
+      ["Safari", /Version\/([\d.]+).*Safari/i],
+    ];
+    const found = matchers.map(([name, pattern]) => {
+      const match = ua.match(pattern);
+      return match ? `${name} ${match[1]}` : "";
+    }).find(Boolean) || (ua ? "Unknown browser" : "Browser unavailable");
+    const hints = [];
+    if (/Home Assistant|HomeAssistant|io\.homeassistant|HA Companion/i.test(ua)) hints.push("HA Companion");
+    if (/\bwv\b|Android.*Version\/[\d.]+.*Chrome/i.test(ua)) hints.push("Android WebView");
+    if (/iPhone|iPad|iPod/i.test(ua) && /Safari/i.test(ua) && !/CriOS|FxiOS|EdgiOS/i.test(ua)) hints.push("iOS WebKit");
+    const platform = String(nav?.platform || nav?.userAgentData?.platform || "").trim();
+    return [found, platform, ...hints].filter(Boolean).join(" / ");
+  }
+
+  _editorViewportSummary() {
+    const win = typeof window !== "undefined" ? window : {};
+    const nav = typeof navigator !== "undefined" ? navigator : win.navigator;
+    const width = Number(win.innerWidth || this.getBoundingClientRect?.().width || this.offsetWidth || 0);
+    const height = Number(win.innerHeight || this.getBoundingClientRect?.().height || this.offsetHeight || 0);
+    const dpr = Number(win.devicePixelRatio || 1);
+    const touch = Number(nav?.maxTouchPoints || 0);
+    const language = String(nav?.language || this._hass?.locale?.language || this._hass?.language || "").trim();
+    return `${Math.round(width)}x${Math.round(height)}, DPR ${Number.isFinite(dpr) ? dpr.toFixed(2).replace(/\.00$/, "") : "?"}, touch ${touch}${language ? `, lang ${language}` : ""}`;
+  }
+
+  _editorIsPrivateNetworkHost(hostname = "") {
+    const host = String(hostname || "").trim().toLowerCase().replace(/^\[|\]$/g, "");
+    if (!host) return false;
+    if (host === "localhost" || host.endsWith(".local") || host.endsWith(".lan")) return true;
+    if (host === "::1" || host.startsWith("fe80:") || host.startsWith("fc") || host.startsWith("fd")) return true;
+    if (/^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) || /^169\.254\./.test(host)) return true;
+    const match = host.match(/^172\.(\d{1,2})\./);
+    return !!(match && Number(match[1]) >= 16 && Number(match[1]) <= 31);
+  }
+
+  _editorIsIngressMaUrl(value = "") {
+    const raw = String(value || "").trim();
+    if (!raw) return false;
+    try {
+      const parsed = new URL(raw, typeof window !== "undefined" ? window.location.href : "http://homeii.local");
+      const path = String(parsed.pathname || "").toLowerCase();
+      return /(^|\/)[a-z0-9]+_music_assistant(\/|$)/.test(path) || path.includes("_music_assistant");
+    } catch (_) {
+      return raw.toLowerCase().includes("_music_assistant");
+    }
+  }
+
+  _editorDirectIssue(url = this._editorMaBrowserUrl()) {
+    const value = this._editorNormalizeUrl(url);
+    if (!value) return "";
+    if (this._editorIsIngressMaUrl(value)) return "ma_url points to the Home Assistant Music Assistant ingress page, not the direct Music Assistant API.";
+    if (typeof window !== "undefined" && window.location?.protocol === "https:") {
+      try {
+        const parsed = new URL(value, window.location.href);
+        if (parsed.protocol !== "https:") return "Dashboard is HTTPS but direct Music Assistant URL is HTTP. Integration mode can still work; Direct/Sendspin browser access needs HTTPS, local HTTP HA, or VPN/local access.";
+      } catch (error) {
+        return error?.message || "Could not parse ma_url.";
+      }
+    }
+    return "";
+  }
+
+  _editorAccessDetail(url = "") {
+    const raw = String(url || "").trim();
+    if (!raw) return "Integration mode: the browser talks to Home Assistant only.";
+    try {
+      const parsed = new URL(raw, typeof window !== "undefined" ? window.location.href : "http://homeii.local");
+      const maLocal = this._editorIsPrivateNetworkHost(parsed.hostname);
+      const haHost = typeof window !== "undefined" ? String(window.location?.hostname || "") : "";
+      const haLocal = this._editorIsPrivateNetworkHost(haHost);
+      if (maLocal && haHost && !haLocal) return "Music Assistant URL is local/private while Home Assistant looks external. Direct/Sendspin needs local network, VPN, or an HTTPS external MA URL.";
+      if (maLocal) return "Music Assistant URL is local/private. Direct/Sendspin should work only from the local network or VPN.";
+      return "Music Assistant URL looks externally routable from this browser.";
+    } catch (_) {
+      return "Could not parse Music Assistant URL for local/external access checks.";
+    }
+  }
+
+  _editorSendspinWsUrl() {
+    const baseUrl = this._editorMaBrowserUrl();
+    const base = new URL(baseUrl, typeof window !== "undefined" ? window.location.href : undefined);
+    const protocol = base.protocol === "https:" ? "wss:" : "ws:";
+    const path = base.pathname.replace(/\/$/, "");
+    return `${protocol}//${base.host}${path}/sendspin`;
+  }
+
+  _editorDiagnosticItem(status, title, detail = "", value = "") {
+    return {
+      status: ["ok", "fail", "warn", "info"].includes(String(status || "").toLowerCase()) ? String(status).toLowerCase() : "info",
+      title: String(title || "").trim(),
+      detail: String(detail || "").trim(),
+      value: String(value || "").trim(),
+    };
+  }
+
+  _editorWithTimeout(promise, timeoutMs = 8000, message = "Request timed out") {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(message)), Math.max(1000, Number(timeoutMs) || 8000));
+      Promise.resolve(promise)
+        .then((value) => {
+          clearTimeout(timer);
+          resolve(value);
+        })
+        .catch((error) => {
+          clearTimeout(timer);
+          reject(error);
+        });
+    });
+  }
+
+  async _editorCallDirectMaCommand(command, args = {}) {
+    const maUrl = this._editorMaBrowserUrl();
+    if (!maUrl) throw new Error("Direct Music Assistant API is not configured.");
+    const directIssue = this._editorDirectIssue(maUrl);
+    if (directIssue) throw new Error(directIssue);
+    if (typeof fetch !== "function") throw new Error("fetch is not available in this editor context.");
+    const headers = {
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    };
+    if (this._config?.ma_token) headers.Authorization = `Bearer ${this._config.ma_token}`;
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timeout = controller ? setTimeout(() => controller.abort(), 8000) : null;
+    let response;
+    try {
+      response = await fetch(`${maUrl}/api`, {
+        method: "POST",
+        credentials: "include",
+        mode: "cors",
+        headers,
+        signal: controller?.signal,
+        body: JSON.stringify({
+          message_id: `editor_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          command,
+          args,
+        }),
+      });
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
+    const rawText = await response.text().catch(() => "");
+    let raw = {};
+    try {
+      raw = rawText ? JSON.parse(rawText) : {};
+    } catch (_) {
+      raw = { error: rawText || `${command} failed` };
+    }
+    if (!response.ok || raw?.error_code) {
+      throw new Error(raw?.details || raw?.error || `${command} failed (${response.status})`);
+    }
+    return raw?.result ?? raw;
+  }
+
+  _editorDiagnosticsReportText(items = []) {
+    const maUrl = this._editorMaBrowserUrl();
+    const lines = [
+      "HOMEii Music Flow Editor Diagnostics",
+      "Diagnostics: v2",
+      `Version: ${HOMEII_CARD_VERSION}`,
+      `Generated: ${new Date().toISOString()}`,
+      "Source: visual editor",
+      `Browser: ${this._editorBrowserSummary()}`,
+      `Viewport: ${this._editorViewportSummary()}`,
+      `HA URL: ${this._editorCurrentOrigin()}`,
+      `ma_url: ${maUrl ? this._editorSanitizeDiagnosticUrl(maUrl) : "(empty)"}`,
+      `access_path: ${this._editorAccessDetail(maUrl)}`,
+      `ma_token configured: ${this._config?.ma_token ? "yes" : "no"}`,
+      `config_entry_id configured: ${String(this._config?.config_entry_id || "").trim() ? "yes" : "no"}`,
+      "",
+      "Checks:",
+      ...items.map((item) => `- [${String(item.status || "info").toUpperCase()}] ${item.title}${item.value ? `: ${item.value}` : ""}${item.detail ? ` - ${item.detail}` : ""}`),
+    ];
+    return lines.join("\n").replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer <redacted>");
+  }
+
+  _editorDiagnosticsSummary(items = this._editorDiagnosticsItems || []) {
+    const list = Array.isArray(items) ? items : [];
+    const failures = list.filter((item) => item.status === "fail").length;
+    const warnings = list.filter((item) => item.status === "warn").length;
+    if (!list.length) return "Run diagnostics to check the current browser, HA integration, Direct API, and Sendspin readiness.";
+    if (failures) return `${failures} check${failures === 1 ? "" : "s"} need attention.`;
+    if (warnings) return `${warnings} check${warnings === 1 ? "" : "s"} need review.`;
+    return "All visible setup checks passed.";
+  }
+
+  _editorDiagnosticStatusLabel(status = "info") {
+    const normalized = String(status || "info").toLowerCase();
+    if (normalized === "ok") return "V";
+    if (normalized === "fail") return "X";
+    if (normalized === "warn") return "!";
+    return "i";
+  }
+
+  _editorDiagnosticRowHtml(item = {}) {
+    const status = ["ok", "fail", "warn", "info"].includes(String(item.status || "").toLowerCase())
+      ? String(item.status || "info").toLowerCase()
+      : "info";
+    return `
+      <div class="editor-diagnostic-row status-${this._esc(status)}">
+        <div class="editor-diagnostic-status" aria-label="${this._esc(status)}">${this._esc(this._editorDiagnosticStatusLabel(status))}</div>
+        <div class="editor-diagnostic-copy">
+          <div class="editor-diagnostic-title">${this._esc(item.title || "")}</div>
+          ${item.value ? `<div class="editor-diagnostic-value">${this._esc(item.value)}</div>` : ""}
+          ${item.detail ? `<div class="editor-diagnostic-detail">${this._esc(item.detail)}</div>` : ""}
+        </div>
+      </div>`;
+  }
+
+  _renderEditorDiagnosticsResults() {
+    if (!this._editorDiagnosticsPanel || !this._editorDiagnosticsSummaryNode || !this._editorDiagnosticsList) return;
+    const items = Array.isArray(this._editorDiagnosticsItems) ? this._editorDiagnosticsItems : [];
+    this._editorDiagnosticsPanel.hidden = !items.length;
+    this._editorDiagnosticsSummaryNode.textContent = this._editorDiagnosticsSummary(items);
+    this._editorDiagnosticsList.innerHTML = items.map((item) => this._editorDiagnosticRowHtml(item)).join("");
+  }
+
+  async _runEditorDiagnostics() {
+    const items = [];
+    const add = (status, title, detail = "", value = "") => items.push(this._editorDiagnosticItem(status, title, detail, value));
+    const maUrl = this._editorMaBrowserUrl();
+    const directIssue = maUrl ? this._editorDirectIssue(maUrl) : "";
+    const services = Object.keys(this._hass?.services?.music_assistant || {});
+    const states = this._hass?.states || {};
+    const entities = this._hass?.entities || {};
+    const players = Object.values(states)
+      .filter((entity) => HomeiiPlayersFoundation.isMusicAssistantPlayer(entity, entities?.[entity.entity_id]));
+    const pinned = HomeiiMobileSettingsFoundation.normalizePinnedPlayerEntityList(this._config?.pinned_player_entities);
+    const excluded = HomeiiMobileSettingsFoundation.normalizePinnedPlayerEntityList(this._config?.excluded_player_entities);
+
+    add("ok", "Editor version", "Visual editor runtime is loaded.", HOMEII_CARD_VERSION);
+    add("ok", "Diagnostics version", "Diagnostic v2 is active.", "v2");
+    add("info", "Browser", this._editorBrowserSummary());
+    add("info", "Viewport", this._editorViewportSummary());
+    add(this._hass ? "ok" : "fail", "Home Assistant frontend", this._hass ? "Editor has a Home Assistant frontend object." : "Editor does not have a Home Assistant frontend object.");
+    add(services.length ? "ok" : "fail", "Music Assistant services", services.length ? `${services.length} service(s) are exposed by Home Assistant.` : "No music_assistant services are exposed by Home Assistant.");
+    add(services.length ? "ok" : "warn", "Integration mode", services.length ? "Core card features can run through Home Assistant. HTTP/HTTPS only affects optional Direct/Sendspin browser access." : "Home Assistant does not expose music_assistant services.");
+    add(players.length ? "ok" : "warn", "Music Assistant players", `${players.length} player(s) visible in HA state.`);
+    add("info", "Player filters", `${pinned.length} pinned, ${excluded.length} excluded.`);
+
+    if (this._hass?.connection?.sendMessagePromise) {
+      try {
+        const entries = await this._editorWithTimeout(this._hass.connection.sendMessagePromise({
+          type: "config_entries/get",
+          domain: "music_assistant",
+        }), 8000, "Music Assistant config lookup timed out.");
+        const list = Array.isArray(entries) ? entries : [];
+        const preferred = list.find((entry) => entry?.state === "loaded")
+          || list.find((entry) => entry?.state === "setup_retry")
+          || list.find((entry) => entry?.state === "not_loaded")
+          || list[0];
+        add(preferred?.state === "loaded" ? "ok" : (preferred ? "warn" : "fail"), "Music Assistant config entry", preferred ? "Home Assistant returned a Music Assistant config entry." : "No Music Assistant config entry was returned.", preferred?.state || "none");
+      } catch (error) {
+        add("warn", "Music Assistant config entry", error?.message || "Could not read Home Assistant config entries.");
+      }
+    } else {
+      add("warn", "Music Assistant config entry", "Home Assistant connection API is not available in this editor context.");
+    }
+
+    if (!maUrl) {
+      add(services.length ? "ok" : "info", "ma_url", "Empty is OK for normal Home Assistant integration mode. Direct API and Sendspin need a separate direct Music Assistant URL.", "(empty)");
+    } else if (directIssue) {
+      add(services.length ? "warn" : "fail", "ma_url", directIssue, this._editorSanitizeDiagnosticUrl(maUrl));
+    } else {
+      add("ok", "ma_url", "Direct Music Assistant URL is configured and does not look like Home Assistant ingress.", this._editorSanitizeDiagnosticUrl(maUrl));
+    }
+    add(maUrl ? (this._editorAccessDetail(maUrl).includes("looks external") ? "ok" : "warn") : "info", "Access path", this._editorAccessDetail(maUrl));
+
+    if (maUrl && !directIssue) {
+      try {
+        const rawPlayers = await this._editorCallDirectMaCommand("players/all", { return_unavailable: true, return_disabled: false });
+        const count = Array.isArray(rawPlayers) ? rawPlayers.length : (Array.isArray(rawPlayers?.players) ? rawPlayers.players.length : 0);
+        add("ok", "Direct Music Assistant API", `Direct API responded with ${count} player(s).`);
+      } catch (error) {
+        add("fail", "Direct Music Assistant API", error?.message || "Direct API request failed.");
+      }
+    } else {
+      add("info", "Direct Music Assistant API", maUrl ? "Skipped because ma_url needs attention." : "Skipped because ma_url is empty.");
+    }
+
+    const win = typeof window !== "undefined" ? window : {};
+    const hasWebSocket = typeof WebSocket !== "undefined" || typeof win.WebSocket !== "undefined";
+    const hasAudioContext = typeof AudioContext !== "undefined" || typeof win.AudioContext !== "undefined" || typeof win.webkitAudioContext !== "undefined";
+    add(hasWebSocket ? "ok" : "fail", "Sendspin browser support", `WebSocket ${hasWebSocket ? "yes" : "no"}, AudioContext ${hasAudioContext ? "yes" : "no"}`);
+    if (!maUrl) {
+      add("info", "Sendspin endpoint", "This-device Sendspin playback needs a direct Music Assistant URL and token. Integration mode can still work normally.", services.length ? "integration mode" : "(empty)");
+    } else if (directIssue) {
+      add(services.length ? "warn" : "fail", "Sendspin endpoint", `Direct browser access is not ready: ${directIssue}`, this._editorSanitizeDiagnosticUrl(maUrl));
+    } else if (!this._config?.ma_token) {
+      add("warn", "Sendspin endpoint", "Direct Music Assistant URL is available, but ma_token is missing.");
+    } else {
+      try {
+        add(hasWebSocket ? "ok" : "fail", "Sendspin endpoint", "Computed Sendspin WebSocket endpoint. This readiness check does not open a socket.", this._editorSanitizeDiagnosticUrl(this._editorSendspinWsUrl()));
+      } catch (error) {
+        add("fail", "Sendspin endpoint", error?.message || "Could not compute Sendspin WebSocket endpoint.");
+      }
+    }
+
+    this._editorDiagnosticsItems = items;
+    this._editorDiagnosticsReport = this._editorDiagnosticsReportText(items);
+    this._renderEditorDiagnosticsResults();
+    return this._editorDiagnosticsReport;
+  }
+
+  async _copyEditorDiagnosticsReport() {
+    if (this._editorDiagnosticsRunning) return;
+    this._editorDiagnosticsRunning = true;
+    const button = this._editorDiagnosticsBtn;
+    const previousText = button?.textContent || "Diagnostics";
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Running...";
+    }
+    try {
+      const report = await this._runEditorDiagnostics();
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(report);
+      } else if (typeof document !== "undefined" && document.createElement) {
+        const textarea = document.createElement("textarea");
+        textarea.value = report;
+        textarea.setAttribute?.("readonly", "");
+        if (textarea.style) {
+          textarea.style.position = "fixed";
+          textarea.style.left = "-9999px";
+        }
+        document.body?.appendChild?.(textarea);
+        textarea.select?.();
+        document.execCommand?.("copy");
+        textarea.remove?.();
+      }
+      if (button) button.textContent = "Copied";
+    } catch (error) {
+      this._editorDiagnosticsReport = error?.message || "Editor diagnostics failed.";
+      this._editorDiagnosticsItems = [this._editorDiagnosticItem("fail", "Editor diagnostics", this._editorDiagnosticsReport)];
+      this._renderEditorDiagnosticsResults();
+      if (button) button.textContent = "Failed";
+    } finally {
+      this._editorDiagnosticsRunning = false;
+      if (button) {
+        button.disabled = false;
+        setTimeout(() => {
+          if (!this._editorDiagnosticsRunning && this._editorDiagnosticsBtn) {
+            this._editorDiagnosticsBtn.textContent = previousText || "Diagnostics";
+          }
+        }, 1600);
+      }
+    }
+  }
+
   _ensureEditorShell() {
     if (this._editorRoot) return;
     const root = this.attachShadow({ mode: "open" });
@@ -195,6 +592,27 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
           height:16px;
           display:block;
         }
+        .editor-diagnostics {
+          flex:0 0 auto;
+          min-height:30px;
+          border-radius:999px;
+          padding:0 11px;
+          font:inherit;
+          font-size:12px;
+          line-height:1;
+          font-weight:800;
+          color:var(--primary-color, #3566d6);
+          background:color-mix(in srgb, var(--primary-color, #3566d6) 9%, transparent);
+          border:1px solid color-mix(in srgb, var(--primary-color, #3566d6) 18%, transparent);
+          cursor:pointer;
+        }
+        .editor-diagnostics:hover {
+          background:color-mix(in srgb, var(--primary-color, #3566d6) 14%, transparent);
+        }
+        .editor-diagnostics:disabled {
+          opacity:.64;
+          cursor:progress;
+        }
         .editor-version {
           flex:0 0 auto;
           border-radius:999px;
@@ -209,6 +627,90 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
         .editor-shell.tablet-stable {
           background:rgba(18,24,34,.08);
           border-color:rgba(146,161,183,.12);
+        }
+        .editor-diagnostics-panel {
+          display:grid;
+          gap:10px;
+          padding:12px;
+          border-radius:16px;
+          background:rgba(255,255,255,.62);
+          border:1px solid rgba(123,139,164,.2);
+        }
+        .editor-diagnostics-panel[hidden] {
+          display:none;
+        }
+        .editor-diagnostics-summary {
+          padding:9px 11px;
+          border-radius:12px;
+          font-size:13px;
+          font-weight:850;
+          line-height:1.35;
+          color:var(--primary-text-color, #1f2633);
+          background:rgba(146,161,183,.12);
+          border:1px solid rgba(146,161,183,.18);
+        }
+        .editor-diagnostics-list {
+          display:grid;
+          gap:8px;
+        }
+        .editor-diagnostic-row {
+          display:grid;
+          grid-template-columns:32px minmax(0,1fr);
+          gap:10px;
+          align-items:start;
+          padding:10px;
+          border-radius:14px;
+          background:rgba(255,255,255,.76);
+          border:1px solid rgba(123,139,164,.18);
+        }
+        .editor-diagnostic-status {
+          width:28px;
+          height:28px;
+          border-radius:10px;
+          display:grid;
+          place-items:center;
+          font-size:13px;
+          font-weight:950;
+          background:rgba(238,243,248,.9);
+          color:#546172;
+        }
+        .editor-diagnostic-row.status-ok .editor-diagnostic-status {
+          color:#188850;
+          background:rgba(24,136,80,.12);
+        }
+        .editor-diagnostic-row.status-fail .editor-diagnostic-status {
+          color:#c93445;
+          background:rgba(201,52,69,.12);
+        }
+        .editor-diagnostic-row.status-warn .editor-diagnostic-status {
+          color:#a66b00;
+          background:rgba(255,188,74,.18);
+        }
+        .editor-diagnostic-row.status-info .editor-diagnostic-status {
+          color:#236bd1;
+          background:rgba(35,107,209,.12);
+        }
+        .editor-diagnostic-copy {
+          min-width:0;
+          display:grid;
+          gap:3px;
+        }
+        .editor-diagnostic-title {
+          font-size:13px;
+          font-weight:900;
+          color:var(--primary-text-color, #1f2633);
+        }
+        .editor-diagnostic-value {
+          font-size:12px;
+          font-weight:800;
+          color:var(--secondary-text-color, rgba(31,38,51,.68));
+          overflow-wrap:anywhere;
+        }
+        .editor-diagnostic-detail {
+          font-size:12px;
+          line-height:1.38;
+          color:var(--secondary-text-color, rgba(31,38,51,.58));
+          overflow-wrap:anywhere;
         }
         ha-form {
           display:block;
@@ -237,8 +739,13 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
                 ></path>
               </svg>
             </a>
+            <button class="editor-diagnostics" type="button" title="Run and copy diagnostics report" aria-label="Run and copy diagnostics report">Diagnostics</button>
             <div class="editor-version">v${HOMEII_CARD_VERSION}</div>
           </div>
+        </div>
+        <div class="editor-diagnostics-panel" id="editorDiagnosticsPanel" hidden>
+          <div class="editor-diagnostics-summary" id="editorDiagnosticsSummary"></div>
+          <div class="editor-diagnostics-list" id="editorDiagnosticsList"></div>
         </div>
         <ha-form id="editorForm"></ha-form>
       </div>
@@ -248,6 +755,10 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     this._editorUsePathBtn = root.querySelector("#editorUseCurrentPath");
     this._editorPathHint = root.querySelector("#editorPathHint");
     this._editorSponsorLink = root.querySelector(".editor-sponsor");
+    this._editorDiagnosticsBtn = root.querySelector(".editor-diagnostics");
+    this._editorDiagnosticsPanel = root.querySelector("#editorDiagnosticsPanel");
+    this._editorDiagnosticsSummaryNode = root.querySelector("#editorDiagnosticsSummary");
+    this._editorDiagnosticsList = root.querySelector("#editorDiagnosticsList");
     this._syncEditorSponsorLabels();
     this._refreshEditorShellClasses();
     if (!this._editorBound) {
@@ -260,6 +771,9 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
           }
         } catch (_) {}
         if (!confirmed) event.preventDefault?.();
+      });
+      this._editorDiagnosticsBtn?.addEventListener("click", () => {
+        this._copyEditorDiagnosticsReport();
       });
       this._editorUsePathBtn?.addEventListener("click", () => {
         const currentPath = this._currentUiPath();

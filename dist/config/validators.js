@@ -144,6 +144,8 @@ export function validateMobileCardEditorConfig(config) {
   assertValueInList(config.mobile_compact_widget_mode, "mobile_compact_widget_mode", ["auto", "full", "mini"]);
   assertBooleanIfDefined(config.mobile_compact_edge_to_edge, "mobile_compact_edge_to_edge");
   assertValueInList(config.mobile_layout_mode, "mobile_layout_mode", ["auto", "full", "compact"]);
+  assertBooleanIfDefined(config.mobile_cover_flow, "mobile_cover_flow");
+  assertBooleanIfDefined(config.mobile_queue_flow, "mobile_queue_flow");
   assertBooleanIfDefined(config.mobile_show_up_next, "mobile_show_up_next");
   assertStringIfDefined(config.pinned_player_entity, "pinned_player_entity");
   assertStringArrayIfDefined(config.pinned_player_entities, "pinned_player_entities");

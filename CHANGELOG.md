@@ -1,5 +1,24 @@
 # Changelog
 
+## 5.8.2-beta.7 - 2026-06-02
+
+Targeted beta follow-up for issue #28, Diagnostic v3, and the phone Queue Flow entry point.
+
+Release focus:
+
+- Keeps HOMEii usable through the Home Assistant Music Assistant integration when HA exposes `music_assistant` services even if config entry lookup returns `not_loaded`.
+- Allows generic HA `media_player` entities as Music Assistant compatibility fallback targets only when the integration service signal exists.
+- Upgrades in-card and visual-editor diagnostics to Diagnostic v3 with integration signal, strict/fallback player counts, selected-player markers, queue providers, library providers, browser context, Direct API, and Sendspin checks.
+- Classifies browser-blocked Direct API failures such as CORS/preflight or `Failed to fetch` as optional access-path warnings when the HA integration is available.
+- Removes the phone Queue Flow button above the artwork and keeps Queue Flow available through Quick Actions.
+- Removes the invalid `limit` payload from the HA `music_assistant.get_queue` queue snapshot path.
+- Keeps diagnostics privacy redaction for external/private hostnames.
+
+Validation:
+
+- Targeted lint and runtime/settings regression tests were run before the release version bump.
+- Full lint, full Vitest, production build, and release artifact sync were run for the final beta package.
+
 ## 5.8.2-beta.6 - 2026-06-02
 
 Cache-busting beta rebuild for the Diagnostic v2 privacy and queue-artwork fixes from beta 5.

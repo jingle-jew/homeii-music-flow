@@ -17,7 +17,7 @@ const POWER_BUTTON_ACTIONS = ["stop_player", "toggle", "turn_on", "turn_off", "s
 const AUXILIARY_BUTTON_ICONS = ["power", "home", "speaker", "music_note", "wand", "grid", "settings", "heart_outline", "play", "stop", "radio", "timer", "info"];
 const PLAYER_SORT_MODES = ["default", "alphabetical", "custom"];
 const MOBILE_MAIN_BAR_ITEMS = ["search", "library", "players", "actions", "settings", "theme"];
-const MOBILE_QUICK_ACTIONS = ["home", "search", "timer", "like", "lyrics", "queue", "radio", "voice", "history", "info", "disconnect_all"];
+const MOBILE_QUICK_ACTIONS = ["home", "search", "timer", "like", "lyrics", "queue", "queue_flow", "radio", "voice", "history", "info", "disconnect_all"];
 const MOBILE_LIBRARY_TABS = ["library_playlists", "library_artists", "library_albums", "library_tracks", "library_radio", "library_podcasts", "library_liked", "library_search"];
 const COLOR_LIGHT_MODES = ["hs", "xy", "rgb", "rgbw", "rgbww"];
 
@@ -326,6 +326,8 @@ export function normalizeVisualMobileState(config = {}, {
     mobileCompactWidgetMode: normalizeMobileCompactWidgetMode(config.mobile_compact_widget_mode),
     mobileCompactEdgeToEdge: config.mobile_compact_edge_to_edge !== false,
     mobileLayoutMode: normalizeMobileLayoutMode(config.mobile_layout_mode),
+    mobileCoverFlow: config.mobile_cover_flow === true,
+    mobileQueueFlow: config.mobile_queue_flow === true,
     mobileLibraryDefaultLayout: normalizeMobileLibraryDefaultLayout(config.mobile_library_default_layout, "list"),
     mobileShowUpNext: config.mobile_show_up_next === true,
     mobileFooterSearchEnabled: !!config.mobile_footer_search_enabled,

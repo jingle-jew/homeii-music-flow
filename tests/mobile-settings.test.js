@@ -52,6 +52,8 @@ describe("mobile settings foundation", () => {
       mobile_compact_widget_mode: "MINI",
       mobile_compact_edge_to_edge: false,
       mobile_layout_mode: "FULL",
+      mobile_cover_flow: true,
+      mobile_queue_flow: true,
       mobile_library_default_layout: "GRID",
       mobile_show_up_next: false,
       mobile_footer_search_enabled: true,
@@ -72,9 +74,9 @@ describe("mobile settings foundation", () => {
       mobile_radio_browser_country: "il",
       mobile_library_tabs: ["library_albums"],
       mobile_main_bar_items: ["theme", "settings"],
-      mobile_quick_actions: ["voice", "timer", "disconnect_all", "voice"],
+      mobile_quick_actions: ["voice", "timer", "queue_flow", "disconnect_all", "voice"],
       mobile_quick_action_1: "timer",
-      mobile_quick_action_2: "like",
+      mobile_quick_action_2: "queue_flow",
       mobile_quick_action_3: "voice",
       mobile_quick_action_4: "disconnect_all",
       mobile_announcement_presets: ["One", "Two", "Three", "Four"],
@@ -139,6 +141,8 @@ describe("mobile settings foundation", () => {
     expect(state.mobileCompactWidgetMode).toBe("mini");
     expect(state.mobileCompactEdgeToEdge).toBe(false);
     expect(state.mobileLayoutMode).toBe("full");
+    expect(state.mobileCoverFlow).toBe(true);
+    expect(state.mobileQueueFlow).toBe(true);
     expect(state.mobileLibraryDefaultLayout).toBe("grid");
     expect(state.mobileShowUpNext).toBe(false);
     expect(state.mobileFooterSearchEnabled).toBe(true);
@@ -159,7 +163,7 @@ describe("mobile settings foundation", () => {
     expect(state.mobileRadioBrowserCountry).toBe("il");
     expect(state.mobileLibraryTabs).toEqual(["library_albums"]);
     expect(state.mobileMainBarItems).toEqual(["theme", "settings"]);
-    expect(state.mobileQuickActions).toEqual(["timer", "voice", "disconnect_all"]);
+    expect(state.mobileQuickActions).toEqual(["timer", "queue_flow", "voice", "disconnect_all"]);
     expect(state.mobileAnnouncementPresets).toEqual(["One", "Two", "Three"]);
     expect(state.mobileAnnouncementVolume).toBe(20);
     expect(state.mobileAnnouncementTtsEntity).toBe("tts.living_room");

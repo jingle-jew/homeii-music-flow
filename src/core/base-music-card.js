@@ -660,6 +660,13 @@ export function createHomeiiBaseMusicCard({
         );
       }
       const detail = String(error?.message || error || "").trim();
+      const lower = detail.toLowerCase();
+      if (!status && (lower.includes("failed to fetch") || lower.includes("networkerror") || lower.includes("cors") || lower.includes("preflight"))) {
+        return this._localText(
+          "Direct Music Assistant API is blocked by the browser before HOMEii receives a response. This is usually CORS/preflight or local-network browser access. Core playback can still work through the Home Assistant integration; leave ma_url empty unless you need Direct API or Sendspin.",
+          "Direct Music Assistant API is blocked by the browser before HOMEii receives a response. This is usually CORS/preflight or local-network browser access. Core playback can still work through the Home Assistant integration; leave ma_url empty unless you need Direct API or Sendspin."
+        );
+      }
       return this._localText(
         `Direct Music Assistant API is not reachable${detail ? `: ${detail}` : ""}`,
         `ה-API הישיר של Music Assistant לא זמין${detail ? `: ${detail}` : ""}`
@@ -687,11 +694,13 @@ export function createHomeiiBaseMusicCard({
       return failure.message || this._directMaUnavailableMessage(failure.status, failure.error);
     }
 
-    _handleDirectMaConfigurationIssue(message = "") {
+    _handleDirectMaConfigurationIssue(message = "", options = {}) {
       const text = String(message || "").trim();
       if (!text) return "";
-      this._state.musicAssistantIssueMessage = text;
-      this._notifyCardIssue("direct-ma-url", text, "error", 45000);
+      const severity = String(options.severity || "error");
+      if (options.global !== false) this._state.musicAssistantIssueMessage = text;
+      else if (!this._state.musicAssistantIssueMessage) this._state.musicAssistantIssueMessage = "";
+      this._notifyCardIssue("direct-ma-url", text, severity, 45000);
       return text;
     }
 
@@ -701,14 +710,20 @@ export function createHomeiiBaseMusicCard({
       const message = this._isLikelyHomeAssistantIngressMaUrl(value)
         ? this._directMaIngressMessage()
         : this._directMaUnavailableMessage(status, error);
-      const cooldown = (status === 404 || status === 405 || this._isLikelyHomeAssistantIngressMaUrl(value)) ? 60000 : 15000;
+      const detail = String(error?.message || error || "").toLowerCase();
+      const browserBlocked = !status && (detail.includes("failed to fetch") || detail.includes("networkerror") || detail.includes("cors") || detail.includes("preflight"));
+      const cooldown = (browserBlocked || status === 404 || status === 405 || this._isLikelyHomeAssistantIngressMaUrl(value)) ? 60000 : 15000;
       this._directMaFailure = {
         url: value,
         status: Number(status || 0) || 0,
         message,
         blockedUntil: Date.now() + cooldown,
       };
-      this._handleDirectMaConfigurationIssue(message);
+      const hasIntegration = this._hasMusicAssistantServiceSignal?.();
+      this._handleDirectMaConfigurationIssue(message, {
+        severity: hasIntegration ? "warning" : "error",
+        global: !hasIntegration,
+      });
       return message;
     }
 
@@ -1080,7 +1095,7 @@ export function createHomeiiBaseMusicCard({
     _versionedAssetUrl(url) {
       const value = String(url || "").trim();
       if (!value || /^data:/i.test(value) || /[?&]v=/.test(value)) return value;
-      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.8.2-beta.6";
+      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.8.2-beta.7";
       return `${value}${value.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
     }
 
@@ -4926,7 +4941,7 @@ export function createHomeiiBaseMusicCard({
         : requestedEntityId);
       if (!nextEntityId) return;
       const selectedPlayer = this._playerByEntityId(nextEntityId);
-      if (!selectedPlayer || !this._isMusicAssistantPlayer(selectedPlayer)) {
+      if (!selectedPlayer || !this._isUsableMusicAssistantTarget(selectedPlayer)) {
         this._handleMusicAssistantIssue(this._musicAssistantRequiredMessage());
         if (manual) this._toastError(this._musicAssistantRequiredTitle());
         return;
@@ -5595,7 +5610,7 @@ export function createHomeiiBaseMusicCard({
       );
       if (knownPlayer) return knownPlayer;
       const hassPlayer = this._hass?.states?.[target] || null;
-      return this._isMusicAssistantPlayer(hassPlayer) ? hassPlayer : null;
+      return this._isUsableMusicAssistantTarget(hassPlayer) ? hassPlayer : null;
     }
 
     _controlRoomGroupKey(player = null) {
@@ -9619,10 +9634,25 @@ export function createHomeiiBaseMusicCard({
       return !!this._hass?.services?.[domain]?.[service];
     }
 
+    _hasMusicAssistantServiceSignal() {
+      return Object.keys(this._hass?.services?.music_assistant || {}).length > 0;
+    }
+
     _hasMusicAssistantBackend() {
-      return this._hasService("music_assistant", "play_media")
+      return this._hasMusicAssistantServiceSignal()
         || this._hasDirectMAConnection()
         || this._hasUsableMusicAssistantConfigEntry();
+    }
+
+    _isGenericMusicAssistantFallbackPlayer(player = null) {
+      return !!(
+        player?.entity_id?.startsWith?.("media_player.")
+        && this._hasMusicAssistantServiceSignal()
+      );
+    }
+
+    _isUsableMusicAssistantTarget(player = null) {
+      return this._isMusicAssistantPlayer(player) || this._isGenericMusicAssistantFallbackPlayer(player);
     }
 
     _hasUsableMusicAssistantConfigEntry() {
@@ -10013,11 +10043,14 @@ export function createHomeiiBaseMusicCard({
       if (includeConfigEntryId) {
         const configEntryId = await this._ensureConfigEntryId();
         if (!configEntryId) {
-          const error = new Error(this._musicAssistantSetupMessage());
-          error.code = "HOMEII_MA_NOT_READY";
-          throw error;
+          if (!this._hasMusicAssistantServiceSignal()) {
+            const error = new Error(this._musicAssistantSetupMessage());
+            error.code = "HOMEII_MA_NOT_READY";
+            throw error;
+          }
+        } else {
+          serviceData = { config_entry_id: configEntryId, ...serviceData };
         }
-        serviceData = { config_entry_id: configEntryId, ...serviceData };
       }
       const request = this._hass.connection.sendMessagePromise({
         type: "call_service",
@@ -10053,6 +10086,10 @@ export function createHomeiiBaseMusicCard({
         this._resolvedConfigEntryId = preferred?.entry_id || "";
         this._resolvedConfigEntryState = String(preferred?.state || "").trim();
         if (!this._resolvedConfigEntryId || preferred?.state && preferred.state !== "loaded") {
+          if (this._hasMusicAssistantServiceSignal()) {
+            this._state.musicAssistantIssueMessage = "";
+            return "";
+          }
           this._handleMusicAssistantIssue(preferred?.state ? `Music Assistant entry ${preferred.state}` : this._musicAssistantSetupMessage());
           return "";
         }
@@ -10060,7 +10097,8 @@ export function createHomeiiBaseMusicCard({
       } catch (error) {
         this._resolvedConfigEntryId = explicit || "";
         this._resolvedConfigEntryState = explicit ? "configured" : "";
-        if (!explicit) this._handleMusicAssistantIssue(error);
+        if (!explicit && !this._hasMusicAssistantServiceSignal()) this._handleMusicAssistantIssue(error);
+        else if (!explicit) this._state.musicAssistantIssueMessage = "";
         return this._resolvedConfigEntryId;
       }
     }
@@ -10183,7 +10221,7 @@ export function createHomeiiBaseMusicCard({
     async _fetchMusicAssistantQueueSnapshot(player) {
       if (!player?.entity_id) return null;
       const queueId = this._queueIdForPlayer(player);
-      const payload = { entity_id: player.entity_id, limit: 250 };
+      const payload = { entity_id: player.entity_id };
       if (queueId) payload.queue_id = queueId;
       const snapshot = await this._callService("get_queue", payload, { includeConfigEntryId: false });
       return this._normalizeQueueSnapshot(snapshot, player.entity_id);
@@ -11767,7 +11805,11 @@ export function createHomeiiBaseMusicCard({
         this._rejectWsPending(new Error(directIssue));
         this._state.wsReady = false;
         this._syncStatus();
-        this._handleDirectMaConfigurationIssue(directIssue);
+        const hasIntegration = this._hasMusicAssistantServiceSignal?.();
+        this._handleDirectMaConfigurationIssue(directIssue, {
+          severity: hasIntegration ? "warning" : "error",
+          global: !hasIntegration,
+        });
         return;
       }
       if (!maUrl || !this._maToken) {
@@ -11865,7 +11907,11 @@ export function createHomeiiBaseMusicCard({
       }
       const directIssue = this._directMaSetupIssue(maUrl) || this._directMaCooldownIssue(maUrl);
       if (directIssue) {
-        this._handleDirectMaConfigurationIssue(directIssue);
+        const hasIntegration = this._hasMusicAssistantServiceSignal?.();
+        this._handleDirectMaConfigurationIssue(directIssue, {
+          severity: hasIntegration ? "warning" : "error",
+          global: !hasIntegration,
+        });
         throw new Error(directIssue);
       }
       const headers = {
@@ -12019,7 +12065,7 @@ export function createHomeiiBaseMusicCard({
       if (now - last < cooldown) return;
       this._cardIssueNoticeTimes.set(noticeKey, now);
       if (variant === "success") this._toastSuccess(text);
-      else if (variant === "info") this._toast(text);
+      else if (variant === "info" || variant === "warning" || variant === "warn") this._toast(text);
       else this._toastError(text);
     }
 

@@ -391,11 +391,20 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     return raw?.result ?? raw;
   }
 
+  _editorDirectApiFailureDetail(error = null) {
+    const detail = String(error?.message || error || "").trim();
+    const lower = detail.toLowerCase();
+    if (lower.includes("failed to fetch") || lower.includes("networkerror") || lower.includes("cors") || lower.includes("preflight")) {
+      return "Direct Music Assistant API is blocked by the browser before HOMEii receives a response. This is usually CORS/preflight or local-network browser access. Core playback can still work through the Home Assistant integration; leave ma_url empty unless you need Direct API or Sendspin.";
+    }
+    return detail || "Direct API request failed.";
+  }
+
   _editorDiagnosticsReportText(items = []) {
     const maUrl = this._editorMaBrowserUrl();
     const lines = [
       "HOMEii Music Flow Editor Diagnostics",
-      "Diagnostics: v2",
+      "Diagnostics: v3",
       `Version: ${HOMEII_CARD_VERSION}`,
       `Generated: ${new Date().toISOString()}`,
       "Source: visual editor",
@@ -467,18 +476,21 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     const entities = this._hass?.entities || {};
     const players = Object.values(states)
       .filter((entity) => HomeiiPlayersFoundation.isMusicAssistantPlayer(entity, entities?.[entity.entity_id]));
+    const genericPlayers = Object.values(states)
+      .filter((entity) => entity?.entity_id?.startsWith?.("media_player."));
     const pinned = HomeiiMobileSettingsFoundation.normalizePinnedPlayerEntityList(this._config?.pinned_player_entities);
     const excluded = HomeiiMobileSettingsFoundation.normalizePinnedPlayerEntityList(this._config?.excluded_player_entities);
 
     add("ok", "Editor version", "Visual editor runtime is loaded.", HOMEII_CARD_VERSION);
-    add("ok", "Diagnostics version", "Diagnostic v2 is active.", "v2");
+    add("ok", "Diagnostics version", "Diagnostic v3 is active.", "v3");
     add("info", "Browser", this._editorBrowserSummary());
     add("info", "Viewport", this._editorViewportSummary());
     add("info", "Diagnostic privacy", "External/private hostnames are redacted in visible and copied diagnostic output.");
     add(this._hass ? "ok" : "fail", "Home Assistant frontend", this._hass ? "Editor has a Home Assistant frontend object." : "Editor does not have a Home Assistant frontend object.");
     add(services.length ? "ok" : "fail", "Music Assistant services", services.length ? `${services.length} service(s) are exposed by Home Assistant.` : "No music_assistant services are exposed by Home Assistant.");
     add(services.length ? "ok" : "warn", "Integration mode", services.length ? "Core card features can run through Home Assistant. HTTP/HTTPS only affects optional Direct/Sendspin browser access." : "Home Assistant does not expose music_assistant services.");
-    add(players.length ? "ok" : "warn", "Music Assistant players", `${players.length} player(s) visible in HA state.`);
+    add(services.length || maUrl ? "ok" : "fail", "Integration signal", `services ${services.length ? "yes" : "no"}, direct ${maUrl ? "configured" : "empty"}`);
+    add(players.length ? "ok" : (services.length && genericPlayers.length ? "warn" : "fail"), "Music Assistant players", players.length ? `${players.length} strict MA player(s), ${genericPlayers.length} generic HA media_player(s).` : `${genericPlayers.length} generic HA media_player(s), but no strict Music Assistant player markers were detected.`);
     add("info", "Player filters", `${pinned.length} pinned, ${excluded.length} excluded.`);
 
     if (this._hass?.connection?.sendMessagePromise) {
@@ -515,7 +527,7 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
         const count = Array.isArray(rawPlayers) ? rawPlayers.length : (Array.isArray(rawPlayers?.players) ? rawPlayers.players.length : 0);
         add("ok", "Direct Music Assistant API", `Direct API responded with ${count} player(s).`);
       } catch (error) {
-        add("fail", "Direct Music Assistant API", error?.message || "Direct API request failed.");
+        add(services.length ? "warn" : "fail", "Direct Music Assistant API", this._editorDirectApiFailureDetail(error));
       }
     } else {
       add("info", "Direct Music Assistant API", maUrl ? "Skipped because ma_url needs attention." : "Skipped because ma_url is empty.");

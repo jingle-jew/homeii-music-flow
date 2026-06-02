@@ -48,12 +48,16 @@ describe("editor forms", () => {
 
     expect(texts.options.mobile_quick_action_slots[0]).toEqual({ value: "", label: "ui.none" });
     expect(texts.options.mobile_quick_actions.some((option) => option.value === "voice")).toBe(true);
+    expect(texts.options.mobile_quick_actions.some((option) => option.value === "queue_flow")).toBe(true);
     expect(texts.options.mobile_layout_mode.map((option) => option.value)).toEqual(["auto", "full", "compact"]);
     expect(texts.options.screensaver_control_buttons.some((option) => option.value === "lyrics")).toBe(true);
     expect(form.schema.some((section) => section.name === "voice_assistant_section")).toBe(true);
     expect(JSON.stringify(form.schema)).toContain("mobile_layout_mode");
+    expect(JSON.stringify(form.schema)).toContain("mobile_cover_flow");
+    expect(JSON.stringify(form.schema)).not.toContain('"mobile_queue_flow"');
     expect(form.computeHelper({ name: "voice_assistant_enabled" })).toBe("ui.show_a_push_to_talk_button_for_music_and_assist_commands");
     expect(form.computeHelper({ name: "mobile_layout_mode" })).toContain("Full keeps the phone player inline");
+    expect(form.computeHelper({ name: "mobile_cover_flow" })).toContain("main artwork area");
   });
 
   it("builds radio browser country selector options through the shared country module", () => {

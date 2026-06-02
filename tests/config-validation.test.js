@@ -99,7 +99,7 @@ describe("config validators", () => {
         mobile_library_tabs: ["library", "queue"],
         mobile_library_default_layout: "grid",
         mobile_main_bar_items: ["actions", "settings"],
-        mobile_quick_actions: ["timer", "voice"],
+        mobile_quick_actions: ["timer", "voice", "queue_flow"],
         mobile_quick_action_1: "voice",
         mobile_quick_action_2: "timer",
         mobile_announcement_presets: ["hello"],
@@ -107,6 +107,8 @@ describe("config validators", () => {
         mobile_compact_widget_mode: "mini",
         mobile_compact_edge_to_edge: false,
         mobile_layout_mode: "full",
+        mobile_cover_flow: true,
+        mobile_queue_flow: true,
         mobile_show_up_next: false,
         ambient_light_enabled: true,
         ambient_light_entities: ["light.living_room", "light.tv"],
@@ -190,6 +192,18 @@ describe("config validators", () => {
         mobile_compact_edge_to_edge: "off",
       })
     ).toThrow("mobile_compact_edge_to_edge must be a boolean");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        mobile_cover_flow: "on",
+      })
+    ).toThrow("mobile_cover_flow must be a boolean");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
+        mobile_queue_flow: "on",
+      })
+    ).toThrow("mobile_queue_flow must be a boolean");
 
     expect(() =>
       validateMobileCardEditorConfig({

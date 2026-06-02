@@ -94,9 +94,9 @@ function ensureHaEditorComponents() {
   } catch (_) {}
 }
 
-const HOMEII_CARD_VERSION = "5.8.2-beta.5";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v5825";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v5825";
+const HOMEII_CARD_VERSION = "5.8.2-beta.6";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v5826";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v5826";
 const AMBIENT_LIGHT_PAIR_PLAYER_PREFIX = "__homeii_ambient_light_pair_player_";
 const AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX = "__homeii_ambient_light_pair_lights_";
 

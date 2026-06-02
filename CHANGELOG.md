@@ -1,5 +1,21 @@
 # Changelog
 
+## 5.8.2-beta.6 - 2026-06-02
+
+Cache-busting beta rebuild for the Diagnostic v2 privacy and queue-artwork fixes from beta 5.
+
+Release focus:
+
+- Publishes the diagnostics privacy fix under a new version so Home Assistant, HACS, and browser resource caching reliably load the updated frontend bundle.
+- Redacts external/private hostnames in visible and copied diagnostics output by default, while preserving protocol, host type, port, and path category for troubleshooting.
+- Adds a Queue artwork sample check so diagnostics can distinguish between an empty/unreachable queue and queue items whose artwork cannot be resolved.
+- Adds a close button to the visual-editor diagnostics panel.
+- Keeps all beta 5 Diagnostic v2, HA integration-first, Sendspin/browser, queue, library, and artwork checks.
+
+Validation:
+
+- Full lint, full Vitest, production build, and release artifact sync were run for the final beta package.
+
 ## 5.8.2-beta.5 - 2026-06-02
 
 Targeted beta follow-up for Diagnostic v2, visual-editor diagnostics, Sendspin/browser diagnostics, and Home Assistant integration-first operation.

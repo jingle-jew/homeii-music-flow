@@ -48,11 +48,22 @@ https://github.com/user-attachments/assets/a0076e6e-0352-40f8-ac37-35737e717a80
 <p align="center">
   <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.9.0"><img alt="stable version" src="https://img.shields.io/badge/stable-5.9.0-gold"></a>
   <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.9.0"><img alt="release notes" src="https://img.shields.io/badge/release%20notes-5.9.0-8A63D2"></a>
+  <a href="https://github.com/r11a/homeii-music-flow/blob/main/docs/README.md"><img alt="documentation" src="https://img.shields.io/badge/docs-user%20guide-2EA043"></a>
   <img alt="Home Assistant" src="https://img.shields.io/badge/Home%20Assistant-Dashboard-41BDF5">
   <img alt="Music Assistant" src="https://img.shields.io/badge/Music%20Assistant-required-7C5CFF">
   <img alt="Sendspin" src="https://img.shields.io/badge/Sendspin-browser%20player-18B6FF">
   <img alt="HACS" src="https://img.shields.io/badge/HACS-custom%20repository-41BDF5">
   <img alt="Built with Codex" src="https://img.shields.io/badge/built%20with-Codex-111111">
+</p>
+
+<p align="center">
+  <strong>New here? Start with the complete user documentation.</strong><br>
+  <a href="./docs/README.md">Documentation Hub</a> |
+  <a href="./docs/getting-started.md">Getting Started</a> |
+  <a href="./docs/configuration.md">Configuration</a> |
+  <a href="./docs/features.md">Features</a> |
+  <a href="./docs/diagnostics.md">Diagnostics</a> |
+  <a href="./docs/troubleshooting.md">Troubleshooting</a>
 </p>
 
 <p align="center">
@@ -817,17 +828,7 @@ src/config/                           config validators
 tests/                                regression coverage
 scripts/release.mjs                   release sync tooling
 RELEASE_NOTES_5.9.0.md                detailed GitHub release notes for the current stable release
-RELEASE_NOTES_5.8.2-beta.8.md         previous beta release notes
-RELEASE_NOTES_5.8.2-beta.7.md         previous beta release notes
-RELEASE_NOTES_5.8.2-beta.6.md         previous beta release notes
-RELEASE_NOTES_5.8.2-beta.5.md         previous beta release notes
-RELEASE_NOTES_5.8.2-beta.4.md         previous beta release notes
-RELEASE_NOTES_5.8.2-beta.3.md         previous beta release notes
-RELEASE_NOTES_5.8.2-beta.2.md         previous beta release notes
-RELEASE_NOTES_5.8.2-beta.1.md         previous beta release notes
-RELEASE_NOTES_5.8.1.md                previous stable hotfix release notes
-RELEASE_NOTES_5.8.0.md                previous major release notes
-RELEASE_NOTES_5.7.1.md                previous public release notes
+docs/README.md                        complete user documentation hub
 docs/brand/                           logo and brand assets
 docs/media/                           GitHub/HACS README screenshots and GIF
 docs/qa-matrix.md                     viewport/theme/interaction release gate
@@ -896,20 +897,11 @@ Credit and thanks:
 
 ## Documentation
 
+- [Complete user documentation](./docs/README.md)
 - [Local deployment guide](./LOCAL_DEPLOYMENT.md)
 - [Publishing checklist](./PUBLISHING.md)
 - [5.9.0 release notes](./RELEASE_NOTES_5.9.0.md)
-- [5.8.2 Beta 8 release notes](./RELEASE_NOTES_5.8.2-beta.8.md)
-- [5.8.2 Beta 7 release notes](./RELEASE_NOTES_5.8.2-beta.7.md)
-- [5.8.2 Beta 6 release notes](./RELEASE_NOTES_5.8.2-beta.6.md)
-- [5.8.2 Beta 5 release notes](./RELEASE_NOTES_5.8.2-beta.5.md)
-- [5.8.2 Beta 4 release notes](./RELEASE_NOTES_5.8.2-beta.4.md)
-- [5.8.2 Beta 3 release notes](./RELEASE_NOTES_5.8.2-beta.3.md)
-- [5.8.2 Beta 2 release notes](./RELEASE_NOTES_5.8.2-beta.2.md)
-- [5.8.2 Beta 1 release notes](./RELEASE_NOTES_5.8.2-beta.1.md)
-- [5.8.1 release notes](./RELEASE_NOTES_5.8.1.md)
-- [5.8.0 release notes](./RELEASE_NOTES_5.8.0.md)
-- [5.7.1 release notes](./RELEASE_NOTES_5.7.1.md)
+- [Older releases and tags](https://github.com/r11a/homeii-music-flow/releases)
 - [QA matrix](./docs/qa-matrix.md)
 - [Repo assets checklist](./docs/repo-assets-checklist.md)
 - [Changelog](./CHANGELOG.md)

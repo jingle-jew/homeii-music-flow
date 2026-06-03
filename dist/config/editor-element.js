@@ -568,22 +568,37 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     }
     try {
       const report = await this._runEditorDiagnostics();
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(report);
-      } else if (typeof document !== "undefined" && document.createElement) {
-        const textarea = document.createElement("textarea");
-        textarea.value = report;
-        textarea.setAttribute?.("readonly", "");
-        if (textarea.style) {
-          textarea.style.position = "fixed";
-          textarea.style.left = "-9999px";
+      let copied = false;
+      let copyError = "";
+      try {
+        if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(report);
+          copied = true;
+        } else if (typeof document !== "undefined" && document.createElement) {
+          const textarea = document.createElement("textarea");
+          textarea.value = report;
+          textarea.setAttribute?.("readonly", "");
+          if (textarea.style) {
+            textarea.style.position = "fixed";
+            textarea.style.left = "-9999px";
+          }
+          document.body?.appendChild?.(textarea);
+          textarea.select?.();
+          copied = document.execCommand?.("copy") !== false;
+          textarea.remove?.();
         }
-        document.body?.appendChild?.(textarea);
-        textarea.select?.();
-        document.execCommand?.("copy");
-        textarea.remove?.();
+      } catch (error) {
+        copyError = error?.message || "Automatic copy is not allowed in this editor context.";
       }
-      if (button) button.textContent = "Copied";
+      if (copyError || !copied) {
+        this._editorDiagnosticsItems = [
+          ...(Array.isArray(this._editorDiagnosticsItems) ? this._editorDiagnosticsItems : []),
+          this._editorDiagnosticItem("warn", "Copy diagnostics", copyError || "Automatic copy was not available. The report is still visible here."),
+        ];
+        this._editorDiagnosticsReport = this._editorDiagnosticsReportText(this._editorDiagnosticsItems);
+        this._renderEditorDiagnosticsResults();
+      }
+      if (button) button.textContent = copied ? "Copied" : "Ready";
     } catch (error) {
       this._editorDiagnosticsReport = error?.message || "Editor diagnostics failed.";
       this._editorDiagnosticsItems = [this._editorDiagnosticItem("fail", "Editor diagnostics", this._editorDiagnosticsReport)];
@@ -712,8 +727,9 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
           gap:10px;
           padding:12px;
           border-radius:16px;
-          background:rgba(255,255,255,.62);
+          background:#f8fafc;
           border:1px solid rgba(123,139,164,.2);
+          color:#172033;
         }
         .editor-diagnostics-panel[hidden] {
           display:none;
@@ -731,8 +747,8 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
           font-size:13px;
           font-weight:850;
           line-height:1.35;
-          color:var(--primary-text-color, #1f2633);
-          background:rgba(146,161,183,.12);
+          color:#172033;
+          background:#eef3f8;
           border:1px solid rgba(146,161,183,.18);
         }
         .editor-diagnostics-close {
@@ -743,8 +759,8 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
           place-items:center;
           border-radius:999px;
           border:1px solid rgba(146,161,183,.22);
-          background:rgba(255,255,255,.72);
-          color:var(--secondary-text-color, rgba(31,38,51,.68));
+          background:#ffffff;
+          color:#475569;
           font:inherit;
           font-size:13px;
           line-height:1;
@@ -753,7 +769,7 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
         }
         .editor-diagnostics-close:hover {
           background:rgba(255,255,255,.94);
-          color:var(--primary-text-color, #1f2633);
+          color:#172033;
         }
         .editor-diagnostics-list {
           display:grid;
@@ -766,8 +782,9 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
           align-items:start;
           padding:10px;
           border-radius:14px;
-          background:rgba(255,255,255,.76);
+          background:#ffffff;
           border:1px solid rgba(123,139,164,.18);
+          color:#172033;
         }
         .editor-diagnostic-status {
           width:28px;
@@ -804,18 +821,18 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
         .editor-diagnostic-title {
           font-size:13px;
           font-weight:900;
-          color:var(--primary-text-color, #1f2633);
+          color:#172033;
         }
         .editor-diagnostic-value {
           font-size:12px;
           font-weight:800;
-          color:var(--secondary-text-color, rgba(31,38,51,.68));
+          color:#334155;
           overflow-wrap:anywhere;
         }
         .editor-diagnostic-detail {
           font-size:12px;
           line-height:1.38;
-          color:var(--secondary-text-color, rgba(31,38,51,.58));
+          color:#64748b;
           overflow-wrap:anywhere;
         }
         ha-form {
@@ -957,6 +974,11 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     const entities = this._hass?.entities || {};
     const mediaPlayers = Object.values(states)
       .filter((entity) => entity?.entity_id?.startsWith("media_player."));
+    const configuredIds = new Set([
+      ...HomeiiMobileSettingsFoundation.normalizePinnedPlayerEntityList(this._config?.pinned_player_entities),
+      ...HomeiiMobileSettingsFoundation.normalizePinnedPlayerEntityList(this._config?.excluded_player_entities),
+      ...HomeiiMobileSettingsFoundation.normalizePlayerOrderEntities(this._config || {}),
+    ]);
     const musicAssistantPlayers = mediaPlayers
       .filter((entity) => {
         const registry = entities?.[entity.entity_id] || {};
@@ -969,9 +991,11 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
           || registryText.includes("music_assistant")
           || registryText.includes("music assistant");
       });
-    const hasMusicAssistantBackend = !!this._hass?.services?.music_assistant?.play_media
-      || !!String(this._config?.ma_url || this._config?.config_entry_id || "").trim();
-    const options = (musicAssistantPlayers.length || !hasMusicAssistantBackend ? musicAssistantPlayers : mediaPlayers)
+    const configuredFallbackPlayers = mediaPlayers.filter((entity) => configuredIds.has(entity.entity_id));
+    const sourcePlayers = Array.from(new Map(
+      [...musicAssistantPlayers, ...configuredFallbackPlayers].map((entity) => [entity.entity_id, entity])
+    ).values());
+    const options = sourcePlayers
       .filter((entity) => !HomeiiPlayersFoundation.isLikelyBrowserPlayer(entity))
       .map((entity) => ({
         value: entity.entity_id,

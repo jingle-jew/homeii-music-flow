@@ -95,9 +95,9 @@ function ensureHaEditorComponents() {
   } catch (_) {}
 }
 
-const HOMEII_CARD_VERSION = "5.8.2-beta.8";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v5828";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v5828";
+const HOMEII_CARD_VERSION = "5.9.0";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v5900";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v5900";
 const AMBIENT_LIGHT_PAIR_PLAYER_PREFIX = "__homeii_ambient_light_pair_player_";
 const AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX = "__homeii_ambient_light_pair_lights_";
 
@@ -336,10 +336,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.mobileCompactMode = false;
     this._state.mobileCompactWidgetMode = "auto";
     this._state.mobileCompactEdgeToEdge = true;
+    this._state.mobileEdgeToEdge = false;
+    this._state.mobileEdgeReturnAvailable = false;
     this._state.mobileLayoutMode = "auto";
     this._state.mobileCoverFlow = false;
-    this._state.mobileQueueFlow = false;
+    this._state.mobileQueueFlow = true;
     this._state.mobileQueueFlowQuickOpen = false;
+    this._state.mobileLibraryFlowPage = "";
     this._state.mobileLibraryDefaultLayout = this._defaultMobileMediaLayout();
     this._state.mobileMediaLayoutManual = false;
     this._state.mobileShowUpNext = false;
@@ -390,7 +393,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.voiceAssistantKeepScreensaver = false;
     this._state.mobileLibraryTabs = ["library_search", "library_playlists", "library_artists", "library_albums", "library_tracks", "library_radio", "library_podcasts"];
     this._state.mobileMainBarItems = ["actions", "players", "library", "settings"];
-    this._state.mobileQuickActions = ["timer", "like", "lyrics", "queue", "radio", "history"];
+    this._state.mobileQuickActions = ["timer", "like", "lyrics", "queue", "queue_flow", "radio", "history"];
     this._state.mobileLikedMode = "ma";
     this._state.mobileSwipeMode = "browse";
     this._state.mobileRadioBrowserCountry = "all";
@@ -549,9 +552,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     try { this._state.mobileCompactMode = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_compact_mode")) ?? "false"); } catch (_) {}
     try { this._state.mobileCompactWidgetMode = HomeiiMobileSettingsFoundation.normalizeMobileCompactWidgetMode(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_compact_widget_mode")) || "auto"); } catch (_) {}
     try { this._state.mobileCompactEdgeToEdge = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_compact_edge_to_edge")) ?? "true"); } catch (_) {}
+    try { this._state.mobileEdgeToEdge = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_edge_to_edge")) ?? "false"); } catch (_) {}
     try { this._state.mobileLayoutMode = HomeiiMobileSettingsFoundation.normalizeMobileLayoutMode(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_layout_mode")) || "auto"); } catch (_) {}
     try { this._state.mobileCoverFlow = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_cover_flow")) ?? "false"); } catch (_) {}
-    try { this._state.mobileQueueFlow = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_queue_flow")) ?? "false"); } catch (_) {}
+    try { this._state.mobileQueueFlow = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_queue_flow")) ?? "true"); } catch (_) {}
     try {
       this._state.mobileLibraryDefaultLayout = HomeiiMobileSettingsFoundation.normalizeMobileLibraryDefaultLayout(
         localStorage.getItem(this._lsKey("homeii_music_flow_mobile_library_default_layout")) || "",
@@ -687,9 +691,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       mobile_compact_mode: false,
       mobile_compact_widget_mode: "auto",
       mobile_compact_edge_to_edge: true,
+      mobile_edge_to_edge: false,
       mobile_layout_mode: "auto",
       mobile_cover_flow: false,
-      mobile_queue_flow: false,
+      mobile_queue_flow: true,
       mobile_library_default_layout: "list",
       mobile_footer_search_enabled: false,
       mobile_footer_mode: "both",
@@ -709,14 +714,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       flow_assistant_auto_close_ms: 4200,
       mobile_library_tabs: ["library_search", "library_playlists", "library_artists", "library_albums", "library_tracks", "library_radio", "library_podcasts"],
       mobile_main_bar_items: ["actions", "players", "library", "settings"],
-      mobile_quick_actions: ["timer", "like", "lyrics", "queue", "radio", "history"],
+      mobile_quick_actions: ["timer", "like", "lyrics", "queue", "queue_flow", "radio", "history"],
       mobile_quick_action_1: "timer",
       mobile_quick_action_2: "like",
       mobile_quick_action_3: "lyrics",
       mobile_quick_action_4: "queue",
-      mobile_quick_action_5: "radio",
-      mobile_quick_action_6: "history",
-      mobile_quick_action_7: "",
+      mobile_quick_action_5: "queue_flow",
+      mobile_quick_action_6: "radio",
+      mobile_quick_action_7: "history",
       mobile_quick_action_8: "",
       mobile_quick_action_9: "",
       mobile_quick_action_10: "",
@@ -804,6 +809,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (this._editMode === enabled) return;
     this._editMode = enabled;
     if (!enabled) return;
+    this.classList.remove("mobile-edge-to-edge-open");
+    this.shadowRoot?.querySelector?.(".card")?.classList?.remove("mobile-edge-to-edge");
     clearTimeout(this._screensaverTimer);
     this._screensaverTimer = null;
     this._hideScreensaver?.();
@@ -845,12 +852,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _preferFullMobileGridRows() {
     const mode = this._mobileLayoutMode();
-    return mode === "full" || (mode === "auto" && !HomeiiStateFoundation.mobileCompactModeEnabled(this._state));
+    return mode === "full" || mode === "edge_to_edge" || (mode === "auto" && !HomeiiStateFoundation.mobileCompactModeEnabled(this._state));
   }
 
   _autoCompactModeRecommended(options = {}) {
     const mode = this._mobileLayoutMode();
-    if (mode === "full") return false;
+    if (mode === "full" || mode === "edge_to_edge") return false;
     if (mode === "compact") return true;
     const viewportWidth = typeof window !== "undefined" ? Number(window.innerWidth || 0) : 0;
     const viewportHeight = this._getViewportHeight(0);
@@ -865,7 +872,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _mobileCompactModeEnabled() {
     const mode = this._mobileLayoutMode();
-    if (mode === "full") return false;
+    if (mode === "full" || mode === "edge_to_edge") return false;
     if (mode === "compact") return true;
     return HomeiiStateFoundation.mobileCompactModeEnabled(this._state) || this._autoCompactModeRecommended();
   }
@@ -876,6 +883,45 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _mobileCompactEdgeToEdgeEnabled() {
     return true;
+  }
+
+  _mobileEdgeToEdgeEnabled() {
+    if (this._isVisualEditorContext()) return false;
+    if (this._mobileLayoutMode() === "edge_to_edge") return true;
+    if (!this._usesVisualSettings()) return this._state?.mobileEdgeToEdge === true;
+    return this._state?.mobileEdgeToEdge === true || this._config?.mobile_edge_to_edge === true;
+  }
+
+  _exitMobileEdgeToEdge() {
+    if (!this._mobileEdgeToEdgeEnabled()) return;
+    this._closeMobileMenu?.();
+    this._closeMobileQueueActionMenu?.();
+    this._closeMobileVolumePresets?.();
+    this._closeSmartVoiceConfirm?.();
+    this._closeControlRoom?.({ silent: true });
+    this._state.mobileLayoutMode = "full";
+    this._state.mobileEdgeToEdge = false;
+    this._state.mobileEdgeReturnAvailable = true;
+    this._state.mobileCompactExpanded = false;
+    this.classList.remove("mobile-edge-to-edge-open");
+    this._persistMobileAppearance();
+    this._build();
+    this._init();
+  }
+
+  _enterMobileEdgeToEdge() {
+    this._closeMobileMenu?.();
+    this._closeMobileQueueActionMenu?.();
+    this._closeMobileVolumePresets?.();
+    this._closeSmartVoiceConfirm?.();
+    this._closeControlRoom?.({ silent: true });
+    this._state.mobileLayoutMode = "edge_to_edge";
+    this._state.mobileEdgeToEdge = false;
+    this._state.mobileEdgeReturnAvailable = false;
+    this._state.mobileCompactExpanded = false;
+    this._persistMobileAppearance();
+    this._build();
+    this._init();
   }
 
   _compactEdgeToEdgeAllowed() {
@@ -986,6 +1032,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         : cfg;
       const previousLibraryDefaultLayout = this._state.mobileLibraryDefaultLayout || this._defaultMobileMediaLayout();
       const previousLibraryManual = this._state.mobileMediaLayoutManual === true;
+      const previousEdgeReturnAvailable = this._state.mobileEdgeReturnAvailable === true;
       Object.assign(this._state, HomeiiMobileSettingsFoundation.normalizeVisualMobileState(visualCfg, {
         normalizeClockTime: (value, fallback) => this._normalizeClockTime(value, fallback),
         normalizeNightModeDays: (value) => this._normalizeNightModeDays(value),
@@ -994,6 +1041,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         defaultQuickActions: this._defaultMobileQuickActions(),
         defaultAnnouncementPresets: this._defaultAnnouncementPresets(visualCfg.language || this._state.lang),
       }));
+      if (previousEdgeReturnAvailable && this._state.mobileLayoutMode === "edge_to_edge") {
+        this._state.mobileLayoutMode = "full";
+        this._state.mobileEdgeToEdge = false;
+        this._state.mobileEdgeReturnAvailable = true;
+      } else if (this._state.mobileLayoutMode !== "full") {
+        this._state.mobileEdgeReturnAvailable = false;
+      }
       if (this._state.mobileLibraryDefaultLayout !== previousLibraryDefaultLayout) this._state.mobileMediaLayoutManual = false;
       else this._state.mobileMediaLayoutManual = previousLibraryManual;
       if (!this._state.mobileMediaLayoutManual) this._state.mobileMediaLayout = this._defaultMobileMediaLayout();
@@ -2599,6 +2653,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     try { localStorage.setItem(this._lsKey("homeii_music_flow_mobile_compact_mode"), JSON.stringify(!!this._state.mobileCompactMode)); } catch (_) {}
     try { localStorage.setItem(this._lsKey("homeii_music_flow_mobile_compact_widget_mode"), this._mobileCompactWidgetMode()); } catch (_) {}
     try { localStorage.setItem(this._lsKey("homeii_music_flow_mobile_compact_edge_to_edge"), JSON.stringify(this._mobileCompactEdgeToEdgeEnabled())); } catch (_) {}
+    try { localStorage.setItem(this._lsKey("homeii_music_flow_mobile_edge_to_edge"), JSON.stringify(this._state.mobileEdgeToEdge === true || this._config?.mobile_edge_to_edge === true)); } catch (_) {}
     try { localStorage.setItem(this._lsKey("homeii_music_flow_mobile_layout_mode"), this._mobileLayoutMode()); } catch (_) {}
     try { localStorage.setItem(this._lsKey("homeii_music_flow_mobile_cover_flow"), JSON.stringify(this._mobileCoverFlowEnabled())); } catch (_) {}
     try { localStorage.setItem(this._lsKey("homeii_music_flow_mobile_queue_flow"), JSON.stringify(this._mobileQueueFlowEnabled())); } catch (_) {}
@@ -2674,7 +2729,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
 
   _defaultMobileQuickActions() {
-    return ["timer", "like", "lyrics", "queue", "radio", "history"];
+    return ["timer", "like", "lyrics", "queue", "queue_flow", "radio", "history"];
   }
 
   _defaultAnnouncementPresets(lang = this._state?.lang || this._config?.language || "en") {
@@ -3689,9 +3744,19 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _pinnedPlayerOptionPlayers(extraPlayers = [], options = {}) {
     const includeExcluded = options?.includeExcluded === true;
     const byId = new Map();
+    const configuredIds = new Set([
+      ...this._pinnedPlayerPreferences(),
+      ...this._excludedPlayerPreferences(),
+      ...this._playerOrderPreferences(),
+    ]);
+    const isStrictMusicAssistantPlayer = (player) => {
+      if (!player?.entity_id) return false;
+      return this._isDirectMaPlayer(player)
+        || HomeiiPlayersFoundation.isMusicAssistantPlayer(player, this._hass?.entities?.[player.entity_id]);
+    };
     const add = (player) => {
       if (!player?.entity_id) return;
-      if (!this._isUsableMusicAssistantTarget(player)) return;
+      if (!isStrictMusicAssistantPlayer(player) && !configuredIds.has(player.entity_id)) return;
       if (this._isLikelyBrowserPlayer(player) || this._isLocalSendspinPlayer(player)) return;
       if (!includeExcluded && this._isPlayerExcluded(player)) return;
       byId.set(player.entity_id, player);
@@ -4010,6 +4075,23 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     return this._mobileQueueFlowEnabled() && this._state?.mobileQueueFlowQuickOpen === true;
   }
 
+  _queueFlowLabel() {
+    return this._m("Queue wheel", "גלגל תור");
+  }
+
+  _libraryFlowLabel(short = false) {
+    return short ? this._m("Wheel", "גלגל") : this._m("Library wheel", "גלגל ספריה");
+  }
+
+  _artistAlbumFlowLabel(short = false) {
+    return short ? this._m("Album wheel", "גלגל אלבומים") : this._m("Artist album wheel", "גלגל אלבומי אמן");
+  }
+
+  _libraryFlowPageActive(page = this._state?.menuPage || "") {
+    const current = String(page || "").trim();
+    return !!current && String(this._state?.mobileLibraryFlowPage || "") === current;
+  }
+
   _mobileCoverFlowEnabled() {
     if (!this._usesVisualSettings()) return this._state?.mobileCoverFlow === true;
     return this._state?.mobileCoverFlow === true || this._config?.mobile_cover_flow === true;
@@ -4144,7 +4226,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       { value: "like", icon: "heart_outline", label: this._i18n("ui.liked") },
       { value: "lyrics", icon: "lyrics", label: this._i18n("ui.lyrics") },
       { value: "queue", icon: "queue", label: this._i18n("ui.queue_2") },
-      { value: "queue_flow", icon: "tracks", label: this._i18n("ui.mobile_queue_flow", {}, "Fast queue wheel") },
+      { value: "queue_flow", icon: "queue_flow", label: this._queueFlowLabel() },
       { value: "radio", icon: "radio", label: this._i18n("ui.quick_mix") },
       { value: "voice", icon: "mic", label: this._flowAssistantLabel() },
       { value: "history", icon: "history", label: this._i18n("ui.history") },
@@ -4185,7 +4267,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       case "queue":
         return `<button class="mobile-art-fab" id="mobileQueueBtn" title="${this._i18n("ui.open_queue")}">${this._iconSvg("queue")}</button>`;
       case "queue_flow":
-        return `<button class="mobile-art-fab queue-flow-fab" id="mobileQueueFlowBtn" title="${this._esc(this._i18n("ui.mobile_queue_flow", {}, "Fast queue wheel"))}" aria-label="${this._esc(this._i18n("ui.mobile_queue_flow", {}, "Fast queue wheel"))}">${this._iconSvg("tracks")}</button>`;
+        return `<button class="mobile-art-fab queue-flow-fab" id="mobileQueueFlowBtn" title="${this._esc(this._queueFlowLabel())}" aria-label="${this._esc(this._queueFlowLabel())}">${this._iconSvg("queue_flow")}</button>`;
       case "radio":
         return `<button class="mobile-art-fab" id="mobileRandomBtn" title="${this._i18n("ui.quick_mix")}">${this._iconSvg("radio")}</button>`;
       case "voice":
@@ -5936,16 +6018,20 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this.style?.removeProperty("--homeii-compact-window-height");
     }
     const layoutMode = this._layoutModeConfig({ compactPopup: compactPopupLayoutMode, width: compactWindowPopupMode ? compactWindowWidth : 0 });
+    const visualEditorContext = this._isVisualEditorContext();
+    const mobileEdgeToEdgeMode = !visualEditorContext && !compactPopupLayoutMode && !compactTileMode && layoutMode === "mobile" && this._mobileEdgeToEdgeEnabled();
     const mobileIconScale = this._mobileIconScale();
     const allocatedHeight = compactEdgeToEdgePopupMode
       ? viewportHeight
       : compactWindowPopupMode
         ? compactWindowHeight
-        : compactTileMode
-          ? compactTileReservedHeight
-          : this._getAllocatedCardHeight(fallbackHeight);
+        : mobileEdgeToEdgeMode
+          ? viewportHeight
+          : compactTileMode
+            ? compactTileReservedHeight
+            : this._getAllocatedCardHeight(fallbackHeight);
     const layoutProfile = this._layoutProfileConfig(layoutMode, {
-      width: compactEdgeToEdgePopupMode
+      width: compactEdgeToEdgePopupMode || mobileEdgeToEdgeMode
         ? this._getCardWidth(viewportWidth)
         : compactWindowPopupMode
           ? compactWindowWidth
@@ -5960,6 +6046,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const performanceUltraLite = this._performanceUltraLiteEnabled();
     this.classList.toggle("compact-popup-open", compactEdgeToEdgePopupMode);
     this.classList.toggle("compact-window-popup-open", compactWindowPopupMode);
+    this.classList.toggle("mobile-edge-to-edge-open", mobileEdgeToEdgeMode);
     this.classList.remove("compact-inline-popup-open");
     this.classList.toggle("compact-tile-open", compactMode && compactTileMode);
     this.classList.toggle("compact-menu-open", this._compactMenuOverlayOpen());
@@ -6084,6 +6171,20 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       : "";
     const compactCollapseFabHtml = compactPopupMode
       ? `<button class="compact-collapse-fab ${rtl ? "rtl" : "ltr"}" id="compactCollapseBtn" title="${this._i18n("ui.collapse_compact_player")}">${this._iconSvg("close")}</button>`
+      : ``;
+    const mobileEdgeCornerClass = rtl ? "rtl" : "ltr";
+    const mobileEdgeOverlayOpen = !!(
+      this._state.menuOpen
+      || this._state.controlRoomOpen
+      || this._state.screensaverOpen
+      || this._state.mobileQueueActionEntry
+      || this._state.mobileSmartVoice
+    );
+    const mobileEdgeExitHtml = mobileEdgeToEdgeMode && !mobileEdgeOverlayOpen
+      ? `<button class="mobile-edge-corner-btn mobile-edge-exit ${mobileEdgeCornerClass}" id="mobileEdgeExitBtn" title="${this._esc(this._m("Exit edge-to-edge", "יציאה ממסך קצה לקצה"))}" aria-label="${this._esc(this._m("Exit edge-to-edge", "יציאה ממסך קצה לקצה"))}">${this._iconSvg("close")}</button>`
+      : ``;
+    const mobileEdgeReturnHtml = !mobileEdgeOverlayOpen && !visualEditorContext && !compactPopupLayoutMode && !compactTileMode && layoutMode === "mobile" && !mobileEdgeToEdgeMode && this._mobileLayoutMode() === "full" && this._state.mobileEdgeReturnAvailable === true
+      ? `<button class="mobile-edge-corner-btn mobile-edge-return ${mobileEdgeCornerClass}" id="mobileEdgeEnterBtn" title="${this._esc(this._m("Back to edge-to-edge", "חזרה למסך קצה לקצה"))}" aria-label="${this._esc(this._m("Back to edge-to-edge", "חזרה למסך קצה לקצה"))}">${this._iconSvg("fullscreen")}</button>`
       : ``;
     const homeShortcutFabHtml = ``;
     const historyEdgeClass = rtl ? "left-edge" : "right-edge";
@@ -6994,6 +7095,122 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           contain:none !important;
           overflow:visible !important;
           background:rgba(0,0,0,.08);
+        }
+        :host(.mobile-edge-to-edge-open) {
+          position:fixed !important;
+          inset:0 !important;
+          width:100vw !important;
+          height:100dvh !important;
+          min-height:100dvh !important;
+          max-height:100dvh !important;
+          z-index:2147482600 !important;
+          display:block !important;
+          pointer-events:auto !important;
+          contain:none !important;
+          overflow:visible !important;
+          background:#02060d;
+        }
+        :host(.mobile-edge-to-edge-open) ha-card,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge {
+          width:100vw !important;
+          max-width:none !important;
+          height:100dvh !important;
+          min-height:100dvh !important;
+          max-height:100dvh !important;
+          border-radius:0 !important;
+          overflow:hidden !important;
+          box-shadow:none !important;
+        }
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge {
+          position:fixed !important;
+          inset:0 !important;
+          border:0 !important;
+          z-index:2147482601 !important;
+        }
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .stage {
+          height:100% !important;
+          min-height:0 !important;
+          max-height:100% !important;
+        }
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .menu-backdrop.open,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .queue-action-backdrop.open,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .control-room-backdrop.open,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .screensaver-backdrop.open {
+          position:fixed !important;
+          inset:0 !important;
+          width:100vw !important;
+          height:100dvh !important;
+          min-height:100dvh !important;
+          max-height:100dvh !important;
+          padding:0 !important;
+          margin:0 !important;
+          border-radius:0 !important;
+          align-items:stretch !important;
+          justify-content:center !important;
+          overflow:hidden !important;
+          z-index:2147482602 !important;
+        }
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .menu-backdrop.open .menu-sheet,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .queue-action-backdrop.open .queue-action-sheet,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .control-room-backdrop.open .control-room-shell {
+          width:100vw !important;
+          max-width:100vw !important;
+          height:100dvh !important;
+          max-height:100dvh !important;
+          min-height:100dvh !important;
+          margin:0 !important;
+          border-radius:0 !important;
+          box-shadow:none !important;
+        }
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .menu-backdrop.open .menu-body,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .queue-action-backdrop.open .queue-action-sheet {
+          overflow:auto !important;
+          -webkit-overflow-scrolling:touch;
+        }
+        .mobile-edge-corner-btn {
+          position:absolute;
+          top:max(12px, env(safe-area-inset-top, 0px));
+          left:max(12px, env(safe-area-inset-left, 0px));
+          z-index:2147482610;
+          width:44px;
+          height:44px;
+          display:grid;
+          place-items:center;
+          border-radius:999px;
+          border:1px solid rgba(255,255,255,.18);
+          background:rgba(18,22,32,.7);
+          color:#fff;
+          box-shadow:0 14px 32px rgba(0,0,0,.34);
+          backdrop-filter:blur(18px) saturate(130%);
+          -webkit-backdrop-filter:blur(18px) saturate(130%);
+          cursor:pointer;
+        }
+        .mobile-edge-exit {
+          position:fixed;
+        }
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge:has(.menu-backdrop.open) > .mobile-edge-exit,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge:has(.queue-action-backdrop.open) > .mobile-edge-exit,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge:has(.control-room-backdrop.open) > .mobile-edge-exit,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge:has(.screensaver-backdrop.open) > .mobile-edge-exit,
+        .card:has(.menu-backdrop.open) > .mobile-edge-return,
+        .card:has(.queue-action-backdrop.open) > .mobile-edge-return,
+        .card:has(.control-room-backdrop.open) > .mobile-edge-return,
+        .card:has(.screensaver-backdrop.open) > .mobile-edge-return {
+          display:none !important;
+        }
+        .mobile-edge-corner-btn.rtl {
+          left:auto;
+          right:max(12px, env(safe-area-inset-right, 0px));
+        }
+        .mobile-edge-corner-btn .ui-ic {
+          width:20px;
+          height:20px;
+        }
+        .theme-light .mobile-edge-corner-btn {
+          background:rgba(255,255,255,.88);
+          color:#172033;
+          border-color:rgba(100,116,139,.22);
+          box-shadow:0 14px 30px rgba(71,85,105,.2);
         }
         :host(.compact-window-popup-open) {
           position:fixed !important;
@@ -15819,6 +16036,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           justify-content:space-between;
           gap:10px;
         }
+        .artist-section-actions {
+          min-width:0;
+          display:flex;
+          align-items:center;
+          justify-content:flex-end;
+          gap:8px;
+        }
         .artist-search-shell {
           display:grid;
           grid-template-columns:auto minmax(0,1fr) auto;
@@ -15940,6 +16164,26 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           min-height:0;
           display:grid;
           place-items:center;
+        }
+        .library-flow-panel {
+          width:100%;
+          min-width:0;
+          display:grid;
+          min-height:clamp(360px, 62dvh, 720px);
+        }
+        .library-flow-stage {
+          min-height:clamp(360px, 62dvh, 720px);
+        }
+        .menu-body.sheet-queue-flow .library-flow-stage {
+          height:100%;
+          min-height:0;
+        }
+        .artist-detail-section .library-flow-panel,
+        .artist-detail-section .library-flow-stage {
+          min-height:clamp(340px, 56dvh, 620px);
+        }
+        .menu-body.library-flow-mode .library-body {
+          align-content:stretch!important;
         }
         .queue-flow-picker {
           --queue-flow-art-size:clamp(124px, 52vw, 196px);
@@ -16142,6 +16386,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           display:flex;
           align-items:center;
           gap:8px;
+          flex:0 0 auto;
+          min-width:0;
         }
         .queue-page-count {
           margin-inline-start:auto;
@@ -16163,7 +16409,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           font-weight:950;
         }
         .queue-head-transfer-btn {
-          min-width:132px;
+          min-width:0;
           height:42px;
           border:none;
           border-radius:14px;
@@ -16180,6 +16426,19 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           gap:5px;
           font-size:11px;
           font-weight:900;
+        }
+        .queue-head-flow-btn {
+          min-width:0;
+          padding:0 12px;
+          color:var(--ma-accent);
+        }
+        .queue-head-flow-btn .queue-head-transfer-label {
+          display:inline;
+        }
+        .queue-head-flow-btn .ui-ic,
+        .queue-head-transfer-btn .ui-ic {
+          width:18px;
+          height:18px;
         }
         .queue-head-transfer-label {
           white-space:nowrap;
@@ -18141,6 +18400,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           color:var(--ma-accent);
         }
         .toast-wrap { position:absolute; inset-inline:16px; bottom:max(16px, env(safe-area-inset-bottom)); z-index:40; display:grid; gap:8px; pointer-events:none; }
+        .toast-wrap.top-toast {
+          top:max(16px, env(safe-area-inset-top));
+          bottom:auto;
+          justify-items:center;
+          align-content:start;
+          z-index:72;
+        }
         .toast-wrap.studio-toast {
           top:max(16px, env(safe-area-inset-top));
           bottom:auto;
@@ -21268,7 +21534,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   width:min(100%, 760px);
   margin:0 auto 14px;
   display:grid;
-  grid-template-columns:repeat(5, minmax(0,1fr));
+  grid-template-columns:repeat(4, minmax(0,1fr));
   gap:8px;
 }
 .players-action-chip{
@@ -21303,7 +21569,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   background:rgba(255,72,72,.11);
 }
 .card.layout-mobile .players-action-hub{
-  grid-template-columns:repeat(3, minmax(0,1fr));
+  grid-template-columns:repeat(4, minmax(0,1fr));
 }
 .this-device-strip{
   width:min(100%, 520px)!important;
@@ -21544,6 +21810,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 .queue-head-transfer-btn{
   margin-inline-start:0!important;
 }
+.queue-page-head-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
 .card.layout-tablet .queue-row{
   grid-template-columns:34px 44px minmax(0,1fr) 56px!important;
   grid-template-areas:
@@ -21635,17 +21906,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 .players-action-bar{
   width:min(100%, 760px)!important;
   margin:0 auto 18px!important;
-  display:flex!important;
+  display:block!important;
   align-items:center!important;
   justify-content:center!important;
   gap:10px!important;
 }
 .players-action-shell{
-  width:max-content!important;
+  width:100%!important;
   max-width:100%!important;
   margin:0!important;
-  padding:6px!important;
-  border-radius:999px!important;
+  padding:8px!important;
+  border-radius:22px!important;
   border:1px solid rgba(255,255,255,.13)!important;
   background:linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.025))!important;
   box-shadow:0 14px 30px rgba(0,0,0,.14), inset 0 1px 0 rgba(255,255,255,.08)!important;
@@ -21653,29 +21924,31 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   -webkit-backdrop-filter:blur(18px)!important;
 }
 .players-action-shell .players-action-hub{
-  width:auto!important;
+  width:100%!important;
   margin:0!important;
-  display:flex!important;
+  display:grid!important;
+  grid-template-columns:repeat(4, minmax(0, 1fr))!important;
   align-items:center!important;
   justify-content:center!important;
   gap:8px!important;
-  flex-wrap:nowrap!important;
 }
 .players-action-shell .players-action-chip{
   position:relative!important;
-  width:48px!important;
-  height:48px!important;
-  min-width:48px!important;
-  min-height:48px!important;
-  border-radius:999px!important;
-  padding:0!important;
+  width:100%!important;
+  height:60px!important;
+  min-width:0!important;
+  min-height:60px!important;
+  border-radius:16px!important;
+  padding:8px 5px!important;
   display:grid!important;
+  grid-template-rows:24px 1fr!important;
   place-items:center!important;
+  gap:3px!important;
   color:rgba(255,255,255,.86)!important;
   background:rgba(255,255,255,.07)!important;
   border:1px solid rgba(255,255,255,.10)!important;
   box-shadow:none!important;
-  font-size:0!important;
+  font-size:11px!important;
 }
 .players-action-shell .players-action-chip:hover,
 .players-action-shell .players-action-chip:focus-visible{
@@ -21683,7 +21956,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   border-color:rgba(255,255,255,.18)!important;
 }
 .players-action-shell .players-action-label{
-  display:none!important;
+  display:block!important;
+  max-width:100%!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  font-size:10.5px!important;
+  line-height:1.05!important;
+  font-weight:850!important;
 }
 .players-action-shell .players-action-badge{
   position:absolute!important;
@@ -21792,14 +22072,23 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   gap:8px!important;
 }
 .card.layout-mobile .players-action-shell .players-action-hub{
-  display:flex!important;
-  flex-wrap:nowrap!important;
-  gap:7px!important;
+  display:grid!important;
+  grid-template-columns:repeat(4, minmax(0, 1fr))!important;
+  gap:6px!important;
 }
 .card.layout-mobile .players-action-shell{
-  width:max-content!important;
+  width:100%!important;
   max-width:100%!important;
-  border-radius:999px!important;
+  padding:6px!important;
+  border-radius:20px!important;
+}
+.card.layout-mobile .players-action-shell .players-action-chip{
+  height:56px!important;
+  min-height:56px!important;
+  padding:7px 3px!important;
+}
+.card.layout-mobile .players-action-shell .players-action-label{
+  font-size:9.5px!important;
 }
 .theme-light .players-action-shell,
 .theme-light.card.layout-tablet .players-action-shell{
@@ -23990,6 +24279,40 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   border:1px solid rgba(255,255,255,.12)!important;
   box-shadow:none!important;
 }
+#mobileMenu .library-toolbar-minimal .library-flow-toggle,
+#mobileMenu .artist-section-actions .artist-album-flow-toggle{
+  width:auto!important;
+  min-width:86px!important;
+  padding:0 10px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:6px!important;
+  font-size:11px!important;
+  line-height:1!important;
+}
+#mobileMenu .library-toolbar-minimal .library-flow-toggle{
+  width:36px!important;
+  min-width:36px!important;
+  padding:0!important;
+}
+#mobileMenu .library-toolbar-minimal .library-flow-toggle span{
+  display:none!important;
+}
+#mobileMenu .library-flow-toggle span{
+  min-width:0;
+  max-width:86px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:11px;
+  font-weight:900;
+  line-height:1;
+}
+#mobileMenu .library-flow-toggle .ui-ic{
+  width:16px!important;
+  height:16px!important;
+}
 #mobileMenu .library-toolbar-minimal .media-layout-btn[data-media-layout]{
   display:none!important;
 }
@@ -24030,6 +24353,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 #mobileMenu .library-toolbar-minimal .library-tab-search-row,
 #mobileMenu .library-toolbar-minimal .library-toolbar-search{
   direction:auto;
+}
+@media (max-width:430px){
+  #mobileMenu .artist-section-actions .artist-album-flow-toggle{
+    min-width:74px!important;
+    padding:0 8px!important;
+  }
+  #mobileMenu .artist-section-actions .artist-album-flow-toggle span{
+    max-width:68px;
+    font-size:10px;
+  }
 }
 #mobileMenu .library-toolbar-minimal .library-toolbar-icons,
 #mobileMenu .library-toolbar-minimal .library-toolbar-sort{
@@ -24593,9 +24926,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 }
 
 </style>
-      <div class="card ${rtl ? "rtl" : ""} theme-${visualTheme} layout-${layoutMode}${layoutProfileClass ? ` ${layoutProfileClass}` : ""} mobile-layout-${mobileLayoutMode}${mobileLayoutMode === "full" ? " mobile-layout-forced-full" : ""}${mobileLayoutMode === "compact" ? " mobile-layout-forced-compact" : ""} performance-profile-${performanceProfile}${performanceMode ? " performance-lite" : ""}${performanceUltraLite ? " performance-ultra-lite" : ""}${hotelMode ? " hotel-mode" : ""}${compactTileMode ? " compact-mode compact-collapsed" : compactMode ? " compact-expanded" : ""}${compactMiniWidget ? " compact-mini-widget" : ""}${this._compactMenuOverlayOpen() ? " compact-menu-open" : ""}${compactTransitionClass}${nightActive ? " night-mode" : ""}${showNightRow ? " night-mode-enabled" : ""}${tabletAutoFit ? " tablet-auto-fit" : ""}${tabletDenseUi ? " tablet-fit-dense" : ""}${showNightRow ? " tablet-fit-night" : ""}${showUpNextInline ? " tablet-fit-up-next" : ""}${mobileDenseContent ? " mobile-content-dense" : ""}${this._tabletStabilityModeEnabled() ? " tablet-stable" : ""}${!hotelMode && this._state.controlRoomOpen ? " control-room-open" : ""}${this._state.screensaverOpen ? " screensaver-active" : ""}" style="${layoutProfileStyle}--screensaver-clock-scale:${this._esc(screensaverClockSize.toFixed(2))};--screensaver-clock-x:${this._esc(screensaverClockX.toFixed(1))}%;--screensaver-clock-y:${this._esc(screensaverClockY.toFixed(1))}%;">
+      <div class="card ${rtl ? "rtl" : ""} theme-${visualTheme} layout-${layoutMode}${layoutProfileClass ? ` ${layoutProfileClass}` : ""} mobile-layout-${mobileLayoutMode}${mobileLayoutMode === "full" ? " mobile-layout-forced-full" : ""}${mobileLayoutMode === "compact" ? " mobile-layout-forced-compact" : ""}${mobileEdgeToEdgeMode ? " mobile-edge-to-edge" : ""} performance-profile-${performanceProfile}${performanceMode ? " performance-lite" : ""}${performanceUltraLite ? " performance-ultra-lite" : ""}${hotelMode ? " hotel-mode" : ""}${compactTileMode ? " compact-mode compact-collapsed" : compactMode ? " compact-expanded" : ""}${compactMiniWidget ? " compact-mini-widget" : ""}${this._compactMenuOverlayOpen() ? " compact-menu-open" : ""}${compactTransitionClass}${nightActive ? " night-mode" : ""}${showNightRow ? " night-mode-enabled" : ""}${tabletAutoFit ? " tablet-auto-fit" : ""}${tabletDenseUi ? " tablet-fit-dense" : ""}${showNightRow ? " tablet-fit-night" : ""}${showUpNextInline ? " tablet-fit-up-next" : ""}${mobileDenseContent ? " mobile-content-dense" : ""}${this._tabletStabilityModeEnabled() ? " tablet-stable" : ""}${!hotelMode && this._state.controlRoomOpen ? " control-room-open" : ""}${this._state.screensaverOpen ? " screensaver-active" : ""}" style="${layoutProfileStyle}--screensaver-clock-scale:${this._esc(screensaverClockSize.toFixed(2))};--screensaver-clock-x:${this._esc(screensaverClockX.toFixed(1))}%;--screensaver-clock-y:${this._esc(screensaverClockY.toFixed(1))}%;">
         <div class="bg" id="mobileBg"></div><div class="shade"></div><div class="glow"></div>
         ${compactCollapseFabHtml}
+        ${mobileEdgeExitHtml}
+        ${mobileEdgeReturnHtml}
         ${homeShortcutFabHtml}
         ${mobileBrandSignatureHtml}
         ${floatingHistoryToggleFabHtml}
@@ -24829,6 +25164,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       e.stopPropagation();
       if (!this._pressUiButton(e.currentTarget)) return;
       this._setCompactExpanded(false);
+    });
+    this.$("mobileEdgeExitBtn")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!this._pressUiButton(e.currentTarget)) return;
+      this._exitMobileEdgeToEdge();
+    });
+    this.$("mobileEdgeEnterBtn")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!this._pressUiButton(e.currentTarget)) return;
+      this._enterMobileEdgeToEdge();
     });
     this._bindMobileQuickActionButtons();
     this.shadowRoot.querySelectorAll("[data-up-next-inline]").forEach((btn) => btn.addEventListener("click", async (e) => {
@@ -26834,7 +27181,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     };
     const normalized = aliases[raw] || raw || "main";
     if (this._isHotelMode()) {
-      const allowed = new Set(["main", "players", "players_active", "quick_search", "library_search", "media_detail"]);
+      const allowed = new Set(["main", "players", "players_active", "quick_search", "library_search", "media_detail", "artist_album_flow"]);
       return allowed.has(normalized) || String(normalized || "").startsWith("library_search") ? normalized : "main";
     }
     return normalized;
@@ -26930,6 +27277,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.mobileQueueFlowQuickOpen = nextPage === "queue" && options?.queueFlow === true;
     if (!String(nextPage || "").startsWith("library_") && nextPage !== "media_detail") {
       this._state.mobileMediaLayoutManual = false;
+      this._state.mobileLibraryFlowPage = "";
     }
     this._applyLibraryDefaultLayoutForPage(this._state.menuPage);
     if (nextPage === "main" || nextPage === "settings" || String(nextPage).startsWith("library_")) this._state.menuStack = [];
@@ -26959,6 +27307,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.menuStack = [];
     this._state.mobileQueueFlowQuickOpen = false;
     this._state.mobileMediaLayoutManual = false;
+    this._state.mobileLibraryFlowPage = "";
     this._shortenManualFrontPlayerHold(this._manualFrontDefaultHoldMs());
     this._closeMobileQueueActionMenu();
     clearTimeout(this._mobileQueueArtworkPrefetchTimer);
@@ -26967,7 +27316,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._syncCompactMenuOverlayState();
     this.$("mobileMenu")?.classList.remove("open", "search-open", "discovery-open", "action-fullscreen-open", "library-fullscreen-open");
     this.$("homeShortcutFab")?.removeAttribute("hidden");
-    this.$("mobileMenuBody")?.classList.remove("search-mode", "library-mode");
+    this.$("mobileMenuBody")?.classList.remove("search-mode", "library-mode", "library-flow-mode");
     if (this._state.controlRoomRestoreAfterMenu && this._controlRoomEnabled()) {
       this._state.controlRoomRestoreAfterMenu = false;
       this._state.controlRoomPanel = "";
@@ -27011,6 +27360,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (nextPage !== "queue") this._state.mobileQueueFlowQuickOpen = false;
     if (!String(nextPage || "").startsWith("library_") && nextPage !== "media_detail") {
       this._state.mobileMediaLayoutManual = false;
+      this._state.mobileLibraryFlowPage = "";
     }
     this._applyLibraryDefaultLayoutForPage(this._state.menuPage);
     if (this._isManualFrontContentSelectionPage(nextPage)) {
@@ -27028,6 +27378,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 
   _isPhoneActionFullscreenMenuPage(page = "") {
     if (String(page || "") === "media_detail") return true;
+    if (String(page || "") === "artist_album_flow") return true;
     if (String(page || "").startsWith("library_")) return true;
     return new Set([
       "main",
@@ -28177,30 +28528,26 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       <div class="players-action-bar">
         <div class="players-action-shell">
           <div class="players-action-hub">
-            <button class="players-action-chip" data-menu-nav="queue" title="${this._esc(this._i18n("ui.queue_2"))}">
-              <span class="players-action-icon">${this._iconSvg("queue")}</span>
-              <span class="players-action-label">${this._esc(this._i18n("ui.queue_2"))}</span>
-              ${queueCount ? `<strong class="players-action-badge">${this._esc(String(queueCount))}</strong>` : ``}
-            </button>
-            <button class="players-action-chip" data-menu-nav="transfer" title="${this._esc(this._i18n("ui.transfer_queue_2"))}">
-              <span class="players-action-icon">${this._iconSvg("repeat")}</span>
-              <span class="players-action-label">${this._esc(this._i18n("ui.transfer_queue_2"))}</span>
-            </button>
-            <button class="players-action-chip" data-menu-nav="group" title="${this._esc(this._i18n("ui.group_speakers_2"))}">
-              <span class="players-action-icon">${this._iconSvg("speaker_group")}</span>
-              <span class="players-action-label">${this._esc(this._i18n("ui.group"))}</span>
-            </button>
             <button class="${this._esc(thisDeviceClass)}" data-menu-action="${this._esc(thisDeviceActionName)}" aria-pressed="${thisDeviceActive ? "true" : "false"}" title="${this._esc(thisDeviceTitle)}" aria-label="${this._esc(thisDeviceTitle)}">
               <span class="players-action-icon">${this._iconSvg("speaker")}</span>
               <span class="players-action-label">${this._esc(this._i18n("ui.this_device_2"))}</span>
               <span class="players-action-dot" aria-hidden="true"></span>
             </button>
+            <button class="players-action-chip" data-menu-nav="queue" title="${this._esc(this._i18n("ui.queue_2"))}">
+              <span class="players-action-icon">${this._iconSvg("queue")}</span>
+              <span class="players-action-label">${this._esc(this._i18n("ui.queue_2"))}</span>
+              ${queueCount ? `<strong class="players-action-badge">${this._esc(String(queueCount))}</strong>` : ``}
+            </button>
+            <button class="players-action-chip" data-menu-nav="group" title="${this._esc(this._i18n("ui.group_speakers_2"))}">
+              <span class="players-action-icon">${this._iconSvg("speaker_group")}</span>
+              <span class="players-action-label">${this._esc(this._i18n("ui.group"))}</span>
+            </button>
+            <button class="players-action-chip danger" data-menu-nav="stop_all" title="${this._esc(this._cleanAllLabel())}">
+              <span class="players-action-icon">${this._iconSvg("stop")}</span>
+              <span class="players-action-label">${this._esc(this._cleanAllLabel())}</span>
+            </button>
           </div>
         </div>
-        <button class="players-action-stop" data-menu-nav="stop_all" title="${this._esc(this._cleanAllLabel())}">
-          <span class="players-action-stop-icon">${this._iconSvg("stop")}</span>
-          <span>${this._esc(this._cleanAllLabel())}</span>
-        </button>
       </div>
     `;
   }
@@ -29022,9 +29369,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           <div class="settings-pills">
             ${this._settingsPill("Auto", "auto", mobileLayoutMode, "data-setting-mobile-layout-mode")}
             ${this._settingsPill(this._i18n("ui.full", {}, "Full"), "full", mobileLayoutMode, "data-setting-mobile-layout-mode")}
-            ${this._settingsPill(this._i18n("ui.compact", {}, "Compact"), "compact", mobileLayoutMode, "data-setting-mobile-layout-mode")}
+            ${this._settingsPill(this._i18n("ui.edge_to_edge", {}, "Edge to edge"), "edge_to_edge", mobileLayoutMode, "data-setting-mobile-layout-mode")}
           </div>
-          <div class="settings-hint">${this._esc(this._i18n("ui.mobile_layout_mode_helper", {}, "Auto uses the available card space. Full keeps the phone player inline and requests a tall Sections slot. Compact always uses the compact tile."))}</div>
+          <div class="settings-hint">${this._esc(this._i18n("ui.mobile_layout_mode_helper", {}, "Auto uses the available card space. Full keeps the phone player inline. Edge to edge opens above the dashboard with an X button that returns to Full."))}</div>
           <div class="settings-label">${this._i18n("ui.compact_mode")}</div>
           <div class="settings-pills">
             ${this._settingsPill(this._i18n("ui.enabled"), "on", compactMode ? "on" : "off", "data-setting-compact-mode")}
@@ -29444,6 +29791,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           <div class="settings-label">Music Assistant</div>
           <div class="settings-actions">
             <button class="settings-pill active" data-menu-action="open_app">${this._i18n("ui.open_full_interface")}</button>
+            <button class="settings-pill" data-menu-nav="diagnostics">${this._esc(this._m("Diagnostics", "אבחון"))}</button>
           </div>
         </div>`;
   }
@@ -30262,15 +30610,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             <div class="artist-detail-section">
               <div class="artist-section-head">
                 <div class="media-section-title">${this._esc(this._i18n("ui.albums"))}</div>
-                ${albums.length ? `<div class="media-detail-count-badge">${this._esc(`${albums.length} ${this._i18n("ui.albums").toLowerCase()}`)}</div>` : ``}
+                <div class="artist-section-actions">
+                  ${albums.length ? `<button class="media-layout-btn library-flow-toggle artist-album-flow-toggle" data-artist-album-flow-open="1" title="${this._esc(this._artistAlbumFlowLabel())}" aria-label="${this._esc(this._artistAlbumFlowLabel())}">${this._iconSvg("queue_flow")}<span>${this._esc(this._artistAlbumFlowLabel(true))}</span></button>` : ``}
+                  ${albums.length ? `<div class="media-detail-count-badge">${this._esc(`${albums.length} ${this._i18n("ui.albums").toLowerCase()}`)}</div>` : ``}
+                </div>
               </div>
               ${albumGroups.length
                 ? albumGroups.map(([year, yearAlbums]) => `
-                  <div class="artist-year-group">
-                    <div class="artist-year-title">${this._esc(year)}</div>
-                    ${this._mediaItemsListHtml(yearAlbums, "album", { layout: "grid", albumBadges: true })}
-                  </div>
-                `).join("")
+                    <div class="artist-year-group">
+                      <div class="artist-year-title">${this._esc(year)}</div>
+                      ${this._mediaItemsListHtml(yearAlbums, "album", { layout: "grid", albumBadges: true })}
+                    </div>
+                  `).join("")
                 : `<div class="notice open media-detail-empty">${this._esc(emptyCopy)}</div>`}
             </div>
             <div class="artist-detail-section">
@@ -31877,6 +32228,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const page = this._libraryTabSearchPageKey();
     const isSearch = this._state.menuPage === "library_search";
     const tabSearchOpen = this._state.libraryTabSearchOpen === true || !!this._libraryTabSearchQuery(page);
+    const libraryFlowActive = this._libraryFlowPageActive(page);
     return `
       <div class="media-toolbar library-toolbar library-toolbar-minimal">
         <div class="library-toolbar-player">
@@ -31888,6 +32240,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           <div class="media-layout-toggle" role="tablist" aria-label="${this._esc(this._i18n("ui.media_layout"))}">
             ${!isSearch ? `<button class="media-layout-btn subtle-heart ${this._state.menuPage === "library_liked" ? "active" : ""}" data-menu-nav="library_liked" title="${this._esc(this._i18n("ui.liked"))}">${this._iconSvg("heart_filled")}</button>` : ``}
             ${!isSearch ? `<button class="media-layout-btn" data-media-surprise="1" title="${this._esc(this._i18n("ui.surprise_me"))}">${this._iconSvg("wand")}</button>` : ``}
+            ${!isSearch ? `<button class="media-layout-btn library-flow-toggle ${libraryFlowActive ? "active" : ""}" data-library-flow-toggle="${this._esc(page)}" title="${this._esc(this._libraryFlowLabel())}" aria-label="${this._esc(this._libraryFlowLabel())}" aria-pressed="${libraryFlowActive ? "true" : "false"}">${this._iconSvg("queue_flow")}<span>${this._esc(this._libraryFlowLabel(true))}</span></button>` : ``}
             <button class="media-layout-btn ${layout === "grid" ? "active" : ""}" data-media-layout="grid" title="${this._esc(this._i18n("ui.grid"))}">${this._iconSvg("grid")}</button>
             <button class="media-layout-btn ${layout === "list" ? "active" : ""}" data-media-layout="list" title="${this._esc(this._i18n("ui.list"))}">${this._iconSvg("list")}</button>
           </div>
@@ -32602,6 +32955,87 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     };
   }
 
+  _libraryFlowWindowItems(items = []) {
+    const entries = Array.isArray(items) ? items.filter(Boolean) : [];
+    const maxItems = 72;
+    if (entries.length <= maxItems) return { items: entries, activeIndex: 0, startIndex: 0, totalCount: entries.length };
+    return {
+      items: entries.slice(0, maxItems),
+      activeIndex: 0,
+      startIndex: 0,
+      totalCount: entries.length,
+    };
+  }
+
+  _libraryFlowCaptionForItem(item = {}, fallbackType = "album", options = {}) {
+    const mediaType = String(item?.media_type || item?.type || fallbackType || "album").toLowerCase();
+    const title = item?.name || item?.title || item?.media_item?.name || "";
+    if (options.captionMode === "album_year") {
+      const year = this._mediaYearValue(item);
+      return { title, artist: year ? String(year) : "" };
+    }
+    if (options.captionMode === "radio_station") {
+      return { title, artist: "" };
+    }
+    const artist = this._artistName(item)
+      || item?.artist
+      || item?.artist_str
+      || item?.album?.name
+      || item?.publisher
+      || (mediaType === "artist" ? this._i18n("ui.artist") : "")
+      || (mediaType === "radio" ? this._i18n("ui.radio") : "");
+    return { title, artist };
+  }
+
+  _libraryFlowPickerHtml(items = [], mediaType = "album", options = {}) {
+    const windowState = this._libraryFlowWindowItems(items);
+    const entries = windowState.items;
+    if (!entries.length) return `<div class="notice open">${this._i18n("ui.no_results_found")}</div>`;
+    const activeIndex = windowState.activeIndex;
+    const iconMap = { track: "tracks", radio: "radio", album: "album", artist: "artist", podcast: "podcast", playlist: "playlist" };
+    const caption = this._libraryFlowCaptionForItem(entries[activeIndex] || entries[0], mediaType, options);
+    this._queueFlowCaptionItems = entries.map((item) => this._libraryFlowCaptionForItem(item, mediaType, options));
+    const extraClass = String(options.className || "").trim();
+    const fullPage = options.fullPage === true;
+    const stageHtml = `
+        <div class="queue-flow-stage library-flow-stage ${this._esc(extraClass)} ${fullPage ? "library-flow-full-stage" : ""}" data-queue-flow-stage data-queue-flow-total="${this._esc(String(windowState.totalCount))}" data-queue-flow-start="${this._esc(String(windowState.startIndex))}">
+          <div class="queue-flow-picker" data-queue-flow-picker>
+            <div class="queue-flow-track">
+              ${entries.map((item, index) => {
+                const entryMediaType = String(item?.media_type || item?.type || mediaType || "album").toLowerCase();
+                const canOpenDetails = options.openDetails !== false && this._mediaTypeCanOpenDetails(entryMediaType);
+                const uri = String(item?.uri || item?.media_item?.uri || "").trim();
+                const art = this._artUrl(item, { size: 220 }) || item?.image || item?.image_url || "";
+                const artistName = this._artistName(item) || item?.artist || "";
+                const albumName = typeof item?.album === "string" ? item.album : item?.album?.name || "";
+                const fallbackIcon = iconMap[entryMediaType] || iconMap[mediaType] || "music_note";
+                const nearby = index < 8;
+                const itemCaption = this._libraryFlowCaptionForItem(item, mediaType, options);
+                const actionAttr = uri ? (canOpenDetails ? `data-media-open="${this._esc(uri)}"` : `data-media-uri="${this._esc(uri)}"`) : "";
+                return `
+                  <button class="queue-flow-item library-flow-item ${index === activeIndex ? "active centered" : ""}" data-library-flow-item="1" ${actionAttr} data-flow-caption-title="${this._esc(itemCaption.title)}" data-flow-caption-artist="${this._esc(itemCaption.artist)}" data-media-type="${this._esc(entryMediaType)}" data-media-name="${this._esc(item?.name || item?.title || "")}" data-media-artist="${this._esc(artistName)}" data-media-album="${this._esc(albumName)}" data-media-image="${this._esc(art || "")}" ${uri ? "" : "disabled"}>
+                    <span class="queue-flow-art">
+                      ${art ? this._imgHtml(art, "", { loading: nearby ? "eager" : "lazy", fetchpriority: nearby ? "high" : "low" }) : this._iconSvg(fallbackIcon)}
+                    </span>
+                  </button>
+                `;
+              }).join("")}
+            </div>
+          </div>
+          <div class="queue-flow-caption" data-queue-flow-caption ${caption.title || caption.artist ? "" : "hidden"}>
+            <div class="queue-flow-caption-title" data-queue-flow-caption-title>${this._esc(caption.title)}</div>
+            <div class="queue-flow-caption-artist" data-queue-flow-caption-artist>${this._esc(caption.artist)}</div>
+          </div>
+        </div>
+    `;
+    if (fullPage) return stageHtml;
+    return `
+      <div class="library-flow-panel ${this._esc(extraClass)}">
+        ${stageHtml}
+      </div>
+    `;
+  }
+
   _queueFlowFallbackHtml() {
     const player = this._getSelectedPlayer();
     const item = this._state.maQueueState?.current_item || null;
@@ -32714,7 +33148,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     });
     const caption = host.closest?.("[data-queue-flow-stage]")?.querySelector?.("[data-queue-flow-caption]");
     if (caption) {
-      const entry = this._queueFlowCaptionForIndex(nearestIndex);
+      const centeredItem = items[nearestIndex] || null;
+      const entry = centeredItem?.dataset?.flowCaptionTitle !== undefined || centeredItem?.dataset?.flowCaptionArtist !== undefined
+        ? { title: centeredItem?.dataset?.flowCaptionTitle || "", artist: centeredItem?.dataset?.flowCaptionArtist || "" }
+        : this._queueFlowCaptionForIndex(nearestIndex);
       const titleEl = caption.querySelector?.("[data-queue-flow-caption-title]");
       const artistEl = caption.querySelector?.("[data-queue-flow-caption-artist]");
       if (titleEl) titleEl.textContent = entry.title || "";
@@ -32724,22 +33161,35 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
 
   _bindQueueFlowPicker(body = this.$("mobileMenuBody")) {
-    const picker = body?.querySelector?.("[data-queue-flow-picker]");
-    if (!picker || picker.dataset.queueFlowBound === "1") return;
-    picker.dataset.queueFlowBound = "1";
+    const pickers = Array.from(body?.querySelectorAll?.("[data-queue-flow-picker]") || []);
+    if (!pickers.length) return;
     const scheduleFrame = (callback) => {
       if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") window.requestAnimationFrame(callback);
       else setTimeout(callback, 0);
     };
-    picker.addEventListener("scroll", () => {
-      scheduleFrame(() => this._syncQueueFlowPickerCenter(picker));
-    }, { passive: true });
-    const active = picker.querySelector(".queue-flow-item.active") || picker.querySelector(".queue-flow-item");
-    const sync = () => {
-      try { active?.scrollIntoView?.({ block: "center", inline: "nearest" }); } catch (_) {}
-      this._syncQueueFlowPickerCenter(picker);
-    };
-    scheduleFrame(sync);
+    pickers.forEach((picker) => {
+      if (!picker || picker.dataset.queueFlowBound === "1") return;
+      picker.dataset.queueFlowBound = "1";
+      picker.addEventListener("scroll", () => {
+        scheduleFrame(() => this._syncQueueFlowPickerCenter(picker));
+      }, { passive: true });
+      const active = picker.querySelector(".queue-flow-item.active") || picker.querySelector(".queue-flow-item");
+      const sync = () => {
+        try { active?.scrollIntoView?.({ block: "center", inline: "nearest" }); } catch (_) {}
+        this._syncQueueFlowPickerCenter(picker);
+      };
+      scheduleFrame(sync);
+    });
+  }
+
+  _artistAlbumFlowMenuHtml() {
+    const detail = this._state.mobileLibraryDetail || {};
+    const albums = Array.isArray(detail.albums) ? detail.albums : [];
+    return this._libraryFlowPickerHtml(albums, "album", {
+      className: "artist-album-flow-page",
+      captionMode: "album_year",
+      fullPage: true,
+    });
   }
 
   _queueMenuHtml() {
@@ -32850,6 +33300,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       body.dataset.menuPage = page;
       if (scrollSnapshot) this._restoreMobileMenuScrollSnapshot(scrollSnapshot, page);
       this._hydrateImages(body);
+      this._bindQueueFlowPicker(body);
       return true;
     };
     const hasBackTarget = Array.isArray(this._state.menuStack) && this._state.menuStack.length > 0;
@@ -32864,6 +33315,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     aux.hidden = true;
     close.hidden = false;
     body.classList.toggle("library-mode", isLibraryPage);
+    body.classList.toggle("library-flow-mode", this._libraryFlowPageActive(page) || page === "artist_album_flow");
     body.classList.toggle("search-mode", isSearchPage);
     this.$("mobileMenu")?.classList.toggle("search-open", isSearchPage);
     this.$("mobileMenu")?.classList.toggle("discovery-open", page === "discovery");
@@ -32915,6 +33367,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             ? "sheet-simple"
             : page === "players" || page === "players_active"
           ? "sheet-players"
+          : page === "artist_album_flow"
+            ? "sheet-queue-flow"
           : page === "queue"
             ? (this._mobileQueueFlowMenuActive() ? "sheet-queue-flow" : "sheet-queue")
             : page === "media_detail"
@@ -32991,6 +33445,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       finishMenuRender();
       return;
     }
+    if (page === "artist_album_flow") {
+      this._setMobileMenuHeader("", "queue_flow");
+      body.innerHTML = this._artistAlbumFlowMenuHtml();
+      finishMenuRender();
+      return;
+    }
     if (page.startsWith("library_")) {
       const meta = this._libraryTabMeta(page);
       this._setMobileMenuHeader(meta.title, meta.icon, "players");
@@ -33002,7 +33462,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         this._state.likedSelectedUris = (Array.isArray(this._state.likedSelectedUris) ? this._state.likedSelectedUris : []).filter((uri) => likedUriSet.has(String(uri || "").trim()));
         const likedQuery = this._libraryTabSearchQuery(page);
         const filteredLikedEntries = likedQuery ? this._filterLibraryItemsByQuery(likedEntries, likedQuery) : likedEntries;
-        body.innerHTML = this._libraryShellHtml(`${this._mediaLayoutToolbarHtml()}${this._likedMediaEntriesHtml(filteredLikedEntries)}`, page);
+        const likedContent = this._libraryFlowPageActive(page)
+          ? this._libraryFlowPickerHtml(filteredLikedEntries, "track", { className: "library-liked-flow" })
+          : this._likedMediaEntriesHtml(filteredLikedEntries);
+        body.innerHTML = this._libraryShellHtml(`${this._mediaLayoutToolbarHtml()}${likedContent}`, page);
         this._applyMenuLibraryThemeFromItems(menu, filteredLikedEntries.length ? filteredLikedEntries : likedEntries, "track");
         finishMenuRender();
         this._restoreLibraryTabSearchFocus();
@@ -33040,9 +33503,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const sortedItems = this._sortLibraryItemsLocally(items);
       let libraryThemeItems = sortedItems;
       if (tabSearchQuery && page !== "library_radio") {
+        const flowActive = this._libraryFlowPageActive(page);
         const searchContent = (providerItems = [], options = {}) => `
           ${this._mediaLayoutToolbarHtml()}
-          ${this._libraryTabSearchResultsHtml(sortedItems, providerItems, meta, options)}
+          ${flowActive
+            ? this._libraryFlowPickerHtml(sortedItems.length ? sortedItems : providerItems, meta.type, { className: "library-search-flow" })
+            : this._libraryTabSearchResultsHtml(sortedItems, providerItems, meta, options)}
         `;
         body.innerHTML = this._libraryShellHtml(searchContent([], { providerLoading: true }), page);
         this._applyMenuLibraryThemeFromItems(menu, sortedItems, meta.type);
@@ -33065,11 +33531,39 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         this._restoreLibraryTabSearchFocus();
         return;
       }
-      let content = `${this._mediaLayoutToolbarHtml()}${this._mediaItemsListHtml(sortedItems, meta.type, { layout: "grid", librarySkin: true })}`;
+      const libraryFlowActive = this._libraryFlowPageActive(page);
+      if (page === "library_radio" && libraryFlowActive) {
+        let radioFlowItems = sortedItems;
+        let radioFlowError = libraryError;
+        try {
+          const configuredCountry = this._mobileRadioBrowserCountry();
+          const browseCountry = this._state.mobileRadioBrowseCountry || (configuredCountry === "all" ? "" : configuredCountry);
+          const browserStations = await this._fetchRadioBrowserStations(tabSearchQuery || "", 80, { countryCode: browseCountry || configuredCountry || "all" });
+          if (browserStations.length) {
+            radioFlowItems = browserStations;
+            radioFlowError = "";
+          }
+        } catch (error) {
+          if (!radioFlowItems.length) radioFlowError = error?.message || this._i18n("ui.no_radio_stations_found");
+        }
+        if (!isCurrentRender()) return;
+        libraryThemeItems = radioFlowItems.length ? radioFlowItems : sortedItems;
+        const radioFlowContent = radioFlowError && !radioFlowItems.length
+          ? `<div class="notice open">${this._esc(radioFlowError)}</div>`
+          : this._libraryFlowPickerHtml(radioFlowItems, meta.type, { className: "library-radio-flow", captionMode: "radio_station" });
+        body.innerHTML = this._libraryShellHtml(`${this._mediaLayoutToolbarHtml()}${radioFlowContent}`, page);
+        this._applyMenuLibraryThemeFromItems(menu, libraryThemeItems, meta.type);
+        finishMenuRender();
+        this._restoreLibraryTabSearchFocus();
+        return;
+      }
+      let content = `${this._mediaLayoutToolbarHtml()}${libraryFlowActive ? this._libraryFlowPickerHtml(sortedItems, meta.type, { className: "library-tab-flow" }) : this._mediaItemsListHtml(sortedItems, meta.type, { layout: "grid", librarySkin: true })}`;
       if (page === "library_radio") {
         const maRadioHtml = libraryError
           ? `<div class="notice open">${this._esc(libraryError)}</div>`
-          : this._mediaItemsListHtml(sortedItems, meta.type, { layout: "grid", librarySkin: true });
+          : libraryFlowActive
+            ? this._libraryFlowPickerHtml(sortedItems, meta.type, { className: "library-radio-flow" })
+            : this._mediaItemsListHtml(sortedItems, meta.type, { layout: "grid", librarySkin: true });
         if (tabSearchQuery) {
           try {
             const configuredCountry = this._mobileRadioBrowserCountry();
@@ -33081,7 +33575,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
                 <div class="media-results">
                   <div>
                     <div class="media-section-title">Radio Browser</div>
-                    ${this._mediaItemsListHtml(browserStations, meta.type, { layout: "grid", librarySkin: true })}
+                    ${libraryFlowActive ? this._libraryFlowPickerHtml(browserStations, meta.type, { className: "library-radio-browser-flow" }) : this._mediaItemsListHtml(browserStations, meta.type, { layout: "grid", librarySkin: true })}
                   </div>
                   <div>
                     <div class="media-section-title">Music Assistant</div>
@@ -33125,7 +33619,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
                 <div class="media-results">
                   <div>
                     ${configuredCountry === "all" ? this._radioBrowserCountryBackHtml(browseLabel) : `<div class="media-section-title">Radio Browser · ${this._esc(browseLabel)}</div>`}
-                    ${browserError ? `<div class="notice open">${this._esc(browserError)}</div>` : this._mediaItemsListHtml(browserStations, meta.type, { layout: "grid", librarySkin: true })}
+                    ${browserError ? `<div class="notice open">${this._esc(browserError)}</div>` : libraryFlowActive ? this._libraryFlowPickerHtml(browserStations, meta.type, { className: "library-radio-browser-flow" }) : this._mediaItemsListHtml(browserStations, meta.type, { layout: "grid", librarySkin: true })}
                   </div>
                   <div>
                     <div class="media-section-title">Music Assistant</div>
@@ -33150,7 +33644,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
                 <div class="media-results">
                   <div>
                     <div class="media-section-title">${this._esc(this._i18n("ui.worldwide_popular"))}</div>
-                    ${browserError ? `<div class="notice open">${this._esc(browserError)}</div>` : this._mediaItemsListHtml(browserStations, meta.type, { layout: "grid", librarySkin: true })}
+                    ${browserError ? `<div class="notice open">${this._esc(browserError)}</div>` : libraryFlowActive ? this._libraryFlowPickerHtml(browserStations, meta.type, { className: "library-radio-browser-flow" }) : this._mediaItemsListHtml(browserStations, meta.type, { layout: "grid", librarySkin: true })}
                   </div>
                   <div>
                     <div class="media-section-title">${this._esc(this._i18n("ui.radio_browser_countries"))}</div>
@@ -33226,10 +33720,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             ${this._iconSvg("queue")}
             <strong>${this._esc(String(queueCount))}</strong>
           </div>
-          <button class="queue-head-transfer-btn" data-menu-nav="transfer" title="${this._esc(this._i18n("ui.transfer_queue_2"))}">
-            ${this._iconSvg("repeat")}
-            <span class="queue-head-transfer-label">${this._esc(this._i18n("ui.transfer_queue_3"))}</span>
-          </button>
+          <div class="queue-page-head-actions">
+            ${this._mobileQueueFlowEnabled() ? `
+              <button class="queue-head-transfer-btn queue-head-flow-btn" data-queue-flow-open="1" title="${this._esc(this._queueFlowLabel())}" aria-label="${this._esc(this._queueFlowLabel())}">
+                ${this._iconSvg("queue_flow")}
+                <span class="queue-head-transfer-label">${this._esc(this._queueFlowLabel())}</span>
+              </button>` : ``}
+            <button class="queue-head-transfer-btn" data-menu-nav="transfer" title="${this._esc(this._i18n("ui.transfer_queue_2"))}">
+              ${this._iconSvg("repeat")}
+              <span class="queue-head-transfer-label">${this._esc(this._i18n("ui.transfer_queue_3"))}</span>
+            </button>
+          </div>
         </div>
         ${this._queueMenuHtml()}
       `;
@@ -33895,9 +34396,22 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const mobileLayoutModeBtn = e.target.closest("[data-setting-mobile-layout-mode]");
     if (mobileLayoutModeBtn?.dataset.settingMobileLayoutMode) {
       this._flashInteraction(mobileLayoutModeBtn);
-      this._state.mobileLayoutMode = HomeiiMobileSettingsFoundation.normalizeMobileLayoutMode(mobileLayoutModeBtn.dataset.settingMobileLayoutMode);
+      const nextMode = HomeiiMobileSettingsFoundation.normalizeMobileLayoutMode(mobileLayoutModeBtn.dataset.settingMobileLayoutMode);
+      this._state.mobileLayoutMode = nextMode;
+      this._state.mobileEdgeToEdge = false;
+      this._state.mobileEdgeReturnAvailable = false;
       if (!this._mobileCompactModeEnabled()) this._state.mobileCompactExpanded = false;
       this._persistMobileAppearance();
+      if (nextMode === "edge_to_edge") {
+        if (this._isVisualEditorContext()) {
+          this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+          return;
+        }
+        this._closeMobileMenu();
+        this._build();
+        this._init();
+        return;
+      }
       this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
       return;
     }
@@ -34064,6 +34578,24 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       await this._renderMobileMenu();
       return;
     }
+    const libraryFlowToggleBtn = e.target.closest("[data-library-flow-toggle]");
+    if (libraryFlowToggleBtn?.dataset.libraryFlowToggle) {
+      e.preventDefault();
+      e.stopPropagation();
+      const page = libraryFlowToggleBtn.dataset.libraryFlowToggle || this._state.menuPage;
+      this._showLibraryInteractionFeedback(libraryFlowToggleBtn);
+      this._state.mobileLibraryFlowPage = this._libraryFlowPageActive(page) ? "" : page;
+      await this._renderMobileMenu();
+      return;
+    }
+    const artistAlbumFlowOpenBtn = e.target.closest("[data-artist-album-flow-open]");
+    if (artistAlbumFlowOpenBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      this._showLibraryInteractionFeedback(artistAlbumFlowOpenBtn);
+      this._pushMobileMenu("artist_album_flow");
+      return;
+    }
     const libraryDefaultLayoutBtn = e.target.closest("[data-setting-library-default-layout]");
     if (libraryDefaultLayoutBtn?.dataset.settingLibraryDefaultLayout) {
       this._flashInteraction(libraryDefaultLayoutBtn);
@@ -34082,6 +34614,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._showLibraryInteractionFeedback(mediaLayoutBtn);
       this._state.mobileMediaLayout = mediaLayoutBtn.dataset.mediaLayout === "grid" ? "grid" : "list";
       this._state.mobileMediaLayoutManual = true;
+      this._state.mobileLibraryFlowPage = "";
       await this._renderMobileMenu();
       return;
     }
@@ -34152,6 +34685,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         return;
       }
       return this._pushMobileMenu(nav.dataset.menuNav);
+    }
+    const queueFlowOpenBtn = e.target.closest("[data-queue-flow-open]");
+    if (queueFlowOpenBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      this._showLibraryInteractionFeedback(queueFlowOpenBtn);
+      this._state.mobileQueueFlowQuickOpen = true;
+      await this._renderMobileMenu();
+      return;
     }
     if (
       this._state.menuPage === "library_liked"
@@ -34278,7 +34820,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const playerBtn = e.target.closest("[data-menu-player]");
     if (playerBtn) {
       this._selectPlayer(playerBtn.dataset.menuPlayer, true);
-      this._toast(this._i18n("ui.player_selected"));
+      this._toast(this._i18n("ui.player_selected"), "info", { position: "top" });
       const previousPage = this._state.menuStack[this._state.menuStack.length - 1];
       if (String(previousPage || "").startsWith("library_") || previousPage === "media_detail" || previousPage === "discovery") {
         this._state.menuPage = this._state.menuStack.pop();

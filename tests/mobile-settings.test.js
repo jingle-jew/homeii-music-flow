@@ -140,6 +140,7 @@ describe("mobile settings foundation", () => {
     expect(state.mobileCompactMode).toBe(true);
     expect(state.mobileCompactWidgetMode).toBe("mini");
     expect(state.mobileCompactEdgeToEdge).toBe(false);
+    expect(state.mobileEdgeToEdge).toBe(false);
     expect(state.mobileLayoutMode).toBe("full");
     expect(state.mobileCoverFlow).toBe(true);
     expect(state.mobileQueueFlow).toBe(true);
@@ -259,6 +260,7 @@ describe("mobile settings foundation", () => {
     expect(normalizeMobileVolumeMode("invalid")).toBe("button");
     expect(normalizeMobileCompactWidgetMode("bad")).toBe("auto");
     expect(normalizeMobileLayoutMode("COMPACT")).toBe("compact");
+    expect(normalizeMobileLayoutMode("EDGE_TO_EDGE")).toBe("edge_to_edge");
     expect(normalizeMobileLayoutMode("bad")).toBe("auto");
     expect(normalizeMobileLibraryDefaultLayout("GRID")).toBe("grid");
     expect(normalizeMobileLibraryDefaultLayout("bad", "grid")).toBe("grid");

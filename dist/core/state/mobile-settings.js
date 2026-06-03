@@ -5,7 +5,7 @@ const MOBILE_NIGHT_MODES = ["off", "auto", "on"];
 const MOBILE_FOOTER_MODES = ["icon", "text", "both"];
 const MOBILE_VOLUME_MODES = ["always", "button"];
 const MOBILE_COMPACT_WIDGET_MODES = ["auto", "full", "mini"];
-const MOBILE_LAYOUT_MODES = ["auto", "full", "compact"];
+const MOBILE_LAYOUT_MODES = ["auto", "full", "edge_to_edge", "compact"];
 const MOBILE_LIBRARY_LAYOUT_MODES = ["grid", "list"];
 const MOBILE_MIC_MODES = ["on", "off", "smart"];
 const MOBILE_LIKED_MODES = ["ma", "local"];
@@ -325,9 +325,10 @@ export function normalizeVisualMobileState(config = {}, {
     mobileCompactMode: !!config.mobile_compact_mode,
     mobileCompactWidgetMode: normalizeMobileCompactWidgetMode(config.mobile_compact_widget_mode),
     mobileCompactEdgeToEdge: config.mobile_compact_edge_to_edge !== false,
-    mobileLayoutMode: normalizeMobileLayoutMode(config.mobile_layout_mode),
+    mobileEdgeToEdge: config.mobile_edge_to_edge === true,
+    mobileLayoutMode: normalizeMobileLayoutMode(config.mobile_layout_mode || (config.mobile_edge_to_edge === true ? "edge_to_edge" : "")),
     mobileCoverFlow: config.mobile_cover_flow === true,
-    mobileQueueFlow: config.mobile_queue_flow === true,
+    mobileQueueFlow: config.mobile_queue_flow !== false,
     mobileLibraryDefaultLayout: normalizeMobileLibraryDefaultLayout(config.mobile_library_default_layout, "list"),
     mobileShowUpNext: config.mobile_show_up_next === true,
     mobileFooterSearchEnabled: !!config.mobile_footer_search_enabled,

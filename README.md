@@ -40,14 +40,14 @@ https://github.com/user-attachments/assets/a0076e6e-0352-40f8-ac37-35737e717a80
   <a href="https://www.hacs.xyz/docs/use/download/download/">
     <img alt="Install HACS" src="https://img.shields.io/badge/Install-HACS-41BDF5?logo=homeassistant&logoColor=white">
   </a>
-  <a href="https://github.com/r11a/homeii-music-flow/archive/refs/tags/v5.8.1.zip">
-    <img alt="Download HOMEii Flow 5.8.1 stable tag archive" src="https://img.shields.io/badge/Download-v5.8.1%20stable-111111?logo=github">
+  <a href="https://github.com/r11a/homeii-music-flow/archive/refs/tags/v5.9.0.zip">
+    <img alt="Download HOMEii Flow 5.9.0 stable tag archive" src="https://img.shields.io/badge/Download-v5.9.0%20stable-111111?logo=github">
   </a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/r11a/homeii-music-flow"><img alt="stable version" src="https://img.shields.io/badge/stable-5.8.1-gold"></a>
-  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.2-beta.8"><img alt="beta version" src="https://img.shields.io/badge/beta-5.8.2--beta.8-8A63D2"></a>
+  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.9.0"><img alt="stable version" src="https://img.shields.io/badge/stable-5.9.0-gold"></a>
+  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.9.0"><img alt="release notes" src="https://img.shields.io/badge/release%20notes-5.9.0-8A63D2"></a>
   <img alt="Home Assistant" src="https://img.shields.io/badge/Home%20Assistant-Dashboard-41BDF5">
   <img alt="Music Assistant" src="https://img.shields.io/badge/Music%20Assistant-required-7C5CFF">
   <img alt="Sendspin" src="https://img.shields.io/badge/Sendspin-browser%20player-18B6FF">
@@ -63,23 +63,23 @@ HOMEii Flow is a custom Home Assistant Dashboard card for Music Assistant. It tu
 
 HOMEii Flow started from my own daily use of Home Assistant and Music Assistant. I wanted it to feel less like a technical dashboard widget and more like a real music app inside Home Assistant, so a lot of thought went into the flow, touch interactions, Hebrew/RTL comfort, wall-tablet behavior, mobile details, and the small moments that make choosing music feel natural at home.
 
-## 5.8.2 Beta 8
+## 5.9.0 Release
 
-HOMEii Flow 5.8.2 Beta 8 is a focused follow-up for issue #28 after the beta 7 diagnostics exposed the next service-call layer.
+HOMEii Flow 5.9.0 is a major mobile and reliability release. It graduates the 5.8.2 beta fixes, adds the new Library Wheel experience, expands Diagnostics v3, improves phone edge-to-edge behavior, and brings community PR ideas into the stable package.
 
-- Keeps the beta 7 integration signal fallback, but now still passes the discovered `config_entry_id` to Home Assistant `music_assistant` service calls when those services require it.
-- Fixes library/service calls that failed with `required key not provided @ data['config_entry_id']` in some Home Assistant / Music Assistant setups.
-- Removes `queue_id` from the Home Assistant `music_assistant.get_queue` diagnostic path so HA only receives the selected `entity_id`.
-- Improves Diagnostic v3 wording for generic HA fallback players so Alexa/other `media_player` entities are not described as strict Music Assistant-marked players.
-- Makes queue diagnostics less fatal when the selected fallback player has no `active_queue` / `queue_id` identity.
-- Keeps the Beta 1 through Beta 7 artwork, Music Assistant compatibility, Danish localization, diagnostics, and performance fixes.
+Release headlines:
 
-Beta download: [v5.8.2-beta.8](https://github.com/r11a/homeii-music-flow/releases/tag/v5.8.2-beta.8)
+- **Library Wheel and Queue Wheel:** a fast vertical wheel browser is now available for playlists, artists, albums, tracks, liked items, radio stations, and artist albums. Artist-album and radio wheel pages use a single Queue Flow-style scroll stage with clean captions.
+- **Diagnostics v3 is now a first-class support tool:** run it from the card settings or the visual editor to check Home Assistant, Music Assistant services, config entries, selected players, queue providers, library providers, Direct API, Sendspin readiness, browser context, and artwork paths.
+- **Phone edge-to-edge mode:** the normal mobile layout can now use a frontmost full-screen experience, with full-screen menus that avoid layered button overlap.
+- **Reusable dashboards:** `card_id` isolates per-card settings, and query-string player overrides such as `?player=kitchen_sonos` make shared dashboard includes easier.
+- **Settings and performance polish:** settings are organized into accordion sections, frequent toggles refresh surgically, and artwork cache behavior adapts better to performance profiles.
+- **Community localization:** Danish localization is included, with follow-up placeholder fixes so runtime variables render correctly.
 
-Stable users can remain on 5.8.1. Beta users should hard refresh Home Assistant or use:
+Install or hard-refresh with:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.8.2-beta.8
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.9.0
 ```
 
 ## 5.8.1 Hotfix Release
@@ -362,7 +362,7 @@ If HACS does not add the resource automatically, add:
 3. Add this Dashboard resource:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.8.1
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.9.0
 ```
 
 4. Add the card:
@@ -1049,7 +1049,8 @@ src/core/                             extracted foundation helpers
 src/config/                           config validators
 tests/                                regression coverage
 scripts/release.mjs                   release sync tooling
-RELEASE_NOTES_5.8.2-beta.8.md         detailed GitHub release notes for the current beta
+RELEASE_NOTES_5.9.0.md                detailed GitHub release notes for the current stable release
+RELEASE_NOTES_5.8.2-beta.8.md         previous beta release notes
 RELEASE_NOTES_5.8.2-beta.7.md         previous beta release notes
 RELEASE_NOTES_5.8.2-beta.6.md         previous beta release notes
 RELEASE_NOTES_5.8.2-beta.5.md         previous beta release notes
@@ -1076,7 +1077,7 @@ npm run lint
 npm test
 ```
 
-Current packaged version: `5.8.2-beta.8`
+Current packaged version: `5.9.0`
 
 ## Release Readiness
 
@@ -1130,6 +1131,7 @@ Credit and thanks:
 
 - [Local deployment guide](./LOCAL_DEPLOYMENT.md)
 - [Publishing checklist](./PUBLISHING.md)
+- [5.9.0 release notes](./RELEASE_NOTES_5.9.0.md)
 - [5.8.2 Beta 8 release notes](./RELEASE_NOTES_5.8.2-beta.8.md)
 - [5.8.2 Beta 7 release notes](./RELEASE_NOTES_5.8.2-beta.7.md)
 - [5.8.2 Beta 6 release notes](./RELEASE_NOTES_5.8.2-beta.6.md)

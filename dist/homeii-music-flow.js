@@ -633,6 +633,13 @@ const messages$7 = Object.freeze({
   "ui.set_volume": "Set volume",
   "ui.set_the_visual_order_of_quick_actions": "Set the visual order. Only selected Quick Actions are shown; unselected items are ignored.",
   "ui.settings": "Settings",
+  "ui.settings_section_announcements": "Announcements",
+  "ui.settings_section_display": "Display",
+  "ui.settings_section_music_assistant": "Music Assistant",
+  "ui.settings_section_players_library": "Players & Library",
+  "ui.settings_section_quick_actions_bar": "Quick Actions & Bar",
+  "ui.settings_section_smart_home": "Smart Home & Screensaver",
+  "ui.settings_section_voice_assistant": "Voice Assistant",
   "ui.settings_source": "Settings source",
   "ui.show_ma_button": "Show MA button",
   "ui.show_or_hide_the_inline_next_track_row_in_now_playing": "Show or hide the inline next-track row in Now Playing.",
@@ -923,7 +930,9 @@ const messages$7 = Object.freeze({
   "ui.provider_playlists": "Provider playlists",
   "ui.hotel_mode": "Hotel Mode",
   "ui.hotel_mode_helper": "Minimal hotel-safe UI: player controls, volume, search, artwork browsing, and player selection only.",
-  "ui.style_and_genres": "Style and genres"
+  "ui.style_and_genres": "Style and genres",
+  "ui.card_id": "Card ID",
+  "ui.card_id_helper": "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."
 });
 const messages$6 = Object.freeze({
   "ui.a_guided_music_wizard": "En guidet musikguide",
@@ -963,11 +972,11 @@ const messages$6 = Object.freeze({
   "ui.announcement_failed_with_error": "Meddelelse mislykkedes{error}",
   "ui.announcement_language": "Sprog for annoncering",
   "ui.announcement_presets": "Forudindstillinger for annoncering",
-  "ui.announcement_sent_to_player": "Meddelelse sendt til {afspiller}.",
+  "ui.announcement_sent_to_player": "Meddelelse sendt til {player}.",
   "ui.announcement_studio": "announcement studio",
   "ui.announcement_studio_2": "Announcement Studio",
   "ui.announcement_target": "Mål for annoncering",
-  "ui.announcement_to_player_preview": "Meddelelse til {afspiller}: {forhåndsvisning}",
+  "ui.announcement_to_player_preview": "Meddelelse til {player}: {preview}",
   "ui.announcement_volume_boost": "Forøgelse af lydstyrken ved annoncering",
   "ui.announcements": "Meddelelser",
   "ui.appearance": "Udseende",
@@ -1016,6 +1025,8 @@ const messages$6 = Object.freeze({
   "ui.card_configuration": "Kortkonfiguration",
   "ui.card_height": "Kortets højde",
   "ui.card_height_in_pixels": "Kortets højde i pixels.",
+  "ui.card_id": "Card ID",
+  "ui.card_id_helper": "Unik slug (bogstaver, tal, '-', '_'). Sæt denne værdi, når du kører flere HOMEii Flow dashboards i samme browser, så hvert dashboard beholder sin egen afspillervælger, tema, layout og andre indstillinger. Lad være tom for at dele tilstand med alle andre HOMEii Flow-kort i denne browser (oprindelig adfærd).",
   "ui.card_settings_are_managed_from_the_visual_editor": "Kortindstillingerne styres fra den visuelle editor",
   "ui.change_song": "Skift sang",
   "ui.change_track": "Skift spor",
@@ -1101,7 +1112,7 @@ const messages$6 = Object.freeze({
   "ui.delete_schedule": "Slet tidsplan",
   "ui.descending": "Nedadgående",
   "ui.dictate": "Diktere",
-  "ui.disabled": "Handicappet",
+  "ui.disabled": "Inaktiv",
   "ui.disables_blur_animations_dynamic_backgrounds_and_heavy_shadows_recommend": "Deaktiverer sløring, animationer, dynamiske baggrunde og kraftige skygger. Anbefales til Nest Hub og svagere tablets.",
   "ui.disconnect": "Afbryd forbindelsen",
   "ui.disconnect_all": "Afbryd alle forbindelser",
@@ -1258,7 +1269,7 @@ const messages$6 = Object.freeze({
   "ui.media_2": "Medier",
   "ui.media_actions": "Handlinger i medierne",
   "ui.media_layout": "Medielayout",
-  "ui.media_selected_target": "Udvalgt: {media} ? Mål: {mål}",
+  "ui.media_selected_target": "Udvalgt: {media} ? Mål: {target}",
   "ui.menu": "Menu",
   "ui.message": "Besked",
   "ui.microphone": "Mikrofon",
@@ -1296,7 +1307,7 @@ const messages$6 = Object.freeze({
   "ui.night": "Nat",
   "ui.night_end_time": "Sluttidspunkt for natten",
   "ui.night_mode": "Nattilstand",
-  "ui.night_mode_auto_window": "Nattilstand auto {start}-{slut}",
+  "ui.night_mode_auto_window": "Nattilstand auto {start}-{end}",
   "ui.night_mode_days": "Nattilstand dage",
   "ui.night_mode_is_always_on": "Nattilstand er altid slået til",
   "ui.night_mode_is_off": "Nattilstand er slået fra",
@@ -1416,7 +1427,7 @@ const messages$6 = Object.freeze({
   "ui.playback_started": "Afspilning startet",
   "ui.player": "Afspiller",
   "ui.player_2": "Afspiller",
-  "ui.player_count_many": "{Afspillere",
+  "ui.player_count_many": "{count} afspillere",
   "ui.player_count_one": "1 Afspiller",
   "ui.player_groups_could_not_be_disconnected": "Grupper af Afspillere kunne ikke afbrydes",
   "ui.player_is_pinned_from_settings": "Afspilleren er fastgjort fra indstillingerne",
@@ -1524,7 +1535,7 @@ const messages$6 = Object.freeze({
   "ui.scheduled_start_cleared": "Planlagt start ryddet",
   "ui.scheduled_start_failed": "Planlagt start mislykkedes",
   "ui.scheduled_start_saved": "Planlagt start gemt",
-  "ui.scheduled_starts_active_count": "{antal} planlagte starter aktiv",
+  "ui.scheduled_starts_active_count": "{count} planlagte starter aktiv",
   "ui.schedules": "Skemaer",
   "ui.search": "Søg",
   "ui.search_and_choose_play_next_add_radio_or_like": "Søg og vælg Play, Next, Add, Radio eller Like.",
@@ -1560,6 +1571,13 @@ const messages$6 = Object.freeze({
   "ui.set_volume": "Indstil lydstyrken",
   "ui.set_the_visual_order_of_quick_actions": "Indstil den visuelle rækkefølge. Kun valgte Quick Handlinger vises; ikke-valgte elementer ignoreres.",
   "ui.settings": "Indstillinger",
+  "ui.settings_section_announcements": "Annonceringer",
+  "ui.settings_section_display": "Visning",
+  "ui.settings_section_music_assistant": "Music Assistant",
+  "ui.settings_section_players_library": "Afspillere & Bibliotek",
+  "ui.settings_section_quick_actions_bar": "Hurtige Handlinger & Bar",
+  "ui.settings_section_smart_home": "Smart hjem & Screensaver",
+  "ui.settings_section_voice_assistant": "Stemmeassistent",
   "ui.settings_source": "Kilde til indstillinger",
   "ui.show_ma_button": "Vis MA-knap",
   "ui.show_or_hide_the_inline_next_track_row_in_now_playing": "Vis eller skjul den indbyggede række med næste spor i Spiller nu.",
@@ -1574,16 +1592,16 @@ const messages$6 = Object.freeze({
   "ui.skipped_to_up_next": "Sprang til næste side",
   "ui.sleep_timer": "Sleep-timer",
   "ui.sleep_timer_2": "Sleep-timer",
-  "ui.sleep_timer_active_remaining": "Sleep-timer aktiv: {forbliver}.",
-  "ui.sleep_timer_added_minutes": "Tilføjede {minutter} minutter til timeren",
+  "ui.sleep_timer_active_remaining": "Sleep-timer aktiv: {remaining}.",
+  "ui.sleep_timer_added_minutes": "Tilføjede {minutes} minutter til timeren",
   "ui.sleep_timer_and_morning_playback": "Sleep timer og morgenafspilning",
   "ui.sleep_timer_and_scheduled_playback": "Sleep-timer og planlagt afspilning",
   "ui.sleep_timer_cleared": "Sleep-timer ryddet",
   "ui.sleep_timer_finished": "Sleep-timer færdig",
   "ui.sleep_timer_presets": "Forudindstillede sleep-timer",
   "ui.sleep_timer_set_for_15_minutes": "Sleep-timer indstillet til 15 minutter",
-  "ui.sleep_timer_set_minutes": "Sleep-timer indstillet til {minutter} minutter",
-  "ui.sleep_timer_updated_minutes": "Sleep-timer opdateret til {minutter} minutter",
+  "ui.sleep_timer_set_minutes": "Sleep-timer indstillet til {minutes} minutter",
+  "ui.sleep_timer_updated_minutes": "Sleep-timer opdateret til {minutes} minutter",
   "ui.smaller_lyrics": "Mindre tekster",
   "ui.smart": "Smart",
   "ui.smart_mix": "smart blanding",
@@ -1651,7 +1669,7 @@ const messages$6 = Object.freeze({
   "ui.this_device_player_disconnected": "Afspilleren af denne enhed er frakoblet",
   "ui.thu": "Torsdag",
   "ui.timer": "Timer",
-  "ui.timer_active_remaining": "Timer aktiv: {resterende}",
+  "ui.timer_active_remaining": "Timer aktiv: {remaining}",
   "ui.timers": "Timere",
   "ui.to": "Til",
   "ui.today": "I dag",
@@ -1686,7 +1704,7 @@ const messages$6 = Object.freeze({
   "ui.move_up": "Bevæg dig opad",
   "ui.up_next": "Næste gang",
   "ui.up_next_2": "Næste",
-  "ui.up_next_title": "Næste gang: {titel}",
+  "ui.up_next_title": "Næste gang: {title}",
   "ui.upbeat_and_moving": "Upbeat og bevægende",
   "ui.use_any_home_assistant_path_example_lovelace_home": "Brug en hvilken som helst sti til Home Assistant. Eksempel: /lovelace/hjem",
   "ui.use_current_view_for_home_button": "Brug den aktuelle visning som startknap",
@@ -1717,7 +1735,7 @@ const messages$6 = Object.freeze({
   "ui.voice_assistant_listening": "Lytter efter en kommando...",
   "ui.voice_assistant_mode": "Stemmeassistent-tilstand",
   "ui.voice_command_executed": "Stemmekommando udført",
-  "ui.voice_command_completed_action": "Færdig: {Handlinger}",
+  "ui.voice_command_completed_action": "Færdig: {action}",
   "ui.voice_command_failed": "Stemmekommando mislykkedes",
   "ui.voice_command_no_player": "Vælg en afspiller, eller sig afspillerens navn.",
   "ui.voice_command_not_understood": "Jeg kunne ikke forstå den kommando.",
@@ -1728,16 +1746,16 @@ const messages$6 = Object.freeze({
   "ui.voice_group_connect_needs_players": "Sig mindst to spilleres navne, eller vælg en spiller og sig den anden.",
   "ui.voice_group_connected_players": "Forbundet {primary} med {members}.",
   "ui.voice_group_disconnect_needs_player": "Sig, hvilken gruppe afspillere der skal afbrydes.",
-  "ui.voice_group_disconnected_player": "Afbrød gruppen for {afspiller}.",
+  "ui.voice_group_disconnected_player": "Afbrød gruppen for {player}.",
   "ui.voice_input_failed": "Stemmeinput mislykkedes",
   "ui.voice_input_is_not_supported_on_this_device": "Stemmeinput er ikke understøttet på denne enhed",
   "ui.voice_language_is_not_supported": "Denne browser understøtter ikke det valgte sprog til talegenkendelse.",
   "ui.voice_match_not_confident": 'Jeg fandt {title}, men den matcher ikke "{query}" tæt nok. Prøv at sige sangen og kunstneren igen.',
   "ui.voice_music_searching": "Søg efter musik: {query}",
-  "ui.voice_playing_result": "Spiller {titel}",
+  "ui.voice_playing_result": "Spiller {title}",
   "ui.voice_queue_transfer_needs_players": "Sig kilde- og målafspiller, for eksempel: overfør kø fra stue til køkken.",
-  "ui.voice_queue_transferred_between": "Kø overført fra {kilde} til {mål}.",
-  "ui.voice_starting_playback": "Starter {titel}...",
+  "ui.voice_queue_transferred_between": "Kø overført fra {source} til {target}.",
+  "ui.voice_starting_playback": "Starter {title}...",
   "ui.voice_processing_status": "Behandler kommando...",
   "ui.voice_ready_status": "Klar",
   "ui.voice_recognition_network_failed": "Talegenkendelsestjenesten er ikke tilgængelig. Mikrofontilladelsen er muligvis OK; tjek browseren, VPN, DNS, firewall eller netværk.",
@@ -1787,12 +1805,12 @@ const messages$6 = Object.freeze({
   "ui.discovery": "Opdagelse",
   "ui.discovery_failed": "Opdagelsestilstand mislykkedes",
   "ui.discovery_mode": "Opdagelsestilstand",
-  "ui.discovery_started": "Opdagelsen er begyndt: {stemning}",
+  "ui.discovery_started": "Opdagelsen er begyndt: {mood}",
   "ui.maximum_brightness_for_music_lighting": "Maksimal lysstyrke til musikbelysning.",
   "ui.minimum_seconds_between_light_updates": "Minimum sekunder mellem lysopdateringer.",
-  "ui.player_light_pair_lights": "Farve lys {antal}",
+  "ui.player_light_pair_lights": "Farve lys {number}",
   "ui.player_light_pair_lights_helper": "Vælg farveegnede lys til denne Music Assistant-afspiller. Ryd dette felt eller Afspilleren for at fjerne parret.",
-  "ui.player_light_pair_player": "Music Assistant afspiller {nummer}",
+  "ui.player_light_pair_player": "Music Assistant afspiller {number}",
   "ui.player_light_pair_player_helper": "Vælg Music Assistant-afspilleren til dette lyspar.",
   "ui.all": "Alle",
   "ui.all_genres": "Alle genrer",
@@ -2475,6 +2493,13 @@ const messages$5 = Object.freeze({
   "ui.set_sleep_timer": "Configurar temporizador de apagado",
   "ui.set_volume": "Configurar volumen",
   "ui.settings": "Configuración",
+  "ui.settings_section_announcements": "Anuncios",
+  "ui.settings_section_display": "Mostrar",
+  "ui.settings_section_music_assistant": "Music Assistant",
+  "ui.settings_section_players_library": "Reproductores y biblioteca",
+  "ui.settings_section_quick_actions_bar": "Acciones rápidas y barra",
+  "ui.settings_section_smart_home": "Hogar inteligente y salvapantallas",
+  "ui.settings_section_voice_assistant": "Asistente de voz",
   "ui.settings_source": "Origen de la configuración",
   "ui.show_ma_button": "Mostrar botón de MA",
   "ui.show_or_hide_the_inline_next_track_row_in_now_playing": "Muestra u oculta la fila integrada de la siguiente pista en Reproduciendo ahora.",
@@ -2777,7 +2802,9 @@ const messages$5 = Object.freeze({
   "ui.choose_which_buttons_appear_on_the_screensaver": "Elige exactamente qué botones aparecen en el salvapantallas, incluidos FLOW ASSISTANT y los botones anterior y siguiente.",
   "ui.hotel_mode": "Modo hotel",
   "ui.hotel_mode_helper": "Interfaz mínima segura para hotel: solo controles del reproductor, volumen, búsqueda, navegación por carátulas y selección de reproductor.",
-  "ui.style_and_genres": "Estilos y géneros"
+  "ui.style_and_genres": "Estilos y géneros",
+  "ui.card_id": "Card ID",
+  "ui.card_id_helper": "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."
 });
 const messages$4 = Object.freeze({
   "ui.a_guided_music_wizard": "Un assistant musical guidé",
@@ -3414,6 +3441,13 @@ const messages$4 = Object.freeze({
   "ui.set_volume": "Régler le volume",
   "ui.set_the_visual_order_of_quick_actions": "Réorganiser. Seules les actions rapides sélectionnées sont affichées ; les éléments non sélectionnés sont ignorés.",
   "ui.settings": "Paramètres",
+  "ui.settings_section_announcements": "Annonces",
+  "ui.settings_section_display": "Affichage",
+  "ui.settings_section_music_assistant": "Music Assistant",
+  "ui.settings_section_players_library": "Lecteurs et bibliothèque",
+  "ui.settings_section_quick_actions_bar": "Actions rapides et barre",
+  "ui.settings_section_smart_home": "Maison intelligente et économiseur d'écran",
+  "ui.settings_section_voice_assistant": "Assistant vocal",
   "ui.settings_source": "Source des paramètres",
   "ui.show_ma_button": "Afficher le bouton MA",
   "ui.show_or_hide_the_inline_next_track_row_in_now_playing": "Afficher ou masquer la piste suivante dans Lecture en cours.",
@@ -3704,7 +3738,9 @@ const messages$4 = Object.freeze({
   "ui.provider_playlists": "Listes de lecture du fournisseur",
   "ui.hotel_mode": "Mode hôtel",
   "ui.hotel_mode_helper": "Interface minimale sécurisée pour l'hôtel : commandes du lecteur, volume, recherche, navigation dans les pochettes et sélection du lecteur uniquement.",
-  "ui.style_and_genres": "Styles et genres"
+  "ui.style_and_genres": "Styles et genres",
+  "ui.card_id": "Card ID",
+  "ui.card_id_helper": "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."
 });
 const messages$3 = Object.freeze({
   "ui.a_guided_music_wizard": "אשף מוזיקה ברור ומהיר",
@@ -4341,6 +4377,13 @@ const messages$3 = Object.freeze({
   "ui.set_volume": "קבע ווליום",
   "ui.set_the_visual_order_of_quick_actions": "קובע את הסדר הוויזואלי. רק פעולות מהירות שסומנו יוצגו; פריטים שלא סומנו יתעלמו.",
   "ui.settings": "הגדרות",
+  "ui.settings_section_announcements": "הודעות",
+  "ui.settings_section_display": "תצוגה",
+  "ui.settings_section_music_assistant": "Music Assistant",
+  "ui.settings_section_players_library": "נגנים וספרייה",
+  "ui.settings_section_quick_actions_bar": "פעולות מהירות וסרגל",
+  "ui.settings_section_smart_home": "בית חכם ושומר מסך",
+  "ui.settings_section_voice_assistant": "עוזר קולי",
   "ui.settings_source": "מקור ההגדרות",
   "ui.show_ma_button": "כפתור MA",
   "ui.show_or_hide_the_inline_next_track_row_in_now_playing": "מציג או מסתיר את שורת השיר הבא במסך הניגון.",
@@ -4631,7 +4674,9 @@ const messages$3 = Object.freeze({
   "ui.microphone_permission_or_browser_blocked": "הדפדפן חסם את זיהוי הדיבור. בדוק הרשאות מיקרופון והגדרות זיהוי בדפדפן.",
   "ui.hotel_mode": "מצב מלון",
   "ui.hotel_mode_helper": "ממשק מצב מלון מינימלי: פקדי נגן, ווליום, חיפוש, דפדוף בעטיפות ובחירת נגן בלבד.",
-  "ui.style_and_genres": "סגנונות וז'אנרים"
+  "ui.style_and_genres": "סגנונות וז'אנרים",
+  "ui.card_id": "Card ID",
+  "ui.card_id_helper": "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."
 });
 const messages$2 = Object.freeze({
   "ui.a_guided_music_wizard": "Un assistente musicale guidato",
@@ -5268,6 +5313,13 @@ const messages$2 = Object.freeze({
   "ui.set_volume": "Imposta volume",
   "ui.set_the_visual_order_of_quick_actions": "Imposta l'ordine visivo. Verranno mostrate solo le Azioni Rapide selezionate; gli elementi non selezionati saranno ignorati.",
   "ui.settings": "Impostazioni",
+  "ui.settings_section_announcements": "Annunci",
+  "ui.settings_section_display": "Display",
+  "ui.settings_section_music_assistant": "Music Assistant",
+  "ui.settings_section_players_library": "Lettori e biblioteca",
+  "ui.settings_section_quick_actions_bar": "Azioni rapide e barra",
+  "ui.settings_section_smart_home": "Casa intelligente e screensaver",
+  "ui.settings_section_voice_assistant": "Assistente vocale",
   "ui.settings_source": "Sorgente impostazioni",
   "ui.show_ma_button": "Mostra pulsante MA",
   "ui.show_or_hide_the_inline_next_track_row_in_now_playing": "Mostra o nascondi la riga integrata del brano successivo in 'In Riproduzione'.",
@@ -5558,7 +5610,9 @@ const messages$2 = Object.freeze({
   "ui.provider_playlists": "Playlist del fornitore",
   "ui.hotel_mode": "Modalità hotel",
   "ui.hotel_mode_helper": "Interfaccia minima sicura per hotel: solo controlli del riproduttore, volume, ricerca, navigazione copertine e selezione del riproduttore.",
-  "ui.style_and_genres": "Stili e generi"
+  "ui.style_and_genres": "Stili e generi",
+  "ui.card_id": "Card ID",
+  "ui.card_id_helper": "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."
 });
 const messages$1 = Object.freeze({
   "ui.a_guided_music_wizard": "Valdomas muzikos vedlys",
@@ -6183,6 +6237,13 @@ const messages$1 = Object.freeze({
   "ui.set_sleep_timer": "Nustatyti išsijungimo laikmatį",
   "ui.set_volume": "Nustatyti garsumą",
   "ui.settings": "Nustatymai",
+  "ui.settings_section_announcements": "Skelbimai",
+  "ui.settings_section_display": "Ekranas",
+  "ui.settings_section_music_assistant": "Music Assistant",
+  "ui.settings_section_players_library": "Grotuvai ir biblioteka",
+  "ui.settings_section_quick_actions_bar": "Greitieji veiksmai ir juosta",
+  "ui.settings_section_smart_home": "Smart Home & ekrano užsklanda",
+  "ui.settings_section_voice_assistant": "Balso asistentas",
   "ui.settings_source": "Nustatymų šaltinis",
   "ui.show_ma_button": "Rodyti MA mygtuką",
   "ui.show_or_hide_the_inline_next_track_row_in_now_playing": "Rodyti/slėpti sekančio kūrinio eilutę grojimo lange.",
@@ -6485,7 +6546,9 @@ const messages$1 = Object.freeze({
   "ui.choose_which_buttons_appear_on_the_screensaver": "Choose exactly which buttons appear on the screensaver, including FLOW ASSISTANT, previous and next.",
   "ui.hotel_mode": "Viešbučio režimas",
   "ui.hotel_mode_helper": "Minimali viešbučiui saugi sąsaja: tik grotuvo valdymas, garsumas, paieška, viršelių naršymas ir grotuvo pasirinkimas.",
-  "ui.style_and_genres": "Stiliai ir žanrai"
+  "ui.style_and_genres": "Stiliai ir žanrai",
+  "ui.card_id": "Card ID",
+  "ui.card_id_helper": "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."
 });
 const messages = Object.freeze({
   "ui.a_guided_music_wizard": "引导式音乐向导",
@@ -7114,6 +7177,13 @@ const messages = Object.freeze({
   "ui.set_volume": "设置音量",
   "ui.set_the_visual_order_of_quick_actions": "设置显示顺序。只显示已勾选的快捷操作；未勾选的项目会被忽略。",
   "ui.settings": "设置",
+  "ui.settings_section_announcements": "公告",
+  "ui.settings_section_display": "显示屏",
+  "ui.settings_section_music_assistant": "Music Assistant",
+  "ui.settings_section_players_library": "播放器和图书馆",
+  "ui.settings_section_quick_actions_bar": "快速操作和栏",
+  "ui.settings_section_smart_home": "智能家居和屏幕保护程序",
+  "ui.settings_section_voice_assistant": "语音助理",
   "ui.settings_source": "设置来源",
   "ui.show_ma_button": "显示 MA 按钮",
   "ui.show_or_hide_the_inline_next_track_row_in_now_playing": "显示或隐藏正在播放界面中的“即将播放”行。",
@@ -7412,7 +7482,9 @@ const messages = Object.freeze({
   "ui.choose_which_buttons_appear_on_the_screensaver": "Choose exactly which buttons appear on the screensaver, including FLOW ASSISTANT, previous and next.",
   "ui.hotel_mode": "酒店模式",
   "ui.hotel_mode_helper": "适合酒店的极简安全界面：仅保留播放器控制、音量、搜索、封面浏览和播放器选择。",
-  "ui.style_and_genres": "风格和流派"
+  "ui.style_and_genres": "风格和流派",
+  "ui.card_id": "Card ID",
+  "ui.card_id_helper": "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."
 });
 const DEFAULT_LANGUAGE = "en";
 const DICTIONARIES = Object.freeze({
@@ -7552,10 +7624,23 @@ function assertStringArrayValuesIfDefined(value, key, allowedValues) {
     throw new Error(`${key} must contain only: ${allowedValues.join(", ")}`);
   }
 }
+const CARD_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+function assertCardIdIfDefined(value, key) {
+  if (value == null) return;
+  if (typeof value !== "string") throw new Error(`${key} must be a string`);
+  const trimmed = value.trim();
+  if (trimmed === "") return;
+  if (!CARD_ID_PATTERN.test(trimmed)) {
+    throw new Error(
+      `${key} must be 1-64 characters of letters, digits, '-' or '_'`
+    );
+  }
+}
 function validateBaseCardEditorConfig(config) {
   if (!config || typeof config !== "object" || Array.isArray(config)) {
     throw new Error("Card config must be an object");
   }
+  assertCardIdIfDefined(config.card_id, "card_id");
   assertStringIfDefined(config.config_entry_id, "config_entry_id");
   assertStringIfDefined(config.ma_url, "ma_url");
   assertStringIfDefined(config.music_assistant_external_url, "music_assistant_external_url");
@@ -7654,7 +7739,8 @@ function validateMobileCardEditorConfig(config) {
   assertBooleanIfDefined(config.mobile_compact_mode, "mobile_compact_mode");
   assertValueInList(config.mobile_compact_widget_mode, "mobile_compact_widget_mode", ["auto", "full", "mini"]);
   assertBooleanIfDefined(config.mobile_compact_edge_to_edge, "mobile_compact_edge_to_edge");
-  assertValueInList(config.mobile_layout_mode, "mobile_layout_mode", ["auto", "full", "compact"]);
+  assertBooleanIfDefined(config.mobile_edge_to_edge, "mobile_edge_to_edge");
+  assertValueInList(config.mobile_layout_mode, "mobile_layout_mode", ["auto", "full", "edge_to_edge", "compact"]);
   assertBooleanIfDefined(config.mobile_cover_flow, "mobile_cover_flow");
   assertBooleanIfDefined(config.mobile_queue_flow, "mobile_queue_flow");
   assertBooleanIfDefined(config.mobile_show_up_next, "mobile_show_up_next");
@@ -7703,6 +7789,7 @@ function homeiiRadioBrowserCountrySelectorOptions(translateFn = null, language =
 }
 function getBaseCardConfigForm$1() {
   const labels = {
+    card_id: homeiiEditorI18n$1("ui.card_id", {}, "Card ID"),
     config_entry_id: "Config Entry ID",
     ma_url: homeiiEditorI18n$1("ui.music_assistant_url"),
     music_assistant_external_url: "Music Assistant external URL",
@@ -7727,6 +7814,7 @@ function getBaseCardConfigForm$1() {
     popup_opacity: homeiiEditorI18n$1("ui.popup_opacity")
   };
   const helpers = {
+    card_id: homeiiEditorI18n$1("ui.card_id_helper", {}, "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."),
     config_entry_id: homeiiEditorI18n$1("ui.music_assistant_config_entry_id_if_you_want_direct_integration_lookup_th"),
     ma_url: homeiiEditorI18n$1("ui.leave_empty_if_the_card_should_use_home_assistant_only"),
     music_assistant_external_url: "Optional HTTPS Music Assistant URL for HTTPS dashboards, Nabu Casa, and Companion App browser-player connections.",
@@ -7788,6 +7876,7 @@ function getBaseCardConfigForm$1() {
             flatten: true,
             column_min_width: "220px",
             schema: [
+              { name: "card_id", selector: { text: {} } },
               { name: "config_entry_id", selector: { text: {} } },
               { name: "ma_url", selector: { text: { type: "url" } } },
               { name: "music_assistant_external_url", selector: { text: { type: "url" } } },
@@ -7846,7 +7935,7 @@ function getMobileEditorTexts() {
     { value: "like", label: homeiiEditorI18n$1("ui.like_2") },
     { value: "lyrics", label: homeiiEditorI18n$1("ui.lyrics") },
     { value: "queue", label: homeiiEditorI18n$1("ui.queue_2") },
-    { value: "queue_flow", label: homeiiEditorI18n$1("ui.mobile_queue_flow", {}, "Fast queue wheel") },
+    { value: "queue_flow", label: homeiiEditorI18n$1("ui.mobile_queue_flow", {}, "Queue wheel") },
     { value: "radio", label: homeiiEditorI18n$1("ui.quick_mix") },
     { value: "voice", label: homeiiEditorI18n$1("ui.flow_assistant", {}, "FLOW ASSISTANT") },
     { value: "history", label: homeiiEditorI18n$1("ui.history") },
@@ -7891,7 +7980,8 @@ function getMobileEditorTexts() {
       mobile_compact_mode: homeiiEditorI18n$1("ui.compact_mode"),
       mobile_compact_widget_mode: homeiiEditorI18n$1("ui.compact_widget_mode", {}, "Compact widget style"),
       mobile_compact_edge_to_edge: homeiiEditorI18n$1("ui.compact_edge_to_edge", {}, "Compact edge-to-edge expand"),
-      mobile_layout_mode: homeiiEditorI18n$1("ui.mobile_layout_mode", {}, "Phone layout mode"),
+      mobile_edge_to_edge: homeiiEditorI18n$1("ui.mobile_edge_to_edge", {}, "Phone edge-to-edge"),
+      mobile_layout_mode: homeiiEditorI18n$1("ui.mobile_layout_mode", {}, "Phone display mode"),
       mobile_cover_flow: homeiiEditorI18n$1("ui.mobile_cover_flow", {}, "Artwork cover flow"),
       mobile_swipe_mode: homeiiEditorI18n$1("ui.artwork_swipe"),
       mobile_footer_search_enabled: homeiiEditorI18n$1("ui.footer_search"),
@@ -7951,6 +8041,7 @@ function getMobileEditorTexts() {
       player_sort_mode: homeiiEditorI18n$1("ui.player_sort"),
       player_order_entities: homeiiEditorI18n$1("ui.player_order"),
       ...playerOrderSlotLabels,
+      card_id: homeiiEditorI18n$1("ui.card_id", {}, "Card ID"),
       config_entry_id: "Config Entry ID",
       ma_url: homeiiEditorI18n$1("ui.music_assistant_url"),
       music_assistant_external_url: "Music Assistant external URL",
@@ -7967,6 +8058,7 @@ function getMobileEditorTexts() {
       use_mass_queue_send_command: homeiiEditorI18n$1("ui.mass_queue_send_command_fallback")
     },
     helpers: {
+      card_id: homeiiEditorI18n$1("ui.card_id_helper", {}, "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."),
       settings_source: homeiiEditorI18n$1("ui.choose_whether_settings_are_controlled_from_the_in_card_ui_or_from_the_c"),
       layout_mode: homeiiEditorI18n$1("ui.auto_chooses_mobile_or_tablet_based_on_actual_width"),
       height: homeiiEditorI18n$1("ui.card_height_in_pixels"),
@@ -7986,7 +8078,8 @@ function getMobileEditorTexts() {
       mobile_compact_mode: homeiiEditorI18n$1("ui.shows_a_standalone_compact_player_tile_with_artwork_basic_controls_volum"),
       mobile_compact_widget_mode: homeiiEditorI18n$1("ui.choose_when_compact_mode_uses_the_two_row_mobile_widget", {}, "Choose when compact mode uses the smaller two-row mobile widget."),
       mobile_compact_edge_to_edge: homeiiEditorI18n$1("ui.compact_edge_to_edge_helper", {}, "When disabled, compact expand opens as a floating window so Home Assistant navigation remains visible."),
-      mobile_layout_mode: homeiiEditorI18n$1("ui.mobile_layout_mode_helper", {}, "Auto uses the available card space. Full keeps the phone player inline and requests a tall Sections slot. Compact always uses the compact tile."),
+      mobile_edge_to_edge: homeiiEditorI18n$1("ui.mobile_edge_to_edge_helper", {}, "When enabled, the normal phone player can occupy the full browser viewport and its menus open edge-to-edge."),
+      mobile_layout_mode: homeiiEditorI18n$1("ui.mobile_layout_mode_helper", {}, "Auto uses the available card space. Full keeps the phone player inline. Edge to edge opens the phone player over the dashboard with an exit button."),
       mobile_cover_flow: homeiiEditorI18n$1("ui.mobile_cover_flow_helper", {}, "Adds the experimental vertical 3D cover flow to the main artwork area."),
       mobile_swipe_mode: homeiiEditorI18n$1("ui.choose_whether_artwork_swipe_changes_track_or_browses_covers"),
       mobile_footer_search_enabled: homeiiEditorI18n$1("ui.enable_or_disable_the_footer_search_button"),
@@ -8108,7 +8201,7 @@ function getMobileEditorTexts() {
       mobile_layout_mode: [
         { value: "auto", label: "Auto" },
         { value: "full", label: homeiiEditorI18n$1("ui.full", {}, "Full") },
-        { value: "compact", label: homeiiEditorI18n$1("ui.compact", {}, "Compact") }
+        { value: "edge_to_edge", label: homeiiEditorI18n$1("ui.edge_to_edge", {}, "Edge to edge") }
       ],
       mobile_swipe_mode: [
         { value: "play", label: homeiiEditorI18n$1("ui.change_track") },
@@ -8333,6 +8426,7 @@ function getMobileCardConfigForm$1() {
             flatten: true,
             column_min_width: "220px",
             schema: [
+              { name: "card_id", selector: { text: {} } },
               { name: "config_entry_id", selector: { text: {} } },
               { name: "ma_url", selector: { text: { type: "url" } } },
               { name: "music_assistant_external_url", selector: { text: { type: "url" } } },
@@ -9029,22 +9123,37 @@ function createHomeiiBaseMusicEditor(deps = {}) {
       }
       try {
         const report = await this._runEditorDiagnostics();
-        if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(report);
-        } else if (typeof document !== "undefined" && document.createElement) {
-          const textarea = document.createElement("textarea");
-          textarea.value = report;
-          textarea.setAttribute?.("readonly", "");
-          if (textarea.style) {
-            textarea.style.position = "fixed";
-            textarea.style.left = "-9999px";
+        let copied = false;
+        let copyError = "";
+        try {
+          if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(report);
+            copied = true;
+          } else if (typeof document !== "undefined" && document.createElement) {
+            const textarea = document.createElement("textarea");
+            textarea.value = report;
+            textarea.setAttribute?.("readonly", "");
+            if (textarea.style) {
+              textarea.style.position = "fixed";
+              textarea.style.left = "-9999px";
+            }
+            document.body?.appendChild?.(textarea);
+            textarea.select?.();
+            copied = document.execCommand?.("copy") !== false;
+            textarea.remove?.();
           }
-          document.body?.appendChild?.(textarea);
-          textarea.select?.();
-          document.execCommand?.("copy");
-          textarea.remove?.();
+        } catch (error) {
+          copyError = error?.message || "Automatic copy is not allowed in this editor context.";
         }
-        if (button) button.textContent = "Copied";
+        if (copyError || !copied) {
+          this._editorDiagnosticsItems = [
+            ...Array.isArray(this._editorDiagnosticsItems) ? this._editorDiagnosticsItems : [],
+            this._editorDiagnosticItem("warn", "Copy diagnostics", copyError || "Automatic copy was not available. The report is still visible here.")
+          ];
+          this._editorDiagnosticsReport = this._editorDiagnosticsReportText(this._editorDiagnosticsItems);
+          this._renderEditorDiagnosticsResults();
+        }
+        if (button) button.textContent = copied ? "Copied" : "Ready";
       } catch (error) {
         this._editorDiagnosticsReport = error?.message || "Editor diagnostics failed.";
         this._editorDiagnosticsItems = [this._editorDiagnosticItem("fail", "Editor diagnostics", this._editorDiagnosticsReport)];
@@ -9172,8 +9281,9 @@ function createHomeiiBaseMusicEditor(deps = {}) {
           gap:10px;
           padding:12px;
           border-radius:16px;
-          background:rgba(255,255,255,.62);
+          background:#f8fafc;
           border:1px solid rgba(123,139,164,.2);
+          color:#172033;
         }
         .editor-diagnostics-panel[hidden] {
           display:none;
@@ -9191,8 +9301,8 @@ function createHomeiiBaseMusicEditor(deps = {}) {
           font-size:13px;
           font-weight:850;
           line-height:1.35;
-          color:var(--primary-text-color, #1f2633);
-          background:rgba(146,161,183,.12);
+          color:#172033;
+          background:#eef3f8;
           border:1px solid rgba(146,161,183,.18);
         }
         .editor-diagnostics-close {
@@ -9203,8 +9313,8 @@ function createHomeiiBaseMusicEditor(deps = {}) {
           place-items:center;
           border-radius:999px;
           border:1px solid rgba(146,161,183,.22);
-          background:rgba(255,255,255,.72);
-          color:var(--secondary-text-color, rgba(31,38,51,.68));
+          background:#ffffff;
+          color:#475569;
           font:inherit;
           font-size:13px;
           line-height:1;
@@ -9213,7 +9323,7 @@ function createHomeiiBaseMusicEditor(deps = {}) {
         }
         .editor-diagnostics-close:hover {
           background:rgba(255,255,255,.94);
-          color:var(--primary-text-color, #1f2633);
+          color:#172033;
         }
         .editor-diagnostics-list {
           display:grid;
@@ -9226,8 +9336,9 @@ function createHomeiiBaseMusicEditor(deps = {}) {
           align-items:start;
           padding:10px;
           border-radius:14px;
-          background:rgba(255,255,255,.76);
+          background:#ffffff;
           border:1px solid rgba(123,139,164,.18);
+          color:#172033;
         }
         .editor-diagnostic-status {
           width:28px;
@@ -9264,18 +9375,18 @@ function createHomeiiBaseMusicEditor(deps = {}) {
         .editor-diagnostic-title {
           font-size:13px;
           font-weight:900;
-          color:var(--primary-text-color, #1f2633);
+          color:#172033;
         }
         .editor-diagnostic-value {
           font-size:12px;
           font-weight:800;
-          color:var(--secondary-text-color, rgba(31,38,51,.68));
+          color:#334155;
           overflow-wrap:anywhere;
         }
         .editor-diagnostic-detail {
           font-size:12px;
           line-height:1.38;
-          color:var(--secondary-text-color, rgba(31,38,51,.58));
+          color:#64748b;
           overflow-wrap:anywhere;
         }
         ha-form {
@@ -9413,6 +9524,11 @@ function createHomeiiBaseMusicEditor(deps = {}) {
       const states = this._hass?.states || {};
       const entities = this._hass?.entities || {};
       const mediaPlayers = Object.values(states).filter((entity) => entity?.entity_id?.startsWith("media_player."));
+      const configuredIds = /* @__PURE__ */ new Set([
+        ...HomeiiMobileSettingsFoundation2.normalizePinnedPlayerEntityList(this._config?.pinned_player_entities),
+        ...HomeiiMobileSettingsFoundation2.normalizePinnedPlayerEntityList(this._config?.excluded_player_entities),
+        ...HomeiiMobileSettingsFoundation2.normalizePlayerOrderEntities(this._config || {})
+      ]);
       const musicAssistantPlayers = mediaPlayers.filter((entity) => {
         const registry = entities?.[entity.entity_id] || {};
         const registryText = [
@@ -9422,8 +9538,11 @@ function createHomeiiBaseMusicEditor(deps = {}) {
         ].filter(Boolean).join(" ").toLowerCase();
         return HomeiiPlayersFoundation2.isMusicAssistantPlayer(entity, registry) || registryText.includes("music_assistant") || registryText.includes("music assistant");
       });
-      const hasMusicAssistantBackend = !!this._hass?.services?.music_assistant?.play_media || !!String(this._config?.ma_url || this._config?.config_entry_id || "").trim();
-      const options = (musicAssistantPlayers.length || !hasMusicAssistantBackend ? musicAssistantPlayers : mediaPlayers).filter((entity) => !HomeiiPlayersFoundation2.isLikelyBrowserPlayer(entity)).map((entity) => ({
+      const configuredFallbackPlayers = mediaPlayers.filter((entity) => configuredIds.has(entity.entity_id));
+      const sourcePlayers = Array.from(new Map(
+        [...musicAssistantPlayers, ...configuredFallbackPlayers].map((entity) => [entity.entity_id, entity])
+      ).values());
+      const options = sourcePlayers.filter((entity) => !HomeiiPlayersFoundation2.isLikelyBrowserPlayer(entity)).map((entity) => ({
         value: entity.entity_id,
         label: entity.attributes?.friendly_name || entity.entity_id
       })).sort((left, right) => String(left.label).localeCompare(String(right.label), void 0, { sensitivity: "base" }));
@@ -9772,6 +9891,7 @@ function createHomeiiBaseMusicCard({
   HOMEII_VISIBLE_LANGUAGE_OPTIONS: HOMEII_VISIBLE_LANGUAGE_OPTIONS2,
   HomeiiStateFoundation: HomeiiStateFoundation2,
   HomeiiConfigValidators: HomeiiConfigValidators2,
+  HomeiiCardIdFoundation: HomeiiCardIdFoundation2,
   HomeiiResponsiveFoundation: HomeiiResponsiveFoundation2,
   HomeiiMediaQueueFoundation: HomeiiMediaQueueFoundation2,
   HomeiiMediaPresentationFoundation: HomeiiMediaPresentationFoundation2,
@@ -9911,7 +10031,7 @@ function createHomeiiBaseMusicCard({
       this._homeiiBrandLogoCandidates = null;
       try {
         const configuredLanguage = this._config.language || "en";
-        const storedLanguage = localStorage.getItem("homeii_music_flow_lang");
+        const storedLanguage = localStorage.getItem(this._lsKey("homeii_music_flow_lang"));
         const configControlsLanguage = typeof this._usesVisualSettings === "function" && this._usesVisualSettings();
         const configuredLanguageBase = String(configuredLanguage || "").trim().toLowerCase().replace("_", "-").split("-")[0];
         const hasExplicitNonDefaultLanguage = configuredLanguageBase && configuredLanguageBase !== "en" && configuredLanguageBase !== "auto";
@@ -9920,12 +10040,12 @@ function createHomeiiBaseMusicCard({
         this._state.lang = this._config.language || "en";
       }
       try {
-        this._state.cardTheme = localStorage.getItem("homeii_music_flow_theme") || this._config.theme_mode || "auto";
+        this._state.cardTheme = localStorage.getItem(this._lsKey("homeii_music_flow_theme")) || this._config.theme_mode || "auto";
       } catch (_) {
         this._state.cardTheme = this._config.theme_mode || "auto";
       }
       try {
-        this._state.tracksLayout = localStorage.getItem("homeii_music_flow_tracks_layout") || "list";
+        this._state.tracksLayout = localStorage.getItem(this._lsKey("homeii_music_flow_tracks_layout")) || "list";
       } catch (_) {
         this._state.tracksLayout = "list";
       }
@@ -10057,7 +10177,8 @@ function createHomeiiBaseMusicCard({
       overlay?.classList?.remove("open", "closing");
       overlay?.setAttribute?.("aria-hidden", "true");
       this.shadowRoot?.querySelector?.(".card")?.classList?.remove("screensaver-active");
-      this.classList.remove("screensaver-page-open");
+      this.shadowRoot?.querySelector?.(".card")?.classList?.remove("mobile-edge-to-edge");
+      this.classList.remove("screensaver-page-open", "mobile-edge-to-edge-open");
       clearTimeout(this._screensaverExitTimer);
       this._screensaverExitTimer = null;
       clearInterval(this._screensaverClockTimer);
@@ -10699,6 +10820,7 @@ function createHomeiiBaseMusicCard({
         wand: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 19 10-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="m14.2 5.8 1.3-1.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="m18 9.5 1.5-1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="m15.2 3.5.3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="m18.9 7.2.3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="m16.9 8.8 2 .3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="m7.2 16.8 2 .3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
         radio: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="7" width="16" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="2"></rect><path d="M8 12h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M8 15h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><circle cx="16.5" cy="13" r="2" fill="none" stroke="currentColor" stroke-width="2"></circle><path d="M9 7 16.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
         tracks: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6.5v10.2a2.6 2.6 0 1 1-1.5-2.35V8.2l9-2.2v8.7a2.6 2.6 0 1 1-1.5-2.35V7.2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>`,
+        queue_flow: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h7.5M5 12h5.5M5 17h7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M16.2 7.2h3.1v3.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M19.1 7.4a5 5 0 0 0-5.9 7.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M16.8 16.8h-3.1v-3.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M13.9 16.6a5 5 0 0 0 5.9-7.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
         grid: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="4.5" width="6" height="6" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"></rect><rect x="13.5" y="4.5" width="6" height="6" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"></rect><rect x="4.5" y="13.5" width="6" height="6" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"></rect><rect x="13.5" y="13.5" width="6" height="6" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"></rect></svg>`,
         list: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6.5" cy="7" r="1.2" fill="currentColor"></circle><circle cx="6.5" cy="12" r="1.2" fill="currentColor"></circle><circle cx="6.5" cy="17" r="1.2" fill="currentColor"></circle><path d="M10 7h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M10 12h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M10 17h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
         info: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="2"></circle><path d="M12 10.8v5.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path><circle cx="12" cy="7.6" r="1.25" fill="currentColor"></circle></svg>`,
@@ -12304,6 +12426,12 @@ function createHomeiiBaseMusicCard({
             justify-content:center;
             padding:18px;
           }
+          .toast-wrap.top-toast {
+            top:max(16px, env(safe-area-inset-top));
+            bottom:auto;
+            inset-inline:16px;
+            align-items:center;
+          }
           .toast {
             padding:10px 14px;
             border-radius:12px;
@@ -13365,7 +13493,7 @@ function createHomeiiBaseMusicCard({
     _toggleLanguage() {
       this._state.lang = this._nextLanguageCode();
       try {
-        localStorage.setItem("homeii_music_flow_lang", this._state.lang);
+        localStorage.setItem(this._lsKey("homeii_music_flow_lang"), this._state.lang);
       } catch (_) {
       }
       const currentTheme = this._state.cardTheme;
@@ -13421,7 +13549,7 @@ function createHomeiiBaseMusicCard({
       const effective = this._effectiveTheme();
       this._state.cardTheme = effective === "dark" ? "light" : "dark";
       try {
-        localStorage.setItem("homeii_music_flow_theme", this._state.cardTheme);
+        localStorage.setItem(this._lsKey("homeii_music_flow_theme"), this._state.cardTheme);
       } catch (_) {
       }
       const card = this.shadowRoot.querySelector(".card");
@@ -13441,6 +13569,9 @@ function createHomeiiBaseMusicCard({
       if (!player) return false;
       const attrs = player.attributes || {};
       return player.state === "playing" || player.state === "paused" || !!attrs.media_title || !!attrs.active_queue;
+    }
+    _lsKey(baseKey) {
+      return HomeiiCardIdFoundation2 ? HomeiiCardIdFoundation2.scopeStorageKey(baseKey, this._config?.card_id) : baseKey;
     }
     _thisDeviceStorageKey() {
       return `homeii-this-device-player::${this._maBrowserUrl() || this._config?.ma_url || location.origin || "default"}`;
@@ -14768,7 +14899,7 @@ function createHomeiiBaseMusicCard({
     }
     _saveMobileRecentHistory() {
       try {
-        localStorage.setItem("homeii_music_flow_mobile_recent_history", JSON.stringify((this._state.mobileRecentHistory || []).slice(0, 10)));
+        localStorage.setItem(this._lsKey("homeii_music_flow_mobile_recent_history"), JSON.stringify((this._state.mobileRecentHistory || []).slice(0, 10)));
       } catch (_) {
       }
     }
@@ -15858,7 +15989,7 @@ function createHomeiiBaseMusicCard({
       }
     }
     _controlRoomScenesStorageKey() {
-      return "homeii_music_flow_control_room_scenes_v1";
+      return this._lsKey("homeii_music_flow_control_room_scenes_v1");
     }
     _normalizeControlRoomScene(scene = {}, index = 0) {
       const rawId = String(scene?.id || `custom:${Date.now()}_${index}`).trim();
@@ -17312,10 +17443,10 @@ function createHomeiiBaseMusicCard({
       });
     }
     _likedStorageKey() {
-      return "homeii_music_flow_likes_v2";
+      return this._lsKey("homeii_music_flow_likes_v2");
     }
     _likedMetaStorageKey() {
-      return "homeii_music_flow_like_meta_v2";
+      return this._lsKey("homeii_music_flow_like_meta_v2");
     }
     _loadLikedUris() {
       if (!this._likedUris) {
@@ -18289,7 +18420,7 @@ function createHomeiiBaseMusicCard({
     _setTracksLayout(layout) {
       this._state.tracksLayout = layout === "grid" ? "grid" : "list";
       try {
-        localStorage.setItem("homeii_music_flow_tracks_layout", this._state.tracksLayout);
+        localStorage.setItem(this._lsKey("homeii_music_flow_tracks_layout"), this._state.tracksLayout);
       } catch (_) {
       }
       if (this._state.view === "tracks") this._renderTracks();
@@ -19440,11 +19571,46 @@ function createHomeiiBaseMusicCard({
         items: normalizedItems
       };
     }
+    _queueSnapshotVisibleCount(snapshot = null) {
+      return Array.isArray(snapshot?.items) ? snapshot.items.length : 0;
+    }
+    _queueSnapshotExpectedCount(snapshot = null) {
+      const expected = Number(snapshot?.state?.items ?? snapshot?.state?.items_count ?? snapshot?.items_count);
+      return Number.isFinite(expected) && expected >= 0 ? Math.round(expected) : 0;
+    }
+    _queueSnapshotLooksPartial(snapshot = null) {
+      const visible = this._queueSnapshotVisibleCount(snapshot);
+      const expected = this._queueSnapshotExpectedCount(snapshot);
+      return visible > 0 && expected > visible;
+    }
+    _betterQueueSnapshot(left = null, right = null) {
+      if (!left) return right || null;
+      if (!right) return left;
+      const leftVisible = this._queueSnapshotVisibleCount(left);
+      const rightVisible = this._queueSnapshotVisibleCount(right);
+      if (rightVisible > leftVisible) return right;
+      if (leftVisible > rightVisible) return left;
+      const leftExpected = this._queueSnapshotExpectedCount(left);
+      const rightExpected = this._queueSnapshotExpectedCount(right);
+      return rightExpected > leftExpected ? right : left;
+    }
     async _fetchMusicAssistantQueueSnapshot(player) {
       if (!player?.entity_id) return null;
-      const payload = { entity_id: player.entity_id };
-      const snapshot = await this._callService("get_queue", payload, { includeConfigEntryId: false });
-      return this._normalizeQueueSnapshot(snapshot, player.entity_id);
+      const basePayload = { entity_id: player.entity_id };
+      const queueId = this._queueIdForPlayer(player);
+      const fetchSnapshot = async (payload) => this._normalizeQueueSnapshot(
+        await this._callService("get_queue", payload, { includeConfigEntryId: false }),
+        player.entity_id
+      );
+      const primary = await fetchSnapshot(basePayload);
+      if (!queueId || primary?.items?.length && !this._queueSnapshotLooksPartial(primary)) return primary;
+      try {
+        const scoped = await fetchSnapshot({ ...basePayload, queue_id: queueId });
+        return this._betterQueueSnapshot(primary, scoped);
+      } catch (error) {
+        this._debugLog("debug", "[HOMEii Flow] scoped HA queue lookup skipped", error);
+        return primary;
+      }
     }
     _guessCurrentQueueIndexFromItems(items = [], player = null) {
       if (!Array.isArray(items) || !items.length) return 0;
@@ -21179,6 +21345,70 @@ function createHomeiiBaseMusicCard({
         return [];
       }
     }
+    _urlPlayerOverrideParams() {
+      if (typeof window === "undefined") return new URLSearchParams();
+      const output = new URLSearchParams();
+      const appendParams = (text = "") => {
+        const raw = String(text || "");
+        if (!raw) return;
+        const query = raw.startsWith("?") ? raw.slice(1) : raw;
+        try {
+          new URLSearchParams(query).forEach((value, key) => output.set(key, value));
+        } catch (_) {
+        }
+      };
+      try {
+        appendParams(window.location?.search || "");
+      } catch (_) {
+      }
+      try {
+        const hash = String(window.location?.hash || "");
+        const queryIndex = hash.indexOf("?");
+        if (queryIndex >= 0) appendParams(hash.slice(queryIndex + 1));
+      } catch (_) {
+      }
+      return output;
+    }
+    _playerOverrideParamValue() {
+      const params = this._urlPlayerOverrideParams();
+      const cardId = String(this._config?.card_id || "").trim();
+      const keys = cardId ? [`homeii_player_${cardId}`, `player_${cardId}`, "homeii_player", "player"] : ["homeii_player", "player"];
+      for (const key of keys) {
+        const value = String(params.get(key) || "").trim();
+        if (value) return value;
+      }
+      return "";
+    }
+    _playerOverrideSlug(value = "") {
+      return String(value || "").trim().toLowerCase().replace(/^media_player\./, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    }
+    _resolvePlayerOverrideEntity(entities = []) {
+      const raw = this._playerOverrideParamValue();
+      if (!raw) return null;
+      const decoded = (() => {
+        try {
+          return decodeURIComponent(raw);
+        } catch (_) {
+          return raw;
+        }
+      })();
+      const trimmed = String(decoded || "").trim();
+      const candidates = [
+        trimmed,
+        trimmed.startsWith("media_player.") ? trimmed : `media_player.${trimmed}`,
+        trimmed.replace(/\s+/g, "_"),
+        trimmed.startsWith("media_player.") ? trimmed.replace(/\s+/g, "_") : `media_player.${trimmed.replace(/\s+/g, "_")}`
+      ].map((value) => String(value || "").trim()).filter(Boolean);
+      const direct = (Array.isArray(entities) ? entities : []).find((entity) => candidates.includes(entity?.entity_id));
+      if (direct) return direct;
+      const wantedSlug = this._playerOverrideSlug(trimmed);
+      if (!wantedSlug) return null;
+      return (Array.isArray(entities) ? entities : []).find((entity) => {
+        const entitySlug = this._playerOverrideSlug(entity?.entity_id || "");
+        const nameSlug = this._playerOverrideSlug(entity?.attributes?.friendly_name || "");
+        return entitySlug === wantedSlug || nameSlug === wantedSlug;
+      }) || null;
+    }
     _loadPlayers() {
       const sel = this.$("playerSel");
       const hassStates = this._hass?.states || {};
@@ -21271,6 +21501,11 @@ function createHomeiiBaseMusicCard({
       });
       if (preferredFrontPlayerEntity) {
         if (this._state.selectedPlayer !== preferredFrontPlayerEntity) this._state.selectedPlayer = preferredFrontPlayerEntity;
+        this._state.hasAutoSelectedPlayer = true;
+      }
+      const urlPlayerOverride = this._resolvePlayerOverrideEntity(entities);
+      if (urlPlayerOverride?.entity_id && this._state.selectedPlayer !== urlPlayerOverride.entity_id) {
+        this._state.selectedPlayer = urlPlayerOverride.entity_id;
         this._state.hasAutoSelectedPlayer = true;
       }
       const currentStillExists = this._state.selectedPlayer && entities.some((p) => p.entity_id === this._state.selectedPlayer);
@@ -22190,18 +22425,23 @@ function createHomeiiBaseMusicCard({
       try {
         const normalized = await this._fetchMusicAssistantQueueSnapshot(player);
         if (!isCurrentSnapshot()) return;
-        const queueData = normalized?.items?.length ? normalized : await this._fetchMassQueueItemsSnapshot(player);
+        let queueData = normalized;
+        if (!queueData?.items?.length || this._queueSnapshotLooksPartial(queueData)) {
+          const massQueueData = await this._fetchMassQueueItemsSnapshot(player);
+          if (!isCurrentSnapshot()) return;
+          queueData = this._betterQueueSnapshot(queueData, massQueueData);
+        }
         if (!isCurrentSnapshot()) return;
         if (queueData) {
           this._applyQueueSnapshot(queueData.state, queueData.items, force);
-          return;
+          if (!this._queueSnapshotLooksPartial(queueData)) return;
         }
       } catch (_) {
         const queueData = await this._fetchMassQueueItemsSnapshot(player);
         if (!isCurrentSnapshot()) return;
         if (queueData) {
           this._applyQueueSnapshot(queueData.state, queueData.items, force);
-          return;
+          if (!this._queueSnapshotLooksPartial(queueData)) return;
         }
       }
       if (queueId && this._hasDirectMAConnection()) {
@@ -22855,16 +23095,19 @@ function createHomeiiBaseMusicCard({
       const activeToasts = Array.from(wrap.querySelectorAll(".toast"));
       while (activeToasts.length >= 3) activeToasts.shift()?.remove();
       const centered = options?.position === "center";
+      const top = options?.position === "top";
       wrap.classList.toggle("studio-toast", !!this._state.controlRoomOpen && !centered);
       if (centered) wrap.classList.add("center-toast");
+      if (top) wrap.classList.add("top-toast");
       const el = document.createElement("div");
-      el.className = `toast ${safeVariant}${centered ? " centered" : ""}`;
+      el.className = `toast ${safeVariant}${centered ? " centered" : ""}${top ? " top" : ""}`;
       const icon = safeVariant === "success" ? "✓" : safeVariant === "error" ? "×" : "i";
       el.innerHTML = `<span class="toast-icon">${icon}</span><span class="toast-text">${this._esc(text)}</span>`;
       wrap.appendChild(el);
       setTimeout(() => {
         el.remove();
         if (centered && !wrap.querySelector(".toast.centered")) wrap.classList.remove("center-toast");
+        if (top && !wrap.querySelector(".toast.top")) wrap.classList.remove("top-toast");
       }, Number(options?.duration || 3300));
     }
     _toastSuccess(message, options = {}) {
@@ -23033,7 +23276,7 @@ function createHomeiiBaseMusicCard({
       this._screensaverExitTimer = null;
       this._screensaverClockTimer = null;
       this._state.screensaverOpen = false;
-      this.classList.remove("compact-popup-open", "compact-window-popup-open", "compact-inline-popup-open", "compact-tile-open", "screensaver-page-open", "volume-preset-open");
+      this.classList.remove("compact-popup-open", "compact-window-popup-open", "compact-inline-popup-open", "compact-tile-open", "mobile-edge-to-edge-open", "screensaver-page-open", "volume-preset-open");
       this._stopVoiceAssistantRecognition();
       this._state.voiceAssistantDialogOpen = false;
       this._state.voiceAssistantKeepScreensaver = false;
@@ -23239,7 +23482,7 @@ const MOBILE_NIGHT_MODES = ["off", "auto", "on"];
 const MOBILE_FOOTER_MODES = ["icon", "text", "both"];
 const MOBILE_VOLUME_MODES = ["always", "button"];
 const MOBILE_COMPACT_WIDGET_MODES = ["auto", "full", "mini"];
-const MOBILE_LAYOUT_MODES = ["auto", "full", "compact"];
+const MOBILE_LAYOUT_MODES = ["auto", "full", "edge_to_edge", "compact"];
 const MOBILE_LIBRARY_LAYOUT_MODES = ["grid", "list"];
 const MOBILE_MIC_MODES = ["on", "off", "smart"];
 const MOBILE_LIKED_MODES = ["ma", "local"];
@@ -23512,9 +23755,10 @@ function normalizeVisualMobileState(config = {}, {
     mobileCompactMode: !!config.mobile_compact_mode,
     mobileCompactWidgetMode: normalizeMobileCompactWidgetMode(config.mobile_compact_widget_mode),
     mobileCompactEdgeToEdge: config.mobile_compact_edge_to_edge !== false,
-    mobileLayoutMode: normalizeMobileLayoutMode(config.mobile_layout_mode),
+    mobileEdgeToEdge: config.mobile_edge_to_edge === true,
+    mobileLayoutMode: normalizeMobileLayoutMode(config.mobile_layout_mode || (config.mobile_edge_to_edge === true ? "edge_to_edge" : "")),
     mobileCoverFlow: config.mobile_cover_flow === true,
-    mobileQueueFlow: config.mobile_queue_flow === true,
+    mobileQueueFlow: config.mobile_queue_flow !== false,
     mobileLibraryDefaultLayout: normalizeMobileLibraryDefaultLayout(config.mobile_library_default_layout, "list"),
     mobileShowUpNext: config.mobile_show_up_next === true,
     mobileFooterSearchEnabled: !!config.mobile_footer_search_enabled,
@@ -24921,6 +25165,26 @@ const HomeiiArtworkFoundationSource = /* @__PURE__ */ Object.freeze(/* @__PURE__
   queueArtworkPrefetchUrls,
   queueItemArtworkCacheKey
 }, Symbol.toStringTag, { value: "Module" }));
+const VALID_CARD_ID = /^[A-Za-z0-9_-]{1,64}$/;
+const SCOPE_SEPARATOR = "__";
+function normalizeCardId(value) {
+  const id = String(value ?? "").trim();
+  if (!id) return "";
+  return VALID_CARD_ID.test(id) ? id : "";
+}
+function isValidCardId(value) {
+  return normalizeCardId(value) !== "";
+}
+function scopeStorageKey(baseKey, cardId) {
+  const id = normalizeCardId(cardId);
+  return id ? `${baseKey}${SCOPE_SEPARATOR}${id}` : baseKey;
+}
+const HomeiiCardIdFoundationSource = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  isValidCardId,
+  normalizeCardId,
+  scopeStorageKey
+}, Symbol.toStringTag, { value: "Module" }));
 function queueItemIdentityAccessors(accessors = {}) {
   return {
     getQueueItemPlaybackId: accessors.getQueueItemPlaybackId || (() => ""),
@@ -25996,9 +26260,9 @@ function ensureHaEditorComponents() {
   } catch (_) {
   }
 }
-const HOMEII_CARD_VERSION = "5.8.2-beta.8";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v5828";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v5828";
+const HOMEII_CARD_VERSION = "5.9.0";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v5900";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v5900";
 const AMBIENT_LIGHT_PAIR_PLAYER_PREFIX = "__homeii_ambient_light_pair_player_";
 const AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX = "__homeii_ambient_light_pair_lights_";
 const HomeiiEditorLocale = Object.freeze({
@@ -26091,6 +26355,9 @@ const HomeiiArtworkFoundation = Object.freeze({
 const HomeiiNowPlayingFoundation = Object.freeze({
   ...HomeiiNowPlayingFoundationSource
 });
+const HomeiiCardIdFoundation = Object.freeze({
+  ...HomeiiCardIdFoundationSource
+});
 configureHomeiiEditorForms({
   homeiiEditorI18n,
   homeiiEditorLabelFor,
@@ -26113,6 +26380,7 @@ const HomeiiBaseMusicCard = createHomeiiBaseMusicCard({
   HOMEII_VISIBLE_LANGUAGE_OPTIONS,
   HomeiiStateFoundation,
   HomeiiConfigValidators,
+  HomeiiCardIdFoundation,
   HomeiiResponsiveFoundation,
   HomeiiMediaQueueFoundation,
   HomeiiMediaPresentationFoundation,
@@ -26204,10 +26472,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.mobileCompactMode = false;
     this._state.mobileCompactWidgetMode = "auto";
     this._state.mobileCompactEdgeToEdge = true;
+    this._state.mobileEdgeToEdge = false;
+    this._state.mobileEdgeReturnAvailable = false;
     this._state.mobileLayoutMode = "auto";
     this._state.mobileCoverFlow = false;
-    this._state.mobileQueueFlow = false;
+    this._state.mobileQueueFlow = true;
     this._state.mobileQueueFlowQuickOpen = false;
+    this._state.mobileLibraryFlowPage = "";
     this._state.mobileLibraryDefaultLayout = this._defaultMobileMediaLayout();
     this._state.mobileMediaLayoutManual = false;
     this._state.mobileShowUpNext = false;
@@ -26258,7 +26529,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.voiceAssistantKeepScreensaver = false;
     this._state.mobileLibraryTabs = ["library_search", "library_playlists", "library_artists", "library_albums", "library_tracks", "library_radio", "library_podcasts"];
     this._state.mobileMainBarItems = ["actions", "players", "library", "settings"];
-    this._state.mobileQuickActions = ["timer", "like", "lyrics", "queue", "radio", "history"];
+    this._state.mobileQuickActions = ["timer", "like", "lyrics", "queue", "queue_flow", "radio", "history"];
     this._state.mobileLikedMode = "ma";
     this._state.mobileSwipeMode = "browse";
     this._state.mobileRadioBrowserCountry = "all";
@@ -26354,13 +26625,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._boundMobileMenuScroll = this._handleMobileMenuScroll.bind(this);
     this._boundMobileMediaInput = this._handleMobileMediaInput.bind(this);
     this._boundScreensaverActivity = this._handleScreensaverActivity.bind(this);
+    this._loadStoredState();
+  }
+  _loadStoredState() {
     try {
-      this._state.mobileCustomColor = localStorage.getItem("homeii_music_flow_mobile_custom_color") || "#f5a623";
+      this._state.mobileCustomColor = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_custom_color")) || "#f5a623";
     } catch (_) {
     }
     try {
-      const storedPerformanceProfile = localStorage.getItem("homeii_music_flow_mobile_performance_profile");
-      const storedPerformanceMode = localStorage.getItem("homeii_music_flow_mobile_performance_mode");
+      const storedPerformanceProfile = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_performance_profile"));
+      const storedPerformanceMode = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_performance_mode"));
       if (storedPerformanceProfile !== null || storedPerformanceMode !== null) {
         const legacyPerformanceMode = storedPerformanceMode !== null ? JSON.parse(storedPerformanceMode) : false;
         const performanceProfile2 = HomeiiMobileSettingsFoundation.normalizePerformanceProfile(storedPerformanceProfile, legacyPerformanceMode);
@@ -26371,96 +26645,96 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     } catch (_) {
     }
     try {
-      this._state.mobileDynamicThemeMode = localStorage.getItem("homeii_music_flow_mobile_dynamic_theme_mode") || "auto";
+      this._state.mobileDynamicThemeMode = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_dynamic_theme_mode")) || "auto";
     } catch (_) {
     }
     try {
-      this._state.mobileBackgroundMotionMode = localStorage.getItem("homeii_music_flow_mobile_background_motion_mode") || "subtle";
+      this._state.mobileBackgroundMotionMode = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_background_motion_mode")) || "subtle";
     } catch (_) {
     }
     try {
-      this._state.mobileCustomTextTone = localStorage.getItem("homeii_music_flow_mobile_custom_text") || "light";
+      this._state.mobileCustomTextTone = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_custom_text")) || "light";
     } catch (_) {
     }
     try {
-      this._state.frontPinnedPlayerEntity = localStorage.getItem("homeii_music_flow_front_pinned_player") || "";
+      this._state.frontPinnedPlayerEntity = localStorage.getItem(this._lsKey("homeii_music_flow_front_pinned_player")) || "";
     } catch (_) {
     }
     try {
-      this._state.mobileFontScale = Math.max(0.5, Math.min(1.5, Number(localStorage.getItem("homeii_music_flow_mobile_font_scale") || 1) || 1));
+      this._state.mobileFontScale = Math.max(0.5, Math.min(1.5, Number(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_font_scale")) || 1) || 1));
     } catch (_) {
     }
     try {
-      this._state.mobileIconScale = HomeiiMobileSettingsFoundation.clampMobileIconScale(localStorage.getItem("homeii_music_flow_mobile_icon_scale") || 1);
+      this._state.mobileIconScale = HomeiiMobileSettingsFoundation.clampMobileIconScale(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_icon_scale")) || 1);
     } catch (_) {
     }
     this._loadControlRoomScenesFromStorage();
     try {
-      this._state.mobileNightMode = localStorage.getItem("homeii_music_flow_mobile_night_mode") || "off";
+      this._state.mobileNightMode = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_night_mode")) || "off";
     } catch (_) {
     }
     try {
-      this._state.mobileNightModeStart = localStorage.getItem("homeii_music_flow_mobile_night_start") || "22:00";
+      this._state.mobileNightModeStart = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_night_start")) || "22:00";
     } catch (_) {
     }
     try {
-      this._state.mobileNightModeEnd = localStorage.getItem("homeii_music_flow_mobile_night_end") || "06:00";
+      this._state.mobileNightModeEnd = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_night_end")) || "06:00";
     } catch (_) {
     }
     try {
-      this._state.mobileNightModeDays = this._normalizeNightModeDays(localStorage.getItem("homeii_music_flow_mobile_night_days"));
+      this._state.mobileNightModeDays = this._normalizeNightModeDays(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_night_days")));
     } catch (_) {
     }
     try {
-      this._state.mobileSleepTimerEndsAt = Number(localStorage.getItem("homeii_music_flow_mobile_sleep_timer_at") || 0) || 0;
+      this._state.mobileSleepTimerEndsAt = Number(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_sleep_timer_at")) || 0) || 0;
     } catch (_) {
     }
     try {
-      this._state.mobileSleepTimerPlayer = localStorage.getItem("homeii_music_flow_mobile_sleep_timer_player") || "";
+      this._state.mobileSleepTimerPlayer = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_sleep_timer_player")) || "";
     } catch (_) {
     }
     try {
-      this._state.mobileSleepTimerOrigin = localStorage.getItem("homeii_music_flow_mobile_sleep_timer_origin") || "";
+      this._state.mobileSleepTimerOrigin = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_sleep_timer_origin")) || "";
     } catch (_) {
     }
     try {
-      this._state.mobileStartTimerEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_start_timer_enabled") ?? "false");
+      this._state.mobileStartTimerEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_start_timer_enabled")) ?? "false");
     } catch (_) {
     }
     try {
-      this._state.mobileStartTimerTime = this._normalizeClockTime(localStorage.getItem("homeii_music_flow_mobile_start_timer_time") || "07:00", "07:00");
+      this._state.mobileStartTimerTime = this._normalizeClockTime(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_start_timer_time")) || "07:00", "07:00");
     } catch (_) {
     }
     try {
-      this._state.mobileStartTimerPlayer = localStorage.getItem("homeii_music_flow_mobile_start_timer_player") || "";
+      this._state.mobileStartTimerPlayer = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_start_timer_player")) || "";
     } catch (_) {
     }
     try {
-      this._state.mobileStartTimerPlaylist = localStorage.getItem("homeii_music_flow_mobile_start_timer_playlist") || "";
+      this._state.mobileStartTimerPlaylist = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_start_timer_playlist")) || "";
     } catch (_) {
     }
     try {
-      this._state.mobileStartTimerPlaylistName = localStorage.getItem("homeii_music_flow_mobile_start_timer_playlist_name") || "";
+      this._state.mobileStartTimerPlaylistName = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_start_timer_playlist_name")) || "";
     } catch (_) {
     }
     try {
-      this._state.mobileStartTimerVolume = Math.max(0, Math.min(100, Number(localStorage.getItem("homeii_music_flow_mobile_start_timer_volume") || 35) || 35));
+      this._state.mobileStartTimerVolume = Math.max(0, Math.min(100, Number(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_start_timer_volume")) || 35) || 35));
     } catch (_) {
     }
     try {
-      this._state.mobileStartTimerDays = this._normalizeNightModeDays(localStorage.getItem("homeii_music_flow_mobile_start_timer_days"));
+      this._state.mobileStartTimerDays = this._normalizeNightModeDays(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_start_timer_days")));
     } catch (_) {
     }
     try {
-      this._state.mobileStartTimerLastRunKey = localStorage.getItem("homeii_music_flow_mobile_start_timer_last_run") || "";
+      this._state.mobileStartTimerLastRunKey = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_start_timer_last_run")) || "";
     } catch (_) {
     }
     try {
-      this._state.mobileSchedulesTab = localStorage.getItem("homeii_music_flow_mobile_schedules_tab") || "timers";
+      this._state.mobileSchedulesTab = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_schedules_tab")) || "timers";
     } catch (_) {
     }
     try {
-      const schedules = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_start_schedules") || "[]");
+      const schedules = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_start_schedules")) || "[]");
       if (Array.isArray(schedules)) this._state.mobileStartSchedules = schedules.map((schedule, index) => this._normalizeScheduledStartSchedule(schedule, index));
     } catch (_) {
     }
@@ -26479,134 +26753,138 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._state.mobileStartScheduleEditId = "schedule_legacy";
     }
     try {
-      this._state.mobileLyricsSyncEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_lyrics_sync") ?? "true");
+      this._state.mobileLyricsSyncEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_lyrics_sync")) ?? "true");
     } catch (_) {
     }
     try {
-      this._state.mobileLyricsSyncOffsetMs = Math.max(-1e4, Math.min(1e4, Number(localStorage.getItem("homeii_music_flow_mobile_lyrics_offset_ms") || 0) || 0));
+      this._state.mobileLyricsSyncOffsetMs = Math.max(-1e4, Math.min(1e4, Number(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_lyrics_offset_ms")) || 0) || 0));
     } catch (_) {
     }
     try {
-      this._state.mobileLyricsFontScale = Math.max(0.75, Math.min(1.4, Number(localStorage.getItem("homeii_music_flow_mobile_lyrics_font_scale") || 1) || 1));
+      this._state.mobileLyricsFontScale = Math.max(0.75, Math.min(1.4, Number(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_lyrics_font_scale")) || 1) || 1));
     } catch (_) {
     }
     try {
-      this._state.mobileCompactMode = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_compact_mode") ?? "false");
+      this._state.mobileCompactMode = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_compact_mode")) ?? "false");
     } catch (_) {
     }
     try {
-      this._state.mobileCompactWidgetMode = HomeiiMobileSettingsFoundation.normalizeMobileCompactWidgetMode(localStorage.getItem("homeii_music_flow_mobile_compact_widget_mode") || "auto");
+      this._state.mobileCompactWidgetMode = HomeiiMobileSettingsFoundation.normalizeMobileCompactWidgetMode(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_compact_widget_mode")) || "auto");
     } catch (_) {
     }
     try {
-      this._state.mobileCompactEdgeToEdge = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_compact_edge_to_edge") ?? "true");
+      this._state.mobileCompactEdgeToEdge = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_compact_edge_to_edge")) ?? "true");
     } catch (_) {
     }
     try {
-      this._state.mobileLayoutMode = HomeiiMobileSettingsFoundation.normalizeMobileLayoutMode(localStorage.getItem("homeii_music_flow_mobile_layout_mode") || "auto");
+      this._state.mobileEdgeToEdge = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_edge_to_edge")) ?? "false");
     } catch (_) {
     }
     try {
-      this._state.mobileCoverFlow = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_cover_flow") ?? "false");
+      this._state.mobileLayoutMode = HomeiiMobileSettingsFoundation.normalizeMobileLayoutMode(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_layout_mode")) || "auto");
     } catch (_) {
     }
     try {
-      this._state.mobileQueueFlow = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_queue_flow") ?? "false");
+      this._state.mobileCoverFlow = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_cover_flow")) ?? "false");
+    } catch (_) {
+    }
+    try {
+      this._state.mobileQueueFlow = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_queue_flow")) ?? "true");
     } catch (_) {
     }
     try {
       this._state.mobileLibraryDefaultLayout = HomeiiMobileSettingsFoundation.normalizeMobileLibraryDefaultLayout(
-        localStorage.getItem("homeii_music_flow_mobile_library_default_layout") || "",
+        localStorage.getItem(this._lsKey("homeii_music_flow_mobile_library_default_layout")) || "",
         this._defaultMobileMediaLayout()
       );
       this._state.mobileMediaLayout = this._state.mobileLibraryDefaultLayout;
     } catch (_) {
     }
     try {
-      this._state.mobileShowUpNext = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_show_up_next") ?? "false");
+      this._state.mobileShowUpNext = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_show_up_next")) ?? "false");
     } catch (_) {
     }
     try {
-      const rawHistory = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_recent_history") || "[]");
+      const rawHistory = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_recent_history")) || "[]");
       if (Array.isArray(rawHistory)) this._state.mobileRecentHistory = rawHistory.slice(0, 10);
     } catch (_) {
     }
     try {
-      this._state.mobileLibrarySort = localStorage.getItem("homeii_music_flow_mobile_library_sort") || "name_asc";
+      this._state.mobileLibrarySort = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_library_sort")) || "name_asc";
     } catch (_) {
     }
     try {
-      this._state.mobileFooterSearchEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_footer_search") ?? "false");
+      this._state.mobileFooterSearchEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_footer_search")) ?? "false");
     } catch (_) {
     }
     try {
-      this._state.mobileStudioShortcutEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_studio_shortcut") ?? "true");
+      this._state.mobileStudioShortcutEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_studio_shortcut")) ?? "true");
     } catch (_) {
     }
     try {
-      this._state.mobileFooterMode = localStorage.getItem("homeii_music_flow_mobile_footer_mode") || "both";
+      this._state.mobileFooterMode = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_footer_mode")) || "both";
     } catch (_) {
     }
     try {
-      this._state.mobileHomeShortcutEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_home_shortcut") ?? "false");
+      this._state.mobileHomeShortcutEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_home_shortcut")) ?? "false");
     } catch (_) {
     }
     try {
-      this._state.mobileHomeShortcutPath = localStorage.getItem("homeii_music_flow_mobile_home_shortcut_path") || "/";
+      this._state.mobileHomeShortcutPath = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_home_shortcut_path")) || "/";
     } catch (_) {
     }
     try {
-      this._state.mobileVolumeMode = localStorage.getItem("homeii_music_flow_mobile_volume_mode") || "button";
+      this._state.mobileVolumeMode = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_volume_mode")) || "button";
     } catch (_) {
     }
     try {
-      this._state.mobileVolumeStepButtonsEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_volume_step_buttons") ?? "false");
+      this._state.mobileVolumeStepButtonsEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_volume_step_buttons")) ?? "false");
     } catch (_) {
     }
     try {
-      this._state.mobileVolumeStepPercent = HomeiiMobileSettingsFoundation.clampMobileVolumeStepPercent(localStorage.getItem("homeii_music_flow_mobile_volume_step_percent") || 5);
+      this._state.mobileVolumeStepPercent = HomeiiMobileSettingsFoundation.clampMobileVolumeStepPercent(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_volume_step_percent")) || 5);
     } catch (_) {
     }
     try {
-      this._state.mobileMicMode = localStorage.getItem("homeii_music_flow_mobile_mic_mode") || "smart";
+      this._state.mobileMicMode = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_mic_mode")) || "smart";
     } catch (_) {
     }
     try {
-      this._state.voiceAssistantEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_voice_assistant_enabled") ?? "false");
+      this._state.voiceAssistantEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_voice_assistant_enabled")) ?? "false");
     } catch {
     }
     try {
-      this._state.voiceAssistantMode = HomeiiMobileSettingsFoundation.normalizeVoiceAssistantMode(localStorage.getItem("homeii_music_flow_voice_assistant_mode") || "hybrid");
+      this._state.voiceAssistantMode = HomeiiMobileSettingsFoundation.normalizeVoiceAssistantMode(localStorage.getItem(this._lsKey("homeii_music_flow_voice_assistant_mode")) || "hybrid");
     } catch {
     }
     try {
-      this._state.voiceAssistantAgentId = localStorage.getItem("homeii_music_flow_voice_assistant_agent_id") || "";
+      this._state.voiceAssistantAgentId = localStorage.getItem(this._lsKey("homeii_music_flow_voice_assistant_agent_id")) || "";
     } catch {
     }
     try {
-      this._state.voiceAssistantSpeakFeedback = JSON.parse(localStorage.getItem("homeii_music_flow_voice_assistant_speak_feedback") ?? "false");
+      this._state.voiceAssistantSpeakFeedback = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_voice_assistant_speak_feedback")) ?? "false");
     } catch {
     }
     try {
-      this._state.mobileSwipeMode = localStorage.getItem("homeii_music_flow_mobile_swipe_mode") || "browse";
+      this._state.mobileSwipeMode = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_swipe_mode")) || "browse";
     } catch (_) {
     }
     try {
-      this._state.mobileRadioBrowserCountry = localStorage.getItem("homeii_music_flow_mobile_radio_country") || "all";
+      this._state.mobileRadioBrowserCountry = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_radio_country")) || "all";
     } catch (_) {
     }
     try {
-      const rawTabs = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_library_tabs") || "[]");
+      const rawTabs = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_library_tabs")) || "[]");
       if (Array.isArray(rawTabs) && rawTabs.length) this._state.mobileLibraryTabs = rawTabs;
     } catch (_) {
     }
     try {
-      const rawMainBar = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_main_bar_items") || "[]");
+      const rawMainBar = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_main_bar_items")) || "[]");
       if (Array.isArray(rawMainBar) && rawMainBar.length) this._state.mobileMainBarItems = rawMainBar;
     } catch (_) {
     }
     try {
-      const storedQuickActions = localStorage.getItem("homeii_music_flow_mobile_quick_actions");
+      const storedQuickActions = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_quick_actions"));
       if (storedQuickActions !== null) {
         const rawQuickActions = JSON.parse(storedQuickActions);
         if (Array.isArray(rawQuickActions)) this._state.mobileQuickActions = rawQuickActions;
@@ -26614,150 +26892,150 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     } catch (_) {
     }
     try {
-      const rawPinned = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_pinned_players") || "[]");
+      const rawPinned = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_pinned_players")) || "[]");
       if (Array.isArray(rawPinned)) this._state.pinnedPlayerEntities = rawPinned.filter(Boolean);
     } catch (_) {
     }
     if (!Array.isArray(this._state.pinnedPlayerEntities) || !this._state.pinnedPlayerEntities.length) {
       try {
-        const legacyPinned = localStorage.getItem("homeii_music_flow_mobile_pinned_player") || "";
+        const legacyPinned = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_pinned_player")) || "";
         this._state.pinnedPlayerEntities = legacyPinned ? [legacyPinned] : [];
       } catch (_) {
       }
     }
     try {
-      this._state.mobileLikedMode = localStorage.getItem("homeii_music_flow_mobile_liked_mode") || "ma";
+      this._state.mobileLikedMode = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_liked_mode")) || "ma";
     } catch (_) {
     }
     try {
-      const presets = JSON.parse(localStorage.getItem("homeii_music_flow_mobile_announcement_presets") || "[]");
+      const presets = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_announcement_presets")) || "[]");
       if (Array.isArray(presets) && presets.length) {
         this._state.mobileAnnouncementPresets = this._isDefaultAnnouncementPresetSet(presets) ? this._defaultAnnouncementPresets() : presets.slice(0, 3);
       }
     } catch (_) {
     }
     try {
-      const announcementVolume = Number(localStorage.getItem("homeii_music_flow_mobile_announcement_volume"));
+      const announcementVolume = Number(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_announcement_volume")));
       if (Number.isFinite(announcementVolume)) this._state.mobileAnnouncementVolume = Math.max(20, Math.min(50, announcementVolume));
     } catch (_) {
     }
     try {
-      this._state.mobileAnnouncementTtsEntity = localStorage.getItem("homeii_music_flow_mobile_announcement_tts_entity") || this._config?.announcement_tts_entity || "";
+      this._state.mobileAnnouncementTtsEntity = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_announcement_tts_entity")) || this._config?.announcement_tts_entity || "";
     } catch (_) {
     }
     try {
-      this._state.mobileAnnouncementTtsLanguage = this._normalizeAnnouncementLanguage(localStorage.getItem("homeii_music_flow_mobile_announcement_tts_language") || this._config?.announcement_tts_language || "auto");
+      this._state.mobileAnnouncementTtsLanguage = this._normalizeAnnouncementLanguage(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_announcement_tts_language")) || this._config?.announcement_tts_language || "auto");
     } catch (_) {
     }
     try {
-      this._state.ambientLightEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_ambient_light_enabled") ?? "false");
+      this._state.ambientLightEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_ambient_light_enabled")) ?? "false");
     } catch {
     }
     try {
-      this._state.ambientLightEntities = HomeiiMobileSettingsFoundation.normalizeEntityList(JSON.parse(localStorage.getItem("homeii_music_flow_ambient_light_entities") || "[]"));
+      this._state.ambientLightEntities = HomeiiMobileSettingsFoundation.normalizeEntityList(JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_ambient_light_entities")) || "[]"));
     } catch {
     }
     try {
-      this._state.ambientLightPlayerMap = HomeiiMobileSettingsFoundation.normalizeStringArray(JSON.parse(localStorage.getItem("homeii_music_flow_ambient_light_player_map") || "[]"));
+      this._state.ambientLightPlayerMap = HomeiiMobileSettingsFoundation.normalizeStringArray(JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_ambient_light_player_map")) || "[]"));
     } catch {
     }
     try {
-      this._state.ambientLightBrightness = HomeiiMobileSettingsFoundation.clampPercent(localStorage.getItem("homeii_music_flow_ambient_light_brightness") || 35, 35, { min: 1, max: 100 });
+      this._state.ambientLightBrightness = HomeiiMobileSettingsFoundation.clampPercent(localStorage.getItem(this._lsKey("homeii_music_flow_ambient_light_brightness")) || 35, 35, { min: 1, max: 100 });
     } catch {
     }
     try {
-      this._state.ambientLightTransition = HomeiiMobileSettingsFoundation.clampSeconds(localStorage.getItem("homeii_music_flow_ambient_light_transition") || 3, 3, { min: 0, max: 120 });
+      this._state.ambientLightTransition = HomeiiMobileSettingsFoundation.clampSeconds(localStorage.getItem(this._lsKey("homeii_music_flow_ambient_light_transition")) || 3, 3, { min: 0, max: 120 });
     } catch {
     }
     try {
-      this._state.ambientLightCooldown = HomeiiMobileSettingsFoundation.clampSeconds(localStorage.getItem("homeii_music_flow_ambient_light_cooldown") || 8, 8, { min: 0, max: 120 });
+      this._state.ambientLightCooldown = HomeiiMobileSettingsFoundation.clampSeconds(localStorage.getItem(this._lsKey("homeii_music_flow_ambient_light_cooldown")) || 8, 8, { min: 0, max: 120 });
     } catch {
     }
     try {
-      this._state.screensaverEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_screensaver_enabled") ?? "false");
+      this._state.screensaverEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_enabled")) ?? "false");
     } catch {
     }
     try {
-      this._state.screensaverControlsEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_screensaver_controls_enabled") ?? "false");
+      this._state.screensaverControlsEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_controls_enabled")) ?? "false");
     } catch {
     }
     try {
-      const storedScreensaverButtons = localStorage.getItem("homeii_music_flow_screensaver_control_buttons");
+      const storedScreensaverButtons = localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_control_buttons"));
       if (storedScreensaverButtons !== null) {
         this._state.screensaverControlButtons = HomeiiMobileSettingsFoundation.normalizeScreensaverControlButtons(JSON.parse(storedScreensaverButtons), ["previous", "next"]);
       }
     } catch {
     }
     try {
-      this._state.screensaverClockMode = HomeiiMobileSettingsFoundation.normalizeScreensaverClockMode(localStorage.getItem("homeii_music_flow_screensaver_clock_mode") || "digital");
+      this._state.screensaverClockMode = HomeiiMobileSettingsFoundation.normalizeScreensaverClockMode(localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_clock_mode")) || "digital");
     } catch {
     }
     try {
-      this._state.screensaverTimeoutSeconds = HomeiiMobileSettingsFoundation.clampSeconds(localStorage.getItem("homeii_music_flow_screensaver_timeout_seconds") || 90, 90, { min: 15, max: 3600 });
+      this._state.screensaverTimeoutSeconds = HomeiiMobileSettingsFoundation.clampSeconds(localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_timeout_seconds")) || 90, 90, { min: 15, max: 3600 });
     } catch {
     }
     try {
-      this._state.screensaverMessage = localStorage.getItem("homeii_music_flow_screensaver_message") || "";
+      this._state.screensaverMessage = localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_message")) || "";
     } catch {
     }
     try {
-      this._state.screensaverClockSize = HomeiiMobileSettingsFoundation.clampNumber(localStorage.getItem("homeii_music_flow_screensaver_clock_size") || 1, 1, { min: 0.75, max: 1.45 });
+      this._state.screensaverClockSize = HomeiiMobileSettingsFoundation.clampNumber(localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_clock_size")) || 1, 1, { min: 0.75, max: 1.45 });
     } catch {
     }
     try {
-      this._state.screensaverClockX = HomeiiMobileSettingsFoundation.clampNumber(localStorage.getItem("homeii_music_flow_screensaver_clock_x") || 82, 82, { min: 8, max: 92 });
+      this._state.screensaverClockX = HomeiiMobileSettingsFoundation.clampNumber(localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_clock_x")) || 82, 82, { min: 8, max: 92 });
     } catch {
     }
     try {
-      this._state.screensaverClockY = HomeiiMobileSettingsFoundation.clampNumber(localStorage.getItem("homeii_music_flow_screensaver_clock_y") || 24, 24, { min: 8, max: 70 });
+      this._state.screensaverClockY = HomeiiMobileSettingsFoundation.clampNumber(localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_clock_y")) || 24, 24, { min: 8, max: 70 });
     } catch {
     }
     try {
-      this._state.powerButtonEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_power_button_enabled") ?? "false");
+      this._state.powerButtonEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_power_button_enabled")) ?? "false");
     } catch {
     }
     try {
-      this._state.powerButtonName = localStorage.getItem("homeii_music_flow_power_button_name") || "";
+      this._state.powerButtonName = localStorage.getItem(this._lsKey("homeii_music_flow_power_button_name")) || "";
     } catch {
     }
     try {
-      this._state.powerButtonIcon = HomeiiMobileSettingsFoundation.normalizeAuxiliaryButtonIcon(localStorage.getItem("homeii_music_flow_power_button_icon") || "power");
+      this._state.powerButtonIcon = HomeiiMobileSettingsFoundation.normalizeAuxiliaryButtonIcon(localStorage.getItem(this._lsKey("homeii_music_flow_power_button_icon")) || "power");
     } catch {
     }
     try {
-      this._state.powerButtonAction = HomeiiMobileSettingsFoundation.normalizePowerButtonAction(localStorage.getItem("homeii_music_flow_power_button_action") || "stop_player");
+      this._state.powerButtonAction = HomeiiMobileSettingsFoundation.normalizePowerButtonAction(localStorage.getItem(this._lsKey("homeii_music_flow_power_button_action")) || "stop_player");
     } catch {
     }
     try {
-      this._state.powerButtonEntity = localStorage.getItem("homeii_music_flow_power_button_entity") || "";
+      this._state.powerButtonEntity = localStorage.getItem(this._lsKey("homeii_music_flow_power_button_entity")) || "";
     } catch {
     }
     try {
-      this._state.auxiliaryButtons = HomeiiMobileSettingsFoundation.normalizeAuxiliaryButtons(JSON.parse(localStorage.getItem("homeii_music_flow_auxiliary_buttons") || "{}")).slice(1);
+      this._state.auxiliaryButtons = HomeiiMobileSettingsFoundation.normalizeAuxiliaryButtons(JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_auxiliary_buttons")) || "{}")).slice(1);
     } catch {
     }
     try {
-      this._state.discoveryModeEnabled = JSON.parse(localStorage.getItem("homeii_music_flow_discovery_mode_enabled") ?? "true");
+      this._state.discoveryModeEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_discovery_mode_enabled")) ?? "true");
     } catch {
     }
     try {
-      this._state.discoveryCategoryKey = localStorage.getItem("homeii_music_flow_discovery_category_key") || "pop";
+      this._state.discoveryCategoryKey = localStorage.getItem(this._lsKey("homeii_music_flow_discovery_category_key")) || "pop";
     } catch {
     }
     try {
-      this._state.discoveryGenreKey = localStorage.getItem("homeii_music_flow_discovery_genre_key") || "all";
+      this._state.discoveryGenreKey = localStorage.getItem(this._lsKey("homeii_music_flow_discovery_genre_key")) || "all";
     } catch {
     }
     try {
-      this._state.excludedPlayerEntities = HomeiiMobileSettingsFoundation.normalizePinnedPlayerEntityList(JSON.parse(localStorage.getItem("homeii_music_flow_excluded_players") || "[]"));
+      this._state.excludedPlayerEntities = HomeiiMobileSettingsFoundation.normalizePinnedPlayerEntityList(JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_excluded_players")) || "[]"));
     } catch {
     }
     try {
-      this._state.playerSortMode = HomeiiMobileSettingsFoundation.normalizePlayerSortMode(localStorage.getItem("homeii_music_flow_player_sort_mode") || "default");
+      this._state.playerSortMode = HomeiiMobileSettingsFoundation.normalizePlayerSortMode(localStorage.getItem(this._lsKey("homeii_music_flow_player_sort_mode")) || "default");
     } catch {
     }
     try {
-      this._state.playerOrderEntities = HomeiiMobileSettingsFoundation.normalizePinnedPlayerEntityList(JSON.parse(localStorage.getItem("homeii_music_flow_player_order") || "[]"));
+      this._state.playerOrderEntities = HomeiiMobileSettingsFoundation.normalizePinnedPlayerEntityList(JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_player_order")) || "[]"));
     } catch {
     }
   }
@@ -26793,9 +27071,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       mobile_compact_mode: false,
       mobile_compact_widget_mode: "auto",
       mobile_compact_edge_to_edge: true,
+      mobile_edge_to_edge: false,
       mobile_layout_mode: "auto",
       mobile_cover_flow: false,
-      mobile_queue_flow: false,
+      mobile_queue_flow: true,
       mobile_library_default_layout: "list",
       mobile_footer_search_enabled: false,
       mobile_footer_mode: "both",
@@ -26815,14 +27094,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       flow_assistant_auto_close_ms: 4200,
       mobile_library_tabs: ["library_search", "library_playlists", "library_artists", "library_albums", "library_tracks", "library_radio", "library_podcasts"],
       mobile_main_bar_items: ["actions", "players", "library", "settings"],
-      mobile_quick_actions: ["timer", "like", "lyrics", "queue", "radio", "history"],
+      mobile_quick_actions: ["timer", "like", "lyrics", "queue", "queue_flow", "radio", "history"],
       mobile_quick_action_1: "timer",
       mobile_quick_action_2: "like",
       mobile_quick_action_3: "lyrics",
       mobile_quick_action_4: "queue",
-      mobile_quick_action_5: "radio",
-      mobile_quick_action_6: "history",
-      mobile_quick_action_7: "",
+      mobile_quick_action_5: "queue_flow",
+      mobile_quick_action_6: "radio",
+      mobile_quick_action_7: "history",
       mobile_quick_action_8: "",
       mobile_quick_action_9: "",
       mobile_quick_action_10: "",
@@ -26891,6 +27170,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       ...config,
       settings_source: HomeiiStateFoundation.normalizeSettingsSource(config?.settings_source)
     });
+    this._loadStoredState();
     this._applyConfiguredMobileSettings();
     this._syncScreensaverClockVars();
     if (this._state.screensaverOpen) this._syncScreensaverUi();
@@ -26902,6 +27182,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (this._editMode === enabled) return;
     this._editMode = enabled;
     if (!enabled) return;
+    this.classList.remove("mobile-edge-to-edge-open");
+    this.shadowRoot?.querySelector?.(".card")?.classList?.remove("mobile-edge-to-edge");
     clearTimeout(this._screensaverTimer);
     this._screensaverTimer = null;
     this._hideScreensaver?.();
@@ -26934,11 +27216,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
   _preferFullMobileGridRows() {
     const mode = this._mobileLayoutMode();
-    return mode === "full" || mode === "auto" && !HomeiiStateFoundation.mobileCompactModeEnabled(this._state);
+    return mode === "full" || mode === "edge_to_edge" || mode === "auto" && !HomeiiStateFoundation.mobileCompactModeEnabled(this._state);
   }
   _autoCompactModeRecommended(options = {}) {
     const mode = this._mobileLayoutMode();
-    if (mode === "full") return false;
+    if (mode === "full" || mode === "edge_to_edge") return false;
     if (mode === "compact") return true;
     const viewportWidth = typeof window !== "undefined" ? Number(window.innerWidth || 0) : 0;
     const viewportHeight = this._getViewportHeight(0);
@@ -26948,7 +27230,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
   _mobileCompactModeEnabled() {
     const mode = this._mobileLayoutMode();
-    if (mode === "full") return false;
+    if (mode === "full" || mode === "edge_to_edge") return false;
     if (mode === "compact") return true;
     return HomeiiStateFoundation.mobileCompactModeEnabled(this._state) || this._autoCompactModeRecommended();
   }
@@ -26957,6 +27239,42 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
   _mobileCompactEdgeToEdgeEnabled() {
     return true;
+  }
+  _mobileEdgeToEdgeEnabled() {
+    if (this._isVisualEditorContext()) return false;
+    if (this._mobileLayoutMode() === "edge_to_edge") return true;
+    if (!this._usesVisualSettings()) return this._state?.mobileEdgeToEdge === true;
+    return this._state?.mobileEdgeToEdge === true || this._config?.mobile_edge_to_edge === true;
+  }
+  _exitMobileEdgeToEdge() {
+    if (!this._mobileEdgeToEdgeEnabled()) return;
+    this._closeMobileMenu?.();
+    this._closeMobileQueueActionMenu?.();
+    this._closeMobileVolumePresets?.();
+    this._closeSmartVoiceConfirm?.();
+    this._closeControlRoom?.({ silent: true });
+    this._state.mobileLayoutMode = "full";
+    this._state.mobileEdgeToEdge = false;
+    this._state.mobileEdgeReturnAvailable = true;
+    this._state.mobileCompactExpanded = false;
+    this.classList.remove("mobile-edge-to-edge-open");
+    this._persistMobileAppearance();
+    this._build();
+    this._init();
+  }
+  _enterMobileEdgeToEdge() {
+    this._closeMobileMenu?.();
+    this._closeMobileQueueActionMenu?.();
+    this._closeMobileVolumePresets?.();
+    this._closeSmartVoiceConfirm?.();
+    this._closeControlRoom?.({ silent: true });
+    this._state.mobileLayoutMode = "edge_to_edge";
+    this._state.mobileEdgeToEdge = false;
+    this._state.mobileEdgeReturnAvailable = false;
+    this._state.mobileCompactExpanded = false;
+    this._persistMobileAppearance();
+    this._build();
+    this._init();
   }
   _compactEdgeToEdgeAllowed() {
     return true;
@@ -27045,6 +27363,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const visualCfg = this._isDefaultAnnouncementPresetSet(cfg.mobile_announcement_presets) ? { ...cfg, mobile_announcement_presets: [] } : cfg;
       const previousLibraryDefaultLayout = this._state.mobileLibraryDefaultLayout || this._defaultMobileMediaLayout();
       const previousLibraryManual = this._state.mobileMediaLayoutManual === true;
+      const previousEdgeReturnAvailable = this._state.mobileEdgeReturnAvailable === true;
       Object.assign(this._state, HomeiiMobileSettingsFoundation.normalizeVisualMobileState(visualCfg, {
         normalizeClockTime: (value, fallback) => this._normalizeClockTime(value, fallback),
         normalizeNightModeDays: (value) => this._normalizeNightModeDays(value),
@@ -27053,6 +27372,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         defaultQuickActions: this._defaultMobileQuickActions(),
         defaultAnnouncementPresets: this._defaultAnnouncementPresets(visualCfg.language || this._state.lang)
       }));
+      if (previousEdgeReturnAvailable && this._state.mobileLayoutMode === "edge_to_edge") {
+        this._state.mobileLayoutMode = "full";
+        this._state.mobileEdgeToEdge = false;
+        this._state.mobileEdgeReturnAvailable = true;
+      } else if (this._state.mobileLayoutMode !== "full") {
+        this._state.mobileEdgeReturnAvailable = false;
+      }
       if (this._state.mobileLibraryDefaultLayout !== previousLibraryDefaultLayout) this._state.mobileMediaLayoutManual = false;
       else this._state.mobileMediaLayoutManual = previousLibraryManual;
       if (!this._state.mobileMediaLayoutManual) this._state.mobileMediaLayout = this._defaultMobileMediaLayout();
@@ -28412,59 +28738,59 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
   _writeSchedulesToLocalStorage() {
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_enabled", JSON.stringify(!!this._state.mobileStartTimerEnabled));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_enabled"), JSON.stringify(!!this._state.mobileStartTimerEnabled));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_time", this._normalizeClockTime(this._state.mobileStartTimerTime || "07:00", "07:00"));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_time"), this._normalizeClockTime(this._state.mobileStartTimerTime || "07:00", "07:00"));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_player", this._state.mobileStartTimerPlayer || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_player"), this._state.mobileStartTimerPlayer || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_playlist", this._state.mobileStartTimerPlaylist || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_playlist"), this._state.mobileStartTimerPlaylist || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_playlist_name", this._state.mobileStartTimerPlaylistName || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_playlist_name"), this._state.mobileStartTimerPlaylistName || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_volume", String(Math.max(0, Math.min(100, Number(this._state.mobileStartTimerVolume || 35) || 35))));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_volume"), String(Math.max(0, Math.min(100, Number(this._state.mobileStartTimerVolume || 35) || 35))));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_days", JSON.stringify(this._scheduledStartDays()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_days"), JSON.stringify(this._scheduledStartDays()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_last_run", this._state.mobileStartTimerLastRunKey || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_last_run"), this._state.mobileStartTimerLastRunKey || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_schedules", JSON.stringify(this._scheduledStartSchedules()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_schedules"), JSON.stringify(this._scheduledStartSchedules()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_schedules_tab", this._state.mobileSchedulesTab || "timers");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_schedules_tab"), this._state.mobileSchedulesTab || "timers");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_night_mode", this._mobileNightMode());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_mode"), this._mobileNightMode());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_night_start", this._normalizeClockTime(this._state.mobileNightModeStart || "22:00", "22:00"));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_start"), this._normalizeClockTime(this._state.mobileNightModeStart || "22:00", "22:00"));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_night_end", this._normalizeClockTime(this._state.mobileNightModeEnd || "06:00", "06:00"));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_end"), this._normalizeClockTime(this._state.mobileNightModeEnd || "06:00", "06:00"));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_night_days", JSON.stringify(this._nightModeDays()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_days"), JSON.stringify(this._nightModeDays()));
     } catch (_) {
     }
   }
@@ -28514,203 +28840,207 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const storedBackgroundMotionMode = ["off", "subtle", "strong", "extreme"].includes(String(this._state.mobileBackgroundMotionMode || "subtle").toLowerCase()) ? String(this._state.mobileBackgroundMotionMode || "subtle").toLowerCase() : "subtle";
     const storedPerformanceProfile = HomeiiMobileSettingsFoundation.normalizePerformanceProfile(this._state.performanceProfile, this._state.performanceMode);
     try {
-      localStorage.setItem("homeii_music_flow_mobile_custom_color", this._state.mobileCustomColor || "#f5a623");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_custom_color"), this._state.mobileCustomColor || "#f5a623");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_performance_profile", storedPerformanceProfile);
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_performance_profile"), storedPerformanceProfile);
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_performance_mode", JSON.stringify(!!this._state.performanceMode));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_performance_mode"), JSON.stringify(!!this._state.performanceMode));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_dynamic_theme_mode", storedDynamicThemeMode);
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_dynamic_theme_mode"), storedDynamicThemeMode);
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_background_motion_mode", storedBackgroundMotionMode);
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_background_motion_mode"), storedBackgroundMotionMode);
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_custom_text", this._state.mobileCustomTextTone || "light");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_custom_text"), this._state.mobileCustomTextTone || "light");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_font_scale", String(this._state.mobileFontScale || 1));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_font_scale"), String(this._state.mobileFontScale || 1));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_icon_scale", String(this._mobileIconScale()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_icon_scale"), String(this._mobileIconScale()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_night_mode", this._mobileNightMode());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_mode"), this._mobileNightMode());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_night_start", this._normalizeClockTime(this._state.mobileNightModeStart || "22:00", "22:00"));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_start"), this._normalizeClockTime(this._state.mobileNightModeStart || "22:00", "22:00"));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_night_end", this._normalizeClockTime(this._state.mobileNightModeEnd || "06:00", "06:00"));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_end"), this._normalizeClockTime(this._state.mobileNightModeEnd || "06:00", "06:00"));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_night_days", JSON.stringify(this._nightModeDays()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_days"), JSON.stringify(this._nightModeDays()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_sleep_timer_at", String(Number(this._state.mobileSleepTimerEndsAt || 0) || 0));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_sleep_timer_at"), String(Number(this._state.mobileSleepTimerEndsAt || 0) || 0));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_sleep_timer_player", this._state.mobileSleepTimerPlayer || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_sleep_timer_player"), this._state.mobileSleepTimerPlayer || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_sleep_timer_origin", this._state.mobileSleepTimerOrigin || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_sleep_timer_origin"), this._state.mobileSleepTimerOrigin || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_enabled", JSON.stringify(!!this._state.mobileStartTimerEnabled));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_enabled"), JSON.stringify(!!this._state.mobileStartTimerEnabled));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_time", this._normalizeClockTime(this._state.mobileStartTimerTime || "07:00", "07:00"));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_time"), this._normalizeClockTime(this._state.mobileStartTimerTime || "07:00", "07:00"));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_player", this._state.mobileStartTimerPlayer || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_player"), this._state.mobileStartTimerPlayer || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_playlist", this._state.mobileStartTimerPlaylist || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_playlist"), this._state.mobileStartTimerPlaylist || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_playlist_name", this._state.mobileStartTimerPlaylistName || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_playlist_name"), this._state.mobileStartTimerPlaylistName || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_volume", String(Math.max(0, Math.min(100, Number(this._state.mobileStartTimerVolume || 35) || 35))));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_volume"), String(Math.max(0, Math.min(100, Number(this._state.mobileStartTimerVolume || 35) || 35))));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_days", JSON.stringify(this._scheduledStartDays()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_days"), JSON.stringify(this._scheduledStartDays()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_timer_last_run", this._state.mobileStartTimerLastRunKey || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_last_run"), this._state.mobileStartTimerLastRunKey || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_start_schedules", JSON.stringify(this._scheduledStartSchedules()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_schedules"), JSON.stringify(this._scheduledStartSchedules()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_schedules_tab", this._state.mobileSchedulesTab || "timers");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_schedules_tab"), this._state.mobileSchedulesTab || "timers");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_lyrics_sync", JSON.stringify(this._state.mobileLyricsSyncEnabled !== false));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_lyrics_sync"), JSON.stringify(this._state.mobileLyricsSyncEnabled !== false));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_lyrics_offset_ms", String(this._lyricsSyncOffsetMs()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_lyrics_offset_ms"), String(this._lyricsSyncOffsetMs()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_lyrics_font_scale", String(this._lyricsFontScale()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_lyrics_font_scale"), String(this._lyricsFontScale()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_compact_mode", JSON.stringify(!!this._state.mobileCompactMode));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_compact_mode"), JSON.stringify(!!this._state.mobileCompactMode));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_compact_widget_mode", this._mobileCompactWidgetMode());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_compact_widget_mode"), this._mobileCompactWidgetMode());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_compact_edge_to_edge", JSON.stringify(this._mobileCompactEdgeToEdgeEnabled()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_compact_edge_to_edge"), JSON.stringify(this._mobileCompactEdgeToEdgeEnabled()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_layout_mode", this._mobileLayoutMode());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_edge_to_edge"), JSON.stringify(this._state.mobileEdgeToEdge === true || this._config?.mobile_edge_to_edge === true));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_cover_flow", JSON.stringify(this._mobileCoverFlowEnabled()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_layout_mode"), this._mobileLayoutMode());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_queue_flow", JSON.stringify(this._mobileQueueFlowEnabled()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_cover_flow"), JSON.stringify(this._mobileCoverFlowEnabled()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_library_default_layout", this._defaultMobileMediaLayout());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_queue_flow"), JSON.stringify(this._mobileQueueFlowEnabled()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_show_up_next", JSON.stringify(this._mobileShowUpNextEnabled()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_library_default_layout"), this._defaultMobileMediaLayout());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_footer_search", JSON.stringify(!!this._state.mobileFooterSearchEnabled));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_show_up_next"), JSON.stringify(this._mobileShowUpNextEnabled()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_studio_shortcut", JSON.stringify(this._mobileStudioShortcutEnabled()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_footer_search"), JSON.stringify(!!this._state.mobileFooterSearchEnabled));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_footer_mode", this._state.mobileFooterMode || "both");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_studio_shortcut"), JSON.stringify(this._mobileStudioShortcutEnabled()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_home_shortcut", JSON.stringify(!!this._state.mobileHomeShortcutEnabled));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_footer_mode"), this._state.mobileFooterMode || "both");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_home_shortcut_path", this._mobileHomeShortcutPath());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_home_shortcut"), JSON.stringify(!!this._state.mobileHomeShortcutEnabled));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_volume_mode", this._mobileVolumeMode());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_home_shortcut_path"), this._mobileHomeShortcutPath());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_volume_step_buttons", JSON.stringify(this._mobileVolumeStepButtonsEnabled()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_volume_mode"), this._mobileVolumeMode());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_volume_step_percent", String(this._mobileVolumeStepPercent()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_volume_step_buttons"), JSON.stringify(this._mobileVolumeStepButtonsEnabled()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_mic_mode", this._mobileMicMode());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_volume_step_percent"), String(this._mobileVolumeStepPercent()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_voice_assistant_enabled", JSON.stringify(this._voiceAssistantEnabled()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_mic_mode"), this._mobileMicMode());
+    } catch (_) {
+    }
+    try {
+      localStorage.setItem(this._lsKey("homeii_music_flow_voice_assistant_enabled"), JSON.stringify(this._voiceAssistantEnabled()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_voice_assistant_mode", this._voiceAssistantMode());
+      localStorage.setItem(this._lsKey("homeii_music_flow_voice_assistant_mode"), this._voiceAssistantMode());
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_voice_assistant_agent_id", this._voiceAssistantAgentId());
+      localStorage.setItem(this._lsKey("homeii_music_flow_voice_assistant_agent_id"), this._voiceAssistantAgentId());
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_voice_assistant_speak_feedback", JSON.stringify(this._voiceAssistantSpeakFeedbackEnabled()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_voice_assistant_speak_feedback"), JSON.stringify(this._voiceAssistantSpeakFeedbackEnabled()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_library_tabs", JSON.stringify(this._mobileLibraryTabs()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_library_tabs"), JSON.stringify(this._mobileLibraryTabs()));
     } catch (_) {
     }
     try {
@@ -28719,155 +29049,155 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         hidePlayers: false,
         fallbackItems: this._defaultMobileMainBarItems()
       });
-      localStorage.setItem("homeii_music_flow_mobile_main_bar_items", JSON.stringify(storedMainBarItems));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_main_bar_items"), JSON.stringify(storedMainBarItems));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_quick_actions", JSON.stringify(this._mobileQuickActions()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_quick_actions"), JSON.stringify(this._mobileQuickActions()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_liked_mode", this._state.mobileLikedMode || "ma");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_liked_mode"), this._state.mobileLikedMode || "ma");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_swipe_mode", this._state.mobileSwipeMode || "play");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_swipe_mode"), this._state.mobileSwipeMode || "play");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_radio_country", this._mobileRadioBrowserCountry());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_radio_country"), this._mobileRadioBrowserCountry());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_announcement_presets", JSON.stringify(this._state.mobileAnnouncementPresets || []));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_announcement_presets"), JSON.stringify(this._state.mobileAnnouncementPresets || []));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_announcement_volume", String(this._announcementVolumePct()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_announcement_volume"), String(this._announcementVolumePct()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_announcement_tts_entity", this._state.mobileAnnouncementTtsEntity || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_announcement_tts_entity"), this._state.mobileAnnouncementTtsEntity || "");
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_announcement_tts_language", this._announcementLanguageSetting());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_announcement_tts_language"), this._announcementLanguageSetting());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_ambient_light_enabled", JSON.stringify(!!this._state.ambientLightEnabled));
+      localStorage.setItem(this._lsKey("homeii_music_flow_ambient_light_enabled"), JSON.stringify(!!this._state.ambientLightEnabled));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_ambient_light_entities", JSON.stringify(this._ambientLightEntities()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_ambient_light_entities"), JSON.stringify(this._ambientLightEntities()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_ambient_light_player_map", JSON.stringify(this._ambientLightPlayerMap()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_ambient_light_player_map"), JSON.stringify(this._ambientLightPlayerMap()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_ambient_light_brightness", String(this._ambientLightBrightness()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_ambient_light_brightness"), String(this._ambientLightBrightness()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_ambient_light_transition", String(this._ambientLightTransition()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_ambient_light_transition"), String(this._ambientLightTransition()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_ambient_light_cooldown", String(this._ambientLightCooldown()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_ambient_light_cooldown"), String(this._ambientLightCooldown()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_screensaver_enabled", JSON.stringify(!!this._state.screensaverEnabled));
+      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_enabled"), JSON.stringify(!!this._state.screensaverEnabled));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_screensaver_controls_enabled", JSON.stringify(!!this._state.screensaverControlsEnabled));
+      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_controls_enabled"), JSON.stringify(!!this._state.screensaverControlsEnabled));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_screensaver_control_buttons", JSON.stringify(this._screensaverControlButtons({ includeDisabled: true })));
+      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_control_buttons"), JSON.stringify(this._screensaverControlButtons({ includeDisabled: true })));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_screensaver_clock_mode", this._screensaverClockMode());
+      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_clock_mode"), this._screensaverClockMode());
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_screensaver_timeout_seconds", String(this._screensaverTimeoutSeconds()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_timeout_seconds"), String(this._screensaverTimeoutSeconds()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_screensaver_message", this._screensaverMessage());
+      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_message"), this._screensaverMessage());
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_screensaver_clock_size", String(this._screensaverClockSize()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_clock_size"), String(this._screensaverClockSize()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_screensaver_clock_x", String(this._screensaverClockX()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_clock_x"), String(this._screensaverClockX()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_screensaver_clock_y", String(this._screensaverClockY()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_clock_y"), String(this._screensaverClockY()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_power_button_enabled", JSON.stringify(!!this._state.powerButtonEnabled));
+      localStorage.setItem(this._lsKey("homeii_music_flow_power_button_enabled"), JSON.stringify(!!this._state.powerButtonEnabled));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_power_button_name", this._state.powerButtonName || "");
+      localStorage.setItem(this._lsKey("homeii_music_flow_power_button_name"), this._state.powerButtonName || "");
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_power_button_icon", this._powerButtonIcon());
+      localStorage.setItem(this._lsKey("homeii_music_flow_power_button_icon"), this._powerButtonIcon());
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_power_button_action", this._powerButtonAction());
+      localStorage.setItem(this._lsKey("homeii_music_flow_power_button_action"), this._powerButtonAction());
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_power_button_entity", this._powerButtonEntity());
+      localStorage.setItem(this._lsKey("homeii_music_flow_power_button_entity"), this._powerButtonEntity());
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_auxiliary_buttons", JSON.stringify(this._auxiliaryButtonsConfigPayload()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_auxiliary_buttons"), JSON.stringify(this._auxiliaryButtonsConfigPayload()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_discovery_mode_enabled", JSON.stringify(this._discoveryModeEnabled()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_discovery_mode_enabled"), JSON.stringify(this._discoveryModeEnabled()));
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_discovery_category_key", this._state.discoveryCategoryKey || "pop");
+      localStorage.setItem(this._lsKey("homeii_music_flow_discovery_category_key"), this._state.discoveryCategoryKey || "pop");
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_discovery_genre_key", this._state.discoveryGenreKey || "all");
+      localStorage.setItem(this._lsKey("homeii_music_flow_discovery_genre_key"), this._state.discoveryGenreKey || "all");
     } catch {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_pinned_players", JSON.stringify(this._pinnedPlayerPreferences()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_pinned_players"), JSON.stringify(this._pinnedPlayerPreferences()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_mobile_pinned_player", this._pinnedPlayerPreference());
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_pinned_player"), this._pinnedPlayerPreference());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_excluded_players", JSON.stringify(this._excludedPlayerPreferences()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_excluded_players"), JSON.stringify(this._excludedPlayerPreferences()));
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_player_sort_mode", this._playerSortMode());
+      localStorage.setItem(this._lsKey("homeii_music_flow_player_sort_mode"), this._playerSortMode());
     } catch (_) {
     }
     try {
-      localStorage.setItem("homeii_music_flow_player_order", JSON.stringify(this._playerOrderPreferences()));
+      localStorage.setItem(this._lsKey("homeii_music_flow_player_order"), JSON.stringify(this._playerOrderPreferences()));
     } catch (_) {
     }
   }
@@ -28878,7 +29208,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     return ["actions", "players", "library", "settings"];
   }
   _defaultMobileQuickActions() {
-    return ["timer", "like", "lyrics", "queue", "radio", "history"];
+    return ["timer", "like", "lyrics", "queue", "queue_flow", "radio", "history"];
   }
   _defaultAnnouncementPresets(lang = this._state?.lang || this._config?.language || "en") {
     return HomeiiEditorLocale.isHebrewLanguageTag(lang) ? ["האוכל מוכן", "נא להגיע לסלון", "יוצאים בעוד חמש דקות"] : ["Dinner is ready", "Please come to the living room", "Leaving in five minutes"];
@@ -29779,9 +30109,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _pinnedPlayerOptionPlayers(extraPlayers = [], options = {}) {
     const includeExcluded = options?.includeExcluded === true;
     const byId = /* @__PURE__ */ new Map();
+    const configuredIds = /* @__PURE__ */ new Set([
+      ...this._pinnedPlayerPreferences(),
+      ...this._excludedPlayerPreferences(),
+      ...this._playerOrderPreferences()
+    ]);
+    const isStrictMusicAssistantPlayer = (player) => {
+      if (!player?.entity_id) return false;
+      return this._isDirectMaPlayer(player) || HomeiiPlayersFoundation.isMusicAssistantPlayer(player, this._hass?.entities?.[player.entity_id]);
+    };
     const add = (player) => {
       if (!player?.entity_id) return;
-      if (!this._isUsableMusicAssistantTarget(player)) return;
+      if (!isStrictMusicAssistantPlayer(player) && !configuredIds.has(player.entity_id)) return;
       if (this._isLikelyBrowserPlayer(player) || this._isLocalSendspinPlayer(player)) return;
       if (!includeExcluded && this._isPlayerExcluded(player)) return;
       byId.set(player.entity_id, player);
@@ -29816,7 +30155,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (exists && !this._isPlayerExcluded(entityId)) return entityId;
     this._state.frontPinnedPlayerEntity = "";
     try {
-      localStorage.removeItem("homeii_music_flow_front_pinned_player");
+      localStorage.removeItem(this._lsKey("homeii_music_flow_front_pinned_player"));
     } catch (_) {
     }
     return "";
@@ -29946,8 +30285,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const nextEntityId = String(entityId || "").trim();
     this._state.frontPinnedPlayerEntity = nextEntityId;
     try {
-      if (nextEntityId) localStorage.setItem("homeii_music_flow_front_pinned_player", nextEntityId);
-      else localStorage.removeItem("homeii_music_flow_front_pinned_player");
+      if (nextEntityId) localStorage.setItem(this._lsKey("homeii_music_flow_front_pinned_player"), nextEntityId);
+      else localStorage.removeItem(this._lsKey("homeii_music_flow_front_pinned_player"));
     } catch (_) {
     }
   }
@@ -30058,6 +30397,19 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
   _mobileQueueFlowMenuActive() {
     return this._mobileQueueFlowEnabled() && this._state?.mobileQueueFlowQuickOpen === true;
+  }
+  _queueFlowLabel() {
+    return this._m("Queue wheel", "גלגל תור");
+  }
+  _libraryFlowLabel(short = false) {
+    return short ? this._m("Wheel", "גלגל") : this._m("Library wheel", "גלגל ספריה");
+  }
+  _artistAlbumFlowLabel(short = false) {
+    return short ? this._m("Album wheel", "גלגל אלבומים") : this._m("Artist album wheel", "גלגל אלבומי אמן");
+  }
+  _libraryFlowPageActive(page = this._state?.menuPage || "") {
+    const current = String(page || "").trim();
+    return !!current && String(this._state?.mobileLibraryFlowPage || "") === current;
   }
   _mobileCoverFlowEnabled() {
     if (!this._usesVisualSettings()) return this._state?.mobileCoverFlow === true;
@@ -30180,7 +30532,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       { value: "like", icon: "heart_outline", label: this._i18n("ui.liked") },
       { value: "lyrics", icon: "lyrics", label: this._i18n("ui.lyrics") },
       { value: "queue", icon: "queue", label: this._i18n("ui.queue_2") },
-      { value: "queue_flow", icon: "tracks", label: this._i18n("ui.mobile_queue_flow", {}, "Fast queue wheel") },
+      { value: "queue_flow", icon: "queue_flow", label: this._queueFlowLabel() },
       { value: "radio", icon: "radio", label: this._i18n("ui.quick_mix") },
       { value: "voice", icon: "mic", label: this._flowAssistantLabel() },
       { value: "history", icon: "history", label: this._i18n("ui.history") },
@@ -30220,7 +30572,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       case "queue":
         return `<button class="mobile-art-fab" id="mobileQueueBtn" title="${this._i18n("ui.open_queue")}">${this._iconSvg("queue")}</button>`;
       case "queue_flow":
-        return `<button class="mobile-art-fab queue-flow-fab" id="mobileQueueFlowBtn" title="${this._esc(this._i18n("ui.mobile_queue_flow", {}, "Fast queue wheel"))}" aria-label="${this._esc(this._i18n("ui.mobile_queue_flow", {}, "Fast queue wheel"))}">${this._iconSvg("tracks")}</button>`;
+        return `<button class="mobile-art-fab queue-flow-fab" id="mobileQueueFlowBtn" title="${this._esc(this._queueFlowLabel())}" aria-label="${this._esc(this._queueFlowLabel())}">${this._iconSvg("queue_flow")}</button>`;
       case "radio":
         return `<button class="mobile-art-fab" id="mobileRandomBtn" title="${this._i18n("ui.quick_mix")}">${this._iconSvg("radio")}</button>`;
       case "voice":
@@ -31829,10 +32181,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this.style?.removeProperty("--homeii-compact-window-height");
     }
     const layoutMode = this._layoutModeConfig({ compactPopup: compactPopupLayoutMode, width: compactWindowPopupMode ? compactWindowWidth : 0 });
+    const visualEditorContext = this._isVisualEditorContext();
+    const mobileEdgeToEdgeMode = !visualEditorContext && !compactPopupLayoutMode && !compactTileMode && layoutMode === "mobile" && this._mobileEdgeToEdgeEnabled();
     const mobileIconScale = this._mobileIconScale();
-    const allocatedHeight = compactEdgeToEdgePopupMode ? viewportHeight : compactWindowPopupMode ? compactWindowHeight : compactTileMode ? compactTileReservedHeight : this._getAllocatedCardHeight(fallbackHeight);
+    const allocatedHeight = compactEdgeToEdgePopupMode ? viewportHeight : compactWindowPopupMode ? compactWindowHeight : mobileEdgeToEdgeMode ? viewportHeight : compactTileMode ? compactTileReservedHeight : this._getAllocatedCardHeight(fallbackHeight);
     const layoutProfile = this._layoutProfileConfig(layoutMode, {
-      width: compactEdgeToEdgePopupMode ? this._getCardWidth(viewportWidth) : compactWindowPopupMode ? compactWindowWidth : 0,
+      width: compactEdgeToEdgePopupMode || mobileEdgeToEdgeMode ? this._getCardWidth(viewportWidth) : compactWindowPopupMode ? compactWindowWidth : 0,
       height: allocatedHeight,
       compactPopup: compactPopupLayoutMode
     });
@@ -31843,6 +32197,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const performanceUltraLite = this._performanceUltraLiteEnabled();
     this.classList.toggle("compact-popup-open", compactEdgeToEdgePopupMode);
     this.classList.toggle("compact-window-popup-open", compactWindowPopupMode);
+    this.classList.toggle("mobile-edge-to-edge-open", mobileEdgeToEdgeMode);
     this.classList.remove("compact-inline-popup-open");
     this.classList.toggle("compact-tile-open", compactMode && compactTileMode);
     this.classList.toggle("compact-menu-open", this._compactMenuOverlayOpen());
@@ -31949,6 +32304,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       </div>`;
     const footerHtml = mainBarButtons.length ? `<div class="footer-nav count-${mainBarButtons.length}">${mainBarButtons.join("")}</div>` : "";
     const compactCollapseFabHtml = compactPopupMode ? `<button class="compact-collapse-fab ${rtl ? "rtl" : "ltr"}" id="compactCollapseBtn" title="${this._i18n("ui.collapse_compact_player")}">${this._iconSvg("close")}</button>` : ``;
+    const mobileEdgeCornerClass = rtl ? "rtl" : "ltr";
+    const mobileEdgeOverlayOpen = !!(this._state.menuOpen || this._state.controlRoomOpen || this._state.screensaverOpen || this._state.mobileQueueActionEntry || this._state.mobileSmartVoice);
+    const mobileEdgeExitHtml = mobileEdgeToEdgeMode && !mobileEdgeOverlayOpen ? `<button class="mobile-edge-corner-btn mobile-edge-exit ${mobileEdgeCornerClass}" id="mobileEdgeExitBtn" title="${this._esc(this._m("Exit edge-to-edge", "יציאה ממסך קצה לקצה"))}" aria-label="${this._esc(this._m("Exit edge-to-edge", "יציאה ממסך קצה לקצה"))}">${this._iconSvg("close")}</button>` : ``;
+    const mobileEdgeReturnHtml = !mobileEdgeOverlayOpen && !visualEditorContext && !compactPopupLayoutMode && !compactTileMode && layoutMode === "mobile" && !mobileEdgeToEdgeMode && this._mobileLayoutMode() === "full" && this._state.mobileEdgeReturnAvailable === true ? `<button class="mobile-edge-corner-btn mobile-edge-return ${mobileEdgeCornerClass}" id="mobileEdgeEnterBtn" title="${this._esc(this._m("Back to edge-to-edge", "חזרה למסך קצה לקצה"))}" aria-label="${this._esc(this._m("Back to edge-to-edge", "חזרה למסך קצה לקצה"))}">${this._iconSvg("fullscreen")}</button>` : ``;
     const homeShortcutFabHtml = ``;
     const historyEdgeClass = rtl ? "left-edge" : "right-edge";
     const historyToggleButtonHtml = !compactTileMode ? `<button class="history-toggle-fab ${layoutMode === "tablet" ? "tablet-history-fab history-drawer-fab" : ""} ${historyEdgeClass}" id="historyToggleFab" title="${this._i18n("ui.recently_played_2")}" aria-expanded="false" hidden>${this._iconSvg(layoutMode === "tablet" ? "drawer_handle" : "history")}</button>` : ``;
@@ -32847,6 +33206,122 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           contain:none !important;
           overflow:visible !important;
           background:rgba(0,0,0,.08);
+        }
+        :host(.mobile-edge-to-edge-open) {
+          position:fixed !important;
+          inset:0 !important;
+          width:100vw !important;
+          height:100dvh !important;
+          min-height:100dvh !important;
+          max-height:100dvh !important;
+          z-index:2147482600 !important;
+          display:block !important;
+          pointer-events:auto !important;
+          contain:none !important;
+          overflow:visible !important;
+          background:#02060d;
+        }
+        :host(.mobile-edge-to-edge-open) ha-card,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge {
+          width:100vw !important;
+          max-width:none !important;
+          height:100dvh !important;
+          min-height:100dvh !important;
+          max-height:100dvh !important;
+          border-radius:0 !important;
+          overflow:hidden !important;
+          box-shadow:none !important;
+        }
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge {
+          position:fixed !important;
+          inset:0 !important;
+          border:0 !important;
+          z-index:2147482601 !important;
+        }
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .stage {
+          height:100% !important;
+          min-height:0 !important;
+          max-height:100% !important;
+        }
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .menu-backdrop.open,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .queue-action-backdrop.open,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .control-room-backdrop.open,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .screensaver-backdrop.open {
+          position:fixed !important;
+          inset:0 !important;
+          width:100vw !important;
+          height:100dvh !important;
+          min-height:100dvh !important;
+          max-height:100dvh !important;
+          padding:0 !important;
+          margin:0 !important;
+          border-radius:0 !important;
+          align-items:stretch !important;
+          justify-content:center !important;
+          overflow:hidden !important;
+          z-index:2147482602 !important;
+        }
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .menu-backdrop.open .menu-sheet,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .queue-action-backdrop.open .queue-action-sheet,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .control-room-backdrop.open .control-room-shell {
+          width:100vw !important;
+          max-width:100vw !important;
+          height:100dvh !important;
+          max-height:100dvh !important;
+          min-height:100dvh !important;
+          margin:0 !important;
+          border-radius:0 !important;
+          box-shadow:none !important;
+        }
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .menu-backdrop.open .menu-body,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .queue-action-backdrop.open .queue-action-sheet {
+          overflow:auto !important;
+          -webkit-overflow-scrolling:touch;
+        }
+        .mobile-edge-corner-btn {
+          position:absolute;
+          top:max(12px, env(safe-area-inset-top, 0px));
+          left:max(12px, env(safe-area-inset-left, 0px));
+          z-index:2147482610;
+          width:44px;
+          height:44px;
+          display:grid;
+          place-items:center;
+          border-radius:999px;
+          border:1px solid rgba(255,255,255,.18);
+          background:rgba(18,22,32,.7);
+          color:#fff;
+          box-shadow:0 14px 32px rgba(0,0,0,.34);
+          backdrop-filter:blur(18px) saturate(130%);
+          -webkit-backdrop-filter:blur(18px) saturate(130%);
+          cursor:pointer;
+        }
+        .mobile-edge-exit {
+          position:fixed;
+        }
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge:has(.menu-backdrop.open) > .mobile-edge-exit,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge:has(.queue-action-backdrop.open) > .mobile-edge-exit,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge:has(.control-room-backdrop.open) > .mobile-edge-exit,
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge:has(.screensaver-backdrop.open) > .mobile-edge-exit,
+        .card:has(.menu-backdrop.open) > .mobile-edge-return,
+        .card:has(.queue-action-backdrop.open) > .mobile-edge-return,
+        .card:has(.control-room-backdrop.open) > .mobile-edge-return,
+        .card:has(.screensaver-backdrop.open) > .mobile-edge-return {
+          display:none !important;
+        }
+        .mobile-edge-corner-btn.rtl {
+          left:auto;
+          right:max(12px, env(safe-area-inset-right, 0px));
+        }
+        .mobile-edge-corner-btn .ui-ic {
+          width:20px;
+          height:20px;
+        }
+        .theme-light .mobile-edge-corner-btn {
+          background:rgba(255,255,255,.88);
+          color:#172033;
+          border-color:rgba(100,116,139,.22);
+          box-shadow:0 14px 30px rgba(71,85,105,.2);
         }
         :host(.compact-window-popup-open) {
           position:fixed !important;
@@ -41672,6 +42147,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           justify-content:space-between;
           gap:10px;
         }
+        .artist-section-actions {
+          min-width:0;
+          display:flex;
+          align-items:center;
+          justify-content:flex-end;
+          gap:8px;
+        }
         .artist-search-shell {
           display:grid;
           grid-template-columns:auto minmax(0,1fr) auto;
@@ -41793,6 +42275,26 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           min-height:0;
           display:grid;
           place-items:center;
+        }
+        .library-flow-panel {
+          width:100%;
+          min-width:0;
+          display:grid;
+          min-height:clamp(360px, 62dvh, 720px);
+        }
+        .library-flow-stage {
+          min-height:clamp(360px, 62dvh, 720px);
+        }
+        .menu-body.sheet-queue-flow .library-flow-stage {
+          height:100%;
+          min-height:0;
+        }
+        .artist-detail-section .library-flow-panel,
+        .artist-detail-section .library-flow-stage {
+          min-height:clamp(340px, 56dvh, 620px);
+        }
+        .menu-body.library-flow-mode .library-body {
+          align-content:stretch!important;
         }
         .queue-flow-picker {
           --queue-flow-art-size:clamp(124px, 52vw, 196px);
@@ -41995,6 +42497,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           display:flex;
           align-items:center;
           gap:8px;
+          flex:0 0 auto;
+          min-width:0;
         }
         .queue-page-count {
           margin-inline-start:auto;
@@ -42016,7 +42520,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           font-weight:950;
         }
         .queue-head-transfer-btn {
-          min-width:132px;
+          min-width:0;
           height:42px;
           border:none;
           border-radius:14px;
@@ -42033,6 +42537,19 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           gap:5px;
           font-size:11px;
           font-weight:900;
+        }
+        .queue-head-flow-btn {
+          min-width:0;
+          padding:0 12px;
+          color:var(--ma-accent);
+        }
+        .queue-head-flow-btn .queue-head-transfer-label {
+          display:inline;
+        }
+        .queue-head-flow-btn .ui-ic,
+        .queue-head-transfer-btn .ui-ic {
+          width:18px;
+          height:18px;
         }
         .queue-head-transfer-label {
           white-space:nowrap;
@@ -43072,8 +43589,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         }
         .settings-shell {
           display:grid;
+          grid-template-columns: minmax(0, 1fr);
           gap:16px;
           align-content:start;
+          width: 100%;
+          box-sizing: border-box;
         }
         .rtl .settings-shell,
         .rtl .settings-card {
@@ -43085,6 +43605,68 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           direction:rtl;
           text-align:right;
         }
+        .settings-accordion {
+          display: block;
+          width: 100%;
+          min-width: 100%;
+          justify-self: stretch;
+          grid-column: 1 / -1;
+          box-sizing: border-box;
+        }
+        .settings-accordion-summary {
+          list-style: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 14px 16px;
+          border-radius: 18px;
+          background: rgba(255,255,255,.08);
+          border: 1px solid rgba(255,255,255,.12);
+          backdrop-filter: blur(18px);
+          -webkit-backdrop-filter: blur(18px);
+          user-select: none;
+          min-height: 24px;
+          width: 100%;
+          min-width: 100%;
+          box-sizing: border-box;
+        }
+        .theme-light .settings-accordion-summary {
+          background: rgba(255,255,255,.72);
+          border-color: rgba(147,161,183,.2);
+        }
+        .settings-accordion-summary::-webkit-details-marker { display: none; }
+        .settings-accordion-summary:hover { filter: brightness(1.05); }
+        .settings-accordion-title {
+          flex: 1;
+          font-weight: 700;
+          font-size: 14px;
+          letter-spacing: .02em;
+        }
+        .settings-accordion-summary > svg,
+        .settings-accordion-summary .settings-accordion-chevron {
+          width: 18px;
+          height: 18px;
+          flex: 0 0 18px;
+          transition: transform 160ms ease;
+          opacity: .7;
+        }
+        .settings-accordion[open] > .settings-accordion-summary > svg,
+        .settings-accordion[open] > .settings-accordion-summary .settings-accordion-chevron {
+          transform: rotate(90deg);
+        }
+        .settings-accordion[open] > .settings-accordion-summary {
+          border-bottom-left-radius: 0;
+          border-bottom-right-radius: 0;
+          border-bottom: none;
+        }
+        .settings-accordion > .settings-group {
+          margin-top: 0;
+          border-top: none;
+          border-top-left-radius: 0;
+          border-top-right-radius: 0;
+        }
+        .settings-accordion:not([open]) > .settings-group { display: none; }
         .settings-group {
           display:grid;
           gap:10px;
@@ -43929,6 +44511,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           color:var(--ma-accent);
         }
         .toast-wrap { position:absolute; inset-inline:16px; bottom:max(16px, env(safe-area-inset-bottom)); z-index:40; display:grid; gap:8px; pointer-events:none; }
+        .toast-wrap.top-toast {
+          top:max(16px, env(safe-area-inset-top));
+          bottom:auto;
+          justify-items:center;
+          align-content:start;
+          z-index:72;
+        }
         .toast-wrap.studio-toast {
           top:max(16px, env(safe-area-inset-top));
           bottom:auto;
@@ -47056,7 +47645,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   width:min(100%, 760px);
   margin:0 auto 14px;
   display:grid;
-  grid-template-columns:repeat(5, minmax(0,1fr));
+  grid-template-columns:repeat(4, minmax(0,1fr));
   gap:8px;
 }
 .players-action-chip{
@@ -47091,7 +47680,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   background:rgba(255,72,72,.11);
 }
 .card.layout-mobile .players-action-hub{
-  grid-template-columns:repeat(3, minmax(0,1fr));
+  grid-template-columns:repeat(4, minmax(0,1fr));
 }
 .this-device-strip{
   width:min(100%, 520px)!important;
@@ -47332,6 +47921,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 .queue-head-transfer-btn{
   margin-inline-start:0!important;
 }
+.queue-page-head-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
 .card.layout-tablet .queue-row{
   grid-template-columns:34px 44px minmax(0,1fr) 56px!important;
   grid-template-areas:
@@ -47423,17 +48017,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 .players-action-bar{
   width:min(100%, 760px)!important;
   margin:0 auto 18px!important;
-  display:flex!important;
+  display:block!important;
   align-items:center!important;
   justify-content:center!important;
   gap:10px!important;
 }
 .players-action-shell{
-  width:max-content!important;
+  width:100%!important;
   max-width:100%!important;
   margin:0!important;
-  padding:6px!important;
-  border-radius:999px!important;
+  padding:8px!important;
+  border-radius:22px!important;
   border:1px solid rgba(255,255,255,.13)!important;
   background:linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.025))!important;
   box-shadow:0 14px 30px rgba(0,0,0,.14), inset 0 1px 0 rgba(255,255,255,.08)!important;
@@ -47441,29 +48035,31 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   -webkit-backdrop-filter:blur(18px)!important;
 }
 .players-action-shell .players-action-hub{
-  width:auto!important;
+  width:100%!important;
   margin:0!important;
-  display:flex!important;
+  display:grid!important;
+  grid-template-columns:repeat(4, minmax(0, 1fr))!important;
   align-items:center!important;
   justify-content:center!important;
   gap:8px!important;
-  flex-wrap:nowrap!important;
 }
 .players-action-shell .players-action-chip{
   position:relative!important;
-  width:48px!important;
-  height:48px!important;
-  min-width:48px!important;
-  min-height:48px!important;
-  border-radius:999px!important;
-  padding:0!important;
+  width:100%!important;
+  height:60px!important;
+  min-width:0!important;
+  min-height:60px!important;
+  border-radius:16px!important;
+  padding:8px 5px!important;
   display:grid!important;
+  grid-template-rows:24px 1fr!important;
   place-items:center!important;
+  gap:3px!important;
   color:rgba(255,255,255,.86)!important;
   background:rgba(255,255,255,.07)!important;
   border:1px solid rgba(255,255,255,.10)!important;
   box-shadow:none!important;
-  font-size:0!important;
+  font-size:11px!important;
 }
 .players-action-shell .players-action-chip:hover,
 .players-action-shell .players-action-chip:focus-visible{
@@ -47471,7 +48067,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   border-color:rgba(255,255,255,.18)!important;
 }
 .players-action-shell .players-action-label{
-  display:none!important;
+  display:block!important;
+  max-width:100%!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  font-size:10.5px!important;
+  line-height:1.05!important;
+  font-weight:850!important;
 }
 .players-action-shell .players-action-badge{
   position:absolute!important;
@@ -47580,14 +48183,23 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   gap:8px!important;
 }
 .card.layout-mobile .players-action-shell .players-action-hub{
-  display:flex!important;
-  flex-wrap:nowrap!important;
-  gap:7px!important;
+  display:grid!important;
+  grid-template-columns:repeat(4, minmax(0, 1fr))!important;
+  gap:6px!important;
 }
 .card.layout-mobile .players-action-shell{
-  width:max-content!important;
+  width:100%!important;
   max-width:100%!important;
-  border-radius:999px!important;
+  padding:6px!important;
+  border-radius:20px!important;
+}
+.card.layout-mobile .players-action-shell .players-action-chip{
+  height:56px!important;
+  min-height:56px!important;
+  padding:7px 3px!important;
+}
+.card.layout-mobile .players-action-shell .players-action-label{
+  font-size:9.5px!important;
 }
 .theme-light .players-action-shell,
 .theme-light.card.layout-tablet .players-action-shell{
@@ -49778,6 +50390,40 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   border:1px solid rgba(255,255,255,.12)!important;
   box-shadow:none!important;
 }
+#mobileMenu .library-toolbar-minimal .library-flow-toggle,
+#mobileMenu .artist-section-actions .artist-album-flow-toggle{
+  width:auto!important;
+  min-width:86px!important;
+  padding:0 10px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:6px!important;
+  font-size:11px!important;
+  line-height:1!important;
+}
+#mobileMenu .library-toolbar-minimal .library-flow-toggle{
+  width:36px!important;
+  min-width:36px!important;
+  padding:0!important;
+}
+#mobileMenu .library-toolbar-minimal .library-flow-toggle span{
+  display:none!important;
+}
+#mobileMenu .library-flow-toggle span{
+  min-width:0;
+  max-width:86px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:11px;
+  font-weight:900;
+  line-height:1;
+}
+#mobileMenu .library-flow-toggle .ui-ic{
+  width:16px!important;
+  height:16px!important;
+}
 #mobileMenu .library-toolbar-minimal .media-layout-btn[data-media-layout]{
   display:none!important;
 }
@@ -49818,6 +50464,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 #mobileMenu .library-toolbar-minimal .library-tab-search-row,
 #mobileMenu .library-toolbar-minimal .library-toolbar-search{
   direction:auto;
+}
+@media (max-width:430px){
+  #mobileMenu .artist-section-actions .artist-album-flow-toggle{
+    min-width:74px!important;
+    padding:0 8px!important;
+  }
+  #mobileMenu .artist-section-actions .artist-album-flow-toggle span{
+    max-width:68px;
+    font-size:10px;
+  }
 }
 #mobileMenu .library-toolbar-minimal .library-toolbar-icons,
 #mobileMenu .library-toolbar-minimal .library-toolbar-sort{
@@ -50381,9 +51037,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 }
 
 </style>
-      <div class="card ${rtl ? "rtl" : ""} theme-${visualTheme} layout-${layoutMode}${layoutProfileClass ? ` ${layoutProfileClass}` : ""} mobile-layout-${mobileLayoutMode}${mobileLayoutMode === "full" ? " mobile-layout-forced-full" : ""}${mobileLayoutMode === "compact" ? " mobile-layout-forced-compact" : ""} performance-profile-${performanceProfile2}${performanceMode ? " performance-lite" : ""}${performanceUltraLite ? " performance-ultra-lite" : ""}${hotelMode ? " hotel-mode" : ""}${compactTileMode ? " compact-mode compact-collapsed" : compactMode ? " compact-expanded" : ""}${compactMiniWidget ? " compact-mini-widget" : ""}${this._compactMenuOverlayOpen() ? " compact-menu-open" : ""}${compactTransitionClass}${nightActive ? " night-mode" : ""}${showNightRow ? " night-mode-enabled" : ""}${tabletAutoFit ? " tablet-auto-fit" : ""}${tabletDenseUi ? " tablet-fit-dense" : ""}${showNightRow ? " tablet-fit-night" : ""}${showUpNextInline ? " tablet-fit-up-next" : ""}${mobileDenseContent ? " mobile-content-dense" : ""}${this._tabletStabilityModeEnabled() ? " tablet-stable" : ""}${!hotelMode && this._state.controlRoomOpen ? " control-room-open" : ""}${this._state.screensaverOpen ? " screensaver-active" : ""}" style="${layoutProfileStyle}--screensaver-clock-scale:${this._esc(screensaverClockSize.toFixed(2))};--screensaver-clock-x:${this._esc(screensaverClockX.toFixed(1))}%;--screensaver-clock-y:${this._esc(screensaverClockY.toFixed(1))}%;">
+      <div class="card ${rtl ? "rtl" : ""} theme-${visualTheme} layout-${layoutMode}${layoutProfileClass ? ` ${layoutProfileClass}` : ""} mobile-layout-${mobileLayoutMode}${mobileLayoutMode === "full" ? " mobile-layout-forced-full" : ""}${mobileLayoutMode === "compact" ? " mobile-layout-forced-compact" : ""}${mobileEdgeToEdgeMode ? " mobile-edge-to-edge" : ""} performance-profile-${performanceProfile2}${performanceMode ? " performance-lite" : ""}${performanceUltraLite ? " performance-ultra-lite" : ""}${hotelMode ? " hotel-mode" : ""}${compactTileMode ? " compact-mode compact-collapsed" : compactMode ? " compact-expanded" : ""}${compactMiniWidget ? " compact-mini-widget" : ""}${this._compactMenuOverlayOpen() ? " compact-menu-open" : ""}${compactTransitionClass}${nightActive ? " night-mode" : ""}${showNightRow ? " night-mode-enabled" : ""}${tabletAutoFit ? " tablet-auto-fit" : ""}${tabletDenseUi ? " tablet-fit-dense" : ""}${showNightRow ? " tablet-fit-night" : ""}${showUpNextInline ? " tablet-fit-up-next" : ""}${mobileDenseContent ? " mobile-content-dense" : ""}${this._tabletStabilityModeEnabled() ? " tablet-stable" : ""}${!hotelMode && this._state.controlRoomOpen ? " control-room-open" : ""}${this._state.screensaverOpen ? " screensaver-active" : ""}" style="${layoutProfileStyle}--screensaver-clock-scale:${this._esc(screensaverClockSize.toFixed(2))};--screensaver-clock-x:${this._esc(screensaverClockX.toFixed(1))}%;--screensaver-clock-y:${this._esc(screensaverClockY.toFixed(1))}%;">
         <div class="bg" id="mobileBg"></div><div class="shade"></div><div class="glow"></div>
         ${compactCollapseFabHtml}
+        ${mobileEdgeExitHtml}
+        ${mobileEdgeReturnHtml}
         ${homeShortcutFabHtml}
         ${mobileBrandSignatureHtml}
         ${floatingHistoryToggleFabHtml}
@@ -50616,6 +51274,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       e.stopPropagation();
       if (!this._pressUiButton(e.currentTarget)) return;
       this._setCompactExpanded(false);
+    });
+    this.$("mobileEdgeExitBtn")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!this._pressUiButton(e.currentTarget)) return;
+      this._exitMobileEdgeToEdge();
+    });
+    this.$("mobileEdgeEnterBtn")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!this._pressUiButton(e.currentTarget)) return;
+      this._enterMobileEdgeToEdge();
     });
     this._bindMobileQuickActionButtons();
     this.shadowRoot.querySelectorAll("[data-up-next-inline]").forEach((btn) => btn.addEventListener("click", async (e) => {
@@ -51380,6 +52050,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this.$("mobileMenuBody")?.addEventListener("change", this._boundMobileMenuChange);
     this.$("mobileMenuBody")?.addEventListener("keydown", this._boundMobileMenuKeydown);
     this.$("mobileMenuBody")?.addEventListener("scroll", this._boundMobileMenuScroll, { passive: true });
+    this.$("mobileMenuBody")?.addEventListener("toggle", (e) => {
+      const det = e.target?.closest?.("details.settings-accordion");
+      if (!det) return;
+      const id = det.dataset.settingsAccordion;
+      if (!id) return;
+      const set = this._settingsAccordionOpenSet();
+      if (det.open) set.add(id);
+      else set.delete(id);
+      this._persistSettingsAccordionOpen(set);
+    }, true);
     this._bindProgressSeekBar(this.$("progressBar"));
     this.$("mobileVolPctLabel")?.addEventListener("click", () => this._openMobileVolumePresets());
     this.$("volSlider")?.addEventListener("input", (e) => {
@@ -52524,7 +53204,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     };
     const normalized = aliases[raw] || raw || "main";
     if (this._isHotelMode()) {
-      const allowed = /* @__PURE__ */ new Set(["main", "players", "players_active", "quick_search", "library_search", "media_detail"]);
+      const allowed = /* @__PURE__ */ new Set(["main", "players", "players_active", "quick_search", "library_search", "media_detail", "artist_album_flow"]);
       return allowed.has(normalized) || String(normalized).startsWith("library_search") ? normalized : "main";
     }
     return normalized;
@@ -52543,6 +53223,44 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.mobileSettingsScrollTop = scrollTop;
     if (rebuild) this._build();
     if (init) this._init();
+    this._openMobileMenu("settings", { scrollTop });
+    this._restoreMobileMenuScroll(scrollTop, "settings");
+  }
+  /**
+   * Lightweight refresh after a Settings change. Re-renders ONLY the
+   * Settings menu body and any specifically-affected surface, instead of
+   * rebuilding the entire card. Preserves scroll. Falls through to the
+   * heavy _reopenSettingsMenuPreservingScroll if `categories.unknown` is true.
+   *
+   * Categories (all optional, default false):
+   *   playerListChanged    — Pinned/excluded set changed; reload player list
+   *                          and refresh the player chip strip.
+   *   pinnedChanged        — Pinned player set changed; also re-evaluate the
+   *                          front-pinned player.
+   *   mainBarChanged       — Main-bar item visibility changed.
+   *   quickActionsChanged  — Quick-action selection or order changed.
+   *   libraryTabsChanged   — Library tab visibility changed.
+   *   unknown              — Caller is not sure what changed; fall back to
+   *                          the heavy path.
+   */
+  _refreshAfterSettingsChange(categories = {}) {
+    if (categories.unknown || categories.mainBarChanged) {
+      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      return;
+    }
+    const body = this.$("mobileMenuBody");
+    const scrollTop = Math.max(0, Number(body?.scrollTop ?? this._state.mobileSettingsScrollTop ?? 0) || 0);
+    this._state.mobileSettingsScrollTop = scrollTop;
+    if (categories.playerListChanged) {
+      this._loadPlayers();
+      if (typeof this._renderPlayerSummary === "function") this._renderPlayerSummary();
+    }
+    if (categories.quickActionsChanged) {
+      if (typeof this._syncActiveQuickActionRow === "function") {
+        this._syncActiveQuickActionRow({ force: true });
+      }
+    }
+    void categories.libraryTabsChanged;
     this._openMobileMenu("settings", { scrollTop });
     this._restoreMobileMenuScroll(scrollTop, "settings");
   }
@@ -52567,6 +53285,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.mobileQueueFlowQuickOpen = nextPage === "queue" && options?.queueFlow === true;
     if (!String(nextPage || "").startsWith("library_") && nextPage !== "media_detail") {
       this._state.mobileMediaLayoutManual = false;
+      this._state.mobileLibraryFlowPage = "";
     }
     this._applyLibraryDefaultLayoutForPage(this._state.menuPage);
     if (nextPage === "main" || nextPage === "settings" || String(nextPage).startsWith("library_")) this._state.menuStack = [];
@@ -52595,6 +53314,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.menuStack = [];
     this._state.mobileQueueFlowQuickOpen = false;
     this._state.mobileMediaLayoutManual = false;
+    this._state.mobileLibraryFlowPage = "";
     this._shortenManualFrontPlayerHold(this._manualFrontDefaultHoldMs());
     this._closeMobileQueueActionMenu();
     clearTimeout(this._mobileQueueArtworkPrefetchTimer);
@@ -52603,7 +53323,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._syncCompactMenuOverlayState();
     this.$("mobileMenu")?.classList.remove("open", "search-open", "discovery-open", "action-fullscreen-open", "library-fullscreen-open");
     this.$("homeShortcutFab")?.removeAttribute("hidden");
-    this.$("mobileMenuBody")?.classList.remove("search-mode", "library-mode");
+    this.$("mobileMenuBody")?.classList.remove("search-mode", "library-mode", "library-flow-mode");
     if (this._state.controlRoomRestoreAfterMenu && this._controlRoomEnabled()) {
       this._state.controlRoomRestoreAfterMenu = false;
       this._state.controlRoomPanel = "";
@@ -52645,6 +53365,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (nextPage !== "queue") this._state.mobileQueueFlowQuickOpen = false;
     if (!String(nextPage || "").startsWith("library_") && nextPage !== "media_detail") {
       this._state.mobileMediaLayoutManual = false;
+      this._state.mobileLibraryFlowPage = "";
     }
     this._applyLibraryDefaultLayoutForPage(this._state.menuPage);
     if (this._isManualFrontContentSelectionPage(nextPage)) {
@@ -52660,6 +53381,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
   _isPhoneActionFullscreenMenuPage(page = "") {
     if (String(page || "") === "media_detail") return true;
+    if (String(page || "") === "artist_album_flow") return true;
     if (String(page || "").startsWith("library_")) return true;
     return (/* @__PURE__ */ new Set([
       "main",
@@ -53739,30 +54461,26 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       <div class="players-action-bar">
         <div class="players-action-shell">
           <div class="players-action-hub">
-            <button class="players-action-chip" data-menu-nav="queue" title="${this._esc(this._i18n("ui.queue_2"))}">
-              <span class="players-action-icon">${this._iconSvg("queue")}</span>
-              <span class="players-action-label">${this._esc(this._i18n("ui.queue_2"))}</span>
-              ${queueCount ? `<strong class="players-action-badge">${this._esc(String(queueCount))}</strong>` : ``}
-            </button>
-            <button class="players-action-chip" data-menu-nav="transfer" title="${this._esc(this._i18n("ui.transfer_queue_2"))}">
-              <span class="players-action-icon">${this._iconSvg("repeat")}</span>
-              <span class="players-action-label">${this._esc(this._i18n("ui.transfer_queue_2"))}</span>
-            </button>
-            <button class="players-action-chip" data-menu-nav="group" title="${this._esc(this._i18n("ui.group_speakers_2"))}">
-              <span class="players-action-icon">${this._iconSvg("speaker_group")}</span>
-              <span class="players-action-label">${this._esc(this._i18n("ui.group"))}</span>
-            </button>
             <button class="${this._esc(thisDeviceClass)}" data-menu-action="${this._esc(thisDeviceActionName)}" aria-pressed="${thisDeviceActive ? "true" : "false"}" title="${this._esc(thisDeviceTitle)}" aria-label="${this._esc(thisDeviceTitle)}">
               <span class="players-action-icon">${this._iconSvg("speaker")}</span>
               <span class="players-action-label">${this._esc(this._i18n("ui.this_device_2"))}</span>
               <span class="players-action-dot" aria-hidden="true"></span>
             </button>
+            <button class="players-action-chip" data-menu-nav="queue" title="${this._esc(this._i18n("ui.queue_2"))}">
+              <span class="players-action-icon">${this._iconSvg("queue")}</span>
+              <span class="players-action-label">${this._esc(this._i18n("ui.queue_2"))}</span>
+              ${queueCount ? `<strong class="players-action-badge">${this._esc(String(queueCount))}</strong>` : ``}
+            </button>
+            <button class="players-action-chip" data-menu-nav="group" title="${this._esc(this._i18n("ui.group_speakers_2"))}">
+              <span class="players-action-icon">${this._iconSvg("speaker_group")}</span>
+              <span class="players-action-label">${this._esc(this._i18n("ui.group"))}</span>
+            </button>
+            <button class="players-action-chip danger" data-menu-nav="stop_all" title="${this._esc(this._cleanAllLabel())}">
+              <span class="players-action-icon">${this._iconSvg("stop")}</span>
+              <span class="players-action-label">${this._esc(this._cleanAllLabel())}</span>
+            </button>
           </div>
         </div>
-        <button class="players-action-stop" data-menu-nav="stop_all" title="${this._esc(this._cleanAllLabel())}">
-          <span class="players-action-stop-icon">${this._iconSvg("stop")}</span>
-          <span>${this._esc(this._cleanAllLabel())}</span>
-        </button>
       </div>
     `;
   }
@@ -54234,7 +54952,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.discoverySessionSeed = Date.now() + Math.floor(Math.random() * 1e5);
     this._state.discoveryExpandedUri = "";
     try {
-      localStorage.setItem("homeii_music_flow_discovery_category_key", this._state.discoveryCategoryKey || "pop");
+      localStorage.setItem(this._lsKey("homeii_music_flow_discovery_category_key"), this._state.discoveryCategoryKey || "pop");
     } catch {
     }
     await this._renderMobileMenu();
@@ -54244,7 +54962,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.discoverySessionSeed = Date.now() + Math.floor(Math.random() * 1e5);
     this._state.discoveryExpandedUri = "";
     try {
-      localStorage.setItem("homeii_music_flow_discovery_genre_key", this._state.discoveryGenreKey || "all");
+      localStorage.setItem(this._lsKey("homeii_music_flow_discovery_genre_key"), this._state.discoveryGenreKey || "all");
     } catch {
     }
     await this._renderMobileMenu();
@@ -54363,8 +55081,63 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _settingsPill(label, value, current, attr = "data-setting-value") {
     return `<button class="settings-pill ${value === current ? "active" : ""}" ${attr}="${this._esc(value)}">${this._esc(label)}</button>`;
   }
+  _settingsAccordionWrap(id, title, body) {
+    const openSet = this._settingsAccordionOpenSet();
+    const isOpen = openSet.has(id);
+    const chevron = `<svg class="settings-accordion-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    return `
+      <details class="settings-accordion" data-settings-accordion="${this._esc(id)}"${isOpen ? " open" : ""}>
+        <summary class="settings-accordion-summary">
+          <span class="settings-accordion-title">${this._esc(title)}</span>
+          ${chevron}
+        </summary>
+        ${body}
+      </details>
+    `;
+  }
+  // Mirrors the namespacing pattern from PR #43 (feat/per-card-state-isolation).
+  // When that lands, this helper can be replaced with the global _lsKey() it introduces.
+  // Cards without card_id keep the unsuffixed key; cards with card_id get a per-card namespace
+  // so two HOMEii Flow cards on the same dashboard don't share accordion open/closed state.
+  _settingsLsKey(base) {
+    const cardId = this._config?.card_id;
+    if (!cardId) return base;
+    const trimmed = String(cardId).trim();
+    return trimmed ? `${base}__${trimmed}` : base;
+  }
+  _settingsAccordionOpenSet() {
+    try {
+      const raw = localStorage.getItem(this._settingsLsKey("homeii_music_flow_settings_accordion_open"));
+      if (!raw) return /* @__PURE__ */ new Set();
+      const arr = JSON.parse(raw);
+      return new Set(Array.isArray(arr) ? arr : []);
+    } catch (_) {
+      return /* @__PURE__ */ new Set();
+    }
+  }
+  _persistSettingsAccordionOpen(set) {
+    try {
+      localStorage.setItem(
+        this._settingsLsKey("homeii_music_flow_settings_accordion_open"),
+        JSON.stringify(Array.from(set))
+      );
+    } catch (_) {
+    }
+  }
   _settingsMenuHtml() {
     this._loadPlayers();
+    return `<div class="settings-shell">
+      ${this._settingsAccordionWrap("display", this._i18n("ui.settings_section_display", {}, "Display"), this._settingsSectionDisplay())}
+      ${this._settingsAccordionWrap("players_library", this._i18n("ui.settings_section_players_library", {}, "Players & Library"), this._settingsSectionPlayersLibrary())}
+      ${this._settingsAccordionWrap("quick_actions_bar", this._i18n("ui.settings_section_quick_actions_bar", {}, "Quick Actions Bar"), this._settingsSectionQuickActionsBar())}
+      ${this._settingsAccordionWrap("voice_assistant", this._i18n("ui.settings_section_voice_assistant", {}, "Voice Assistant"), this._settingsSectionVoiceAssistant())}
+      ${this._settingsAccordionWrap("smart_home", this._i18n("ui.settings_section_smart_home", {}, "Smart Home"), this._settingsSectionSmartHome())}
+      ${this._settingsAccordionWrap("announcements", this._i18n("ui.settings_section_announcements", {}, "Announcements"), this._settingsSectionAnnouncements())}
+      ${this._settingsAccordionWrap("music_assistant", this._i18n("ui.settings_section_music_assistant", {}, "Music Assistant"), this._settingsSectionMusicAssistant())}
+      <div class="settings-version">Version ${HOMEII_CARD_VERSION}</div>
+    </div>`;
+  }
+  _settingsSectionDisplay() {
     const theme = this._state.cardTheme === "light" || this._state.cardTheme === "custom" ? this._state.cardTheme : "dark";
     const performanceProfile2 = this._performanceProfile();
     const dynamicThemeMode = this._mobileDynamicThemeMode();
@@ -54377,82 +55150,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const showUpNext = this._mobileShowUpNextEnabled();
     const coverFlow = this._mobileCoverFlowEnabled();
     const footerMode = this._mobileFooterMode();
-    const volumeMode = this._mobileVolumeMode();
-    const volumeStepButtonsEnabled = this._mobileVolumeStepButtonsEnabled();
-    const volumeStepPercent = this._mobileVolumeStepPercent();
     const micMode = this._mobileMicMode();
-    const voiceAssistantEnabled = this._voiceAssistantEnabled();
-    const voiceAssistantMode = this._voiceAssistantMode();
-    const voiceAssistantSpeakFeedback = this._voiceAssistantSpeakFeedbackEnabled();
-    const voiceAssistantAgentOptions = this._voiceAssistantAgentOptions();
     const homeShortcut = this._mobileHomeShortcutEnabled();
-    const studioShortcut = this._mobileStudioShortcutEnabled();
-    const likedMode = this._useMaLikedMode() ? "ma" : "local";
-    const mainBarOptions = [
-      ["search", this._i18n("ui.search")],
-      ["library", this._i18n("ui.library")],
-      ["players", this._i18n("ui.players")],
-      ["actions", this._i18n("ui.actions_2")],
-      ["settings", this._i18n("ui.settings")],
-      ["theme", this._i18n("ui.theme_toggle")]
-    ];
-    const tabOptions = [
-      ["library_playlists", this._i18n("ui.playlists")],
-      ["library_artists", this._i18n("ui.artists")],
-      ["library_albums", this._i18n("ui.albums")],
-      ["library_tracks", this._i18n("ui.tracks")],
-      ["library_radio", this._i18n("ui.radio")],
-      ["library_podcasts", this._i18n("ui.podcasts")],
-      ["library_liked", this._i18n("ui.liked")],
-      ["library_search", this._i18n("ui.search")]
-    ];
-    const selectedTabs = new Set(this._mobileLibraryTabs());
-    const libraryDefaultLayout = this._defaultMobileMediaLayout();
-    const selectedMainBar = new Set(this._mobileMainBarItems());
-    const quickActionOptions = this._mobileQuickActionOptions();
-    const quickActions = this._mobileQuickActions();
-    const selectedQuickActions = new Set(quickActions);
-    const radioCountry = this._mobileRadioBrowserCountry();
-    const radioCountryOptions = this._radioBrowserCountryOptions();
-    const pinnedPlayers = new Set(this._pinnedPlayerPreferences());
-    const excludedPlayers = new Set(this._excludedPlayerPreferences());
-    const playerSortMode = this._playerSortMode();
-    const playerOrder = this._playerOrderPreferences();
-    const playerOptions = this._pinnedPlayerOptionPlayers([], { includeExcluded: true }).map((player) => [player.entity_id, player.attributes?.friendly_name || player.entity_id]);
-    const visibleMainBarOptions = mainBarOptions;
-    const showStudioMainBarOption = this._controlRoomEnabled();
-    const announcementLanguage = this._announcementLanguageSetting();
-    const announcementLanguageOptions = this._announcementLanguageOptions();
-    const settingsMainBarLocked = !this._usesVisualSettings();
-    const ambientEntitiesText = this._ambientLightEntities().join(", ");
-    const ambientPlayerMapText = this._ambientLightPlayerMap().join("\n");
-    const screensaverClockMode = this._screensaverClockMode();
-    const screensaverControlButtons = this._screensaverControlButtons({ includeDisabled: true });
-    const selectedScreensaverControlButtons = new Set(screensaverControlButtons);
-    const screensaverControlOptions = this._screensaverControlButtonOptions();
-    const powerButtonAction = this._powerButtonAction();
-    const auxiliaryButtonConfigs = this._auxiliaryButtonConfigs();
-    const auxiliaryIconOptions = [
-      ["power", this._i18n("ui.power")],
-      ["home", this._i18n("ui.home")],
-      ["speaker", this._i18n("ui.players")],
-      ["music_note", this._i18n("ui.music")],
-      ["wand", this._i18n("ui.surprise_me")],
-      ["grid", this._i18n("ui.actions_2")],
-      ["settings", this._i18n("ui.settings")],
-      ["heart_outline", this._i18n("ui.like_2")],
-      ["play", this._i18n("ui.play")],
-      ["stop", this._i18n("ui.stop_all")],
-      ["radio", this._i18n("ui.radio")],
-      ["timer", this._i18n("ui.timer")],
-      ["info", this._i18n("ui.info")]
-    ];
-    auxiliaryButtonConfigs.forEach((button) => {
-      const icon = String(button?.icon || "").trim();
-      if (icon && !auxiliaryIconOptions.some(([value]) => value === icon)) auxiliaryIconOptions.unshift([icon, icon]);
-    });
     return `
-      <div class="settings-shell">
         <div class="settings-group">
           <div class="settings-label">${this._i18n("ui.language")}</div>
           ${this._settingsLanguageSelectHtml()}
@@ -54508,9 +55208,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           <div class="settings-pills">
             ${this._settingsPill("Auto", "auto", mobileLayoutMode, "data-setting-mobile-layout-mode")}
             ${this._settingsPill(this._i18n("ui.full", {}, "Full"), "full", mobileLayoutMode, "data-setting-mobile-layout-mode")}
-            ${this._settingsPill(this._i18n("ui.compact", {}, "Compact"), "compact", mobileLayoutMode, "data-setting-mobile-layout-mode")}
+            ${this._settingsPill(this._i18n("ui.edge_to_edge", {}, "Edge to edge"), "edge_to_edge", mobileLayoutMode, "data-setting-mobile-layout-mode")}
           </div>
-          <div class="settings-hint">${this._esc(this._i18n("ui.mobile_layout_mode_helper", {}, "Auto uses the available card space. Full keeps the phone player inline and requests a tall Sections slot. Compact always uses the compact tile."))}</div>
+          <div class="settings-hint">${this._esc(this._i18n("ui.mobile_layout_mode_helper", {}, "Auto uses the available card space. Full keeps the phone player inline. Edge to edge opens above the dashboard with an X button that returns to Full."))}</div>
           <div class="settings-label">${this._i18n("ui.compact_mode")}</div>
           <div class="settings-pills">
             ${this._settingsPill(this._i18n("ui.enabled"), "on", compactMode ? "on" : "off", "data-setting-compact-mode")}
@@ -54559,6 +55259,30 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           <div class="settings-label">${this._i18n("ui.home_path")}</div>
           <input class="media-sort-select settings-select" id="mobileHomeShortcutPathInput" type="text" value="${this._esc(this._mobileHomeShortcutPath())}" placeholder="/lovelace/home" aria-label="${this._esc(this._i18n("ui.home_path"))}">
           <div class="settings-hint">${this._i18n("ui.use_any_home_assistant_path_example_lovelace_home")}</div>
+        </div>`;
+  }
+  _settingsSectionPlayersLibrary() {
+    const pinnedPlayers = new Set(this._pinnedPlayerPreferences());
+    const excludedPlayers = new Set(this._excludedPlayerPreferences());
+    const playerSortMode = this._playerSortMode();
+    const playerOrder = this._playerOrderPreferences();
+    const playerOptions = this._pinnedPlayerOptionPlayers([], { includeExcluded: true }).map((player) => [player.entity_id, player.attributes?.friendly_name || player.entity_id]);
+    const tabOptions = [
+      ["library_playlists", this._i18n("ui.playlists")],
+      ["library_artists", this._i18n("ui.artists")],
+      ["library_albums", this._i18n("ui.albums")],
+      ["library_tracks", this._i18n("ui.tracks")],
+      ["library_radio", this._i18n("ui.radio")],
+      ["library_podcasts", this._i18n("ui.podcasts")],
+      ["library_liked", this._i18n("ui.liked")],
+      ["library_search", this._i18n("ui.search")]
+    ];
+    const selectedTabs = new Set(this._mobileLibraryTabs());
+    const libraryDefaultLayout = this._defaultMobileMediaLayout();
+    const radioCountry = this._mobileRadioBrowserCountry();
+    const radioCountryOptions = this._radioBrowserCountryOptions();
+    return `
+        <div class="settings-group">
           <div class="settings-label">${this._i18n("ui.pinned_players")}</div>
           <div class="settings-check-grid">
             ${playerOptions.length ? playerOptions.map(([value, label]) => `
@@ -54599,33 +55323,49 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             </div>
           ` : ``}
         </div>
-        <div class="settings-group voice-assistant-settings-card">
-          <div class="settings-label">${this._flowAssistantLabel()}</div>
+        <div class="settings-group">
+          <div class="settings-label">${this._i18n("ui.library_pages")}</div>
           <div class="settings-pills">
-            ${this._settingsPill(this._i18n("ui.enabled"), "on", voiceAssistantEnabled ? "on" : "off", "data-setting-voice-assistant")}
-            ${this._settingsPill(this._i18n("ui.disabled"), "off", voiceAssistantEnabled ? "on" : "off", "data-setting-voice-assistant")}
+            ${this._settingsPill(this._i18n("ui.grid"), "grid", libraryDefaultLayout, "data-setting-library-default-layout")}
+            ${this._settingsPill(this._i18n("ui.list"), "list", libraryDefaultLayout, "data-setting-library-default-layout")}
           </div>
-          <div class="settings-label">${this._i18n("ui.voice_assistant_mode")}</div>
-          <div class="settings-pills">
-            ${this._settingsPill(this._i18n("ui.hybrid_music_plus_assist"), "hybrid", voiceAssistantMode, "data-setting-voice-assistant-mode")}
-            ${this._settingsPill(this._i18n("ui.music_only"), "music", voiceAssistantMode, "data-setting-voice-assistant-mode")}
-            ${this._settingsPill(this._i18n("ui.assist_only"), "assist", voiceAssistantMode, "data-setting-voice-assistant-mode")}
+          <div class="settings-hint">${this._i18n("ui.choose_how_library_pages_open_grid_or_list_can_still_be_changed_manually", {}, this._m("Choose how library pages open. You can still switch Grid/List inside the library.", "בחר איך דפי הספריה ייפתחו. עדיין אפשר להחליף ידנית בתוך הספריה."))}</div>
+          <div class="settings-check-grid">
+            ${tabOptions.map(([value, label]) => `
+              <label class="settings-check-pill">
+                <input type="checkbox" data-setting-library-tab="${this._esc(value)}" ${selectedTabs.has(value) ? "checked" : ""}>
+                <span>${this._esc(label)}</span>
+              </label>`).join("")}
           </div>
-          <div class="settings-hint">${this._i18n("ui.hybrid_handles_music_locally_and_sends_unknown_commands_to_assist")}</div>
-          <div class="settings-label">${this._i18n("ui.assist_agent")}</div>
-          <select class="media-sort-select settings-select" id="voiceAssistantAgentSelect" aria-label="${this._esc(this._i18n("ui.assist_agent"))}">
-            ${voiceAssistantAgentOptions.map((option) => `
-              <option value="${this._esc(option.value)}" ${option.value === this._voiceAssistantAgentId() ? "selected" : ""}>${this._esc(option.label)}</option>
-            `).join("")}
+          <div class="settings-label">Radio Browser</div>
+          <select class="media-sort-select settings-select" id="mobileRadioCountrySelect" aria-label="${this._esc(this._i18n("ui.radio_browser_country"))}">
+            ${radioCountryOptions.map(([value, label]) => `<option value="${this._esc(value)}" ${value === radioCountry ? "selected" : ""}>${this._esc(label)}</option>`).join("")}
           </select>
-          <div class="settings-hint">${this._i18n("ui.optional_assist_agent_leave_empty_for_home_assistant_default")}</div>
-          <div class="settings-label">${this._i18n("ui.voice_feedback")}</div>
-          <div class="settings-pills">
-            ${this._settingsPill(this._i18n("ui.enabled"), "on", voiceAssistantSpeakFeedback ? "on" : "off", "data-setting-voice-feedback")}
-            ${this._settingsPill(this._i18n("ui.disabled"), "off", voiceAssistantSpeakFeedback ? "on" : "off", "data-setting-voice-feedback")}
-          </div>
-          <div class="settings-hint">${this._i18n("ui.speak_voice_assistant_responses_out_loud")}</div>
-        </div>
+          <div class="settings-hint">${this._i18n("ui.choose_a_country_or_all_countries_to_browse_every_country_inside_the_rad")}</div>
+        </div>`;
+  }
+  _settingsSectionQuickActionsBar() {
+    const quickActionOptions = this._mobileQuickActionOptions();
+    const quickActions = this._mobileQuickActions();
+    const selectedQuickActions = new Set(quickActions);
+    const mainBarOptions = [
+      ["search", this._i18n("ui.search")],
+      ["library", this._i18n("ui.library")],
+      ["players", this._i18n("ui.players")],
+      ["actions", this._i18n("ui.actions_2")],
+      ["settings", this._i18n("ui.settings")],
+      ["theme", this._i18n("ui.theme_toggle")]
+    ];
+    const visibleMainBarOptions = mainBarOptions;
+    const selectedMainBar = new Set(this._mobileMainBarItems());
+    const showStudioMainBarOption = this._controlRoomEnabled();
+    const studioShortcut = this._mobileStudioShortcutEnabled();
+    const settingsMainBarLocked = !this._usesVisualSettings();
+    const volumeMode = this._mobileVolumeMode();
+    const volumeStepButtonsEnabled = this._mobileVolumeStepButtonsEnabled();
+    const volumeStepPercent = this._mobileVolumeStepPercent();
+    const likedMode = this._useMaLikedMode() ? "ma" : "local";
+    return `
         <div class="settings-group quick-actions-settings-card">
           <div class="settings-label">${this._i18n("ui.quick_actions")}</div>
           <div class="settings-check-grid quick-actions-grid">
@@ -54687,34 +55427,71 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             ${this._settingsPill("Music Assistant", "ma", likedMode, "data-setting-liked-mode")}
             ${this._config?.allow_local_likes === true ? this._settingsPill(this._i18n("ui.local"), "local", likedMode, "data-setting-liked-mode") : ""}
           </div>
-          <div class="settings-label">Radio Browser</div>
-          <select class="media-sort-select settings-select" id="mobileRadioCountrySelect" aria-label="${this._esc(this._i18n("ui.radio_browser_country"))}">
-            ${radioCountryOptions.map(([value, label]) => `<option value="${this._esc(value)}" ${value === radioCountry ? "selected" : ""}>${this._esc(label)}</option>`).join("")}
-          </select>
-          <div class="settings-hint">${this._i18n("ui.choose_a_country_or_all_countries_to_browse_every_country_inside_the_rad")}</div>
-        </div>
-        <div class="settings-group">
-          <div class="settings-label">${this._i18n("ui.library_pages")}</div>
+        </div>`;
+  }
+  _settingsSectionVoiceAssistant() {
+    const voiceAssistantEnabled = this._voiceAssistantEnabled();
+    const voiceAssistantMode = this._voiceAssistantMode();
+    const voiceAssistantSpeakFeedback = this._voiceAssistantSpeakFeedbackEnabled();
+    const voiceAssistantAgentOptions = this._voiceAssistantAgentOptions();
+    return `
+        <div class="settings-group voice-assistant-settings-card">
+          <div class="settings-label">${this._flowAssistantLabel()}</div>
           <div class="settings-pills">
-            ${this._settingsPill(this._i18n("ui.grid"), "grid", libraryDefaultLayout, "data-setting-library-default-layout")}
-            ${this._settingsPill(this._i18n("ui.list"), "list", libraryDefaultLayout, "data-setting-library-default-layout")}
+            ${this._settingsPill(this._i18n("ui.enabled"), "on", voiceAssistantEnabled ? "on" : "off", "data-setting-voice-assistant")}
+            ${this._settingsPill(this._i18n("ui.disabled"), "off", voiceAssistantEnabled ? "on" : "off", "data-setting-voice-assistant")}
           </div>
-          <div class="settings-hint">${this._i18n("ui.choose_how_library_pages_open_grid_or_list_can_still_be_changed_manually", {}, this._m("Choose how library pages open. You can still switch Grid/List inside the library.", "בחר איך דפי הספריה ייפתחו. עדיין אפשר להחליף ידנית בתוך הספריה."))}</div>
-          <div class="settings-check-grid">
-            ${tabOptions.map(([value, label]) => `
-              <label class="settings-check-pill">
-                <input type="checkbox" data-setting-library-tab="${this._esc(value)}" ${selectedTabs.has(value) ? "checked" : ""}>
-                <span>${this._esc(label)}</span>
-              </label>`).join("")}
+          <div class="settings-label">${this._i18n("ui.voice_assistant_mode")}</div>
+          <div class="settings-pills">
+            ${this._settingsPill(this._i18n("ui.hybrid_music_plus_assist"), "hybrid", voiceAssistantMode, "data-setting-voice-assistant-mode")}
+            ${this._settingsPill(this._i18n("ui.music_only"), "music", voiceAssistantMode, "data-setting-voice-assistant-mode")}
+            ${this._settingsPill(this._i18n("ui.assist_only"), "assist", voiceAssistantMode, "data-setting-voice-assistant-mode")}
           </div>
-        </div>
-        <div class="settings-group">
-          <div class="settings-label">Music Assistant</div>
-          <div class="settings-actions">
-            <button class="settings-pill active" data-menu-action="open_app">${this._i18n("ui.open_full_interface")}</button>
-            <button class="settings-pill" data-menu-nav="diagnostics">${this._esc(this._m("Diagnostics", "אבחון"))}</button>
+          <div class="settings-hint">${this._i18n("ui.hybrid_handles_music_locally_and_sends_unknown_commands_to_assist")}</div>
+          <div class="settings-label">${this._i18n("ui.assist_agent")}</div>
+          <select class="media-sort-select settings-select" id="voiceAssistantAgentSelect" aria-label="${this._esc(this._i18n("ui.assist_agent"))}">
+            ${voiceAssistantAgentOptions.map((option) => `
+              <option value="${this._esc(option.value)}" ${option.value === this._voiceAssistantAgentId() ? "selected" : ""}>${this._esc(option.label)}</option>
+            `).join("")}
+          </select>
+          <div class="settings-hint">${this._i18n("ui.optional_assist_agent_leave_empty_for_home_assistant_default")}</div>
+          <div class="settings-label">${this._i18n("ui.voice_feedback")}</div>
+          <div class="settings-pills">
+            ${this._settingsPill(this._i18n("ui.enabled"), "on", voiceAssistantSpeakFeedback ? "on" : "off", "data-setting-voice-feedback")}
+            ${this._settingsPill(this._i18n("ui.disabled"), "off", voiceAssistantSpeakFeedback ? "on" : "off", "data-setting-voice-feedback")}
           </div>
-        </div>
+          <div class="settings-hint">${this._i18n("ui.speak_voice_assistant_responses_out_loud")}</div>
+        </div>`;
+  }
+  _settingsSectionSmartHome() {
+    const ambientEntitiesText = this._ambientLightEntities().join(", ");
+    const ambientPlayerMapText = this._ambientLightPlayerMap().join("\n");
+    const screensaverClockMode = this._screensaverClockMode();
+    const screensaverControlButtons = this._screensaverControlButtons({ includeDisabled: true });
+    const selectedScreensaverControlButtons = new Set(screensaverControlButtons);
+    const screensaverControlOptions = this._screensaverControlButtonOptions();
+    const powerButtonAction = this._powerButtonAction();
+    const auxiliaryButtonConfigs = this._auxiliaryButtonConfigs();
+    const auxiliaryIconOptions = [
+      ["power", this._i18n("ui.power")],
+      ["home", this._i18n("ui.home")],
+      ["speaker", this._i18n("ui.players")],
+      ["music_note", this._i18n("ui.music")],
+      ["wand", this._i18n("ui.surprise_me")],
+      ["grid", this._i18n("ui.actions_2")],
+      ["settings", this._i18n("ui.settings")],
+      ["heart_outline", this._i18n("ui.like_2")],
+      ["play", this._i18n("ui.play")],
+      ["stop", this._i18n("ui.stop_all")],
+      ["radio", this._i18n("ui.radio")],
+      ["timer", this._i18n("ui.timer")],
+      ["info", this._i18n("ui.info")]
+    ];
+    auxiliaryButtonConfigs.forEach((button) => {
+      const icon = String(button?.icon || "").trim();
+      if (icon && !auxiliaryIconOptions.some(([value]) => value === icon)) auxiliaryIconOptions.unshift([icon, icon]);
+    });
+    return `
         <div class="settings-group smart-home-settings-card">
           <div class="settings-label">${this._i18n("ui.smart_home")}</div>
           <div class="settings-label">${this._i18n("ui.ambient_light")}</div>
@@ -54820,7 +55597,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             ${this._settingsPill(this._i18n("ui.enabled"), "on", this._discoveryModeEnabled() ? "on" : "off", "data-setting-discovery-mode")}
             ${this._settingsPill(this._i18n("ui.disabled"), "off", this._discoveryModeEnabled() ? "on" : "off", "data-setting-discovery-mode")}
           </div>
-        </div>
+        </div>`;
+  }
+  _settingsSectionAnnouncements() {
+    const announcementLanguage = this._announcementLanguageSetting();
+    const announcementLanguageOptions = this._announcementLanguageOptions();
+    return `
         <div class="settings-group">
           <div class="settings-label">${this._i18n("ui.announcement_presets")}</div>
           ${(this._state.mobileAnnouncementPresets || []).slice(0, 3).map((preset, index) => `
@@ -54833,10 +55615,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             ${announcementLanguageOptions.map(([value, label]) => `<option value="${this._esc(value)}" ${value === announcementLanguage ? "selected" : ""}>${this._esc(label)}</option>`).join("")}
           </select>
           <div class="settings-hint">${this._i18n("ui.text_announcements_use_home_assistant_tts_into_the_selected_music_assist")}</div>
-        </div>
-                <div class="settings-version">Version ${HOMEII_CARD_VERSION}</div>
-      </div>
-    `;
+        </div>`;
+  }
+  _settingsSectionMusicAssistant() {
+    return `
+        <div class="settings-group">
+          <div class="settings-label">Music Assistant</div>
+          <div class="settings-actions">
+            <button class="settings-pill active" data-menu-action="open_app">${this._i18n("ui.open_full_interface")}</button>
+            <button class="settings-pill" data-menu-nav="diagnostics">${this._esc(this._m("Diagnostics", "אבחון"))}</button>
+          </div>
+        </div>`;
   }
   _diagnosticStatusLabel(status = "info") {
     const normalized = String(status || "info").toLowerCase();
@@ -55566,14 +56355,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             <div class="artist-detail-section">
               <div class="artist-section-head">
                 <div class="media-section-title">${this._esc(this._i18n("ui.albums"))}</div>
-                ${albums.length ? `<div class="media-detail-count-badge">${this._esc(`${albums.length} ${this._i18n("ui.albums").toLowerCase()}`)}</div>` : ``}
+                <div class="artist-section-actions">
+                  ${albums.length ? `<button class="media-layout-btn library-flow-toggle artist-album-flow-toggle" data-artist-album-flow-open="1" title="${this._esc(this._artistAlbumFlowLabel())}" aria-label="${this._esc(this._artistAlbumFlowLabel())}">${this._iconSvg("queue_flow")}<span>${this._esc(this._artistAlbumFlowLabel(true))}</span></button>` : ``}
+                  ${albums.length ? `<div class="media-detail-count-badge">${this._esc(`${albums.length} ${this._i18n("ui.albums").toLowerCase()}`)}</div>` : ``}
+                </div>
               </div>
               ${albumGroups.length ? albumGroups.map(([year, yearAlbums]) => `
-                  <div class="artist-year-group">
-                    <div class="artist-year-title">${this._esc(year)}</div>
-                    ${this._mediaItemsListHtml(yearAlbums, "album", { layout: "grid", albumBadges: true })}
-                  </div>
-                `).join("") : `<div class="notice open media-detail-empty">${this._esc(emptyCopy)}</div>`}
+                    <div class="artist-year-group">
+                      <div class="artist-year-title">${this._esc(year)}</div>
+                      ${this._mediaItemsListHtml(yearAlbums, "album", { layout: "grid", albumBadges: true })}
+                    </div>
+                  `).join("") : `<div class="notice open media-detail-empty">${this._esc(emptyCopy)}</div>`}
             </div>
             <div class="artist-detail-section">
               <div class="media-section-title">${this._esc(this._m("Artist playlist recommendations", "המלצות לפלייליסטים של האמן"))}</div>
@@ -57064,6 +57856,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const page = this._libraryTabSearchPageKey();
     const isSearch = this._state.menuPage === "library_search";
     const tabSearchOpen = this._state.libraryTabSearchOpen === true || !!this._libraryTabSearchQuery(page);
+    const libraryFlowActive = this._libraryFlowPageActive(page);
     return `
       <div class="media-toolbar library-toolbar library-toolbar-minimal">
         <div class="library-toolbar-player">
@@ -57075,6 +57868,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           <div class="media-layout-toggle" role="tablist" aria-label="${this._esc(this._i18n("ui.media_layout"))}">
             ${!isSearch ? `<button class="media-layout-btn subtle-heart ${this._state.menuPage === "library_liked" ? "active" : ""}" data-menu-nav="library_liked" title="${this._esc(this._i18n("ui.liked"))}">${this._iconSvg("heart_filled")}</button>` : ``}
             ${!isSearch ? `<button class="media-layout-btn" data-media-surprise="1" title="${this._esc(this._i18n("ui.surprise_me"))}">${this._iconSvg("wand")}</button>` : ``}
+            ${!isSearch ? `<button class="media-layout-btn library-flow-toggle ${libraryFlowActive ? "active" : ""}" data-library-flow-toggle="${this._esc(page)}" title="${this._esc(this._libraryFlowLabel())}" aria-label="${this._esc(this._libraryFlowLabel())}" aria-pressed="${libraryFlowActive ? "true" : "false"}">${this._iconSvg("queue_flow")}<span>${this._esc(this._libraryFlowLabel(true))}</span></button>` : ``}
             <button class="media-layout-btn ${layout === "grid" ? "active" : ""}" data-media-layout="grid" title="${this._esc(this._i18n("ui.grid"))}">${this._iconSvg("grid")}</button>
             <button class="media-layout-btn ${layout === "list" ? "active" : ""}" data-media-layout="list" title="${this._esc(this._i18n("ui.list"))}">${this._iconSvg("list")}</button>
           </div>
@@ -57734,6 +58528,78 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       totalCount: items.length
     };
   }
+  _libraryFlowWindowItems(items = []) {
+    const entries = Array.isArray(items) ? items.filter(Boolean) : [];
+    const maxItems = 72;
+    if (entries.length <= maxItems) return { items: entries, activeIndex: 0, startIndex: 0, totalCount: entries.length };
+    return {
+      items: entries.slice(0, maxItems),
+      activeIndex: 0,
+      startIndex: 0,
+      totalCount: entries.length
+    };
+  }
+  _libraryFlowCaptionForItem(item = {}, fallbackType = "album", options = {}) {
+    const mediaType = String(item?.media_type || item?.type || fallbackType || "album").toLowerCase();
+    const title = item?.name || item?.title || item?.media_item?.name || "";
+    if (options.captionMode === "album_year") {
+      const year = this._mediaYearValue(item);
+      return { title, artist: year ? String(year) : "" };
+    }
+    if (options.captionMode === "radio_station") {
+      return { title, artist: "" };
+    }
+    const artist = this._artistName(item) || item?.artist || item?.artist_str || item?.album?.name || item?.publisher || (mediaType === "artist" ? this._i18n("ui.artist") : "") || (mediaType === "radio" ? this._i18n("ui.radio") : "");
+    return { title, artist };
+  }
+  _libraryFlowPickerHtml(items = [], mediaType = "album", options = {}) {
+    const windowState = this._libraryFlowWindowItems(items);
+    const entries = windowState.items;
+    if (!entries.length) return `<div class="notice open">${this._i18n("ui.no_results_found")}</div>`;
+    const activeIndex = windowState.activeIndex;
+    const iconMap = { track: "tracks", radio: "radio", album: "album", artist: "artist", podcast: "podcast", playlist: "playlist" };
+    const caption = this._libraryFlowCaptionForItem(entries[activeIndex] || entries[0], mediaType, options);
+    this._queueFlowCaptionItems = entries.map((item) => this._libraryFlowCaptionForItem(item, mediaType, options));
+    const extraClass = String(options.className || "").trim();
+    const fullPage = options.fullPage === true;
+    const stageHtml = `
+        <div class="queue-flow-stage library-flow-stage ${this._esc(extraClass)} ${fullPage ? "library-flow-full-stage" : ""}" data-queue-flow-stage data-queue-flow-total="${this._esc(String(windowState.totalCount))}" data-queue-flow-start="${this._esc(String(windowState.startIndex))}">
+          <div class="queue-flow-picker" data-queue-flow-picker>
+            <div class="queue-flow-track">
+              ${entries.map((item, index) => {
+      const entryMediaType = String(item?.media_type || item?.type || mediaType || "album").toLowerCase();
+      const canOpenDetails = options.openDetails !== false && this._mediaTypeCanOpenDetails(entryMediaType);
+      const uri = String(item?.uri || item?.media_item?.uri || "").trim();
+      const art = this._artUrl(item, { size: 220 }) || item?.image || item?.image_url || "";
+      const artistName2 = this._artistName(item) || item?.artist || "";
+      const albumName = typeof item?.album === "string" ? item.album : item?.album?.name || "";
+      const fallbackIcon = iconMap[entryMediaType] || iconMap[mediaType] || "music_note";
+      const nearby = index < 8;
+      const itemCaption = this._libraryFlowCaptionForItem(item, mediaType, options);
+      const actionAttr = uri ? canOpenDetails ? `data-media-open="${this._esc(uri)}"` : `data-media-uri="${this._esc(uri)}"` : "";
+      return `
+                  <button class="queue-flow-item library-flow-item ${index === activeIndex ? "active centered" : ""}" data-library-flow-item="1" ${actionAttr} data-flow-caption-title="${this._esc(itemCaption.title)}" data-flow-caption-artist="${this._esc(itemCaption.artist)}" data-media-type="${this._esc(entryMediaType)}" data-media-name="${this._esc(item?.name || item?.title || "")}" data-media-artist="${this._esc(artistName2)}" data-media-album="${this._esc(albumName)}" data-media-image="${this._esc(art || "")}" ${uri ? "" : "disabled"}>
+                    <span class="queue-flow-art">
+                      ${art ? this._imgHtml(art, "", { loading: nearby ? "eager" : "lazy", fetchpriority: nearby ? "high" : "low" }) : this._iconSvg(fallbackIcon)}
+                    </span>
+                  </button>
+                `;
+    }).join("")}
+            </div>
+          </div>
+          <div class="queue-flow-caption" data-queue-flow-caption ${caption.title || caption.artist ? "" : "hidden"}>
+            <div class="queue-flow-caption-title" data-queue-flow-caption-title>${this._esc(caption.title)}</div>
+            <div class="queue-flow-caption-artist" data-queue-flow-caption-artist>${this._esc(caption.artist)}</div>
+          </div>
+        </div>
+    `;
+    if (fullPage) return stageHtml;
+    return `
+      <div class="library-flow-panel ${this._esc(extraClass)}">
+        ${stageHtml}
+      </div>
+    `;
+  }
   _queueFlowFallbackHtml() {
     const player = this._getSelectedPlayer();
     const item = this._state.maQueueState?.current_item || null;
@@ -57840,7 +58706,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     });
     const caption = host.closest?.("[data-queue-flow-stage]")?.querySelector?.("[data-queue-flow-caption]");
     if (caption) {
-      const entry = this._queueFlowCaptionForIndex(nearestIndex);
+      const centeredItem = items[nearestIndex] || null;
+      const entry = centeredItem?.dataset?.flowCaptionTitle !== void 0 || centeredItem?.dataset?.flowCaptionArtist !== void 0 ? { title: centeredItem?.dataset?.flowCaptionTitle || "", artist: centeredItem?.dataset?.flowCaptionArtist || "" } : this._queueFlowCaptionForIndex(nearestIndex);
       const titleEl = caption.querySelector?.("[data-queue-flow-caption-title]");
       const artistEl = caption.querySelector?.("[data-queue-flow-caption-artist]");
       if (titleEl) titleEl.textContent = entry.title || "";
@@ -57849,25 +58716,37 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
   }
   _bindQueueFlowPicker(body = this.$("mobileMenuBody")) {
-    const picker = body?.querySelector?.("[data-queue-flow-picker]");
-    if (!picker || picker.dataset.queueFlowBound === "1") return;
-    picker.dataset.queueFlowBound = "1";
+    const pickers = Array.from(body?.querySelectorAll?.("[data-queue-flow-picker]") || []);
+    if (!pickers.length) return;
     const scheduleFrame = (callback) => {
       if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") window.requestAnimationFrame(callback);
       else setTimeout(callback, 0);
     };
-    picker.addEventListener("scroll", () => {
-      scheduleFrame(() => this._syncQueueFlowPickerCenter(picker));
-    }, { passive: true });
-    const active = picker.querySelector(".queue-flow-item.active") || picker.querySelector(".queue-flow-item");
-    const sync = () => {
-      try {
-        active?.scrollIntoView?.({ block: "center", inline: "nearest" });
-      } catch (_) {
-      }
-      this._syncQueueFlowPickerCenter(picker);
-    };
-    scheduleFrame(sync);
+    pickers.forEach((picker) => {
+      if (!picker || picker.dataset.queueFlowBound === "1") return;
+      picker.dataset.queueFlowBound = "1";
+      picker.addEventListener("scroll", () => {
+        scheduleFrame(() => this._syncQueueFlowPickerCenter(picker));
+      }, { passive: true });
+      const active = picker.querySelector(".queue-flow-item.active") || picker.querySelector(".queue-flow-item");
+      const sync = () => {
+        try {
+          active?.scrollIntoView?.({ block: "center", inline: "nearest" });
+        } catch (_) {
+        }
+        this._syncQueueFlowPickerCenter(picker);
+      };
+      scheduleFrame(sync);
+    });
+  }
+  _artistAlbumFlowMenuHtml() {
+    const detail = this._state.mobileLibraryDetail || {};
+    const albums = Array.isArray(detail.albums) ? detail.albums : [];
+    return this._libraryFlowPickerHtml(albums, "album", {
+      className: "artist-album-flow-page",
+      captionMode: "album_year",
+      fullPage: true
+    });
   }
   _queueMenuHtml() {
     const queueItems = this._getNowPlayingQueueItems();
@@ -57968,6 +58847,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       body.dataset.menuPage = page;
       if (scrollSnapshot) this._restoreMobileMenuScrollSnapshot(scrollSnapshot, page);
       this._hydrateImages(body);
+      this._bindQueueFlowPicker(body);
       return true;
     };
     const hasBackTarget = Array.isArray(this._state.menuStack) && this._state.menuStack.length > 0;
@@ -57982,6 +58862,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     aux.hidden = true;
     close.hidden = false;
     body.classList.toggle("library-mode", isLibraryPage);
+    body.classList.toggle("library-flow-mode", this._libraryFlowPageActive(page) || page === "artist_album_flow");
     body.classList.toggle("search-mode", isSearchPage);
     this.$("mobileMenu")?.classList.toggle("search-open", isSearchPage);
     this.$("mobileMenu")?.classList.toggle("discovery-open", page === "discovery");
@@ -58024,7 +58905,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     ];
     body.classList.remove(...sheetClasses);
     sheet?.classList.remove(...sheetClasses);
-    const sheetClass = page === "main" ? "sheet-actions" : page === "discovery" ? "sheet-discovery" : page === "simple_wizard" ? "sheet-simple" : page === "players" || page === "players_active" ? "sheet-players" : page === "queue" ? this._mobileQueueFlowMenuActive() ? "sheet-queue-flow" : "sheet-queue" : page === "media_detail" ? isArtistDetailPage ? "sheet-artist-detail" : "sheet-media-detail" : isSearchPage ? "sheet-search" : isLibraryPage ? "sheet-library" : page === "group" ? "sheet-group" : page === "transfer" ? "sheet-transfer" : page === "announcements" ? "sheet-announcements" : page === "settings" || page === "diagnostics" ? "sheet-settings" : page === "sleep_timer" ? "sheet-schedules" : "";
+    const sheetClass = page === "main" ? "sheet-actions" : page === "discovery" ? "sheet-discovery" : page === "simple_wizard" ? "sheet-simple" : page === "players" || page === "players_active" ? "sheet-players" : page === "artist_album_flow" ? "sheet-queue-flow" : page === "queue" ? this._mobileQueueFlowMenuActive() ? "sheet-queue-flow" : "sheet-queue" : page === "media_detail" ? isArtistDetailPage ? "sheet-artist-detail" : "sheet-media-detail" : isSearchPage ? "sheet-search" : isLibraryPage ? "sheet-library" : page === "group" ? "sheet-group" : page === "transfer" ? "sheet-transfer" : page === "announcements" ? "sheet-announcements" : page === "settings" || page === "diagnostics" ? "sheet-settings" : page === "sleep_timer" ? "sheet-schedules" : "";
     if (sheetClass) {
       body.classList.add(sheetClass);
       sheet?.classList.add(sheetClass);
@@ -58081,6 +58962,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       finishMenuRender();
       return;
     }
+    if (page === "artist_album_flow") {
+      this._setMobileMenuHeader("", "queue_flow");
+      body.innerHTML = this._artistAlbumFlowMenuHtml();
+      finishMenuRender();
+      return;
+    }
     if (page.startsWith("library_")) {
       const meta = this._libraryTabMeta(page);
       this._setMobileMenuHeader(meta.title, meta.icon, "players");
@@ -58092,7 +58979,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         this._state.likedSelectedUris = (Array.isArray(this._state.likedSelectedUris) ? this._state.likedSelectedUris : []).filter((uri) => likedUriSet.has(String(uri || "").trim()));
         const likedQuery = this._libraryTabSearchQuery(page);
         const filteredLikedEntries = likedQuery ? this._filterLibraryItemsByQuery(likedEntries, likedQuery) : likedEntries;
-        body.innerHTML = this._libraryShellHtml(`${this._mediaLayoutToolbarHtml()}${this._likedMediaEntriesHtml(filteredLikedEntries)}`, page);
+        const likedContent = this._libraryFlowPageActive(page) ? this._libraryFlowPickerHtml(filteredLikedEntries, "track", { className: "library-liked-flow" }) : this._likedMediaEntriesHtml(filteredLikedEntries);
+        body.innerHTML = this._libraryShellHtml(`${this._mediaLayoutToolbarHtml()}${likedContent}`, page);
         this._applyMenuLibraryThemeFromItems(menu, filteredLikedEntries.length ? filteredLikedEntries : likedEntries, "track");
         finishMenuRender();
         this._restoreLibraryTabSearchFocus();
@@ -58128,9 +59016,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const sortedItems = this._sortLibraryItemsLocally(items);
       let libraryThemeItems = sortedItems;
       if (tabSearchQuery && page !== "library_radio") {
+        const flowActive = this._libraryFlowPageActive(page);
         const searchContent = (providerItems2 = [], options = {}) => `
           ${this._mediaLayoutToolbarHtml()}
-          ${this._libraryTabSearchResultsHtml(sortedItems, providerItems2, meta, options)}
+          ${flowActive ? this._libraryFlowPickerHtml(sortedItems.length ? sortedItems : providerItems2, meta.type, { className: "library-search-flow" }) : this._libraryTabSearchResultsHtml(sortedItems, providerItems2, meta, options)}
         `;
         body.innerHTML = this._libraryShellHtml(searchContent([], { providerLoading: true }), page);
         this._applyMenuLibraryThemeFromItems(menu, sortedItems, meta.type);
@@ -58153,9 +59042,33 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         this._restoreLibraryTabSearchFocus();
         return;
       }
-      let content = `${this._mediaLayoutToolbarHtml()}${this._mediaItemsListHtml(sortedItems, meta.type, { layout: "grid", librarySkin: true })}`;
+      const libraryFlowActive = this._libraryFlowPageActive(page);
+      if (page === "library_radio" && libraryFlowActive) {
+        let radioFlowItems = sortedItems;
+        let radioFlowError = libraryError;
+        try {
+          const configuredCountry = this._mobileRadioBrowserCountry();
+          const browseCountry = this._state.mobileRadioBrowseCountry || (configuredCountry === "all" ? "" : configuredCountry);
+          const browserStations = await this._fetchRadioBrowserStations(tabSearchQuery || "", 80, { countryCode: browseCountry || configuredCountry || "all" });
+          if (browserStations.length) {
+            radioFlowItems = browserStations;
+            radioFlowError = "";
+          }
+        } catch (error) {
+          if (!radioFlowItems.length) radioFlowError = error?.message || this._i18n("ui.no_radio_stations_found");
+        }
+        if (!isCurrentRender()) return;
+        libraryThemeItems = radioFlowItems.length ? radioFlowItems : sortedItems;
+        const radioFlowContent = radioFlowError && !radioFlowItems.length ? `<div class="notice open">${this._esc(radioFlowError)}</div>` : this._libraryFlowPickerHtml(radioFlowItems, meta.type, { className: "library-radio-flow", captionMode: "radio_station" });
+        body.innerHTML = this._libraryShellHtml(`${this._mediaLayoutToolbarHtml()}${radioFlowContent}`, page);
+        this._applyMenuLibraryThemeFromItems(menu, libraryThemeItems, meta.type);
+        finishMenuRender();
+        this._restoreLibraryTabSearchFocus();
+        return;
+      }
+      let content = `${this._mediaLayoutToolbarHtml()}${libraryFlowActive ? this._libraryFlowPickerHtml(sortedItems, meta.type, { className: "library-tab-flow" }) : this._mediaItemsListHtml(sortedItems, meta.type, { layout: "grid", librarySkin: true })}`;
       if (page === "library_radio") {
-        const maRadioHtml = libraryError ? `<div class="notice open">${this._esc(libraryError)}</div>` : this._mediaItemsListHtml(sortedItems, meta.type, { layout: "grid", librarySkin: true });
+        const maRadioHtml = libraryError ? `<div class="notice open">${this._esc(libraryError)}</div>` : libraryFlowActive ? this._libraryFlowPickerHtml(sortedItems, meta.type, { className: "library-radio-flow" }) : this._mediaItemsListHtml(sortedItems, meta.type, { layout: "grid", librarySkin: true });
         if (tabSearchQuery) {
           try {
             const configuredCountry = this._mobileRadioBrowserCountry();
@@ -58167,7 +59080,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
                 <div class="media-results">
                   <div>
                     <div class="media-section-title">Radio Browser</div>
-                    ${this._mediaItemsListHtml(browserStations, meta.type, { layout: "grid", librarySkin: true })}
+                    ${libraryFlowActive ? this._libraryFlowPickerHtml(browserStations, meta.type, { className: "library-radio-browser-flow" }) : this._mediaItemsListHtml(browserStations, meta.type, { layout: "grid", librarySkin: true })}
                   </div>
                   <div>
                     <div class="media-section-title">Music Assistant</div>
@@ -58211,7 +59124,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
                 <div class="media-results">
                   <div>
                     ${configuredCountry === "all" ? this._radioBrowserCountryBackHtml(browseLabel) : `<div class="media-section-title">Radio Browser · ${this._esc(browseLabel)}</div>`}
-                    ${browserError ? `<div class="notice open">${this._esc(browserError)}</div>` : this._mediaItemsListHtml(browserStations, meta.type, { layout: "grid", librarySkin: true })}
+                    ${browserError ? `<div class="notice open">${this._esc(browserError)}</div>` : libraryFlowActive ? this._libraryFlowPickerHtml(browserStations, meta.type, { className: "library-radio-browser-flow" }) : this._mediaItemsListHtml(browserStations, meta.type, { layout: "grid", librarySkin: true })}
                   </div>
                   <div>
                     <div class="media-section-title">Music Assistant</div>
@@ -58236,7 +59149,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
                 <div class="media-results">
                   <div>
                     <div class="media-section-title">${this._esc(this._i18n("ui.worldwide_popular"))}</div>
-                    ${browserError ? `<div class="notice open">${this._esc(browserError)}</div>` : this._mediaItemsListHtml(browserStations, meta.type, { layout: "grid", librarySkin: true })}
+                    ${browserError ? `<div class="notice open">${this._esc(browserError)}</div>` : libraryFlowActive ? this._libraryFlowPickerHtml(browserStations, meta.type, { className: "library-radio-browser-flow" }) : this._mediaItemsListHtml(browserStations, meta.type, { layout: "grid", librarySkin: true })}
                   </div>
                   <div>
                     <div class="media-section-title">${this._esc(this._i18n("ui.radio_browser_countries"))}</div>
@@ -58309,10 +59222,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             ${this._iconSvg("queue")}
             <strong>${this._esc(String(queueCount))}</strong>
           </div>
-          <button class="queue-head-transfer-btn" data-menu-nav="transfer" title="${this._esc(this._i18n("ui.transfer_queue_2"))}">
-            ${this._iconSvg("repeat")}
-            <span class="queue-head-transfer-label">${this._esc(this._i18n("ui.transfer_queue_3"))}</span>
-          </button>
+          <div class="queue-page-head-actions">
+            ${this._mobileQueueFlowEnabled() ? `
+              <button class="queue-head-transfer-btn queue-head-flow-btn" data-queue-flow-open="1" title="${this._esc(this._queueFlowLabel())}" aria-label="${this._esc(this._queueFlowLabel())}">
+                ${this._iconSvg("queue_flow")}
+                <span class="queue-head-transfer-label">${this._esc(this._queueFlowLabel())}</span>
+              </button>` : ``}
+            <button class="queue-head-transfer-btn" data-menu-nav="transfer" title="${this._esc(this._i18n("ui.transfer_queue_2"))}">
+              ${this._iconSvg("repeat")}
+              <span class="queue-head-transfer-label">${this._esc(this._i18n("ui.transfer_queue_3"))}</span>
+            </button>
+          </div>
         </div>
         ${this._queueMenuHtml()}
       `;
@@ -58448,7 +59368,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._flashInteraction(quickActionMoveBtn);
       this._state.mobileQuickActions = actions;
       this._persistMobileAppearance();
-      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      this._refreshAfterSettingsChange({ quickActionsChanged: true });
       return;
     }
     const playerOrderMoveBtn = e.target.closest("[data-setting-player-order-move]");
@@ -58472,8 +59392,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._state.playerOrderEntities = actions;
       this._state.playerSortMode = "custom";
       this._persistMobileAppearance();
-      this._loadPlayers();
-      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      this._refreshAfterSettingsChange({ playerListChanged: true });
       return;
     }
     const announcementPresetBtn = e.target.closest("[data-announcement-preset-fill]");
@@ -58798,7 +59717,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (langBtn?.dataset.settingLang) {
       this._state.lang = langBtn.dataset.settingLang;
       try {
-        localStorage.setItem("homeii_music_flow_lang", this._state.lang);
+        localStorage.setItem(this._lsKey("homeii_music_flow_lang"), this._state.lang);
       } catch (_) {
       }
       this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
@@ -58808,7 +59727,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (themeBtn?.dataset.settingTheme) {
       this._state.cardTheme = themeBtn.dataset.settingTheme;
       try {
-        localStorage.setItem("homeii_music_flow_theme", this._state.cardTheme);
+        localStorage.setItem(this._lsKey("homeii_music_flow_theme"), this._state.cardTheme);
       } catch (_) {
       }
       this._persistMobileAppearance();
@@ -58902,7 +59821,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._state.screensaverControlsEnabled = screensaverControlsBtn.dataset.settingScreensaverControls === "on";
       this._persistMobileAppearance();
       this._syncScreensaverUi();
-      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      this._refreshAfterSettingsChange({});
       return;
     }
     const powerButtonBtn = e.target.closest("[data-setting-power-button]");
@@ -58918,7 +59837,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._flashInteraction(discoveryModeBtn);
       this._state.discoveryModeEnabled = discoveryModeBtn.dataset.settingDiscoveryMode === "on";
       this._persistMobileAppearance();
-      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      this._refreshAfterSettingsChange({});
       return;
     }
     const nightModeBtn = e.target.closest("[data-setting-night-mode]");
@@ -58973,9 +59892,22 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const mobileLayoutModeBtn = e.target.closest("[data-setting-mobile-layout-mode]");
     if (mobileLayoutModeBtn?.dataset.settingMobileLayoutMode) {
       this._flashInteraction(mobileLayoutModeBtn);
-      this._state.mobileLayoutMode = HomeiiMobileSettingsFoundation.normalizeMobileLayoutMode(mobileLayoutModeBtn.dataset.settingMobileLayoutMode);
+      const nextMode = HomeiiMobileSettingsFoundation.normalizeMobileLayoutMode(mobileLayoutModeBtn.dataset.settingMobileLayoutMode);
+      this._state.mobileLayoutMode = nextMode;
+      this._state.mobileEdgeToEdge = false;
+      this._state.mobileEdgeReturnAvailable = false;
       if (!this._mobileCompactModeEnabled()) this._state.mobileCompactExpanded = false;
       this._persistMobileAppearance();
+      if (nextMode === "edge_to_edge") {
+        if (this._isVisualEditorContext()) {
+          this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+          return;
+        }
+        this._closeMobileMenu();
+        this._build();
+        this._init();
+        return;
+      }
       this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
       return;
     }
@@ -59142,6 +60074,24 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       await this._renderMobileMenu();
       return;
     }
+    const libraryFlowToggleBtn = e.target.closest("[data-library-flow-toggle]");
+    if (libraryFlowToggleBtn?.dataset.libraryFlowToggle) {
+      e.preventDefault();
+      e.stopPropagation();
+      const page = libraryFlowToggleBtn.dataset.libraryFlowToggle || this._state.menuPage;
+      this._showLibraryInteractionFeedback(libraryFlowToggleBtn);
+      this._state.mobileLibraryFlowPage = this._libraryFlowPageActive(page) ? "" : page;
+      await this._renderMobileMenu();
+      return;
+    }
+    const artistAlbumFlowOpenBtn = e.target.closest("[data-artist-album-flow-open]");
+    if (artistAlbumFlowOpenBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      this._showLibraryInteractionFeedback(artistAlbumFlowOpenBtn);
+      this._pushMobileMenu("artist_album_flow");
+      return;
+    }
     const libraryDefaultLayoutBtn = e.target.closest("[data-setting-library-default-layout]");
     if (libraryDefaultLayoutBtn?.dataset.settingLibraryDefaultLayout) {
       this._flashInteraction(libraryDefaultLayoutBtn);
@@ -59160,6 +60110,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._showLibraryInteractionFeedback(mediaLayoutBtn);
       this._state.mobileMediaLayout = mediaLayoutBtn.dataset.mediaLayout === "grid" ? "grid" : "list";
       this._state.mobileMediaLayoutManual = true;
+      this._state.mobileLibraryFlowPage = "";
       await this._renderMobileMenu();
       return;
     }
@@ -59230,6 +60181,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         return;
       }
       return this._pushMobileMenu(nav.dataset.menuNav);
+    }
+    const queueFlowOpenBtn = e.target.closest("[data-queue-flow-open]");
+    if (queueFlowOpenBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      this._showLibraryInteractionFeedback(queueFlowOpenBtn);
+      this._state.mobileQueueFlowQuickOpen = true;
+      await this._renderMobileMenu();
+      return;
     }
     if (this._state.menuPage === "library_liked" && this._state.likedSelectionMode && (e.target.closest("[data-media-uri]") || e.target.closest("[data-media-play]") || e.target.closest("[data-media-open]")) && !e.target.closest(".liked-select-box")) {
       e.preventDefault();
@@ -59351,7 +60311,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const playerBtn = e.target.closest("[data-menu-player]");
     if (playerBtn) {
       this._selectPlayer(playerBtn.dataset.menuPlayer, true);
-      this._toast(this._i18n("ui.player_selected"));
+      this._toast(this._i18n("ui.player_selected"), "info", { position: "top" });
       const previousPage = this._state.menuStack[this._state.menuStack.length - 1];
       if (String(previousPage || "").startsWith("library_") || previousPage === "media_detail" || previousPage === "discovery") {
         this._state.menuPage = this._state.menuStack.pop();
@@ -59527,7 +60487,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (e.target?.id === "mobileLanguageSelect") {
       this._state.lang = e.target.value || "en";
       try {
-        localStorage.setItem("homeii_music_flow_lang", this._state.lang);
+        localStorage.setItem(this._lsKey("homeii_music_flow_lang"), this._state.lang);
       } catch (_) {
       }
       this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
@@ -59748,7 +60708,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (e.target?.id === "mobileLibrarySortSelect") {
       this._state.mobileLibrarySort = e.target.value || "name_asc";
       try {
-        localStorage.setItem("homeii_music_flow_mobile_library_sort", this._state.mobileLibrarySort);
+        localStorage.setItem(this._lsKey("homeii_music_flow_mobile_library_sort"), this._state.mobileLibrarySort);
       } catch (_) {
       }
       this._cache.library.clear();
@@ -59785,8 +60745,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (e.target?.id === "playerSortModeSelect") {
       this._state.playerSortMode = HomeiiMobileSettingsFoundation.normalizePlayerSortMode(e.target.value || "default");
       this._persistMobileAppearance();
-      this._loadPlayers();
-      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      this._refreshAfterSettingsChange({ playerListChanged: true });
       return;
     }
     const pinnedPlayerCheckbox = e.target?.closest?.("input[data-setting-pinned-player]");
@@ -59801,7 +60760,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       if (this._state.selectedPlayer && !this._resolvedPinnedPlayerEntities().includes(this._state.selectedPlayer)) {
         this._state.selectedPlayer = this._resolvedPinnedPlayerEntity() || this._state.selectedPlayer;
       }
-      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      this._refreshAfterSettingsChange({ playerListChanged: true, pinnedChanged: true });
       return;
     }
     const excludedPlayerCheckbox = e.target?.closest?.("input[data-setting-excluded-player]");
@@ -59816,7 +60775,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       if (this._state.selectedPlayer && this._isPlayerExcluded(this._state.selectedPlayer)) {
         this._state.selectedPlayer = this._resolvedPinnedPlayerEntity() || this._state.players?.[0]?.entity_id || null;
       }
-      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      this._refreshAfterSettingsChange({ playerListChanged: true });
       return;
     }
     const tabCheckbox = e.target?.closest?.("input[data-setting-library-tab]");
@@ -59828,7 +60787,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const next = Array.from(current);
       this._state.mobileLibraryTabs = next.length ? next : this._defaultMobileLibraryTabs();
       this._persistMobileAppearance();
-      this._reopenSettingsMenuPreservingScroll();
+      this._refreshAfterSettingsChange({ libraryTabsChanged: true });
       return;
     }
     const mainBarCheckbox = e.target?.closest?.("input[data-setting-main-bar-item]");
@@ -59844,7 +60803,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const next = Array.from(current);
       this._state.mobileMainBarItems = next.length ? next : this._defaultMobileMainBarItems();
       this._persistMobileAppearance();
-      this._reopenSettingsMenuPreservingScroll({ rebuild: true });
+      this._refreshAfterSettingsChange({ mainBarChanged: true });
       return;
     }
     const quickActionCheckbox = e.target?.closest?.("input[data-setting-quick-action]");
@@ -59857,7 +60816,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._state.mobileQuickActions = next;
       if (item === "home") this._state.mobileHomeShortcutEnabled = !!quickActionCheckbox.checked;
       this._persistMobileAppearance();
-      this._reopenSettingsMenuPreservingScroll({ rebuild: true, init: true });
+      this._refreshAfterSettingsChange({ quickActionsChanged: true });
       return;
     }
     const screensaverControlCheckbox = e.target?.closest?.("input[data-setting-screensaver-control]");

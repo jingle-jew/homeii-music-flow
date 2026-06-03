@@ -129,7 +129,8 @@ describe("config validators", () => {
         mobile_compact_mode: true,
         mobile_compact_widget_mode: "mini",
         mobile_compact_edge_to_edge: false,
-        mobile_layout_mode: "full",
+        mobile_edge_to_edge: true,
+        mobile_layout_mode: "edge_to_edge",
         mobile_cover_flow: true,
         mobile_queue_flow: true,
         mobile_show_up_next: false,
@@ -218,6 +219,12 @@ describe("config validators", () => {
 
     expect(() =>
       validateMobileCardEditorConfig({
+        mobile_edge_to_edge: "on",
+      })
+    ).toThrow("mobile_edge_to_edge must be a boolean");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
         mobile_cover_flow: "on",
       })
     ).toThrow("mobile_cover_flow must be a boolean");
@@ -232,7 +239,7 @@ describe("config validators", () => {
       validateMobileCardEditorConfig({
         mobile_layout_mode: "phone",
       })
-    ).toThrow("mobile_layout_mode must be one of: auto, full, compact");
+    ).toThrow("mobile_layout_mode must be one of: auto, full, edge_to_edge, compact");
 
     expect(() =>
       validateMobileCardEditorConfig({

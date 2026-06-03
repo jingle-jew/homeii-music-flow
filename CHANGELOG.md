@@ -1,8 +1,8 @@
 # Changelog
 
-## 5.9.0-local - Unreleased
+## 5.9.0 - 2026-06-03
 
-Local development baseline for the next 5.9.0 release.
+Major mobile, diagnostics, settings, and community release after the 5.8.x stabilization cycle.
 
 Added:
 
@@ -11,10 +11,34 @@ Added:
 - `card_id` validator and visual-editor field in the Connection And Behavior section.
 - Settings accordion sections for Display, Players & Library, Quick Actions & Bar, Voice Assistant, Smart Home & Screensaver, Announcements, and Music Assistant.
 - Targeted Settings refresh path for high-frequency toggles so pinned/excluded players, Quick Actions, footer/main bar items, library tabs, player sort/order, screensaver controls, and discovery mode no longer rebuild the whole card on every click.
+- Query-string player override support through `?player=kitchen_sonos`, `?homeii_player=kitchen_sonos`, and card-scoped `?homeii_player_<card_id>=kitchen_sonos` links.
+- Optional phone edge-to-edge mode so the normal mobile layout can occupy the full viewport and open menus as frontmost full-screen layers.
+- Fast Queue Flow is now part of the default mobile Quick Actions set, while still removable from Quick Actions when a user does not want it.
+- A clearer Players screen action hub with four icon-and-text actions: This device, Queue, Groups, and Clear all.
+- Phone display mode now exposes Edge to edge as part of the layout-mode choice instead of a separate toggle, with a top X button that returns the card to Full mode.
+- Queue includes a dedicated Fast Queue Flow entry button and a distinct queue-flow icon.
+- Library pages now offer the same vertical wheel browsing style for playlists, artists, albums, tracks, liked items, radio stations, and artist-detail albums.
+- Artist album wheel opens as a dedicated full-screen Queue Flow-style page with its own close button instead of rendering inside the artist albums section.
 
 Migration note:
 
 - Adding `card_id` to a card that previously had no `card_id` will appear to reset that card's in-card customizations once. The old global values stay in localStorage under their original keys; the card just starts reading from card-scoped keys.
+
+Fixed:
+
+- Preserves complete queue snapshots when Home Assistant first returns a partial or empty queue after starting a playlist, avoiding the beta 8 regression where only one or two tracks appeared.
+- Visual-editor diagnostics on mobile now still shows the diagnostic report when the HA Companion/browser blocks clipboard access; copy failure is reported as a warning instead of replacing the report.
+- The player-selected toast now appears near the top so it does not cover the volume slider.
+- Full-screen mobile sheets and menus receive edge-to-edge sizing in phone edge-to-edge mode, reducing layer overlap between controls.
+- Visual-editor diagnostics uses explicit readable colors so Home Assistant theme variables cannot produce low-contrast text.
+- Visual-editor player settings list strict Music Assistant players instead of every generic Home Assistant `media_player`, while preserving already configured legacy ids.
+- Danish localization placeholder fixes from PR #56 so runtime variables such as `{player}`, `{title}`, `{count}`, and `{remaining}` resolve correctly.
+- Mobile library toolbar keeps the Library Wheel button compact so it does not overlap search, sort, player focus, or quick action buttons on phone-width screens.
+- Radio and artist-album wheel pages now use a single Queue Flow-style scroll stage, with cleaner captions for album year and station name.
+
+Community credits:
+
+- Thanks @tocDK for the Danish localization work and the PR ideas around `card_id`, settings performance, artwork cache behavior, and follow-up Danish placeholder fixes that were incorporated into 5.9.0.
 
 ## 5.8.2-beta.8 - 2026-06-03
 

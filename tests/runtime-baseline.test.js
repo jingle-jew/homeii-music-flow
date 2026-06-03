@@ -239,6 +239,74 @@ describe("runtime baseline", () => {
     expectHomeiiRuntimeRegistered(packageVersion);
   });
 
+  it("suppresses phone edge-to-edge while the card is rendered in the visual editor", async () => {
+    await import("../src/homeii-music-flow.js?runtime-mobile-edge-editor-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._state.mobileLayoutMode = "edge_to_edge";
+
+    expect(card._mobileEdgeToEdgeEnabled()).toBe(true);
+
+    card.classList.add("mobile-edge-to-edge-open");
+    card.editMode = true;
+
+    expect(card._mobileEdgeToEdgeEnabled()).toBe(false);
+    expect(card.classList.contains("mobile-edge-to-edge-open")).toBe(false);
+
+    card.editMode = false;
+    const renderBuild = card._build.bind(card);
+    card._build = vi.fn();
+    card._init = vi.fn();
+    card._closeMobileMenu = vi.fn();
+    card._closeMobileQueueActionMenu = vi.fn();
+    card._closeMobileVolumePresets = vi.fn();
+    card._closeSmartVoiceConfirm = vi.fn();
+    card._closeControlRoom = vi.fn();
+    card._persistMobileAppearance = vi.fn();
+    card._state.mobileLayoutMode = "edge_to_edge";
+
+    card._exitMobileEdgeToEdge();
+
+    expect(card._state.mobileLayoutMode).toBe("full");
+    expect(card._state.mobileEdgeReturnAvailable).toBe(true);
+
+    card._config = { ...(card._config || {}), settings_source: "visual", mobile_layout_mode: "edge_to_edge" };
+    card._applyConfiguredMobileSettings();
+    expect(card._state.mobileLayoutMode).toBe("full");
+    expect(card._state.mobileEdgeReturnAvailable).toBe(true);
+
+    card._layoutModeConfig = vi.fn(() => "mobile");
+    card._getAllocatedCardHeight = vi.fn(() => 760);
+    card._getViewportHeight = vi.fn(() => 900);
+    renderBuild();
+    expect(card.shadowRoot.innerHTML).toContain('id="mobileEdgeEnterBtn"');
+    expect(card.shadowRoot.innerHTML).toContain("mobile-edge-return");
+
+    card._state.menuOpen = true;
+    renderBuild();
+    expect(card.shadowRoot.innerHTML).not.toContain('id="mobileEdgeEnterBtn"');
+
+    card._state.menuOpen = false;
+    card._state.mobileLayoutMode = "edge_to_edge";
+    card._state.mobileEdgeReturnAvailable = false;
+    renderBuild();
+    expect(card.shadowRoot.innerHTML).toContain('id="mobileEdgeExitBtn"');
+
+    card._state.menuOpen = true;
+    renderBuild();
+    expect(card.shadowRoot.innerHTML).not.toContain('id="mobileEdgeExitBtn"');
+
+    card._state.menuOpen = false;
+    card._build = vi.fn();
+    card._enterMobileEdgeToEdge();
+
+    expect(card._state.mobileLayoutMode).toBe("edge_to_edge");
+    expect(card._state.mobileEdgeReturnAvailable).toBe(false);
+  });
+
   it("treats the phone actions page as a fullscreen menu", async () => {
     await import("../src/homeii-music-flow.js?runtime-actions-fullscreen-baseline");
     await Promise.resolve();
@@ -277,6 +345,58 @@ describe("runtime baseline", () => {
     expect(preventDefault).toHaveBeenCalled();
     expect(Array.isArray(editor._editorForm.schema)).toBe(true);
     expect(editor._editorForm.data.mobile_quick_actions).toEqual(["voice", "search"]);
+  });
+
+  it("keeps generic Home Assistant media players out of visual editor player settings", async () => {
+    await import("../src/homeii-music-flow.js?runtime-editor-ma-player-options-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const EditorCtor = globalThis.customElements.get("homeii-music-flow-editor");
+    const editor = new EditorCtor();
+    editor.connectedCallback();
+    editor.setConfig({
+      type: "custom:homeii-music-flow",
+      pinned_player_entities: ["media_player.legacy_configured"],
+    });
+    editor.hass = {
+      services: {
+        music_assistant: {
+          play_media: {},
+        },
+      },
+      states: {
+        "media_player.office": {
+          entity_id: "media_player.office",
+          state: "idle",
+          attributes: {
+            friendly_name: "Office",
+            app_id: "music_assistant",
+            mass_player_type: "player",
+          },
+        },
+        "media_player.alexa": {
+          entity_id: "media_player.alexa",
+          state: "idle",
+          attributes: { friendly_name: "Alexa" },
+        },
+        "media_player.legacy_configured": {
+          entity_id: "media_player.legacy_configured",
+          state: "idle",
+          attributes: { friendly_name: "Legacy configured" },
+        },
+      },
+      entities: {
+        "media_player.office": { platform: "music_assistant" },
+        "media_player.alexa": { platform: "alexa_media" },
+      },
+    };
+
+    const values = editor._editorPinnedPlayerOptions().map((option) => option.value);
+
+    expect(values).toContain("media_player.office");
+    expect(values).toContain("media_player.legacy_configured");
+    expect(values).not.toContain("media_player.alexa");
   });
 
   it("builds a visual editor diagnostics v3 report with visible status rows", async () => {
@@ -549,6 +669,95 @@ describe("runtime baseline", () => {
     expect(card._state.queueItems[0].media_item.name).toBe("Track A");
   });
 
+  it("uses a scoped Home Assistant queue lookup when the unscoped queue snapshot is partial", async () => {
+    await import("../src/homeii-music-flow.js?runtime-queue-ha-scoped-partial-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    const player = {
+      entity_id: "media_player.main",
+      state: "playing",
+      attributes: {
+        active_queue: "queue-main",
+        media_content_id: "spotify://track/1",
+        media_title: "Track A",
+      },
+    };
+    const makeItem = (index) => ({
+      queue_item_id: `queue-${index}`,
+      sort_index: index,
+      media_item: {
+        uri: `spotify://track/${index}`,
+        name: `Track ${index}`,
+        media_type: "track",
+      },
+    });
+    const fullItems = Array.from({ length: 4 }, (_, index) => makeItem(index));
+    card._callService = vi.fn(async (service, payload, options) => {
+      expect(service).toBe("get_queue");
+      expect(options).toEqual({ includeConfigEntryId: false });
+      if (payload.queue_id) {
+        return {
+          queue_state: { queue_id: "queue-main", current_index: 0, items: 4 },
+          items: fullItems,
+        };
+      }
+      return {
+        queue_state: { queue_id: "queue-main", current_index: 0, items: 4 },
+        items: fullItems.slice(0, 1),
+      };
+    });
+
+    const snapshot = await card._fetchMusicAssistantQueueSnapshot(player);
+
+    expect(card._callService).toHaveBeenCalledTimes(2);
+    expect(card._callService).toHaveBeenNthCalledWith(1, "get_queue", { entity_id: player.entity_id }, { includeConfigEntryId: false });
+    expect(card._callService).toHaveBeenNthCalledWith(2, "get_queue", { entity_id: player.entity_id, queue_id: "queue-main" }, { includeConfigEntryId: false });
+    expect(snapshot.items).toHaveLength(4);
+  });
+
+  it("keeps the unscoped Home Assistant queue snapshot when scoped queue_id is rejected", async () => {
+    await import("../src/homeii-music-flow.js?runtime-queue-ha-scoped-rejected-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    const player = {
+      entity_id: "media_player.main",
+      state: "playing",
+      attributes: {
+        active_queue: "queue-main",
+        media_content_id: "spotify://track/1",
+        media_title: "Track A",
+      },
+    };
+    const queueItem = {
+      queue_item_id: "queue-1",
+      sort_index: 0,
+      media_item: {
+        uri: "spotify://track/1",
+        name: "Track A",
+        media_type: "track",
+      },
+    };
+    card._callService = vi.fn(async (service, payload) => {
+      if (payload.queue_id) throw new Error("extra keys not allowed @ data['queue_id']");
+      return {
+        queue_state: { queue_id: "queue-main", current_index: 0, items: 12 },
+        items: [queueItem],
+      };
+    });
+
+    const snapshot = await card._fetchMusicAssistantQueueSnapshot(player);
+
+    expect(card._callService).toHaveBeenCalledTimes(2);
+    expect(snapshot.items).toHaveLength(1);
+    expect(snapshot.items[0].media_item.name).toBe("Track A");
+  });
+
   it("uses direct Music Assistant queue snapshots only after Home Assistant queue lookups fail", async () => {
     await import("../src/homeii-music-flow.js?runtime-queue-direct-fallback-baseline");
     await Promise.resolve();
@@ -690,6 +899,50 @@ describe("runtime baseline", () => {
     expect(card._state.musicAssistantIssueMessage).toBe("");
     expect(card._diagnosticIsStrictMusicAssistantPlayer(player, card._hass.entities)).toBe(false);
     expect(card._diagnosticPlayerMarkerSummary(player, card._hass.entities)).toContain("registry_platform=alexa_media");
+  });
+
+  it("selects a player from the dashboard query string", async () => {
+    await import("../src/homeii-music-flow.js?runtime-query-string-player-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const previousLocation = globalThis.window.location;
+    globalThis.window.location = {
+      href: "http://home.local/lovelace/music?player=kitchen_sonos",
+      search: "?player=kitchen_sonos",
+      hash: "",
+      origin: "http://home.local",
+      hostname: "home.local",
+      protocol: "http:",
+    };
+    try {
+      const CardCtor = globalThis.customElements.get("homeii-music-flow");
+      const card = new CardCtor();
+      const kitchen = {
+        entity_id: "media_player.kitchen_sonos",
+        state: "idle",
+        attributes: { friendly_name: "Kitchen Sonos", app_id: "music_assistant", mass_player_type: "player" },
+      };
+      const office = {
+        entity_id: "media_player.office",
+        state: "playing",
+        attributes: { friendly_name: "Office", app_id: "music_assistant", mass_player_type: "player" },
+      };
+      card._hass = {
+        services: { music_assistant: { play_media: {} } },
+        states: {
+          [office.entity_id]: office,
+          [kitchen.entity_id]: kitchen,
+        },
+        entities: {},
+      };
+
+      card._loadPlayers();
+
+      expect(card._state.selectedPlayer).toBe(kitchen.entity_id);
+    } finally {
+      globalThis.window.location = previousLocation;
+    }
   });
 
   it("reports browser-blocked Direct API as optional when the HA Music Assistant integration is available", async () => {
@@ -1115,6 +1368,112 @@ describe("runtime baseline", () => {
     card._config.mobile_queue_flow = false;
     card._state.mobileQuickActions = ["queue"];
     expect(card._mobileVisibleQuickActions(["queue", "queue_flow"])).not.toContain("queue_flow");
+  });
+
+  it("renders library pages and artist albums with the queue-flow style browser", async () => {
+    await import("../src/homeii-music-flow.js?runtime-library-flow-browser");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    const albums = [
+      {
+        uri: "library://album/1",
+        media_type: "album",
+        name: "Album One",
+        artist: "Artist One",
+        year: 1999,
+        image: "https://ha.local/album-one.jpg",
+      },
+      {
+        uri: "library://album/2",
+        media_type: "album",
+        name: "Album Two",
+        artist: "Artist Two",
+      },
+    ];
+
+    card._state.menuPage = "library_albums";
+    card._state.mobileLibraryFlowPage = "library_albums";
+    const toolbarHtml = card._mediaLayoutToolbarHtml();
+    const libraryFlowHtml = card._libraryFlowPickerHtml(albums, "album");
+
+    expect(toolbarHtml).toContain('data-library-flow-toggle="library_albums"');
+    expect(toolbarHtml).toContain("Library wheel");
+    expect(libraryFlowHtml).toContain("queue-flow-picker");
+    expect(libraryFlowHtml).toContain("data-library-flow-item");
+    expect(libraryFlowHtml).toContain('data-media-open="library://album/1"');
+    expect(libraryFlowHtml).toContain('data-flow-caption-title="Album One"');
+    expect(libraryFlowHtml).not.toContain("data-queue-flow-item");
+
+    card._state.mobileLibraryDetail = {
+      media_type: "artist",
+      name: "Artist One",
+      albums,
+      playlists: [],
+    };
+    const artistHtml = card._libraryArtistDetailHtml({
+      media_type: "artist",
+      name: "Artist One",
+      albums,
+      playlists: [],
+    });
+    const artistAlbumFlowHtml = card._artistAlbumFlowMenuHtml();
+    expect(artistHtml).toContain("data-artist-album-flow-open");
+    expect(artistHtml).toContain("Album wheel");
+    expect(artistHtml).not.toContain("artist-album-flow-page");
+    expect(artistHtml).not.toContain("queue-flow-picker");
+    expect(artistAlbumFlowHtml).toContain("artist-album-flow-page");
+    expect(artistAlbumFlowHtml).toContain("library-flow-full-stage");
+    expect(artistAlbumFlowHtml).toContain("queue-flow-picker");
+    expect(artistAlbumFlowHtml).not.toContain("library-flow-panel");
+    expect(artistAlbumFlowHtml).toContain('data-flow-caption-title="Album One"');
+    expect(artistAlbumFlowHtml).toContain('data-flow-caption-artist="1999"');
+
+    const radioFlowHtml = card._libraryFlowPickerHtml([
+      {
+        uri: "radio://station/1",
+        media_type: "radio",
+        name: "Station One",
+      },
+    ], "radio", { className: "library-radio-flow", captionMode: "radio_station" });
+    expect(radioFlowHtml).toContain("queue-flow-picker");
+    expect(radioFlowHtml).toContain('data-flow-caption-title="Station One"');
+    expect(radioFlowHtml).toContain('data-flow-caption-artist=""');
+  });
+
+  it("toggles library flow and opens artist album flow from mobile menu buttons", async () => {
+    await import("../src/homeii-music-flow.js?runtime-library-flow-toggle");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._state.menuPage = "library_albums";
+    card._renderMobileMenu = vi.fn();
+    card._pushMobileMenu = vi.fn();
+    card._showLibraryInteractionFeedback = vi.fn();
+
+    const eventForSelector = (selector, element) => ({
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      target: {
+        closest: vi.fn((candidate) => (candidate === selector ? element : null)),
+      },
+    });
+
+    await card._handleMobileMenuClick(eventForSelector("[data-library-flow-toggle]", {
+      dataset: { libraryFlowToggle: "library_albums" },
+    }));
+    expect(card._state.mobileLibraryFlowPage).toBe("library_albums");
+    expect(card._renderMobileMenu).toHaveBeenCalledTimes(1);
+
+    await card._handleMobileMenuClick(eventForSelector("[data-artist-album-flow-open]", {
+      dataset: { artistAlbumFlowOpen: "1" },
+    }));
+    expect(card._pushMobileMenu).toHaveBeenCalledWith("artist_album_flow");
+    expect(card._renderMobileMenu).toHaveBeenCalledTimes(1);
   });
 
   it("renders the opt-in vertical cover flow on the main artwork without changing the queue menu flag", async () => {

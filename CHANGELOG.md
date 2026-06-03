@@ -1,5 +1,19 @@
 # Changelog
 
+## 5.9.0-local - Unreleased
+
+Local development baseline for the next 5.9.0 release.
+
+Added:
+
+- Optional `card_id` YAML key. When set, HOMEii Flow namespaces browser-storage keys by the chosen id so multiple dashboards in the same browser can keep separate player selection, theme, layout, pinned/excluded players, screensaver settings, and other in-card customizations.
+- `src/core/state/card-id.js` foundation helpers with validation and storage-key scoping coverage.
+- `card_id` validator and visual-editor field in the Connection And Behavior section.
+
+Migration note:
+
+- Adding `card_id` to a card that previously had no `card_id` will appear to reset that card's in-card customizations once. The old global values stay in localStorage under their original keys; the card just starts reading from card-scoped keys.
+
 ## 5.8.2-beta.8 - 2026-06-03
 
 Focused beta follow-up for issue #28 after beta 7 exposed the next Home Assistant service-call layer.

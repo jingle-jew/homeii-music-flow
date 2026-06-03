@@ -926,6 +926,8 @@ const messages = Object.freeze({
   "ui.hotel_mode": "Modo hotel",
   "ui.hotel_mode_helper": "Interfaz mínima segura para hotel: solo controles del reproductor, volumen, búsqueda, navegación por carátulas y selección de reproductor.",
   "ui.style_and_genres": "Estilos y géneros",
+  "ui.card_id": "Card ID",
+  "ui.card_id_helper": "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour).",
 });
 
 export default messages;

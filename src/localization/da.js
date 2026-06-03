@@ -91,6 +91,8 @@ const messages = Object.freeze({
   "ui.card_configuration": "Kortkonfiguration",
   "ui.card_height": "Kortets h\u00f8jde",
   "ui.card_height_in_pixels": "Kortets h\u00f8jde i pixels.",
+  "ui.card_id": "Card ID",
+  "ui.card_id_helper": "Unik slug (bogstaver, tal, '-', '_'). S\u00e6t denne v\u00e6rdi, n\u00e5r du k\u00f8rer flere HOMEii Flow dashboards i samme browser, s\u00e5 hvert dashboard beholder sin egen afspillerv\u00e6lger, tema, layout og andre indstillinger. Lad v\u00e6re tom for at dele tilstand med alle andre HOMEii Flow-kort i denne browser (oprindelig adf\u00e6rd).",
   "ui.card_settings_are_managed_from_the_visual_editor": "Kortindstillingerne styres fra den visuelle editor",
   "ui.change_song": "Skift sang",
   "ui.change_track": "Skift spor",

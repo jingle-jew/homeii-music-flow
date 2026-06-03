@@ -474,6 +474,32 @@ condition:
     value_template: "{{ states('input_text.homeii_flow_active_player') | regex_match('^media_player\\.') }}"
 ```
 
+## Running Multiple Dashboards In One Browser
+
+By default, every HOMEii Flow card in the same browser shares its in-card customizations (theme, layout, excluded players, pinned players, screensaver settings, and the rest) via a single set of browser-storage keys. That keeps phones, tablets, and the desktop dashboard in sync when you only run one HOMEii Flow card.
+
+If you want **separate** dashboards — for example one card per kid's bedroom, or a kitchen wall tablet showing one player and a living-room phone view showing another — give each card its own `card_id`:
+
+```yaml
+type: custom:homeii-music-flow
+card_id: ida-music
+entity: media_player.ida_vaerelse
+```
+
+```yaml
+type: custom:homeii-music-flow
+card_id: toke-music
+entity: media_player.toke_vaerelse
+```
+
+Rules:
+
+- `card_id` is optional. Cards without it behave exactly as before (shared state).
+- `card_id` must be 1-64 characters of letters, digits, `-`, or `_`.
+- Two cards that share the same `card_id` will share state — useful when you want a phone and a wall tablet to stay in sync within one dashboard.
+- Adding `card_id` to a card that previously had no `card_id` will appear to reset its in-card customizations once. The old global values still live in localStorage under the original keys; the card now reads from the new card-scoped keys. Reconfigure once via the in-card Settings panel and you are done.
+- This only affects browser-local UI state. Music Assistant playback, your `media_player` entities, and Home Assistant configuration are unaffected.
+
 ## Sendspin Browser Player
 
 HOMEii Flow includes a local browser player flow powered by Sendspin. In the card this appears as **This device**.

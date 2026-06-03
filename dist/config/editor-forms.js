@@ -41,6 +41,7 @@ function homeiiRadioBrowserCountrySelectorOptions(translateFn = null, language =
 
 export function getBaseCardConfigForm() {
   const labels = {
+    card_id: homeiiEditorI18n("ui.card_id", {}, "Card ID"),
     config_entry_id: "Config Entry ID",
     ma_url: homeiiEditorI18n("ui.music_assistant_url"),
     music_assistant_external_url: "Music Assistant external URL",
@@ -65,6 +66,7 @@ export function getBaseCardConfigForm() {
     popup_opacity: homeiiEditorI18n("ui.popup_opacity"),
   };
   const helpers = {
+    card_id: homeiiEditorI18n("ui.card_id_helper", {}, "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."),
     config_entry_id: homeiiEditorI18n("ui.music_assistant_config_entry_id_if_you_want_direct_integration_lookup_th"),
     ma_url: homeiiEditorI18n("ui.leave_empty_if_the_card_should_use_home_assistant_only"),
     music_assistant_external_url: "Optional HTTPS Music Assistant URL for HTTPS dashboards, Nabu Casa, and Companion App browser-player connections.",
@@ -126,6 +128,7 @@ export function getBaseCardConfigForm() {
             flatten: true,
             column_min_width: "220px",
             schema: [
+              { name: "card_id", selector: { text: {} } },
               { name: "config_entry_id", selector: { text: {} } },
               { name: "ma_url", selector: { text: { type: "url" } } },
               { name: "music_assistant_external_url", selector: { text: { type: "url" } } },
@@ -289,6 +292,7 @@ export function getMobileEditorTexts() {
       player_sort_mode: homeiiEditorI18n("ui.player_sort"),
       player_order_entities: homeiiEditorI18n("ui.player_order"),
       ...playerOrderSlotLabels,
+      card_id: homeiiEditorI18n("ui.card_id", {}, "Card ID"),
       config_entry_id: "Config Entry ID",
       ma_url: homeiiEditorI18n("ui.music_assistant_url"),
       music_assistant_external_url: "Music Assistant external URL",
@@ -305,6 +309,7 @@ export function getMobileEditorTexts() {
       use_mass_queue_send_command: homeiiEditorI18n("ui.mass_queue_send_command_fallback"),
     },
     helpers: {
+      card_id: homeiiEditorI18n("ui.card_id_helper", {}, "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."),
       settings_source: homeiiEditorI18n("ui.choose_whether_settings_are_controlled_from_the_in_card_ui_or_from_the_c"),
       layout_mode: homeiiEditorI18n("ui.auto_chooses_mobile_or_tablet_based_on_actual_width"),
       height: homeiiEditorI18n("ui.card_height_in_pixels"),
@@ -673,6 +678,7 @@ export function getMobileCardConfigForm() {
             flatten: true,
             column_min_width: "220px",
             schema: [
+              { name: "card_id", selector: { text: {} } },
               { name: "config_entry_id", selector: { text: {} } },
               { name: "ma_url", selector: { text: { type: "url" } } },
               { name: "music_assistant_external_url", selector: { text: { type: "url" } } },

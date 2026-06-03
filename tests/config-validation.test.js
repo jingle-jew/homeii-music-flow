@@ -44,6 +44,29 @@ describe("config validators", () => {
     ).toThrow("performance_profile must be one of: full, high, low, ultra_lite");
   });
 
+  it("accepts a valid card_id and rejects malformed ones", () => {
+    expect(() => validateBaseCardEditorConfig({ card_id: "ida-music" })).not.toThrow();
+    expect(() => validateBaseCardEditorConfig({ card_id: "Toke_2" })).not.toThrow();
+    expect(() => validateBaseCardEditorConfig({ card_id: "a".repeat(64) })).not.toThrow();
+    // Undefined and empty-after-trim are explicitly allowed (no scoping applied).
+    expect(() => validateBaseCardEditorConfig({})).not.toThrow();
+    expect(() => validateBaseCardEditorConfig({ card_id: "" })).not.toThrow();
+    expect(() => validateBaseCardEditorConfig({ card_id: "   " })).not.toThrow();
+
+    expect(() => validateBaseCardEditorConfig({ card_id: 42 })).toThrow(
+      "card_id must be a string"
+    );
+    expect(() => validateBaseCardEditorConfig({ card_id: "ida music" })).toThrow(
+      "card_id must be 1-64 characters of letters, digits, '-' or '_'"
+    );
+    expect(() => validateBaseCardEditorConfig({ card_id: "ida/music" })).toThrow(
+      "card_id must be 1-64 characters of letters, digits, '-' or '_'"
+    );
+    expect(() => validateBaseCardEditorConfig({ card_id: "a".repeat(65) })).toThrow(
+      "card_id must be 1-64 characters of letters, digits, '-' or '_'"
+    );
+  });
+
   it("accepts future language codes and rejects non-string language values", () => {
     expect(() =>
       validateBaseCardEditorConfig({

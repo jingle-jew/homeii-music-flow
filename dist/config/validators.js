@@ -38,11 +38,26 @@ export function assertStringArrayValuesIfDefined(value, key, allowedValues) {
   }
 }
 
+const CARD_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
+export function assertCardIdIfDefined(value, key) {
+  if (value == null) return;
+  if (typeof value !== "string") throw new Error(`${key} must be a string`);
+  const trimmed = value.trim();
+  if (trimmed === "") return;
+  if (!CARD_ID_PATTERN.test(trimmed)) {
+    throw new Error(
+      `${key} must be 1-64 characters of letters, digits, '-' or '_'`
+    );
+  }
+}
+
 export function validateBaseCardEditorConfig(config) {
   if (!config || typeof config !== "object" || Array.isArray(config)) {
     throw new Error("Card config must be an object");
   }
 
+  assertCardIdIfDefined(config.card_id, "card_id");
   assertStringIfDefined(config.config_entry_id, "config_entry_id");
   assertStringIfDefined(config.ma_url, "ma_url");
   assertStringIfDefined(config.music_assistant_external_url, "music_assistant_external_url");

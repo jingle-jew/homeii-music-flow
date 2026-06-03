@@ -9,6 +9,8 @@ Added:
 - Optional `card_id` YAML key. When set, HOMEii Flow namespaces browser-storage keys by the chosen id so multiple dashboards in the same browser can keep separate player selection, theme, layout, pinned/excluded players, screensaver settings, and other in-card customizations.
 - `src/core/state/card-id.js` foundation helpers with validation and storage-key scoping coverage.
 - `card_id` validator and visual-editor field in the Connection And Behavior section.
+- Settings accordion sections for Display, Players & Library, Quick Actions & Bar, Voice Assistant, Smart Home & Screensaver, Announcements, and Music Assistant.
+- Targeted Settings refresh path for high-frequency toggles so pinned/excluded players, Quick Actions, footer/main bar items, library tabs, player sort/order, screensaver controls, and discovery mode no longer rebuild the whole card on every click.
 
 Migration note:
 

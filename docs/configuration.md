@@ -71,6 +71,30 @@ ma_token: "YOUR_MUSIC_ASSISTANT_TOKEN"
 
 If Home Assistant is opened through HTTPS, the direct Music Assistant URL should also be HTTPS. Browsers block mixed HTTP/WebSocket access from an HTTPS dashboard.
 
+## HOMEii Flow Engine Bridge
+
+HOMEii Music Flow includes optional card-side infrastructure for the HOMEii Flow Engine Home Assistant integration.
+
+This is not required for normal card usage. If the integration is not installed, the card continues to use the current Home Assistant / Music Assistant frontend paths.
+
+Supported card options:
+
+```yaml
+type: custom:homeii-music-flow
+homeii_engine_mode: auto
+homeii_engine_timeout_ms: 3500
+homeii_engine_instance_id: ""
+homeii_engine_profile_id: ""
+```
+
+`homeii_engine_mode` supports:
+
+- `auto`: default. Use the Engine only when it is installed and responsive.
+- `off`: disable Engine checks and use the normal frontend-only card behavior.
+- `required`: diagnostics reports a failure when the Engine is unavailable. This is mainly for testing Engine-backed deployments.
+
+The bridge can use Engine-backed player state, playback proxy, queue/library proxying, queue transfer, grouping, scheduling, timers, statistics, announcements, volume rules, and Sendspin status checks. These hooks are intentionally optional so existing dashboards keep working with or without the integration.
+
 ## Sendspin / This Device
 
 To use the current browser, phone, tablet, or wall panel as a Music Assistant player:
@@ -92,7 +116,7 @@ Important notes:
 
 ## Reusable Dashboards
 
-HOMEii Music Flow 5.9.0 makes reusable dashboards easier with two related features:
+HOMEii Music Flow makes reusable dashboards easier with two related features:
 
 - `card_id` separates local settings for different card instances.
 - URL player overrides open the same dashboard directly to a specific player.

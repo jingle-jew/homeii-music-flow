@@ -13,7 +13,7 @@ For support issues, prefer running Diagnostics from the card itself after select
 
 ## What Diagnostics Shows
 
-Diagnostics v3 includes:
+Diagnostics v6 includes:
 
 - HOMEii Music Flow version
 - diagnostics version
@@ -23,22 +23,30 @@ Diagnostics v3 includes:
 - privacy-safe Music Assistant URL details
 - Home Assistant frontend availability
 - Music Assistant services
+- optional HOMEii Flow Engine bridge status
 - Music Assistant config entry state
 - integration signal
 - strict Music Assistant player count
 - generic Home Assistant media player fallback count
 - selected player markers
+- selected player source
+- current group state and group service path
 - Direct Music Assistant API result
 - Direct Music Assistant WebSocket state
 - Sendspin browser support
 - Sendspin endpoint readiness
 - queue identity
 - queue provider availability
+- queue UI state
 - queue snapshot result
 - queue artwork sample
+- queue artwork browser load result
 - library provider availability
 - library coverage
 - library artwork sample
+- library artwork browser load result
+- authenticated artwork fetch fallback result
+- rendered artwork DOM health
 
 External and private hostnames are redacted by default in visible and copied output.
 
@@ -66,6 +74,18 @@ The most important checks are:
 
 If Music Assistant services are exposed, HOMEii Music Flow can often use the Home Assistant integration path even when direct browser access is unavailable.
 
+## HOMEii Flow Engine
+
+The HOMEii Flow Engine check reports the optional backend integration bridge.
+
+Possible outcomes:
+
+- **OK:** the Engine integration answered the card and reported its version/capabilities.
+- **INFO:** the Engine is disabled or not installed, and the card is using the normal frontend-only compatibility path.
+- **FAIL:** `homeii_engine_mode` is set to `required`, but the Engine did not answer.
+
+This check does not replace Music Assistant diagnostics. It adds backend visibility for Engine-backed features such as player state, schedules, timers, statistics, policies, playback proxying, queue transfer, grouping orchestration, Sendspin state, and smarter recommendations.
+
 ## Direct API And CORS
 
 Direct Music Assistant API can fail even when Music Assistant is working.
@@ -85,11 +105,15 @@ Queue checks show:
 
 - whether the selected player exposes a queue identity
 - which queue providers are available
+- whether the rendered Queue UI has items
 - whether Home Assistant can fetch queue data
 - whether direct queue data is available
 - whether queue artwork can be inferred
+- whether the current browser can actually load the sampled artwork
 
 If the selected player is a generic Home Assistant fallback player and does not expose an active Music Assistant queue, the card may still control playback, but queue details can be limited.
+
+If queue APIs return items but the rendered Queue UI is empty, Diagnostics reports that mismatch directly. That is the strongest signal for a card-side queue rendering/state issue.
 
 ## Library Diagnostics
 
@@ -101,6 +125,20 @@ Library checks show:
 - whether artwork is found for sample items
 
 If library coverage is zero, check Music Assistant integration state, selected config entry, and whether the Music Assistant library is actually populated.
+
+If artwork URLs are inferred but the browser cannot load them, Diagnostics reports the browser load result separately. This helps distinguish "Music Assistant did not provide artwork" from "the browser cannot display artwork from this access path."
+
+## Group Diagnostics
+
+Group checks show:
+
+- whether the selected player is currently grouped
+- which player appears to be the group owner/master
+- current group members where Home Assistant exposes them
+- which Home Assistant services are available for join/unjoin
+- whether group actions are expected to use `media_player.join`, `media_player.unjoin`, or a fallback path
+
+If a group action reports success but nothing changes, share Diagnostics together with the exact selected player and the speakers you tried to add or remove.
 
 ## Sendspin Diagnostics
 
@@ -130,4 +168,3 @@ When opening an issue, include:
 - whether it happens locally, remotely, or both
 
 Do not manually paste private hostnames if Diagnostics redacted them.
-

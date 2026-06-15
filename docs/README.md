@@ -49,7 +49,7 @@ Optional features need optional setup:
 | [Configuration](./configuration.md) | YAML options, visual editor, Music Assistant connection, Sendspin, `card_id`, query-string player overrides |
 | [Feature Guide](./features.md) | Main player, library, queue, Library Wheel, Queue Wheel, FLOW, Studio, lyrics, announcements, favorites, history |
 | [Layouts And Mobile Modes](./layouts.md) | Phone, tablet, desktop, compact, full, edge-to-edge, Section view, Panel view |
-| [Diagnostics](./diagnostics.md) | What Diagnostics v3 checks, how to copy a useful report, what each warning usually means |
+| [Diagnostics](./diagnostics.md) | What Diagnostics v6 checks, how to copy a useful report, what each warning usually means |
 | [Troubleshooting](./troubleshooting.md) | Missing artwork, empty queue, no players, HTTPS/HTTP issues, Companion app quirks |
 
 ## Recommended Dashboard Setup
@@ -62,21 +62,23 @@ For the most polished experience:
 - If multiple HOMEii cards run in the same browser, give each one a unique `card_id`.
 - Keep Diagnostics available in the card settings. It is the fastest way to understand user reports.
 
-## Current Stable Version
+## Current Documentation Target
 
-Current documentation target: **HOMEii Music Flow 5.9.0**
+Current documentation target: **HOMEii Music Flow 5.9.1**
 
-5.9.0 documentation highlights:
+5.9.1 documentation highlights:
 
 - [Reusable dashboards with `card_id`](./configuration.md#card_id)
 - [Open a dashboard directly to a player with URL parameters](./configuration.md#open-a-dashboard-directly-to-a-player)
 - [Library Wheel and Queue Wheel](./features.md#library-wheel)
 - [Phone edge-to-edge mode](./layouts.md#edge-to-edge)
-- [Diagnostics v3](./diagnostics.md)
+- [Diagnostics v6](./diagnostics.md)
+- Group management and group-volume shortcuts
+- Radio source preference and favorites-only library filtering
 
 Release notes:
 
-- [HOMEii Music Flow 5.9.0](../RELEASE_NOTES_5.9.0.md)
+- [HOMEii Music Flow 5.9.1](../RELEASE_NOTES_5.9.1.md)
 - [Changelog](../CHANGELOG.md)
 
 ## Community And Credits

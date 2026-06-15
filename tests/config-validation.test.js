@@ -11,6 +11,10 @@ describe("config validators", () => {
     expect(() =>
       validateBaseCardEditorConfig({
         config_entry_id: "abc",
+        homeii_engine_mode: "auto",
+        homeii_engine_instance_id: "main",
+        homeii_engine_profile_id: "living-room",
+        homeii_engine_timeout_ms: 3500,
         music_assistant_external_url: "https://ma.example.com",
         ma_interface_target: "_self",
         height: 800,
@@ -42,6 +46,18 @@ describe("config validators", () => {
         performance_profile: "turbo",
       })
     ).toThrow("performance_profile must be one of: full, high, low, ultra_lite");
+
+    expect(() =>
+      validateBaseCardEditorConfig({
+        homeii_engine_mode: "always",
+      })
+    ).toThrow("homeii_engine_mode must be one of: auto, off, required");
+
+    expect(() =>
+      validateBaseCardEditorConfig({
+        homeii_engine_timeout_ms: "fast",
+      })
+    ).toThrow("homeii_engine_timeout_ms must be a number");
   });
 
   it("accepts a valid card_id and rejects malformed ones", () => {
@@ -141,8 +157,9 @@ describe("config validators", () => {
         ambient_light_transition: 3,
         ambient_light_cooldown: 8,
         screensaver_enabled: true,
+        screensaver_auto_lyrics_when_playing: true,
         screensaver_controls_enabled: true,
-        screensaver_control_buttons: ["previous", "play_pause", "next", "mute", "power", "like", "lyrics", "voice"],
+        screensaver_control_buttons: ["previous", "play_pause", "next", "mute", "power", "like", "lyrics", "lyrics_sync", "lyrics_font_minus", "lyrics_font_plus", "voice"],
         screensaver_clock_mode: "analog",
         screensaver_timeout_seconds: 90,
         screensaver_message: "Dinner is ready",
@@ -255,6 +272,12 @@ describe("config validators", () => {
 
     expect(() =>
       validateMobileCardEditorConfig({
+        mobile_radio_source_mode: "spotify",
+      })
+    ).toThrow("mobile_radio_source_mode must be one of: combined, ma_first, ma_only, radiobrowser_only");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
         mobile_quick_action_1: 7,
       })
     ).toThrow("mobile_quick_action_1 must be a string");
@@ -287,9 +310,15 @@ describe("config validators", () => {
 
     expect(() =>
       validateMobileCardEditorConfig({
+        screensaver_auto_lyrics_when_playing: "yes",
+      })
+    ).toThrow("screensaver_auto_lyrics_when_playing must be a boolean");
+
+    expect(() =>
+      validateMobileCardEditorConfig({
         screensaver_control_buttons: ["previous", "party"],
       })
-    ).toThrow("screensaver_control_buttons must contain only: previous, play_pause, next, mute, power, like, lyrics, voice");
+    ).toThrow("screensaver_control_buttons must contain only: previous, play_pause, next, mute, power, like, lyrics, lyrics_sync, lyrics_font_minus, lyrics_font_plus, voice");
 
     expect(() =>
       validateMobileCardEditorConfig({

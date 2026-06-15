@@ -58,6 +58,10 @@ export function validateBaseCardEditorConfig(config) {
   }
 
   assertCardIdIfDefined(config.card_id, "card_id");
+  assertValueInList(config.homeii_engine_mode, "homeii_engine_mode", ["auto", "off", "required"]);
+  assertStringIfDefined(config.homeii_engine_instance_id, "homeii_engine_instance_id");
+  assertStringIfDefined(config.homeii_engine_profile_id, "homeii_engine_profile_id");
+  assertNumberIfDefined(config.homeii_engine_timeout_ms, "homeii_engine_timeout_ms");
   assertStringIfDefined(config.config_entry_id, "config_entry_id");
   assertStringIfDefined(config.ma_url, "ma_url");
   assertStringIfDefined(config.music_assistant_external_url, "music_assistant_external_url");
@@ -85,8 +89,10 @@ export function validateBaseCardEditorConfig(config) {
   assertNumberIfDefined(config.ambient_light_transition, "ambient_light_transition");
   assertNumberIfDefined(config.ambient_light_cooldown, "ambient_light_cooldown");
   assertBooleanIfDefined(config.screensaver_enabled, "screensaver_enabled");
+  assertBooleanIfDefined(config.screensaver_auto_lyrics_when_playing, "screensaver_auto_lyrics_when_playing");
+  assertBooleanIfDefined(config.screensaver_auto_lyrics, "screensaver_auto_lyrics");
   assertBooleanIfDefined(config.screensaver_controls_enabled, "screensaver_controls_enabled");
-  assertStringArrayValuesIfDefined(config.screensaver_control_buttons, "screensaver_control_buttons", ["previous", "play_pause", "next", "mute", "power", "like", "lyrics", "voice"]);
+  assertStringArrayValuesIfDefined(config.screensaver_control_buttons, "screensaver_control_buttons", ["previous", "play_pause", "next", "mute", "power", "like", "lyrics", "lyrics_sync", "lyrics_font_minus", "lyrics_font_plus", "voice"]);
   assertValueInList(config.screensaver_clock_mode, "screensaver_clock_mode", ["digital", "analog"]);
   assertNumberIfDefined(config.screensaver_timeout_seconds, "screensaver_timeout_seconds");
   assertStringIfDefined(config.screensaver_message, "screensaver_message");
@@ -149,6 +155,7 @@ export function validateMobileCardEditorConfig(config) {
     assertStringIfDefined(config[`mobile_quick_action_${index}`], `mobile_quick_action_${index}`);
   }
   assertValueInList(config.mobile_liked_mode, "mobile_liked_mode", ["ma", "local"]);
+  assertValueInList(config.mobile_radio_source_mode, "mobile_radio_source_mode", ["combined", "ma_first", "ma_only", "radiobrowser_only"]);
   assertValueInList(config.mobile_swipe_mode, "mobile_swipe_mode", ["play", "browse"]);
   assertStringIfDefined(config.mobile_radio_browser_country, "mobile_radio_browser_country");
   assertStringArrayIfDefined(config.mobile_announcement_presets, "mobile_announcement_presets");

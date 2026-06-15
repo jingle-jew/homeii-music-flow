@@ -91,7 +91,7 @@ Artist-album and radio wheel pages open as dedicated full-screen browsing stages
 
 ## Reusable Dashboard Features
 
-HOMEii Music Flow 5.9.0 adds support for reusable dashboard patterns.
+HOMEii Music Flow supports reusable dashboard patterns.
 
 The main tools are:
 
@@ -116,7 +116,7 @@ It includes:
 - group controls
 - clear/stop actions
 
-In 5.9.0, the top action hub is clearer: four icon-and-text actions in one row for This device, Queue, Groups, and Clear all.
+The top action hub uses four clear icon-and-text actions in one row for This device, Queue, Groups, and Clear all.
 
 ## Studio / Control Room
 

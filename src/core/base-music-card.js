@@ -128,6 +128,10 @@ export function createHomeiiBaseMusicCard({
         language: "en",
         cache_ttl: 300000,
         music_assistant_timeout_ms: 12000,
+        homeii_engine_mode: "auto",
+        homeii_engine_instance_id: "",
+        homeii_engine_profile_id: "",
+        homeii_engine_timeout_ms: 3500,
         active_player_helper_entity: "",
         music_assistant_external_url: "",
         show_ma_button: true,
@@ -572,6 +576,10 @@ export function createHomeiiBaseMusicCard({
         ma_interface_url: "/music-assistant",
         ma_interface_target: "_self",
         music_assistant_timeout_ms: 12000,
+        homeii_engine_mode: "auto",
+        homeii_engine_instance_id: "",
+        homeii_engine_profile_id: "",
+        homeii_engine_timeout_ms: 3500,
         theme_mode: "auto",
         show_theme_toggle: true,
         hotel_mode: false,
@@ -915,6 +923,61 @@ export function createHomeiiBaseMusicCard({
       }
     }
 
+    _isDirectMaImageProxyUrl(url = "") {
+      const raw = String(url || "").trim();
+      if (!raw || !this._isMaImageProxyPath(raw)) return false;
+      const base = this._maArtworkBaseUrl();
+      if (!base) return false;
+      try {
+        const parsed = new URL(raw, base);
+        const maParsed = new URL(base);
+        return parsed.origin === maParsed.origin;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    _artworkDisplayUrl(url = "") {
+      const raw = String(url || "").trim();
+      if (!raw) return "";
+      return this._imageBlobCache?.get?.(raw) || raw;
+    }
+
+    _shouldFetchArtworkUrl(url = "", { crossOrigin = false } = {}) {
+      const raw = String(url || "").trim();
+      if (!raw || typeof fetch !== "function") return false;
+      if (crossOrigin) return !!(this._maToken && this._isDirectMaImageProxyUrl(raw));
+      return true;
+    }
+
+    async _fetchArtworkBlobUrl(url = "", options = {}) {
+      const raw = String(url || "").trim();
+      if (!raw || /^(data:|blob:)/i.test(raw)) return raw;
+      if (!this._shouldFetchArtworkUrl(raw, { crossOrigin: options.crossOrigin === true })) return "";
+      if (this._imageBlobCache.has(raw)) return this._imageBlobCache.get(raw);
+      const headers = { Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8" };
+      if (this._maToken && this._isDirectMaImageProxyUrl(raw)) headers.Authorization = `Bearer ${this._maToken}`;
+      const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+      const timeout = controller ? setTimeout(() => controller.abort(), Number(options.timeoutMs || 6500)) : null;
+      try {
+        const response = await fetch(raw, {
+          cache: options.cache || "force-cache",
+          credentials: headers.Authorization ? "omit" : "same-origin",
+          headers,
+          signal: controller?.signal,
+        });
+        if (!response.ok) throw new Error(`Image load failed: ${response.status}`);
+        const blob = await response.blob();
+        if (!blob) throw new Error("Image response did not include a blob.");
+        const objectUrl = URL.createObjectURL(blob);
+        this._imageBlobCache.set(raw, objectUrl);
+        this._imageFailed.delete(raw);
+        return objectUrl;
+      } finally {
+        if (timeout) clearTimeout(timeout);
+      }
+    }
+
     _normalizeArtworkUrl(value = "", { size = 300, cacheKey = "" } = {}) {
       const raw = String(value || "").trim();
       if (!raw) return "";
@@ -1038,6 +1101,7 @@ export function createHomeiiBaseMusicCard({
         shuffle: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5h3v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4 7h5l7 10h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M16 19h3v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4 17h5l2-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M13 10l3-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>`,
         repeat: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10l-2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M17 17H7l2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M17 7l2 2-2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7 17l-2-2 2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>`,
         repeat_one: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10l-2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M17 17H7l2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M17 7l2 2-2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7 17l-2-2 2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path fill="currentColor" d="M11.2 9.8h1.5v4.9h-1.5z"></path><path fill="currentColor" d="M10.4 10.7l1.8-1.3v1.7z"></path></svg>`,
+        sync: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 7.3A6.5 6.5 0 0 1 18.6 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M18.6 6.8V11h-4.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M16.8 16.7A6.5 6.5 0 0 1 5.4 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M5.4 17.2V13h4.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>`,
         pin: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m14 4 6 6-3.2 1.2-3.1 5.6-2.4-2.4L6 20l3.6-6.6-2.4-2.4 5.6-3.1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path><path d="m4 20 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
         speaker: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2M10 4.5A1.5 1.5 0 1 1 10 7.5 1.5 1.5 0 0 1 10 4.5M10 19a4 4 0 1 1 0-8 4 4 0 0 1 0 8M10 13a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"></path></svg>`,
         speaker_group: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3.5" width="6" height="17" rx="1.8" fill="none" stroke="currentColor" stroke-width="2"></rect><circle cx="12" cy="8" r="1.1" fill="currentColor"></circle><circle cx="12" cy="15.5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"></circle><path d="M5.5 7.5v9M18.5 7.5v9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M4 10.5v3M20 10.5v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
@@ -1098,7 +1162,7 @@ export function createHomeiiBaseMusicCard({
     _versionedAssetUrl(url) {
       const value = String(url || "").trim();
       if (!value || /^data:/i.test(value) || /[?&]v=/.test(value)) return value;
-      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.9.0";
+      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.9.1";
       return `${value}${value.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
     }
 
@@ -1514,6 +1578,12 @@ export function createHomeiiBaseMusicCard({
           }
           .icon-btn:hover,.lang-btn:hover,.close-btn:hover,.theme-btn:hover { background:var(--ma-soft); color:var(--ma-text-1); }
           .icon-btn.active,.big-round-btn.active,.theme-btn.active {
+            color:var(--ma-accent);
+            background:color-mix(in srgb, var(--ma-accent) 14%, transparent);
+            border-color:color-mix(in srgb, var(--ma-accent) 28%, transparent);
+          }
+          .group-volume-btn[hidden] { display:none!important; }
+          .group-volume-btn.active {
             color:var(--ma-accent);
             background:color-mix(in srgb, var(--ma-accent) 14%, transparent);
             border-color:color-mix(in srgb, var(--ma-accent) 28%, transparent);
@@ -2705,8 +2775,23 @@ export function createHomeiiBaseMusicCard({
             background:var(--ma-panel);
             color:var(--ma-text-1);
             font-size:12px;
+            display:flex;
+            align-items:center;
+            gap:8px;
+            pointer-events:auto;
             backdrop-filter:blur(12px);
             -webkit-backdrop-filter:blur(12px);
+          }
+          .toast-text { min-width:0; flex:1; }
+          .toast-ack {
+            border:1px solid color-mix(in srgb, var(--ma-accent) 42%, transparent);
+            border-radius:999px;
+            padding:5px 10px;
+            color:var(--ma-text-1);
+            background:color-mix(in srgb, var(--ma-accent) 18%, transparent);
+            font-size:11px;
+            font-weight:800;
+            cursor:pointer;
           }
           .toast.centered {
             max-width:min(420px, calc(100% - 48px));
@@ -3441,11 +3526,11 @@ export function createHomeiiBaseMusicCard({
             .modal-body { padding:14px; }
           }
         .mobile-volume-inline .volume-btn .ui-ic{width:20px;height:20px;}
-  .card:not(.layout-tablet) .mobile-volume-inline{grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;}
+  .card:not(.layout-tablet) .mobile-volume-inline{grid-template-columns:auto minmax(0,1fr) auto auto;gap:10px;align-items:center;}
   .card:not(.layout-tablet) .mobile-volume-inline .volume-value{order:1;min-width:46px;text-align:center;}
   .card:not(.layout-tablet) .mobile-volume-inline .tablet-volume-track{order:2;}
   .card:not(.layout-tablet) .mobile-volume-inline .volume-btn{order:3;width:38px;height:38px;border-radius:999px;}
-  .card:not(.layout-tablet) .mobile-volume-inline.has-volume-step-buttons{grid-template-columns:auto auto minmax(0,1fr) auto auto;gap:8px;}
+  .card:not(.layout-tablet) .mobile-volume-inline.has-volume-step-buttons{grid-template-columns:auto auto minmax(0,1fr) auto auto auto;gap:8px;}
   .card:not(.layout-tablet) .mobile-volume-inline.has-volume-step-buttons .volume-value{order:1;}
   .card:not(.layout-tablet) .mobile-volume-inline.has-volume-step-buttons .volume-step-minus{order:2;}
   .card:not(.layout-tablet) .mobile-volume-inline.has-volume-step-buttons .tablet-volume-track{order:3;}
@@ -3552,6 +3637,7 @@ export function createHomeiiBaseMusicCard({
 
               <div class="volume-row">
                 <button class="icon-btn" id="btnMute" title="${this._i18n("ui.mute")}">${this._iconSvg("volume_high")}</button>
+                <button class="icon-btn group-volume-btn" id="groupVolumeBtn" hidden title="${this._esc(this._i18n("ui.group_volume", {}, "Group volume"))}" aria-label="${this._esc(this._i18n("ui.group_volume", {}, "Group volume"))}">${this._iconSvg("speaker_group")}</button>
                 <input class="volume-range" id="volSlider" type="range" min="0" max="100" value="50" style="--vol-pct:50%">
               </div>
 
@@ -3611,8 +3697,8 @@ export function createHomeiiBaseMusicCard({
                     <div class="group-list" id="groupList"></div>
                   </div>
                   <div class="group-actions">
-                    <button class="chip-btn" id="applyGroupBtn">${this._i18n("ui.apply_group")}</button>
-                    <button class="chip-btn warn" id="unGroupBtn">${this._i18n("ui.ungroup")}</button>
+                    <button class="chip-btn" id="applyGroupBtn">${this._esc(this._m("Update group", "עדכן קבוצה"))}</button>
+                    <button class="chip-btn warn" id="unGroupBtn">${this._esc(this._m("Disconnect all", "נתק הכל"))}</button>
                   </div>
                 </div>
               </div>
@@ -3647,6 +3733,7 @@ export function createHomeiiBaseMusicCard({
       this.$("btnNext").addEventListener("click", () => this._playerCmd("next"));
 
       this.$("btnMute").addEventListener("click", () => this._toggleMute());
+      this.$("groupVolumeBtn")?.addEventListener("click", () => this._openGroupVolumeShortcut());
       this.$("npRow").addEventListener("click", () => { if (!this._isHotelMode()) this._toggleQueue(); });
       this.$("npArt").addEventListener("click", (e) => {
         e.stopPropagation();
@@ -3691,8 +3778,8 @@ export function createHomeiiBaseMusicCard({
       this.$("content").addEventListener("change", (e) => this._handleQueueMoveAutoChange(e));
       this.$("content").addEventListener("contextmenu", this._boundContentContext);
       this.$("groupList").addEventListener("change", (e) => this._handleGroupChange(e));
-      this.$("applyGroupBtn").addEventListener("click", (event) => this._runMenuButtonLoading(event.currentTarget, this._i18n("ui.connecting_2"), () => this._applySpeakerGroup(), { kind: "connect" }));
-      this.$("unGroupBtn").addEventListener("click", (event) => this._runMenuButtonLoading(event.currentTarget, this._i18n("ui.disconnecting"), () => this._clearSpeakerGroup(), { kind: "disconnect" }));
+      this.$("applyGroupBtn").addEventListener("click", (event) => this._runMenuButtonLoading(event.currentTarget, this._m("Updating group", "מעדכן קבוצה"), () => this._applySpeakerGroup(), { kind: "connect" }));
+      this.$("unGroupBtn").addEventListener("click", (event) => this._runMenuButtonLoading(event.currentTarget, this._m("Disconnecting all", "מנתק הכל"), () => this._clearSpeakerGroup(), { kind: "disconnect" }));
       this.$("groupModalClose").addEventListener("click", () => this._closeGroupModal());
       this.$("groupModal").addEventListener("click", (e) => { if (e.target === this.$("groupModal")) this._closeGroupModal(); });
       this.$("playerModalClose").addEventListener("click", () => this._closePlayerModal());
@@ -3836,6 +3923,10 @@ export function createHomeiiBaseMusicCard({
       if (player.state === "playing") return this._i18n("ui.playing");
       if (player.state === "paused") return this._i18n("ui.paused");
       return this._i18n("ui.idle");
+    }
+
+    _playerDisplayName(player = null, players = this._state.players || []) {
+      return HomeiiPlayersFoundation.playerDisplayName(player, { players });
     }
 
     _isPlayerActive(player) {
@@ -4992,7 +5083,7 @@ export function createHomeiiBaseMusicCard({
         this._updateThemeButton();
         return;
       }
-      if (title) title.textContent = selected?.attributes?.friendly_name || this._i18n("ui.selected_player");
+      if (title) title.textContent = this._playerDisplayName(selected) || this._i18n("ui.selected_player");
       if (sub) {
         const label = this._playerStateLabel(selected);
         const track = selected?.attributes?.media_title || "";
@@ -5025,7 +5116,7 @@ export function createHomeiiBaseMusicCard({
       if (icon) icon.textContent = mode === "transfer" ? "⇆" : "🎵";
       if (!subtitle) return;
       if (mode === "transfer") {
-        subtitle.textContent = selected?.attributes?.friendly_name || this._i18n("ui.choose_target_player");
+        subtitle.textContent = this._playerDisplayName(selected) || this._i18n("ui.choose_target_player");
         return;
       }
       const count = (this._state.players || []).length;
@@ -5053,7 +5144,7 @@ export function createHomeiiBaseMusicCard({
               ${list.map((p) => {
                 const selected = p.entity_id === this._state.selectedPlayer;
                 const stateCls = p.state === "playing" ? "playing" : p.state === "paused" ? "paused" : "idle";
-                const name = p.attributes?.friendly_name || p.entity_id;
+                const name = this._playerDisplayName(p, players);
                 const track = p.attributes?.media_title || "";
                 const art = this._bestArtworkUrl([p.attributes?.entity_picture_local, p.attributes?.entity_picture], {
                   size: 120,
@@ -5300,7 +5391,14 @@ export function createHomeiiBaseMusicCard({
       if (fresh || this._state.mobileRecommendationPlaylistsLoading) return cached;
       this._state.mobileRecommendationPlaylistsLoading = true;
       try {
-        const playlists = await this._loadScheduledStartPlaylists(force);
+        const [playlistsResult, nativeResult] = await Promise.allSettled([
+          this._loadScheduledStartPlaylists(force),
+          this._loadNativeRecommendationEntries(force, 36),
+        ]);
+        const playlists = playlistsResult.status === "fulfilled" ? playlistsResult.value : [];
+        if (nativeResult.status === "fulfilled" && Array.isArray(nativeResult.value)) {
+          this._state.mobileNativeRecommendationItems = nativeResult.value.slice(0, 36);
+        }
         this._state.mobileRecommendationPlaylists = Array.isArray(playlists) ? playlists.slice(0, 24) : [];
         this._state.mobileRecommendationPlaylistsFetchedAt = Date.now();
         this._state.mobileHistoryRenderedHtml = "";
@@ -5348,6 +5446,7 @@ export function createHomeiiBaseMusicCard({
         }));
       const recommendations = [];
       pushUnique(this._state.quickMixRecommendationItems || [], recommendations);
+      pushUnique(this._historyNativeRecommendationItems(8), recommendations);
       pushUnique(queueItems, recommendations);
       pushUnique(this._historyRecommendationPlaylistItems(5), recommendations);
       pushUnique(recentItems, recommendations);
@@ -5471,7 +5570,7 @@ export function createHomeiiBaseMusicCard({
       const player = entityOrPlayer && typeof entityOrPlayer === "object"
         ? entityOrPlayer
         : this._playerByEntityId(String(entityOrPlayer || ""));
-      return player?.attributes?.friendly_name || String(entityOrPlayer || "") || this._i18n("ui.player");
+      return player ? this._playerDisplayName(player) : (String(entityOrPlayer || "") || this._i18n("ui.player"));
     }
 
     _controlRoomPlayerCountLabel(count = 0) {
@@ -5516,7 +5615,7 @@ export function createHomeiiBaseMusicCard({
         cacheKey: this._currentArtworkCacheKey(first),
       });
       if (players.length > 1) {
-        const names = players.map((player) => player.attributes?.friendly_name || player.entity_id).filter(Boolean);
+        const names = players.map((player) => this._playerDisplayName(player, players)).filter(Boolean);
         return {
           art,
           count: players.length,
@@ -5525,7 +5624,7 @@ export function createHomeiiBaseMusicCard({
           track: names.slice(0, 3).join(" · ") + (names.length > 3 ? "..." : ""),
         };
       }
-      const name = first?.attributes?.friendly_name || this._i18n("ui.selected_player_2");
+      const name = this._playerDisplayName(first, players) || this._i18n("ui.selected_player_2");
       return {
         art,
         count: first ? 1 : 0,
@@ -6020,6 +6119,7 @@ export function createHomeiiBaseMusicCard({
         album: item?.album?.name || item?.album || "",
         image: this._artUrl(item) || item?.image || item?.image_url || item?.media_item?.image || item?.media_image || "",
         favorite: !!item?.favorite,
+        favorite_scope: item?.favorite_scope || options.favorite_scope || "library",
       };
     }
 
@@ -6030,6 +6130,7 @@ export function createHomeiiBaseMusicCard({
         `data-room-library-name="${this._esc(entry.name || "")}"`,
         `data-room-library-subtitle="${this._esc(entry.subtitle || "")}"`,
         `data-room-library-image="${this._esc(entry.image || "")}"`,
+        `data-room-library-favorite-scope="${this._esc(entry.favorite_scope || "library")}"`,
       ].join(" ");
     }
 
@@ -6188,9 +6289,15 @@ export function createHomeiiBaseMusicCard({
         return favorites.filter((item) => item?.uri).slice(0, 24);
       }
       if (preset?.random) {
+        const nativeEntries = await this._nativeMixEntriesForPreset(presetId, query, 12);
         const tracks = await this._fetchLibrary("track", "random", 24, false);
-        return tracks.map((item) => this._controlRoomNormalizeMediaEntry(item, "track")).filter((item) => item.uri);
+        return this._controlRoomUniqueEntries([
+          ...nativeEntries,
+          ...tracks.map((item) => this._controlRoomNormalizeMediaEntry(item, "track")).filter((item) => item.uri),
+        ]).slice(0, 24);
       }
+      const nativeEntries = await this._nativeMixEntriesForPreset(presetId, query, 12);
+      if (nativeEntries.length >= 4) return nativeEntries;
       const queries = query ? [query] : (preset?.queries || ["music playlist"]);
       const entries = [];
       for (const currentQuery of queries) {
@@ -6697,8 +6804,7 @@ export function createHomeiiBaseMusicCard({
       const action = String(mode || "play");
       if (!entry?.uri) return false;
       if (action === "like") {
-        await this._toggleLikeEntry(entry);
-        return true;
+        return this._toggleLikeEntry(entry);
       }
       const primaryId = await this._prepareControlRoomPlaybackTargets();
       if (!primaryId) return false;
@@ -8198,11 +8304,10 @@ export function createHomeiiBaseMusicCard({
 
     async _toggleLikeCurrentMedia(sourceEl = null) {
       const uri = this._getCurrentMediaUri();
-      if (!uri) return;
+      if (!uri) return false;
       if (this._useMaLikedMode()) {
         const entry = this._currentMediaLikeMeta();
-        await this._toggleMaLikeEntry(entry, sourceEl);
-        return;
+        return this._toggleMaLikeEntry(entry, sourceEl);
       }
       const likedUris = this._loadLikedUris();
       const likedMeta = this._loadLikedMetaMap();
@@ -8218,14 +8323,14 @@ export function createHomeiiBaseMusicCard({
       if (sourceEl) this._flashInteraction(sourceEl);
       this._syncLikeButtons();
       if (this._state.menuOpen && this._state.menuPage === "library_liked") this._renderMobileMenu();
+      return true;
     }
 
     async _toggleLikeEntry(entry = {}, sourceEl = null) {
       const uri = String(entry?.uri || "").trim();
-      if (!uri) return;
+      if (!uri) return false;
       if (this._useMaLikedMode()) {
-        await this._toggleMaLikeEntry(entry, sourceEl);
-        return;
+        return this._toggleMaLikeEntry(entry, sourceEl);
       }
       const likedUris = this._loadLikedUris();
       const likedMeta = this._loadLikedMetaMap();
@@ -8247,6 +8352,7 @@ export function createHomeiiBaseMusicCard({
       this._saveLikedMetaMap();
       if (sourceEl) this._flashInteraction(sourceEl);
       this._syncLikeButtons();
+      return true;
     }
 
     async _toggleMaLikeEntry(entry = {}, sourceEl = null) {
@@ -9063,6 +9169,7 @@ export function createHomeiiBaseMusicCard({
                 <div class="now-controls-bottom">
                   <div class="now-volume">
                     <button class="big-round-btn" id="bigMuteBtn">${this._iconSvg(this._volumeIconName(player))}</button>
+                    <button class="big-round-btn group-volume-btn" id="bigGroupVolumeBtn" hidden title="${this._esc(this._i18n("ui.group_volume", {}, "Group volume"))}" aria-label="${this._esc(this._i18n("ui.group_volume", {}, "Group volume"))}">${this._iconSvg("speaker_group")}</button>
                     <input id="bigVolumeSlider" type="range" min="0" max="100" value="${volumePct}" style="--vol-pct:${volumePct}%">
                   </div>
                   <div class="now-actions">
@@ -9097,6 +9204,7 @@ export function createHomeiiBaseMusicCard({
         this._bindNowPlayingPage();
         this._updateNowPlayingSidePanel();
         this._highlightNowPlaying();
+        this._syncGroupVolumeShortcut(player);
       } catch (e) {
         if (!this._isValidRender(token)) return;
         this._renderError(e, () => this._renderNowPlayingPage());
@@ -9198,6 +9306,7 @@ export function createHomeiiBaseMusicCard({
       bind("bigShuffleBtn", () => this._toggleShuffle());
       bind("bigRepeatBtn", () => this._toggleRepeat());
       bind("bigMuteBtn", () => this._toggleMute());
+      bind("bigGroupVolumeBtn", () => this._openGroupVolumeShortcut());
       bind("openQueueBtn", () => this._showQueue());
       bind("transferQueueBtn", () => this._openTransferQueuePicker());
       bind("groupBtn", () => this._openGroupModal());
@@ -10437,6 +10546,162 @@ export function createHomeiiBaseMusicCard({
       if (search) data.search = search;
       const raw = await this._callDirectMaCommand(`music/${segment}/library_items`, data);
       return this._libraryItemsFromDirectPayload(raw, mediaType);
+    }
+
+    _recommendationFolderItems(raw = {}) {
+      if (!raw) return [];
+      if (Array.isArray(raw)) return raw;
+      if (Array.isArray(raw?.items)) return raw.items;
+      if (Array.isArray(raw?.recommendations)) return raw.recommendations;
+      if (Array.isArray(raw?.folders)) return raw.folders;
+      return [];
+    }
+
+    _normalizeRecommendationEntry(item = {}, fallbackType = "track", folder = null) {
+      const normalized = this._normalizeSearchItem(item?.media_item || item, fallbackType);
+      const mediaType = String(normalized?.media_type || fallbackType || "track").toLowerCase();
+      const artists = Array.isArray(normalized?.artists)
+        ? normalized.artists.map((artist) => artist?.name).filter(Boolean).join(", ")
+        : "";
+      const uri = String(normalized?.uri || item?.uri || item?.media_item?.uri || "").trim();
+      if (!uri) return null;
+      const folderName = String(folder?.name || folder?.title || folder?.item_id || "").trim();
+      const providerLabel = String(normalized?.provider_label || item?.provider_label || folder?.provider || normalized?.provider || "").trim();
+      return {
+        ...normalized,
+        uri,
+        media_type: mediaType,
+        name: normalized?.name || normalized?.title || item?.name || item?.title || uri,
+        title: normalized?.name || normalized?.title || item?.name || item?.title || uri,
+        artist: artists || normalized?.artist || item?.artist || "",
+        album: normalized?.album?.name || normalized?.album || item?.album?.name || item?.album || "",
+        image: this._artUrl(normalized, { size: 240 }) || this._artUrl(item, { size: 240 }) || this._imageUrl(item?.image || item?.image_url, 240) || "",
+        folder_name: folderName,
+        folder_provider: String(folder?.provider || "").trim(),
+        provider_label: providerLabel,
+      };
+    }
+
+    _flattenNativeRecommendations(raw = {}, limit = 48) {
+      const src = raw?.response ?? raw?.result ?? raw;
+      const folders = this._recommendationFolderItems(src);
+      const entries = [];
+      const seen = new Set();
+      const addEntry = (item, folder = null) => {
+        const fallbackType = String(item?.media_type || item?.type || item?.media_item?.media_type || "track").toLowerCase();
+        const entry = this._normalizeRecommendationEntry(item, fallbackType, folder);
+        const key = String(entry?.uri || entry?.name || "").trim().toLowerCase();
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        entries.push(entry);
+      };
+      if (folders.some((folder) => Array.isArray(folder?.items))) {
+        folders.forEach((folder) => this._recommendationFolderItems(folder).forEach((item) => addEntry(item, folder)));
+      } else {
+        folders.forEach((item) => addEntry(item, null));
+      }
+      return entries.slice(0, Math.max(1, Math.min(100, Number(limit) || 48)));
+    }
+
+    async _loadNativeRecommendationEntries(force = false, limit = 48) {
+      const cached = Array.isArray(this._state.mobileNativeRecommendationItems)
+        ? this._state.mobileNativeRecommendationItems
+        : [];
+      const fresh = cached.length && !force && (Date.now() - Number(this._state.mobileNativeRecommendationsFetchedAt || 0) < 10 * 60 * 1000);
+      if (fresh || this._state.mobileNativeRecommendationsLoading) return cached;
+      if (!this._hasDirectMAConnection()) return cached;
+      this._state.mobileNativeRecommendationsLoading = true;
+      try {
+        const raw = await this._callDirectMaCommand("music/recommendations", {});
+        const items = this._flattenNativeRecommendations(raw, limit);
+        this._state.mobileNativeRecommendationItems = items;
+        this._state.mobileNativeRecommendationsFetchedAt = Date.now();
+        return items;
+      } catch (_) {
+        return cached;
+      } finally {
+        this._state.mobileNativeRecommendationsLoading = false;
+      }
+    }
+
+    _historyNativeRecommendationItems(limit = 8) {
+      return (Array.isArray(this._state.mobileNativeRecommendationItems) ? this._state.mobileNativeRecommendationItems : [])
+        .filter((item) => item?.uri)
+        .slice(0, limit)
+        .map((item) => ({
+          uri: item.uri,
+          media_type: item.media_type || "track",
+          title: item.title || item.name || this._i18n("ui.recommended_track"),
+          artist: item.artist || item.subtitle || "",
+          album: item.album || item.folder_name || item.provider_label || "",
+          image: item.image || this._artUrl(item, { size: 120 }) || "",
+        }));
+    }
+
+    async _nativeSimilarTrackEntries(entry = {}, limit = 12) {
+      if (!this._hasDirectMAConnection() || !entry?.uri) return [];
+      const mediaType = String(entry.media_type || entry.type || "track").toLowerCase();
+      if (mediaType !== "track") return [];
+      const parsed = this._parseMediaReference(entry.uri, "track");
+      if (!parsed?.provider || !parsed?.item_id) return [];
+      try {
+        const raw = await this._callDirectMaCommand("music/tracks/similar_tracks", {
+          item_id: parsed.item_id,
+          provider_instance_id_or_domain: parsed.provider,
+          limit: Math.max(1, Math.min(50, Number(limit) || 12)),
+          allow_lookup: false,
+        });
+        const items = Array.isArray(raw?.items) ? raw.items : (Array.isArray(raw) ? raw : []);
+        return items
+          .map((item) => this._normalizeRecommendationEntry(item, "track", { name: this._m("Similar tracks", "שירים דומים") }))
+          .filter((item) => item?.uri);
+      } catch (_) {
+        return [];
+      }
+    }
+
+    _recommendationPresetTokens(preset = null, query = "") {
+      const source = [
+        query,
+        preset?.id,
+        preset?.label,
+        preset?.subtitle,
+        ...(Array.isArray(preset?.queries) ? preset.queries : []),
+      ].join(" ").toLowerCase();
+      return source
+        .replace(/[^a-z0-9\u0590-\u05ff ]+/g, " ")
+        .split(/\s+/)
+        .map((token) => token.trim())
+        .filter((token) => token.length >= 3);
+    }
+
+    _scoreNativeRecommendationEntry(entry = {}, tokens = []) {
+      if (!tokens.length) return 1;
+      const haystack = [
+        entry.name,
+        entry.title,
+        entry.artist,
+        entry.album,
+        entry.folder_name,
+        entry.provider_label,
+        entry.media_type,
+      ].join(" ").toLowerCase();
+      return tokens.reduce((score, token) => score + (haystack.includes(token) ? 1 : 0), 0);
+    }
+
+    async _nativeMixEntriesForPreset(presetId = "", customQuery = "", limit = 16) {
+      const preset = this._controlRoomMixPresets().find((item) => item.id === presetId) || null;
+      const items = await this._loadNativeRecommendationEntries(false, 60);
+      if (!items.length) return [];
+      const tokens = this._recommendationPresetTokens(preset, customQuery);
+      const scored = items
+        .map((entry) => ({ entry, score: this._scoreNativeRecommendationEntry(entry, tokens) }))
+        .filter((item) => item.score > 0 || preset?.random || customQuery)
+        .sort((left, right) => right.score - left.score)
+        .map(({ entry }) => this._controlRoomNormalizeMediaEntry(entry, entry.media_type || "track", {
+          subtitle: entry.folder_name || entry.provider_label || this._m("Music Assistant recommendations", "המלצות Music Assistant"),
+        }));
+      return this._controlRoomUniqueEntries(scored).slice(0, Math.max(1, Math.min(30, Number(limit) || 16)));
     }
 
     async _getLibrary(mediaType, orderBy = "sort_name", limit = 500, favoritesOnly = false) {
@@ -12062,6 +12327,21 @@ export function createHomeiiBaseMusicCard({
       const sourceId = String(sourcePlayerEntityId || "").trim();
       const targetId = String(targetPlayerEntityId || "").trim();
       if (!sourceId || !targetId || sourceId === targetId) return false;
+      const canUseHomeiiEngineTransfer = typeof this._homeiiEngineTransferQueue === "function"
+        && this._homeiiEngineEnabled?.()
+        && (this._state?.engineAvailable || this._homeiiEngineRequired?.());
+      if (canUseHomeiiEngineTransfer) {
+        try {
+          const result = await this._homeiiEngineTransferQueue({
+            source_player: sourceId,
+            target_player: targetId,
+            auto_play: true,
+          });
+          if (result?.ok) return true;
+        } catch (engineError) {
+          this._debugLog?.("warn", "[HOMEii Flow] HOMEii Flow Engine queue transfer fallback failed", engineError);
+        }
+      }
       const data = { source_player: sourceId, auto_play: true };
       try {
         await this._callHaServiceTargeted("music_assistant", "transfer_queue", data, { entity_id: targetId });
@@ -12109,18 +12389,53 @@ export function createHomeiiBaseMusicCard({
       });
     }
 
+    _cardIssueAckStorageKey(key = "issue", message = "") {
+      const rawKey = String(key || "issue").trim() || "issue";
+      const safeKey = rawKey.replace(/[^a-z0-9_-]+/gi, "_").replace(/^_+|_+$/g, "").slice(0, 64) || "issue";
+      const raw = `${rawKey}|${String(message || "")}`;
+      let hash = 2166136261;
+      for (let index = 0; index < raw.length; index += 1) {
+        hash ^= raw.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+      }
+      return this._lsKey(`homeii_music_flow_card_issue_ack_${safeKey}_${(hash >>> 0).toString(36)}`);
+    }
+
+    _isCardIssueAcknowledged(key = "issue", message = "") {
+      try {
+        return typeof localStorage !== "undefined"
+          && localStorage.getItem(this._cardIssueAckStorageKey(key, message)) === "1";
+      } catch (_) {
+        return false;
+      }
+    }
+
+    _acknowledgeCardIssue(key = "issue", message = "") {
+      try {
+        if (typeof localStorage !== "undefined") {
+          localStorage.setItem(this._cardIssueAckStorageKey(key, message), "1");
+        }
+      } catch (_) {}
+    }
+
     _notifyCardIssue(key = "issue", message = "", variant = "error", cooldown = 30000) {
       const text = String(message || "").trim();
       if (!text) return;
       if (!this._cardIssueNoticeTimes) this._cardIssueNoticeTimes = new Map();
       const now = Date.now();
       const noticeKey = String(key || text);
+      if (this._isCardIssueAcknowledged(noticeKey, text)) return;
       const last = this._cardIssueNoticeTimes.get(noticeKey) || 0;
       if (now - last < cooldown) return;
       this._cardIssueNoticeTimes.set(noticeKey, now);
-      if (variant === "success") this._toastSuccess(text);
-      else if (variant === "info" || variant === "warning" || variant === "warn") this._toast(text);
-      else this._toastError(text);
+      const toastOptions = {
+        duration: Math.max(6500, Math.min(Number(cooldown || 8500) || 8500, 12000)),
+        issueAckKey: noticeKey,
+        issueAckText: text,
+      };
+      if (variant === "success") this._toastSuccess(text, toastOptions);
+      else if (variant === "info" || variant === "warning" || variant === "warn") this._toast(text, "info", toastOptions);
+      else this._toastError(text, toastOptions);
     }
 
     _isMissingMusicAssistantConfigError(error = null) {
@@ -12383,7 +12698,7 @@ export function createHomeiiBaseMusicCard({
       if (sel) {
         sel.innerHTML = entities.map((entity) => {
           const active = this._isPlayerActive(entity) ? "● " : "";
-          const name = entity.attributes.friendly_name || entity.entity_id;
+          const name = this._playerDisplayName(entity, entities);
           return `<option value="${this._esc(entity.entity_id)}">${this._esc(active + name)}</option>`;
         }).join("");
         sel.value = this._state.selectedPlayer || "";
@@ -12446,6 +12761,31 @@ export function createHomeiiBaseMusicCard({
       try {
         if (this._isDirectMaPlayer(entityId)) {
           return await this._playMediaOnDirectMaPlayer(entityId, uri, mediaType, enqueue, options);
+        }
+        const canUseHomeiiEnginePlayback = typeof this._homeiiEnginePlayMedia === "function"
+          && this._config?.homeii_engine_playback_proxy === true
+          && this._homeiiEngineEnabled?.()
+          && (this._state?.engineAvailable || this._homeiiEngineRequired?.());
+        if (canUseHomeiiEnginePlayback) {
+          try {
+            const engineResult = await this._homeiiEnginePlayMedia({
+              player: entityId,
+              media_id: uri,
+              media_type: mediaType,
+              enqueue,
+              radio_mode: !!options.radioMode,
+            });
+            if (engineResult?.ok) {
+              if (!options.silent) {
+                const targetPlayer = this._playerByEntityId(entityId);
+                this._toastMediaQueued(label, targetPlayer?.attributes?.friendly_name || entityId);
+              }
+              if (entityId === this._state.selectedPlayer) setTimeout(() => this._ensureQueueSnapshot(true), 600);
+              return true;
+            }
+          } catch (engineError) {
+            this._debugLog?.("warn", "[HOMEii Flow] HOMEii Flow Engine playback fallback failed", engineError);
+          }
         }
         if (enqueue === "shuffle") {
           await this._callHaServiceRaw("media_player", "shuffle_set", { entity_id: entityId, shuffle: true });
@@ -13176,6 +13516,7 @@ export function createHomeiiBaseMusicCard({
         this._renderPlayerSummary();
         this._syncBrandPlayingState();
         this._syncStatus();
+        this._syncGroupVolumeShortcut(null);
         return;
       }
       const queueItem = this._state.maQueueState?.current_item || null;
@@ -13222,6 +13563,7 @@ export function createHomeiiBaseMusicCard({
       this._syncBrandPlayingState();
       this._syncStatus();
       this._syncNowPlayingPageLive();
+      this._syncGroupVolumeShortcut(player);
       if (this._state.screensaverOpen) this._syncScreensaverUi();
     }
 
@@ -13434,22 +13776,165 @@ export function createHomeiiBaseMusicCard({
     }
 
     _getAvailableGroupPlayers() {
-      const current = this._state.selectedPlayer;
       return (this._state.players || [])
-        .filter((p) => p.entity_id !== current)
         .filter((p) => !(typeof this._isLikelyBrowserPlayer === "function" && this._isLikelyBrowserPlayer(p)))
         .filter((p) => !(typeof this._isStaticGroupPlayer === "function" && this._isStaticGroupPlayer(p)));
     }
 
-    _refreshGroupingState() {
+    _currentSpeakerGroupMemberIds(entityId = this._state.selectedPlayer) {
+      const primaryId = String(entityId || "").trim();
+      if (!primaryId) return [];
+      const players = Array.isArray(this._state.players) ? this._state.players : [];
+      const primary = players.find((player) => player?.entity_id === primaryId) || this._playerByEntityId(primaryId);
+      let ids = this._playerGroupMemberIds(primary).filter(Boolean);
+      if (ids.length <= 1) {
+        const owner = players.find((player) => {
+          const members = this._playerGroupMemberIds(player);
+          return members.length > 1 && members.includes(primaryId);
+        });
+        if (owner) ids = this._playerGroupMemberIds(owner).filter(Boolean);
+      }
+      if (!ids.includes(primaryId)) ids.unshift(primaryId);
+      return [...new Set(ids)];
+    }
+
+    _currentSpeakerGroupOwnerId(entityId = this._state.selectedPlayer) {
+      const primaryId = String(entityId || "").trim();
+      if (!primaryId) return "";
+      const players = Array.isArray(this._state.players) ? this._state.players : [];
+      const primary = players.find((player) => player?.entity_id === primaryId) || this._playerByEntityId(primaryId);
+      const primaryMembers = this._playerGroupMemberIds(primary);
+      if (primaryMembers.length > 1) return primaryMembers[0] || primaryId;
+      const owner = players.find((player) => {
+        const members = this._playerGroupMemberIds(player);
+        return members.length > 1 && members.includes(primaryId);
+      });
+      const ownerMembers = this._playerGroupMemberIds(owner);
+      return ownerMembers[0] || owner?.entity_id || primaryId;
+    }
+
+    _selectedSpeakerGroupCount(player = this._getSelectedPlayer()) {
+      const entityId = String(player?.entity_id || this._state.selectedPlayer || "").trim();
+      if (!entityId) return 0;
+      return this._currentSpeakerGroupMemberIds(entityId).length;
+    }
+
+    _syncGroupVolumeShortcut(player = this._getSelectedPlayer()) {
+      const count = this._selectedSpeakerGroupCount(player);
+      const show = count > 1;
+      const label = this._i18n("ui.group_volume", {}, "Group volume");
+      this.shadowRoot?.querySelectorAll?.(".group-volume-btn").forEach((btn) => {
+        btn.hidden = !show;
+        btn.classList.toggle("active", show);
+        btn.dataset.groupCount = show ? String(count) : "";
+        const title = show ? `${label} · ${count}` : label;
+        btn.title = title;
+        btn.setAttribute("aria-label", title);
+      });
+    }
+
+    _openGroupVolumeShortcut() {
+      const player = this._getSelectedPlayer();
+      if (!player || this._selectedSpeakerGroupCount(player) <= 1) {
+        this._toast?.(this._m("No active group for this player.", "אין קבוצה פעילה לנגן הזה."));
+        return;
+      }
+      const layoutMode = typeof this._layoutModeConfig === "function" ? this._layoutModeConfig() : "";
+      if (layoutMode && layoutMode !== "desktop" && typeof this._openMobileMenu === "function") {
+        this._openMobileMenu("group");
+        return;
+      }
+      this._openGroupModal();
+    }
+
+    _currentSpeakerGroupChildIds(entityId = this._state.selectedPlayer) {
+      const primaryId = String(entityId || "").trim();
+      return this._currentSpeakerGroupMemberIds(primaryId).filter((id) => id && id !== primaryId);
+    }
+
+    _normalizeGroupMemberSelection(ownerId, groupMembers = []) {
+      const primaryId = String(ownerId || "").trim();
+      return [...new Set((Array.isArray(groupMembers) ? groupMembers : [])
+        .map((id) => String(id || "").trim())
+        .filter((id) => id && id !== primaryId))];
+    }
+
+    _groupSelectionDelta(entityId = this._state.selectedPlayer, groupMembers = this._state.pendingGroupSelections || []) {
+      const primaryId = String(entityId || "").trim();
+      const owner = this._currentSpeakerGroupOwnerId(primaryId) || primaryId;
+      const groupAll = this._currentSpeakerGroupMemberIds(primaryId);
+      const current = groupAll.filter((id) => id && id !== owner);
+      const desired = this._normalizeGroupMemberSelection(owner, groupMembers);
+      const currentSet = new Set(current);
+      const desiredSet = new Set(desired);
+      const desiredAll = [...new Set((Array.isArray(groupMembers) ? groupMembers : [])
+        .map((id) => String(id || "").trim())
+        .filter(Boolean))];
+      const ownerRemoved = !!(
+        owner
+        && groupAll.length > 1
+        && this._state.pendingGroupOwnerRemoval
+        && !desiredAll.includes(owner)
+      );
+      return {
+        owner,
+        currentAll: groupAll,
+        desiredAll,
+        ownerRemoved,
+        current,
+        desired,
+        added: desired.filter((id) => !currentSet.has(id)),
+        removed: current.filter((id) => !desiredSet.has(id)),
+      };
+    }
+
+    _sameSpeakerGroupMembers(left = [], right = []) {
+      const leftSet = new Set((Array.isArray(left) ? left : []).map((id) => String(id || "").trim()).filter(Boolean));
+      const rightSet = new Set((Array.isArray(right) ? right : []).map((id) => String(id || "").trim()).filter(Boolean));
+      if (leftSet.size !== rightSet.size) return false;
+      for (const id of leftSet) {
+        if (!rightSet.has(id)) return false;
+      }
+      return true;
+    }
+
+    async _waitForSpeakerGroupConfirmation(ownerId, expectedMembers = [], options = {}) {
+      if (!this._hass?.states || typeof this._loadPlayers !== "function") {
+        return { ok: true, skipped: true, members: expectedMembers };
+      }
+      const leaderId = String(ownerId || "").trim();
+      const expected = [...new Set((Array.isArray(expectedMembers) ? expectedMembers : [])
+        .map((id) => String(id || "").trim())
+        .filter(Boolean))];
+      const timeoutMs = Math.max(700, Number(options.timeoutMs || 3200) || 3200);
+      const intervalMs = Math.max(150, Number(options.intervalMs || 350) || 350);
+      const deadline = Date.now() + timeoutMs;
+      let latest = [];
+      do {
+        try { await this._loadPlayers(); } catch (_) {}
+        latest = this._currentSpeakerGroupMemberIds(leaderId);
+        if (expected.length <= 1) {
+          if (latest.length <= 1) return { ok: true, skipped: false, members: latest };
+        } else if (this._sameSpeakerGroupMembers(latest, expected)) {
+          return { ok: true, skipped: false, members: latest };
+        }
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      } while (Date.now() < deadline);
+      return { ok: false, skipped: false, members: latest };
+    }
+
+    _refreshGroupingState(options = {}) {
       const player = this._getSelectedPlayer();
       if (!player) return;
-      const attrs = player.attributes || {};
-      const children = Array.isArray(attrs.group_members) ? attrs.group_members.filter((id) => id !== player.entity_id) : [];
-      if (!this._state.pendingGroupSelections.length) this._state.pendingGroupSelections = [...children];
+      const members = this._currentSpeakerGroupMemberIds(player.entity_id);
+      if (options.force || !this._state.pendingGroupSelectionsDirty) {
+        this._state.pendingGroupSelections = [...members];
+        this._state.pendingGroupOwnerRemoval = false;
+      }
     }
 
     _openGroupModal() {
+      this._refreshGroupingState({ force: true });
       this.shadowRoot.querySelector(".card")?.appendChild(this.$("groupModal"));
       const players = this._getAvailableGroupPlayers();
       const list = this.$("groupList");
@@ -13457,24 +13942,43 @@ export function createHomeiiBaseMusicCard({
       const selected = this._getSelectedPlayer();
       const subtitle = this.$("groupModalSubtitle");
       const badge = this.$("groupCountBadge");
-      if (subtitle) subtitle.textContent = selected?.attributes?.friendly_name || this._i18n("ui.choose_player");
+      const groupOwner = this._currentSpeakerGroupOwnerId(selected?.entity_id);
+      const groupDelta = this._groupSelectionDelta(selected?.entity_id, this._state.pendingGroupSelections || []);
+      const currentAllSet = new Set(groupDelta.currentAll || []);
+      const desiredAllSet = new Set(groupDelta.desiredAll || []);
+      if (subtitle) subtitle.textContent = this._playerDisplayName(selected) || this._i18n("ui.choose_player");
       if (badge) badge.textContent = String(players.length);
       list.innerHTML = players.length ? players.map((p) => {
-        const checked = (this._state.pendingGroupSelections || []).includes(p.entity_id);
-        return `<label class="group-item ${checked ? "checked" : ""}"><span class="group-meta"><span class="group-name">${this._esc(p.attributes.friendly_name || p.entity_id)}<span class="group-item-toggle ${checked ? "checked" : ""}" aria-hidden="true">${this._iconSvg(checked ? "check" : "plus")}</span></span><span class="group-sub"></span></span><input type="checkbox" data-group-player="${this._esc(p.entity_id)}" ${checked ? "checked" : ""}></label>`;
+        const checked = desiredAllSet.has(p.entity_id);
+        const connected = currentAllSet.has(p.entity_id);
+        const isOwner = p.entity_id === groupOwner;
+        return `<label class="group-item ${checked ? "checked" : ""} ${connected ? "connected" : ""} ${isOwner ? "group-owner" : ""}"><span class="group-meta"><span class="group-name">${this._esc(this._playerDisplayName(p, players))}<span class="group-item-toggle ${checked ? "checked" : ""}" aria-hidden="true">${this._iconSvg(checked ? "check" : "plus")}</span></span><span class="group-sub">${isOwner ? this._esc(this._m("Master", "מוביל")) : ""}</span></span><input type="checkbox" data-group-player="${this._esc(p.entity_id)}" data-group-owner="${isOwner ? "true" : "false"}" ${checked ? "checked" : ""}></label>`;
       }).join("") : `<div class="state-box" style="min-height:80px;padding:8px 0;">${this._esc(this._i18n("ui.no_extra_ma_players"))}</div>`;
+      this._syncGroupModalApplyButton();
       this.$("groupModal").classList.add("open");
     }
 
     _closeGroupModal() { this.$("groupModal").classList.remove("open"); }
 
+    _syncGroupModalApplyButton() {
+      const applyButton = this.$("applyGroupBtn");
+      if (!applyButton) return;
+      const selected = this._getSelectedPlayer();
+      const delta = this._groupSelectionDelta(selected?.entity_id, this._state.pendingGroupSelections || []);
+      applyButton.textContent = this._m("Update group", "עדכן קבוצה");
+      applyButton.disabled = !delta.ownerRemoved && !delta.added.length && !delta.removed.length;
+    }
+
     _handleGroupChange(e) {
       const checkbox = e.target.closest("input[data-group-player]");
       if (!checkbox) return;
       const entityId = checkbox.dataset.groupPlayer;
+      const isOwner = checkbox.dataset.groupOwner === "true";
       const next = new Set(this._state.pendingGroupSelections || []);
       if (checkbox.checked) next.add(entityId); else next.delete(entityId);
       this._state.pendingGroupSelections = Array.from(next);
+      if (isOwner) this._state.pendingGroupOwnerRemoval = !checkbox.checked;
+      this._state.pendingGroupSelectionsDirty = true;
       const groupItem = checkbox.closest(".group-item");
       groupItem?.classList.toggle("checked", checkbox.checked);
       const toggle = groupItem?.querySelector(".group-item-toggle");
@@ -13482,16 +13986,71 @@ export function createHomeiiBaseMusicCard({
         toggle.classList.toggle("checked", checkbox.checked);
         toggle.innerHTML = this._iconSvg(checkbox.checked ? "check" : "plus");
       }
+      this._syncGroupModalApplyButton();
     }
 
     async _applySpeakerGroupFor(entityId, groupMembers = []) {
       const primaryId = String(entityId || "").trim();
       if (!primaryId) return false;
-      const members = [...new Set((Array.isArray(groupMembers) ? groupMembers : [])
-        .map((id) => String(id || "").trim())
-        .filter((id) => id && id !== primaryId))];
-      if (!members.length) return false;
-      await this._callHaMediaPlayerService(primaryId, "join", { group_members: members });
+      const { owner, current, desired: members, added, removed } = this._groupSelectionDelta(primaryId, groupMembers);
+      const leaderId = owner || primaryId;
+      if (!members.length && !current.length) return false;
+      const ownerRemovedFromMemberView = !!(owner && owner !== primaryId && removed.includes(owner));
+      const ownerRemovalRequested = !!(owner && this._state.pendingGroupOwnerRemoval);
+      if (ownerRemovedFromMemberView || ownerRemovalRequested) {
+        await this._clearSpeakerGroupFor(owner);
+        this._state.pendingGroupSelections = [];
+        this._state.pendingGroupOwnerRemoval = false;
+        this._state.pendingGroupSelectionsDirty = false;
+        return true;
+      }
+      if (!added.length && !removed.length) return false;
+      const canUseHomeiiEngineGroup = typeof this._homeiiEngineApplyGroup === "function"
+        && this._homeiiEngineEnabled?.()
+        && (this._state?.engineAvailable || this._homeiiEngineRequired?.());
+      if (canUseHomeiiEngineGroup) {
+        try {
+          await this._homeiiEngineApplyGroup({
+            owner: leaderId,
+            entity_id: leaderId,
+            members,
+            remove_members: removed,
+          });
+          const expectedMembers = [...new Set([leaderId, ...members])];
+          const confirmed = await this._waitForSpeakerGroupConfirmation(leaderId, expectedMembers);
+          if (!confirmed.ok) {
+            throw new Error(this._m("Group command was sent, but Home Assistant did not confirm the new group state.", "×¤×§×•×“×ª ×”×§×‘×•×¦×” × ×©×œ×—×”, ××‘×œ Home Assistant ×œ× ××™×©×¨ ×©×”×§×‘×•×¦×” ×”×ª×¢×“×›× ×”."));
+          }
+          this._state.pendingGroupSelections = expectedMembers;
+          this._state.pendingGroupOwnerRemoval = false;
+          this._state.pendingGroupSelectionsDirty = false;
+          setTimeout(() => {
+            this._loadPlayers();
+            this._refreshGroupingState();
+            if (this._state.menuOpen) this._renderMobileMenu();
+            if (this._state.controlRoomOpen) this._syncControlRoomUi({ force: true });
+          }, 650);
+          return true;
+        } catch (engineError) {
+          this._debugLog?.("warn", "[HOMEii Flow] HOMEii Flow Engine group fallback failed", engineError);
+        }
+      }
+      const removalResults = removed.length
+        ? await Promise.allSettled(removed.map((id) => this._callHaMediaPlayerService(id, "unjoin")))
+        : [];
+      if (added.length && members.length) {
+        await this._callHaMediaPlayerService(leaderId, "join", { group_members: members });
+      }
+      const failedRemoval = removalResults.find((result) => result.status === "rejected");
+      if (failedRemoval && !added.length) throw failedRemoval.reason || new Error(this._i18n("ui.player_groups_could_not_be_disconnected"));
+      const expectedMembers = [...new Set([leaderId, ...members])];
+      const confirmed = await this._waitForSpeakerGroupConfirmation(leaderId, expectedMembers);
+      if (!confirmed.ok) {
+        throw new Error(this._m("Group command was sent, but Home Assistant did not confirm the new group state.", "פקודת הקבוצה נשלחה, אבל Home Assistant לא אישר שהקבוצה התעדכנה."));
+      }
+      this._state.pendingGroupSelections = expectedMembers;
+      this._state.pendingGroupOwnerRemoval = false;
+      this._state.pendingGroupSelectionsDirty = false;
       setTimeout(() => {
         this._loadPlayers();
         this._refreshGroupingState();
@@ -13513,7 +14072,7 @@ export function createHomeiiBaseMusicCard({
         return false;
       }
       if (!ok) {
-        this._toastError(this._i18n("ui.select_at_least_two_players_to_create_a_group"));
+        this._toastError(this._m("Choose at least one speaker to add or remove.", "בחר לפחות רמקול אחד לצירוף או להסרה."));
         return false;
       }
       this._toastSuccess(this._i18n("ui.group_updated"));
@@ -13555,6 +14114,8 @@ export function createHomeiiBaseMusicCard({
         return { ...player, attributes: nextAttrs };
       });
       this._state.pendingGroupSelections = [];
+      this._state.pendingGroupOwnerRemoval = false;
+      this._state.pendingGroupSelectionsDirty = false;
       this._refreshGroupingState();
       this._syncNowPlayingUI();
       if (this._state.view === "now_playing") this._renderNowPlayingPage();
@@ -13562,7 +14123,9 @@ export function createHomeiiBaseMusicCard({
     }
 
     async _clearSpeakerGroupFor(entityId) {
-      const player = this._playerByEntityId(entityId);
+      const requestedId = String(entityId || "").trim();
+      const ownerId = this._currentSpeakerGroupOwnerId(requestedId) || requestedId;
+      const player = this._playerByEntityId(ownerId) || this._playerByEntityId(requestedId);
       if (!player) return;
       if (typeof this._isStaticGroupPlayer === "function" && this._isStaticGroupPlayer(player)) {
         const targets = this._playerGroupMemberIds(player)
@@ -13583,10 +14146,21 @@ export function createHomeiiBaseMusicCard({
         }, 500);
         return true;
       }
+      const groupIds = this._currentSpeakerGroupMemberIds(ownerId);
+      const targets = groupIds.length > 1
+        ? groupIds.filter((id) => {
+            const target = (this._state.players || []).find((p) => p.entity_id === id) || this._hass?.states?.[id];
+            return target && !(typeof this._isStaticGroupPlayer === "function" && this._isStaticGroupPlayer(target));
+          })
+        : [player.entity_id];
       try {
-        await this._callHaMediaPlayerService(player.entity_id, "unjoin");
+        await Promise.allSettled(targets.map((id) => this._callHaMediaPlayerService(id, "unjoin")));
       } catch (_) {}
-      this._clearLocalGroupState(player.entity_id);
+      const confirmed = await this._waitForSpeakerGroupConfirmation(ownerId, [ownerId], { timeoutMs: 2600 });
+      if (!confirmed.ok) {
+        throw new Error(this._m("Group disconnect was sent, but Home Assistant did not confirm the group is clear.", "פקודת ניתוק הקבוצה נשלחה, אבל Home Assistant לא אישר שהקבוצה התנתקה."));
+      }
+      this._clearLocalGroupState(ownerId);
       setTimeout(() => {
         this._loadPlayers();
         this._refreshGroupingState();
@@ -13599,7 +14173,8 @@ export function createHomeiiBaseMusicCard({
     async _clearSpeakerGroup() {
       const player = this._getSelectedPlayer();
       if (!player) return false;
-      await this._clearSpeakerGroupFor(player.entity_id);
+      await this._clearSpeakerGroupFor(this._currentSpeakerGroupOwnerId(player.entity_id) || player.entity_id);
+      this._state.pendingGroupSelectionsDirty = false;
       this._toast(this._i18n("ui.group_cleared"));
       this._closeGroupModal();
       return true;
@@ -13974,7 +14549,7 @@ export function createHomeiiBaseMusicCard({
                     <span class="player-card-art">${art ? `<img src="${this._esc(art)}" alt="">` : this._artPlaceholderHtml("speaker")}</span>
                     <span class="player-card-meta">
                       <span class="player-card-top">
-                        <span class="player-card-title">${this._esc(p.attributes?.friendly_name || p.entity_id)}</span>
+                        <span class="player-card-title">${this._esc(this._playerDisplayName(p, others))}</span>
                         <span class="player-card-badge">${this._esc(this._playerStateLabel(p))}</span>
                       </span>
                       <span class="player-card-sub">${this._esc(this._playerStateLabel(p))}</span>
@@ -14106,12 +14681,30 @@ export function createHomeiiBaseMusicCard({
       el.className = `toast ${safeVariant}${centered ? " centered" : ""}${top ? " top" : ""}`;
       const icon = safeVariant === "success" ? "✓" : safeVariant === "error" ? "×" : "i";
       el.innerHTML = `<span class="toast-icon">${icon}</span><span class="toast-text">${this._esc(text)}</span>`;
-      wrap.appendChild(el);
-      setTimeout(() => {
+      const issueAckKey = String(options?.issueAckKey || "").trim();
+      const issueAckText = String(options?.issueAckText || text).trim();
+      let removed = false;
+      const removeToast = () => {
+        if (removed) return;
+        removed = true;
         el.remove();
         if (centered && !wrap.querySelector(".toast.centered")) wrap.classList.remove("center-toast");
         if (top && !wrap.querySelector(".toast.top")) wrap.classList.remove("top-toast");
-      }, Number(options?.duration || 3300));
+      };
+      if (issueAckKey) {
+        const ack = document.createElement("button");
+        ack.type = "button";
+        ack.className = "toast-ack";
+        ack.textContent = this._i18n("ui.confirm", {}, "OK") || "OK";
+        ack.addEventListener("click", (event) => {
+          event?.stopPropagation?.();
+          this._acknowledgeCardIssue(issueAckKey, issueAckText);
+          removeToast();
+        });
+        el.appendChild(ack);
+      }
+      wrap.appendChild(el);
+      setTimeout(removeToast, Number(options?.duration || 3300));
     }
 
     _toastSuccess(message, options = {}) {
@@ -14159,7 +14752,7 @@ export function createHomeiiBaseMusicCard({
 
     _selectedPlayerName() {
       const player = this._getSelectedPlayer();
-      return player?.attributes?.friendly_name || player?.entity_id || this._i18n("ui.choose_player");
+      return this._playerDisplayName(player) || player?.entity_id || this._i18n("ui.choose_player");
     }
 
     _mediaFeedbackLabel(uri = "", fallback = "") {
@@ -14221,29 +14814,69 @@ export function createHomeiiBaseMusicCard({
     async _loadImgInto(url, el, fallback = "💿") {
       const supportedFallbacks = ["artist", "radio", "podcast", "music_note", "album", "playlist", "tracks", "speaker", "repeat"];
       const fallbackIcon = supportedFallbacks.includes(String(fallback || "")) ? fallback : (fallback === "🎤" ? "artist" : fallback === "📻" ? "radio" : "music_note");
-      if (!url || !el?.isConnected) {
+      const setPlaceholder = () => {
         if (el?.isConnected) el.innerHTML = `<div class="media-placeholder">${this._artPlaceholderHtml(fallbackIcon)}</div>`;
+      };
+      const setDirectImage = (src = url) => {
+        if (!el?.isConnected) return;
+        try {
+          const doc = el.ownerDocument || (typeof document !== "undefined" ? document : null);
+          const img = doc?.createElement?.("img");
+          if (!img) throw new Error("Image element unavailable");
+          img.alt = "";
+          img.loading = "lazy";
+          img.decoding = "async";
+          img.onload = () => this._imageFailed.delete(url);
+          img.onerror = () => {
+            this._imageFailed.add(url);
+            setPlaceholder();
+          };
+          img.src = src;
+          el.innerHTML = "";
+          el.appendChild(img);
+        } catch (_) {
+          el.innerHTML = `<img src="${this._esc(src)}" alt="" loading="lazy" decoding="async">`;
+        }
+      };
+      const isCrossOrigin = (() => {
+        try {
+          const base = typeof window !== "undefined" ? window.location?.href : "";
+          const currentOrigin = typeof window !== "undefined" ? window.location?.origin : "";
+          const parsed = new URL(url, base || "http://homeii.local");
+          return !!(currentOrigin && parsed.origin && parsed.origin !== currentOrigin);
+        } catch (_) {
+          return false;
+        }
+      })();
+      if (!url || !el?.isConnected) {
+        setPlaceholder();
         return;
       }
-      if (this._imageFailed.has(url)) {
-        if (el.isConnected) el.innerHTML = `<div class="media-placeholder">${this._artPlaceholderHtml(fallbackIcon)}</div>`;
+      if (this._imageFailed.has(url) && !this._shouldFetchArtworkUrl(url, { crossOrigin: isCrossOrigin })) {
+        setPlaceholder();
         return;
       }
       const existing = this._imageBlobCache.get(url);
       if (existing) {
-        el.innerHTML = `<img src="${existing}" alt="">`;
+        setDirectImage(existing);
+        return;
+      }
+      if (isCrossOrigin) {
+        try {
+          const objectUrl = await this._fetchArtworkBlobUrl(url, { crossOrigin: true });
+          if (objectUrl) {
+            setDirectImage(objectUrl);
+            return;
+          }
+        } catch (_) {}
+        setDirectImage();
         return;
       }
       try {
-        const response = await fetch(url, { cache: "force-cache", credentials: "same-origin" });
-        if (!response.ok) throw new Error(`Image load failed: ${response.status}`);
-        const blob = await response.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        this._imageBlobCache.set(url, objectUrl);
-        if (el.isConnected) el.innerHTML = `<img src="${objectUrl}" alt="">`;
+        const objectUrl = await this._fetchArtworkBlobUrl(url);
+        if (objectUrl && el.isConnected) setDirectImage(objectUrl);
       } catch (_) {
-        this._imageFailed.add(url);
-        if (el.isConnected) el.innerHTML = `<div class="media-placeholder">${this._artPlaceholderHtml(fallbackIcon)}</div>`;
+        setDirectImage();
       }
     }
 
@@ -14258,6 +14891,9 @@ export function createHomeiiBaseMusicCard({
       this._cancelLocalSendspinDisconnect();
       this._attachLocalSendspinLifecycleListeners();
       this._scheduleLocalSendspinReconnect("connected", 600);
+      if (typeof this._refreshHomeiiEngineContext === "function") {
+        setTimeout(() => this._refreshHomeiiEngineContext({ force: true }).catch(() => {}), 800);
+      }
     }
 
     disconnectedCallback() {

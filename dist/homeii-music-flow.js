@@ -7641,6 +7641,10 @@ function validateBaseCardEditorConfig(config) {
     throw new Error("Card config must be an object");
   }
   assertCardIdIfDefined(config.card_id, "card_id");
+  assertValueInList(config.homeii_engine_mode, "homeii_engine_mode", ["auto", "off", "required"]);
+  assertStringIfDefined(config.homeii_engine_instance_id, "homeii_engine_instance_id");
+  assertStringIfDefined(config.homeii_engine_profile_id, "homeii_engine_profile_id");
+  assertNumberIfDefined(config.homeii_engine_timeout_ms, "homeii_engine_timeout_ms");
   assertStringIfDefined(config.config_entry_id, "config_entry_id");
   assertStringIfDefined(config.ma_url, "ma_url");
   assertStringIfDefined(config.music_assistant_external_url, "music_assistant_external_url");
@@ -7668,8 +7672,10 @@ function validateBaseCardEditorConfig(config) {
   assertNumberIfDefined(config.ambient_light_transition, "ambient_light_transition");
   assertNumberIfDefined(config.ambient_light_cooldown, "ambient_light_cooldown");
   assertBooleanIfDefined(config.screensaver_enabled, "screensaver_enabled");
+  assertBooleanIfDefined(config.screensaver_auto_lyrics_when_playing, "screensaver_auto_lyrics_when_playing");
+  assertBooleanIfDefined(config.screensaver_auto_lyrics, "screensaver_auto_lyrics");
   assertBooleanIfDefined(config.screensaver_controls_enabled, "screensaver_controls_enabled");
-  assertStringArrayValuesIfDefined(config.screensaver_control_buttons, "screensaver_control_buttons", ["previous", "play_pause", "next", "mute", "power", "like", "lyrics", "voice"]);
+  assertStringArrayValuesIfDefined(config.screensaver_control_buttons, "screensaver_control_buttons", ["previous", "play_pause", "next", "mute", "power", "like", "lyrics", "lyrics_sync", "lyrics_font_minus", "lyrics_font_plus", "voice"]);
   assertValueInList(config.screensaver_clock_mode, "screensaver_clock_mode", ["digital", "analog"]);
   assertNumberIfDefined(config.screensaver_timeout_seconds, "screensaver_timeout_seconds");
   assertStringIfDefined(config.screensaver_message, "screensaver_message");
@@ -7730,6 +7736,7 @@ function validateMobileCardEditorConfig(config) {
     assertStringIfDefined(config[`mobile_quick_action_${index}`], `mobile_quick_action_${index}`);
   }
   assertValueInList(config.mobile_liked_mode, "mobile_liked_mode", ["ma", "local"]);
+  assertValueInList(config.mobile_radio_source_mode, "mobile_radio_source_mode", ["combined", "ma_first", "ma_only", "radiobrowser_only"]);
   assertValueInList(config.mobile_swipe_mode, "mobile_swipe_mode", ["play", "browse"]);
   assertStringIfDefined(config.mobile_radio_browser_country, "mobile_radio_browser_country");
   assertStringArrayIfDefined(config.mobile_announcement_presets, "mobile_announcement_presets");
@@ -7790,6 +7797,10 @@ function homeiiRadioBrowserCountrySelectorOptions(translateFn = null, language =
 function getBaseCardConfigForm$1() {
   const labels = {
     card_id: homeiiEditorI18n$1("ui.card_id", {}, "Card ID"),
+    homeii_engine_mode: "HOMEii Flow Engine",
+    homeii_engine_instance_id: "Engine instance ID",
+    homeii_engine_profile_id: "Engine profile ID",
+    homeii_engine_timeout_ms: "Engine timeout",
     config_entry_id: "Config Entry ID",
     ma_url: homeiiEditorI18n$1("ui.music_assistant_url"),
     music_assistant_external_url: "Music Assistant external URL",
@@ -7815,6 +7826,10 @@ function getBaseCardConfigForm$1() {
   };
   const helpers = {
     card_id: homeiiEditorI18n$1("ui.card_id_helper", {}, "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."),
+    homeii_engine_mode: "Optional HOMEii Flow Engine bridge. Auto keeps today's card behavior and uses the integration only when it is installed. Off disables Engine calls. Required is useful for testing and diagnostics.",
+    homeii_engine_instance_id: "Optional instance identifier for multi-engine setups. Leave blank for the default integration instance.",
+    homeii_engine_profile_id: "Optional profile identifier for future per-room, per-user, or per-dashboard Engine policies.",
+    homeii_engine_timeout_ms: "Maximum milliseconds to wait for HOMEii Flow Engine responses during explicit Engine checks.",
     config_entry_id: homeiiEditorI18n$1("ui.music_assistant_config_entry_id_if_you_want_direct_integration_lookup_th"),
     ma_url: homeiiEditorI18n$1("ui.leave_empty_if_the_card_should_use_home_assistant_only"),
     music_assistant_external_url: "Optional HTTPS Music Assistant URL for HTTPS dashboards, Nabu Casa, and Companion App browser-player connections.",
@@ -7877,6 +7892,14 @@ function getBaseCardConfigForm$1() {
             column_min_width: "220px",
             schema: [
               { name: "card_id", selector: { text: {} } },
+              { name: "homeii_engine_mode", selector: { select: { mode: "dropdown", options: [
+                { value: "auto", label: "Auto" },
+                { value: "off", label: "Off" },
+                { value: "required", label: "Required" }
+              ] } } },
+              { name: "homeii_engine_instance_id", selector: { text: {} } },
+              { name: "homeii_engine_profile_id", selector: { text: {} } },
+              { name: "homeii_engine_timeout_ms", selector: { number: { min: 1e3, max: 3e4, step: 500, mode: "box" } } },
               { name: "config_entry_id", selector: { text: {} } },
               { name: "ma_url", selector: { text: { type: "url" } } },
               { name: "music_assistant_external_url", selector: { text: { type: "url" } } },
@@ -7954,7 +7977,8 @@ function getMobileEditorTexts() {
       announcements: homeiiEditorI18n$1("ui.announcements"),
       voice_assistant: homeiiEditorI18n$1("ui.flow_assistant", {}, "FLOW ASSISTANT"),
       players: homeiiEditorI18n$1("ui.players"),
-      smart_home: homeiiEditorI18n$1("ui.smart_home")
+      smart_home: homeiiEditorI18n$1("ui.smart_home"),
+      screensaver: homeiiEditorI18n$1("ui.screensaver", {}, "Screensaver")
     },
     labels: {
       settings_source: homeiiEditorI18n$1("ui.settings_source"),
@@ -8004,6 +8028,7 @@ function getMobileEditorTexts() {
       flow_assistant_listen_timeout_ms: "Flow Assistant listen timeout",
       flow_assistant_auto_close_ms: "Flow Assistant auto close",
       mobile_liked_mode: homeiiEditorI18n$1("ui.liked_mode"),
+      mobile_radio_source_mode: homeiiEditorI18n$1("ui.radio_source", {}, "Radio source"),
       mobile_radio_browser_country: homeiiEditorI18n$1("ui.radio_browser_country_2"),
       mobile_main_bar_items: homeiiEditorI18n$1("ui.main_bar_items_2"),
       mobile_quick_actions: homeiiEditorI18n$1("ui.quick_actions"),
@@ -8021,6 +8046,7 @@ function getMobileEditorTexts() {
       ambient_light_transition: homeiiEditorI18n$1("ui.ambient_light_transition"),
       ambient_light_cooldown: homeiiEditorI18n$1("ui.ambient_light_cooldown"),
       screensaver_enabled: homeiiEditorI18n$1("ui.screensaver"),
+      screensaver_auto_lyrics_when_playing: homeiiEditorI18n$1("ui.lyrics_while_playing", {}, "Lyrics while playing"),
       screensaver_controls_enabled: homeiiEditorI18n$1("ui.screensaver_controls"),
       screensaver_control_buttons: homeiiEditorI18n$1("ui.screensaver_buttons"),
       screensaver_clock_mode: homeiiEditorI18n$1("ui.screensaver_clock_mode"),
@@ -8042,6 +8068,10 @@ function getMobileEditorTexts() {
       player_order_entities: homeiiEditorI18n$1("ui.player_order"),
       ...playerOrderSlotLabels,
       card_id: homeiiEditorI18n$1("ui.card_id", {}, "Card ID"),
+      homeii_engine_mode: "HOMEii Flow Engine",
+      homeii_engine_instance_id: "Engine instance ID",
+      homeii_engine_profile_id: "Engine profile ID",
+      homeii_engine_timeout_ms: "Engine timeout",
       config_entry_id: "Config Entry ID",
       ma_url: homeiiEditorI18n$1("ui.music_assistant_url"),
       music_assistant_external_url: "Music Assistant external URL",
@@ -8059,6 +8089,10 @@ function getMobileEditorTexts() {
     },
     helpers: {
       card_id: homeiiEditorI18n$1("ui.card_id_helper", {}, "Unique slug (letters, digits, '-', '_'). Set this when running multiple HOMEii Flow dashboards in the same browser so each dashboard keeps its own player picker, theme, layout, and other in-card settings. Leave blank to share state with every other HOMEii Flow card in this browser (the original behaviour)."),
+      homeii_engine_mode: "Optional HOMEii Flow Engine bridge. Auto keeps today's card behavior and uses the integration only when it is installed. Off disables Engine calls. Required is useful for testing and diagnostics.",
+      homeii_engine_instance_id: "Optional instance identifier for multi-engine setups. Leave blank for the default integration instance.",
+      homeii_engine_profile_id: "Optional profile identifier for future per-room, per-user, or per-dashboard Engine policies.",
+      homeii_engine_timeout_ms: "Maximum milliseconds to wait for HOMEii Flow Engine responses during explicit Engine checks.",
       settings_source: homeiiEditorI18n$1("ui.choose_whether_settings_are_controlled_from_the_in_card_ui_or_from_the_c"),
       layout_mode: homeiiEditorI18n$1("ui.auto_chooses_mobile_or_tablet_based_on_actual_width"),
       height: homeiiEditorI18n$1("ui.card_height_in_pixels"),
@@ -8099,6 +8133,7 @@ function getMobileEditorTexts() {
       flow_assistant_listen_timeout_ms: "Maximum milliseconds Flow Assistant can wait for speech before showing a clear timeout.",
       flow_assistant_auto_close_ms: "Milliseconds to keep the Flow Assistant result open. Use 0 to keep it open.",
       mobile_liked_mode: homeiiEditorI18n$1("ui.local_mode_is_only_meaningful_when_local_likes_are_enabled"),
+      mobile_radio_source_mode: homeiiEditorI18n$1("ui.radio_source_helper", {}, "Choose whether the Radio tab prefers Music Assistant stations, RadioBrowser stations, or both."),
       mobile_radio_browser_country: homeiiEditorI18n$1("ui.uses_the_same_base_country_list_shown_in_the_in_card_settings_screen"),
       mobile_main_bar_items: homeiiEditorI18n$1("ui.choose_which_actions_appear_in_the_main_bar"),
       mobile_quick_actions: homeiiEditorI18n$1("ui.choose_which_icons_appear_in_the_quick_action_row"),
@@ -8120,6 +8155,7 @@ function getMobileEditorTexts() {
       ambient_light_transition: homeiiEditorI18n$1("ui.soft_transition_time_for_music_lighting"),
       ambient_light_cooldown: homeiiEditorI18n$1("ui.minimum_seconds_between_light_updates"),
       screensaver_enabled: homeiiEditorI18n$1("ui.show_a_calm_clock_artwork_display_after_idle_time"),
+      screensaver_auto_lyrics_when_playing: homeiiEditorI18n$1("ui.screensaver_lyrics_while_playing_helper", {}, "When enabled, screensaver opens in lyrics mode while music is playing and stays in clock mode when idle."),
       screensaver_controls_enabled: homeiiEditorI18n$1("ui.show_previous_next_controls_on_the_screensaver"),
       screensaver_control_buttons: homeiiEditorI18n$1("ui.choose_which_buttons_appear_on_the_screensaver"),
       screensaver_message: homeiiEditorI18n$1("ui.short_optional_message_shown_on_the_screensaver"),
@@ -8240,6 +8276,12 @@ function getMobileEditorTexts() {
         { value: "ma", label: "Music Assistant" },
         { value: "local", label: homeiiEditorI18n$1("ui.local") }
       ],
+      mobile_radio_source_mode: [
+        { value: "combined", label: "Combined" },
+        { value: "ma_first", label: "Music Assistant first" },
+        { value: "ma_only", label: "Music Assistant only" },
+        { value: "radiobrowser_only", label: "RadioBrowser only" }
+      ],
       mobile_library_default_layout: [
         { value: "grid", label: homeiiEditorI18n$1("ui.grid") },
         { value: "list", label: homeiiEditorI18n$1("ui.list") }
@@ -8256,6 +8298,9 @@ function getMobileEditorTexts() {
         { value: "power", label: homeiiEditorI18n$1("ui.auxiliary_button") },
         { value: "like", label: homeiiEditorI18n$1("ui.like_2") },
         { value: "lyrics", label: homeiiEditorI18n$1("ui.lyrics") },
+        { value: "lyrics_sync", label: homeiiEditorI18n$1("ui.sync_lyrics") },
+        { value: "lyrics_font_minus", label: homeiiEditorI18n$1("ui.smaller_lyrics") },
+        { value: "lyrics_font_plus", label: homeiiEditorI18n$1("ui.larger_lyrics") },
         { value: "voice", label: homeiiEditorI18n$1("ui.flow_assistant", {}, "FLOW ASSISTANT") }
       ],
       power_button_action: [
@@ -8289,6 +8334,11 @@ function getMobileEditorTexts() {
       ma_interface_target: [
         { value: "_self", label: "_self" },
         { value: "_blank", label: "_blank" }
+      ],
+      homeii_engine_mode: [
+        { value: "auto", label: "Auto" },
+        { value: "off", label: "Off" },
+        { value: "required", label: "Required" }
       ],
       mobile_main_bar_items: [
         { value: "search", label: homeiiEditorI18n$1("ui.search") },
@@ -8409,6 +8459,7 @@ function getMobileCardConfigForm$1() {
               { name: "mobile_volume_step_buttons", selector: { boolean: {} } },
               { name: "mobile_volume_step_percent", selector: { number: { min: 1, max: 10, step: 1, mode: "slider" } } },
               { name: "mobile_liked_mode", selector: { select: { mode: "dropdown", options: t.options.mobile_liked_mode } } },
+              { name: "mobile_radio_source_mode", selector: { select: { mode: "dropdown", options: t.options.mobile_radio_source_mode } } },
               { name: "mobile_radio_browser_country", selector: { select: { mode: "dropdown", options: getRadioBrowserCountrySelectorOptions$1() } } }
             ]
           }
@@ -8427,6 +8478,10 @@ function getMobileCardConfigForm$1() {
             column_min_width: "220px",
             schema: [
               { name: "card_id", selector: { text: {} } },
+              { name: "homeii_engine_mode", selector: { select: { mode: "dropdown", options: t.options.homeii_engine_mode } } },
+              { name: "homeii_engine_instance_id", selector: { text: {} } },
+              { name: "homeii_engine_profile_id", selector: { text: {} } },
+              { name: "homeii_engine_timeout_ms", selector: { number: { min: 1e3, max: 3e4, step: 500, mode: "box" } } },
               { name: "config_entry_id", selector: { text: {} } },
               { name: "ma_url", selector: { text: { type: "url" } } },
               { name: "music_assistant_external_url", selector: { text: { type: "url" } } },
@@ -8487,15 +8542,6 @@ function getMobileCardConfigForm$1() {
               { name: "ambient_light_brightness", selector: { number: { min: 1, max: 100, step: 1, mode: "slider" } } },
               { name: "ambient_light_transition", selector: { number: { min: 0, max: 120, step: 1, mode: "box" } } },
               { name: "ambient_light_cooldown", selector: { number: { min: 0, max: 120, step: 1, mode: "box" } } },
-              { name: "screensaver_enabled", selector: { boolean: {} } },
-              { name: "screensaver_controls_enabled", selector: { boolean: {} } },
-              { name: "screensaver_control_buttons", selector: { select: { multiple: true, mode: "list", options: t.options.screensaver_control_buttons } } },
-              { name: "screensaver_clock_mode", selector: { select: { mode: "dropdown", options: t.options.screensaver_clock_mode } } },
-              { name: "screensaver_clock_size", selector: { number: { min: 0.75, max: 1.45, step: 0.05, mode: "slider" } } },
-              { name: "screensaver_clock_x", selector: { number: { min: 8, max: 92, step: 1, mode: "slider" } } },
-              { name: "screensaver_clock_y", selector: { number: { min: 8, max: 70, step: 1, mode: "slider" } } },
-              { name: "screensaver_timeout_seconds", selector: { number: { min: 15, max: 3600, step: 5, mode: "box" } } },
-              { name: "screensaver_message", selector: { text: {} } },
               { name: "power_button_enabled", selector: { boolean: {} } },
               { name: "power_button_name", selector: { text: {} } },
               { name: "power_button_icon", selector: { icon: {} } },
@@ -8512,6 +8558,32 @@ function getMobileCardConfigForm$1() {
                 ];
               }).flat(),
               { name: "discovery_mode_enabled", selector: { boolean: {} } }
+            ]
+          }
+        ]
+      },
+      {
+        type: "expandable",
+        name: "screensaver_section",
+        title: t.sections.screensaver,
+        flatten: true,
+        schema: [
+          {
+            type: "grid",
+            name: "screensaver_grid",
+            flatten: true,
+            column_min_width: "220px",
+            schema: [
+              { name: "screensaver_enabled", selector: { boolean: {} } },
+              { name: "screensaver_auto_lyrics_when_playing", selector: { boolean: {} } },
+              { name: "screensaver_controls_enabled", selector: { boolean: {} } },
+              { name: "screensaver_control_buttons", selector: { select: { multiple: true, mode: "list", options: t.options.screensaver_control_buttons } } },
+              { name: "screensaver_clock_mode", selector: { select: { mode: "dropdown", options: t.options.screensaver_clock_mode } } },
+              { name: "screensaver_clock_size", selector: { number: { min: 0.75, max: 1.45, step: 0.05, mode: "slider" } } },
+              { name: "screensaver_clock_x", selector: { number: { min: 8, max: 92, step: 1, mode: "slider" } } },
+              { name: "screensaver_clock_y", selector: { number: { min: 8, max: 70, step: 1, mode: "slider" } } },
+              { name: "screensaver_timeout_seconds", selector: { number: { min: 15, max: 3600, step: 5, mode: "box" } } },
+              { name: "screensaver_message", selector: { text: {} } }
             ]
           }
         ]
@@ -8617,6 +8689,72 @@ function getMobileCardConfigForm$1() {
     }
   };
 }
+const HOMEII_ENGINE_COMMAND_PREFIX = "homeii_flow";
+const HOMEII_ENGINE_MODES = Object.freeze(["auto", "off", "required"]);
+function normalizeHomeiiEngineMode(value = "auto") {
+  const mode = String(value || "").trim().toLowerCase();
+  return HOMEII_ENGINE_MODES.includes(mode) ? mode : "auto";
+}
+function homeiiEngineModeAllowsCalls(value = "auto") {
+  return normalizeHomeiiEngineMode(value) !== "off";
+}
+function homeiiEngineModeRequiresEngine(value = "auto") {
+  return normalizeHomeiiEngineMode(value) === "required";
+}
+function clampHomeiiEngineTimeoutMs(value, fallback = 3500) {
+  const numeric = Number(value);
+  const safe = Number.isFinite(numeric) ? numeric : fallback;
+  return Math.max(1e3, Math.min(3e4, safe));
+}
+function normalizeHomeiiEngineId(value = "") {
+  return String(value || "").trim().slice(0, 128);
+}
+function homeiiEngineCommandType(command = "get_context") {
+  const clean = String(command || "get_context").trim().replace(/^\/+|\/+$/g, "").replace(/[^a-zA-Z0-9_/-]+/g, "_") || "get_context";
+  return `${HOMEII_ENGINE_COMMAND_PREFIX}/${clean}`;
+}
+function normalizeHomeiiEngineCapabilities(payload = null) {
+  const source = payload?.capabilities || payload?.data?.capabilities || payload;
+  if (Array.isArray(source)) {
+    return source.reduce((acc, capability) => {
+      const key = String(capability || "").trim();
+      if (key) acc[key] = true;
+      return acc;
+    }, {});
+  }
+  if (source && typeof source === "object") return { ...source };
+  return {};
+}
+function normalizeHomeiiEngineContext(payload = null) {
+  const context = payload?.context && typeof payload.context === "object" ? payload.context : payload;
+  const data = context && typeof context === "object" ? context : {};
+  return {
+    available: !!payload,
+    version: String(data.version || data.engine_version || payload?.version || "").trim(),
+    instanceId: normalizeHomeiiEngineId(data.instance_id || data.instanceId || payload?.instance_id || ""),
+    profileId: normalizeHomeiiEngineId(data.profile_id || data.profileId || payload?.profile_id || ""),
+    capabilities: normalizeHomeiiEngineCapabilities(data.capabilities || payload?.capabilities),
+    raw: payload || null
+  };
+}
+function summarizeHomeiiEngineCapabilities(capabilities = {}) {
+  const keys = Object.entries(capabilities || {}).filter(([, enabled]) => enabled !== false && enabled != null).map(([key]) => key).filter(Boolean).slice(0, 8);
+  return keys.length ? keys.join(", ") : "none reported";
+}
+const HomeiiEngineFoundationSource = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  HOMEII_ENGINE_COMMAND_PREFIX,
+  HOMEII_ENGINE_MODES,
+  clampHomeiiEngineTimeoutMs,
+  homeiiEngineCommandType,
+  homeiiEngineModeAllowsCalls,
+  homeiiEngineModeRequiresEngine,
+  normalizeHomeiiEngineCapabilities,
+  normalizeHomeiiEngineContext,
+  normalizeHomeiiEngineId,
+  normalizeHomeiiEngineMode,
+  summarizeHomeiiEngineCapabilities
+}, Symbol.toStringTag, { value: "Module" }));
 function createHomeiiBaseMusicEditor(deps = {}) {
   const {
     HomeiiBaseMusicCard: HomeiiBaseMusicCard2,
@@ -8924,6 +9062,67 @@ function createHomeiiBaseMusicEditor(deps = {}) {
         });
       });
     }
+    _editorHomeiiEngineMode() {
+      return normalizeHomeiiEngineMode(this._config?.homeii_engine_mode);
+    }
+    _editorHomeiiEngineTimeoutMs() {
+      return clampHomeiiEngineTimeoutMs(this._config?.homeii_engine_timeout_ms, 3500);
+    }
+    _editorHomeiiEngineMessage(command = "get_context", payload = {}) {
+      const message = {
+        ...payload && typeof payload === "object" && !Array.isArray(payload) ? payload : { payload },
+        type: homeiiEngineCommandType(command),
+        card_id: String(this._config?.card_id || "").trim(),
+        instance_id: normalizeHomeiiEngineId(this._config?.homeii_engine_instance_id),
+        profile_id: normalizeHomeiiEngineId(this._config?.homeii_engine_profile_id)
+      };
+      ["card_id", "instance_id", "profile_id"].forEach((key) => {
+        if (message[key] === "") delete message[key];
+      });
+      return message;
+    }
+    async _editorCallHomeiiEngine(command = "get_context", payload = {}) {
+      if (!homeiiEngineModeAllowsCalls(this._editorHomeiiEngineMode())) return null;
+      const message = this._editorHomeiiEngineMessage(command, payload);
+      if (typeof this._hass?.callWS === "function") {
+        return this._editorWithTimeout(this._hass.callWS(message), this._editorHomeiiEngineTimeoutMs(), "HOMEii Flow Engine timed out.");
+      }
+      if (typeof this._hass?.connection?.sendMessagePromise === "function") {
+        return this._editorWithTimeout(this._hass.connection.sendMessagePromise(message), this._editorHomeiiEngineTimeoutMs(), "HOMEii Flow Engine timed out.");
+      }
+      throw new Error("Home Assistant WebSocket API is unavailable in the visual editor.");
+    }
+    async _editorDiagnosticEngineRow(add) {
+      const mode = this._editorHomeiiEngineMode();
+      if (!homeiiEngineModeAllowsCalls(mode)) {
+        add("info", "HOMEii Flow Engine", "Engine calls are disabled in this card config. The card is using the normal frontend-only compatibility path.", mode);
+        return;
+      }
+      try {
+        const result = await this._editorCallHomeiiEngine("get_context", {
+          card_version: HOMEII_CARD_VERSION2,
+          source: "visual_editor"
+        });
+        if (!result) throw new Error("HOMEii Flow Engine returned an empty response.");
+        const context = normalizeHomeiiEngineContext(result);
+        add("ok", "HOMEii Flow Engine", `Connected to HOMEii Flow Engine ${context.version || "unknown version"}. Capabilities: ${summarizeHomeiiEngineCapabilities(context.capabilities)}.`, mode);
+        const [playersResult, statsResult] = await Promise.allSettled([
+          this._editorCallHomeiiEngine("players/get", { source: "visual_editor" }),
+          this._editorCallHomeiiEngine("stats/get", { source: "visual_editor" })
+        ]);
+        const playerCount = Number(playersResult.value?.music_assistant_count ?? statsResult.value?.music_assistant_players ?? 0);
+        if (playersResult.status === "fulfilled" || statsResult.status === "fulfilled") {
+          const playingCount = Number(statsResult.value?.players_playing ?? 0);
+          const groupedCount = Number(statsResult.value?.players_grouped ?? 0);
+          add(playerCount ? "ok" : "warn", "Engine player state", `${playerCount} Music Assistant player(s), ${playingCount} playing, ${groupedCount} grouped.`);
+        }
+      } catch (error) {
+        const required = homeiiEngineModeRequiresEngine(mode);
+        const detail = required ? "Engine mode is Required, but the Home Assistant integration did not answer. Future Engine-backed features will not be available until the integration is installed and loaded." : "Engine was not detected. This is OK: the card will continue using the current Home Assistant/Music Assistant frontend path.";
+        const suffix = error?.message ? ` Last error: ${error.message}` : "";
+        add(required ? "fail" : "info", "HOMEii Flow Engine", `${detail}${suffix}`, mode);
+      }
+    }
     async _editorCallDirectMaCommand(command, args = {}) {
       const maUrl = this._editorMaBrowserUrl();
       if (!maUrl) throw new Error("Direct Music Assistant API is not configured.");
@@ -8978,7 +9177,7 @@ function createHomeiiBaseMusicEditor(deps = {}) {
       const maUrl = this._editorMaBrowserUrl();
       const lines = [
         "HOMEii Music Flow Editor Diagnostics",
-        "Diagnostics: v3",
+        "Diagnostics: v6",
         `Version: ${HOMEII_CARD_VERSION2}`,
         `Generated: ${(/* @__PURE__ */ new Date()).toISOString()}`,
         "Source: visual editor",
@@ -8992,6 +9191,9 @@ function createHomeiiBaseMusicEditor(deps = {}) {
         `access_path: ${this._editorAccessDetail(maUrl)}`,
         `ma_token configured: ${this._config?.ma_token ? "yes" : "no"}`,
         `config_entry_id configured: ${String(this._config?.config_entry_id || "").trim() ? "yes" : "no"}`,
+        `homeii_engine_mode: ${this._editorHomeiiEngineMode()}`,
+        `homeii_engine_instance_id configured: ${this._config?.homeii_engine_instance_id ? "yes" : "no"}`,
+        `homeii_engine_profile_id configured: ${this._config?.homeii_engine_profile_id ? "yes" : "no"}`,
         "",
         "Checks:",
         ...items.map((item) => `- [${String(item.status || "info").toUpperCase()}] ${item.title}${item.value ? `: ${item.value}` : ""}${item.detail ? ` - ${item.detail}` : ""}`)
@@ -9046,13 +9248,14 @@ function createHomeiiBaseMusicEditor(deps = {}) {
       const pinned = HomeiiMobileSettingsFoundation2.normalizePinnedPlayerEntityList(this._config?.pinned_player_entities);
       const excluded = HomeiiMobileSettingsFoundation2.normalizePinnedPlayerEntityList(this._config?.excluded_player_entities);
       add("ok", "Editor version", "Visual editor runtime is loaded.", HOMEII_CARD_VERSION2);
-      add("ok", "Diagnostics version", "Diagnostic v3 is active.", "v3");
+      add("ok", "Diagnostics version", "Diagnostic v6 is active.", "v6");
       add("info", "Browser", this._editorBrowserSummary());
       add("info", "Viewport", this._editorViewportSummary());
       add("info", "Diagnostic privacy", "External/private hostnames are redacted in visible and copied diagnostic output.");
       add(this._hass ? "ok" : "fail", "Home Assistant frontend", this._hass ? "Editor has a Home Assistant frontend object." : "Editor does not have a Home Assistant frontend object.");
       add(services.length ? "ok" : "fail", "Music Assistant services", services.length ? `${services.length} service(s) are exposed by Home Assistant.` : "No music_assistant services are exposed by Home Assistant.");
       add(services.length ? "ok" : "warn", "Integration mode", services.length ? "Core card features can run through Home Assistant. HTTP/HTTPS only affects optional Direct/Sendspin browser access." : "Home Assistant does not expose music_assistant services.");
+      await this._editorDiagnosticEngineRow(add);
       add(services.length || maUrl ? "ok" : "fail", "Integration signal", `services ${services.length ? "yes" : "no"}, direct ${maUrl ? "configured" : "empty"}`);
       add(players.length ? "ok" : services.length && genericPlayers.length ? "warn" : "fail", "Music Assistant players", players.length ? `${players.length} strict MA player(s), ${genericPlayers.length} generic HA media_player(s).` : `${genericPlayers.length} generic HA media_player(s), but no strict Music Assistant player markers were detected.`);
       add("info", "Player filters", `${pinned.length} pinned, ${excluded.length} excluded.`);
@@ -9187,7 +9390,8 @@ function createHomeiiBaseMusicEditor(deps = {}) {
           border-radius:20px;
           border:1px solid rgba(146,161,183,.18);
           background:rgba(18,24,34,.04);
-          contain:layout style paint;
+          contain:style;
+          position:relative;
         }
         .editor-header {
           display:flex;
@@ -9520,6 +9724,12 @@ function createHomeiiBaseMusicEditor(deps = {}) {
         this._editorForm.hass = this._hass;
       }
     }
+    _editorPlayerOptionLabel(entity = null, players = []) {
+      const entityId = String(entity?.entity_id || "").trim();
+      const name = HomeiiPlayersFoundation2.playerDisplayName(entity, { players }) || entityId;
+      if (!name || !entityId || name === entityId || String(name).includes(entityId)) return name || entityId;
+      return `${name} (${entityId})`;
+    }
     _editorPinnedPlayerOptions() {
       const states = this._hass?.states || {};
       const entities = this._hass?.entities || {};
@@ -9544,7 +9754,7 @@ function createHomeiiBaseMusicEditor(deps = {}) {
       ).values());
       const options = sourcePlayers.filter((entity) => !HomeiiPlayersFoundation2.isLikelyBrowserPlayer(entity)).map((entity) => ({
         value: entity.entity_id,
-        label: entity.attributes?.friendly_name || entity.entity_id
+        label: this._editorPlayerOptionLabel(entity, sourcePlayers)
       })).sort((left, right) => String(left.label).localeCompare(String(right.label), void 0, { sensitivity: "base" }));
       return options;
     }
@@ -9825,7 +10035,7 @@ function createHomeiiBaseMusicEditor(deps = {}) {
         if (item.name === "player_order_grid") return this._playerOrderSchema();
         const next = { ...item };
         if (Array.isArray(item.schema)) next.schema = item.schema.map(cloneItem).filter(Boolean);
-        if (item.name === "pinned_player_entities") {
+        if (item.name === "pinned_player_entities" || item.name === "excluded_player_entities") {
           next.selector = {
             select: {
               multiple: true,
@@ -10008,6 +10218,10 @@ function createHomeiiBaseMusicCard({
         language: "en",
         cache_ttl: 3e5,
         music_assistant_timeout_ms: 12e3,
+        homeii_engine_mode: "auto",
+        homeii_engine_instance_id: "",
+        homeii_engine_profile_id: "",
+        homeii_engine_timeout_ms: 3500,
         active_player_helper_entity: "",
         music_assistant_external_url: "",
         show_ma_button: true,
@@ -10377,6 +10591,10 @@ function createHomeiiBaseMusicCard({
         ma_interface_url: "/music-assistant",
         ma_interface_target: "_self",
         music_assistant_timeout_ms: 12e3,
+        homeii_engine_mode: "auto",
+        homeii_engine_instance_id: "",
+        homeii_engine_profile_id: "",
+        homeii_engine_timeout_ms: 3500,
         theme_mode: "auto",
         show_theme_toggle: true,
         hotel_mode: false,
@@ -10676,6 +10894,57 @@ function createHomeiiBaseMusicCard({
         return raw.includes("/imageproxy?");
       }
     }
+    _isDirectMaImageProxyUrl(url = "") {
+      const raw = String(url || "").trim();
+      if (!raw || !this._isMaImageProxyPath(raw)) return false;
+      const base = this._maArtworkBaseUrl();
+      if (!base) return false;
+      try {
+        const parsed = new URL(raw, base);
+        const maParsed = new URL(base);
+        return parsed.origin === maParsed.origin;
+      } catch (_) {
+        return false;
+      }
+    }
+    _artworkDisplayUrl(url = "") {
+      const raw = String(url || "").trim();
+      if (!raw) return "";
+      return this._imageBlobCache?.get?.(raw) || raw;
+    }
+    _shouldFetchArtworkUrl(url = "", { crossOrigin = false } = {}) {
+      const raw = String(url || "").trim();
+      if (!raw || typeof fetch !== "function") return false;
+      if (crossOrigin) return !!(this._maToken && this._isDirectMaImageProxyUrl(raw));
+      return true;
+    }
+    async _fetchArtworkBlobUrl(url = "", options = {}) {
+      const raw = String(url || "").trim();
+      if (!raw || /^(data:|blob:)/i.test(raw)) return raw;
+      if (!this._shouldFetchArtworkUrl(raw, { crossOrigin: options.crossOrigin === true })) return "";
+      if (this._imageBlobCache.has(raw)) return this._imageBlobCache.get(raw);
+      const headers = { Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8" };
+      if (this._maToken && this._isDirectMaImageProxyUrl(raw)) headers.Authorization = `Bearer ${this._maToken}`;
+      const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+      const timeout = controller ? setTimeout(() => controller.abort(), Number(options.timeoutMs || 6500)) : null;
+      try {
+        const response = await fetch(raw, {
+          cache: options.cache || "force-cache",
+          credentials: headers.Authorization ? "omit" : "same-origin",
+          headers,
+          signal: controller?.signal
+        });
+        if (!response.ok) throw new Error(`Image load failed: ${response.status}`);
+        const blob = await response.blob();
+        if (!blob) throw new Error("Image response did not include a blob.");
+        const objectUrl = URL.createObjectURL(blob);
+        this._imageBlobCache.set(raw, objectUrl);
+        this._imageFailed.delete(raw);
+        return objectUrl;
+      } finally {
+        if (timeout) clearTimeout(timeout);
+      }
+    }
     _normalizeArtworkUrl(value = "", { size = 300, cacheKey = "" } = {}) {
       const raw = String(value || "").trim();
       if (!raw) return "";
@@ -10788,6 +11057,7 @@ function createHomeiiBaseMusicCard({
         shuffle: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5h3v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4 7h5l7 10h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M16 19h3v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4 17h5l2-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M13 10l3-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>`,
         repeat: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10l-2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M17 17H7l2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M17 7l2 2-2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7 17l-2-2 2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>`,
         repeat_one: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10l-2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M17 17H7l2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M17 7l2 2-2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7 17l-2-2 2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path fill="currentColor" d="M11.2 9.8h1.5v4.9h-1.5z"></path><path fill="currentColor" d="M10.4 10.7l1.8-1.3v1.7z"></path></svg>`,
+        sync: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 7.3A6.5 6.5 0 0 1 18.6 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M18.6 6.8V11h-4.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M16.8 16.7A6.5 6.5 0 0 1 5.4 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M5.4 17.2V13h4.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>`,
         pin: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m14 4 6 6-3.2 1.2-3.1 5.6-2.4-2.4L6 20l3.6-6.6-2.4-2.4 5.6-3.1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path><path d="m4 20 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
         speaker: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2M10 4.5A1.5 1.5 0 1 1 10 7.5 1.5 1.5 0 0 1 10 4.5M10 19a4 4 0 1 1 0-8 4 4 0 0 1 0 8M10 13a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"></path></svg>`,
         speaker_group: `<svg class="ui-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3.5" width="6" height="17" rx="1.8" fill="none" stroke="currentColor" stroke-width="2"></rect><circle cx="12" cy="8" r="1.1" fill="currentColor"></circle><circle cx="12" cy="15.5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"></circle><path d="M5.5 7.5v9M18.5 7.5v9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M4 10.5v3M20 10.5v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`,
@@ -11248,6 +11518,12 @@ function createHomeiiBaseMusicCard({
           }
           .icon-btn:hover,.lang-btn:hover,.close-btn:hover,.theme-btn:hover { background:var(--ma-soft); color:var(--ma-text-1); }
           .icon-btn.active,.big-round-btn.active,.theme-btn.active {
+            color:var(--ma-accent);
+            background:color-mix(in srgb, var(--ma-accent) 14%, transparent);
+            border-color:color-mix(in srgb, var(--ma-accent) 28%, transparent);
+          }
+          .group-volume-btn[hidden] { display:none!important; }
+          .group-volume-btn.active {
             color:var(--ma-accent);
             background:color-mix(in srgb, var(--ma-accent) 14%, transparent);
             border-color:color-mix(in srgb, var(--ma-accent) 28%, transparent);
@@ -12439,8 +12715,23 @@ function createHomeiiBaseMusicCard({
             background:var(--ma-panel);
             color:var(--ma-text-1);
             font-size:12px;
+            display:flex;
+            align-items:center;
+            gap:8px;
+            pointer-events:auto;
             backdrop-filter:blur(12px);
             -webkit-backdrop-filter:blur(12px);
+          }
+          .toast-text { min-width:0; flex:1; }
+          .toast-ack {
+            border:1px solid color-mix(in srgb, var(--ma-accent) 42%, transparent);
+            border-radius:999px;
+            padding:5px 10px;
+            color:var(--ma-text-1);
+            background:color-mix(in srgb, var(--ma-accent) 18%, transparent);
+            font-size:11px;
+            font-weight:800;
+            cursor:pointer;
           }
           .toast.centered {
             max-width:min(420px, calc(100% - 48px));
@@ -13175,11 +13466,11 @@ function createHomeiiBaseMusicCard({
             .modal-body { padding:14px; }
           }
         .mobile-volume-inline .volume-btn .ui-ic{width:20px;height:20px;}
-  .card:not(.layout-tablet) .mobile-volume-inline{grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;}
+  .card:not(.layout-tablet) .mobile-volume-inline{grid-template-columns:auto minmax(0,1fr) auto auto;gap:10px;align-items:center;}
   .card:not(.layout-tablet) .mobile-volume-inline .volume-value{order:1;min-width:46px;text-align:center;}
   .card:not(.layout-tablet) .mobile-volume-inline .tablet-volume-track{order:2;}
   .card:not(.layout-tablet) .mobile-volume-inline .volume-btn{order:3;width:38px;height:38px;border-radius:999px;}
-  .card:not(.layout-tablet) .mobile-volume-inline.has-volume-step-buttons{grid-template-columns:auto auto minmax(0,1fr) auto auto;gap:8px;}
+  .card:not(.layout-tablet) .mobile-volume-inline.has-volume-step-buttons{grid-template-columns:auto auto minmax(0,1fr) auto auto auto;gap:8px;}
   .card:not(.layout-tablet) .mobile-volume-inline.has-volume-step-buttons .volume-value{order:1;}
   .card:not(.layout-tablet) .mobile-volume-inline.has-volume-step-buttons .volume-step-minus{order:2;}
   .card:not(.layout-tablet) .mobile-volume-inline.has-volume-step-buttons .tablet-volume-track{order:3;}
@@ -13286,6 +13577,7 @@ function createHomeiiBaseMusicCard({
 
               <div class="volume-row">
                 <button class="icon-btn" id="btnMute" title="${this._i18n("ui.mute")}">${this._iconSvg("volume_high")}</button>
+                <button class="icon-btn group-volume-btn" id="groupVolumeBtn" hidden title="${this._esc(this._i18n("ui.group_volume", {}, "Group volume"))}" aria-label="${this._esc(this._i18n("ui.group_volume", {}, "Group volume"))}">${this._iconSvg("speaker_group")}</button>
                 <input class="volume-range" id="volSlider" type="range" min="0" max="100" value="50" style="--vol-pct:50%">
               </div>
 
@@ -13345,8 +13637,8 @@ function createHomeiiBaseMusicCard({
                     <div class="group-list" id="groupList"></div>
                   </div>
                   <div class="group-actions">
-                    <button class="chip-btn" id="applyGroupBtn">${this._i18n("ui.apply_group")}</button>
-                    <button class="chip-btn warn" id="unGroupBtn">${this._i18n("ui.ungroup")}</button>
+                    <button class="chip-btn" id="applyGroupBtn">${this._esc(this._m("Update group", "עדכן קבוצה"))}</button>
+                    <button class="chip-btn warn" id="unGroupBtn">${this._esc(this._m("Disconnect all", "נתק הכל"))}</button>
                   </div>
                 </div>
               </div>
@@ -13379,6 +13671,7 @@ function createHomeiiBaseMusicCard({
       this.$("btnPrev").addEventListener("click", () => this._playerCmd("previous"));
       this.$("btnNext").addEventListener("click", () => this._playerCmd("next"));
       this.$("btnMute").addEventListener("click", () => this._toggleMute());
+      this.$("groupVolumeBtn")?.addEventListener("click", () => this._openGroupVolumeShortcut());
       this.$("npRow").addEventListener("click", () => {
         if (!this._isHotelMode()) this._toggleQueue();
       });
@@ -13421,8 +13714,8 @@ function createHomeiiBaseMusicCard({
       this.$("content").addEventListener("change", (e) => this._handleQueueMoveAutoChange(e));
       this.$("content").addEventListener("contextmenu", this._boundContentContext);
       this.$("groupList").addEventListener("change", (e) => this._handleGroupChange(e));
-      this.$("applyGroupBtn").addEventListener("click", (event) => this._runMenuButtonLoading(event.currentTarget, this._i18n("ui.connecting_2"), () => this._applySpeakerGroup(), { kind: "connect" }));
-      this.$("unGroupBtn").addEventListener("click", (event) => this._runMenuButtonLoading(event.currentTarget, this._i18n("ui.disconnecting"), () => this._clearSpeakerGroup(), { kind: "disconnect" }));
+      this.$("applyGroupBtn").addEventListener("click", (event) => this._runMenuButtonLoading(event.currentTarget, this._m("Updating group", "מעדכן קבוצה"), () => this._applySpeakerGroup(), { kind: "connect" }));
+      this.$("unGroupBtn").addEventListener("click", (event) => this._runMenuButtonLoading(event.currentTarget, this._m("Disconnecting all", "מנתק הכל"), () => this._clearSpeakerGroup(), { kind: "disconnect" }));
       this.$("groupModalClose").addEventListener("click", () => this._closeGroupModal());
       this.$("groupModal").addEventListener("click", (e) => {
         if (e.target === this.$("groupModal")) this._closeGroupModal();
@@ -13564,6 +13857,9 @@ function createHomeiiBaseMusicCard({
       if (player.state === "playing") return this._i18n("ui.playing");
       if (player.state === "paused") return this._i18n("ui.paused");
       return this._i18n("ui.idle");
+    }
+    _playerDisplayName(player = null, players = this._state.players || []) {
+      return HomeiiPlayersFoundation2.playerDisplayName(player, { players });
     }
     _isPlayerActive(player) {
       if (!player) return false;
@@ -14711,7 +15007,7 @@ function createHomeiiBaseMusicCard({
         this._updateThemeButton();
         return;
       }
-      if (title) title.textContent = selected?.attributes?.friendly_name || this._i18n("ui.selected_player");
+      if (title) title.textContent = this._playerDisplayName(selected) || this._i18n("ui.selected_player");
       if (sub) {
         const label = this._playerStateLabel(selected);
         const track = selected?.attributes?.media_title || "";
@@ -14741,7 +15037,7 @@ function createHomeiiBaseMusicCard({
       if (icon) icon.textContent = mode === "transfer" ? "⇆" : "🎵";
       if (!subtitle) return;
       if (mode === "transfer") {
-        subtitle.textContent = selected?.attributes?.friendly_name || this._i18n("ui.choose_target_player");
+        subtitle.textContent = this._playerDisplayName(selected) || this._i18n("ui.choose_target_player");
         return;
       }
       const count = (this._state.players || []).length;
@@ -14768,7 +15064,7 @@ function createHomeiiBaseMusicCard({
               ${list.map((p) => {
           const selected = p.entity_id === this._state.selectedPlayer;
           const stateCls = p.state === "playing" ? "playing" : p.state === "paused" ? "paused" : "idle";
-          const name = p.attributes?.friendly_name || p.entity_id;
+          const name = this._playerDisplayName(p, players);
           const track = p.attributes?.media_title || "";
           const art = this._bestArtworkUrl([p.attributes?.entity_picture_local, p.attributes?.entity_picture], {
             size: 120,
@@ -14981,7 +15277,14 @@ function createHomeiiBaseMusicCard({
       if (fresh || this._state.mobileRecommendationPlaylistsLoading) return cached;
       this._state.mobileRecommendationPlaylistsLoading = true;
       try {
-        const playlists = await this._loadScheduledStartPlaylists(force);
+        const [playlistsResult, nativeResult] = await Promise.allSettled([
+          this._loadScheduledStartPlaylists(force),
+          this._loadNativeRecommendationEntries(force, 36)
+        ]);
+        const playlists = playlistsResult.status === "fulfilled" ? playlistsResult.value : [];
+        if (nativeResult.status === "fulfilled" && Array.isArray(nativeResult.value)) {
+          this._state.mobileNativeRecommendationItems = nativeResult.value.slice(0, 36);
+        }
         this._state.mobileRecommendationPlaylists = Array.isArray(playlists) ? playlists.slice(0, 24) : [];
         this._state.mobileRecommendationPlaylistsFetchedAt = Date.now();
         this._state.mobileHistoryRenderedHtml = "";
@@ -15022,6 +15325,7 @@ function createHomeiiBaseMusicCard({
       }));
       const recommendations = [];
       pushUnique(this._state.quickMixRecommendationItems || [], recommendations);
+      pushUnique(this._historyNativeRecommendationItems(8), recommendations);
       pushUnique(queueItems, recommendations);
       pushUnique(this._historyRecommendationPlaylistItems(5), recommendations);
       pushUnique(recentItems, recommendations);
@@ -15133,7 +15437,7 @@ function createHomeiiBaseMusicCard({
     }
     _controlRoomPlayerName(entityOrPlayer = "") {
       const player = entityOrPlayer && typeof entityOrPlayer === "object" ? entityOrPlayer : this._playerByEntityId(String(entityOrPlayer || ""));
-      return player?.attributes?.friendly_name || String(entityOrPlayer || "") || this._i18n("ui.player");
+      return player ? this._playerDisplayName(player) : String(entityOrPlayer || "") || this._i18n("ui.player");
     }
     _controlRoomPlayerCountLabel(count = 0) {
       const amount = Math.max(0, Number(count) || 0);
@@ -15174,7 +15478,7 @@ function createHomeiiBaseMusicCard({
         cacheKey: this._currentArtworkCacheKey(first)
       });
       if (players.length > 1) {
-        const names = players.map((player) => player.attributes?.friendly_name || player.entity_id).filter(Boolean);
+        const names = players.map((player) => this._playerDisplayName(player, players)).filter(Boolean);
         return {
           art,
           count: players.length,
@@ -15183,7 +15487,7 @@ function createHomeiiBaseMusicCard({
           track: names.slice(0, 3).join(" · ") + (names.length > 3 ? "..." : "")
         };
       }
-      const name = first?.attributes?.friendly_name || this._i18n("ui.selected_player_2");
+      const name = this._playerDisplayName(first, players) || this._i18n("ui.selected_player_2");
       return {
         art,
         count: first ? 1 : 0,
@@ -15614,7 +15918,8 @@ function createHomeiiBaseMusicCard({
         artist: artists || item?.artist || "",
         album: item?.album?.name || item?.album || "",
         image: this._artUrl(item) || item?.image || item?.image_url || item?.media_item?.image || item?.media_image || "",
-        favorite: !!item?.favorite
+        favorite: !!item?.favorite,
+        favorite_scope: item?.favorite_scope || options.favorite_scope || "library"
       };
     }
     _controlRoomEntryDataAttrs(entry = {}) {
@@ -15623,7 +15928,8 @@ function createHomeiiBaseMusicCard({
         `data-room-library-type="${this._esc(entry.media_type || "album")}"`,
         `data-room-library-name="${this._esc(entry.name || "")}"`,
         `data-room-library-subtitle="${this._esc(entry.subtitle || "")}"`,
-        `data-room-library-image="${this._esc(entry.image || "")}"`
+        `data-room-library-image="${this._esc(entry.image || "")}"`,
+        `data-room-library-favorite-scope="${this._esc(entry.favorite_scope || "library")}"`
       ].join(" ");
     }
     _controlRoomProtocolLabel(player = null) {
@@ -15775,9 +16081,15 @@ function createHomeiiBaseMusicCard({
         return favorites.filter((item) => item?.uri).slice(0, 24);
       }
       if (preset?.random) {
+        const nativeEntries2 = await this._nativeMixEntriesForPreset(presetId, query, 12);
         const tracks = await this._fetchLibrary("track", "random", 24, false);
-        return tracks.map((item) => this._controlRoomNormalizeMediaEntry(item, "track")).filter((item) => item.uri);
+        return this._controlRoomUniqueEntries([
+          ...nativeEntries2,
+          ...tracks.map((item) => this._controlRoomNormalizeMediaEntry(item, "track")).filter((item) => item.uri)
+        ]).slice(0, 24);
       }
+      const nativeEntries = await this._nativeMixEntriesForPreset(presetId, query, 12);
+      if (nativeEntries.length >= 4) return nativeEntries;
       const queries = query ? [query] : preset?.queries || ["music playlist"];
       const entries = [];
       for (const currentQuery of queries) {
@@ -16258,8 +16570,7 @@ function createHomeiiBaseMusicCard({
       const action = String(mode || "play");
       if (!entry?.uri) return false;
       if (action === "like") {
-        await this._toggleLikeEntry(entry);
-        return true;
+        return this._toggleLikeEntry(entry);
       }
       const primaryId = await this._prepareControlRoomPlaybackTargets();
       if (!primaryId) return false;
@@ -17689,11 +18000,10 @@ function createHomeiiBaseMusicCard({
     }
     async _toggleLikeCurrentMedia(sourceEl = null) {
       const uri = this._getCurrentMediaUri();
-      if (!uri) return;
+      if (!uri) return false;
       if (this._useMaLikedMode()) {
         const entry = this._currentMediaLikeMeta();
-        await this._toggleMaLikeEntry(entry, sourceEl);
-        return;
+        return this._toggleMaLikeEntry(entry, sourceEl);
       }
       const likedUris = this._loadLikedUris();
       const likedMeta = this._loadLikedMetaMap();
@@ -17709,13 +18019,13 @@ function createHomeiiBaseMusicCard({
       if (sourceEl) this._flashInteraction(sourceEl);
       this._syncLikeButtons();
       if (this._state.menuOpen && this._state.menuPage === "library_liked") this._renderMobileMenu();
+      return true;
     }
     async _toggleLikeEntry(entry = {}, sourceEl = null) {
       const uri = String(entry?.uri || "").trim();
-      if (!uri) return;
+      if (!uri) return false;
       if (this._useMaLikedMode()) {
-        await this._toggleMaLikeEntry(entry, sourceEl);
-        return;
+        return this._toggleMaLikeEntry(entry, sourceEl);
       }
       const likedUris = this._loadLikedUris();
       const likedMeta = this._loadLikedMetaMap();
@@ -17737,6 +18047,7 @@ function createHomeiiBaseMusicCard({
       this._saveLikedMetaMap();
       if (sourceEl) this._flashInteraction(sourceEl);
       this._syncLikeButtons();
+      return true;
     }
     async _toggleMaLikeEntry(entry = {}, sourceEl = null) {
       const targetsCurrentMedia = this._entryTargetsCurrentMedia(entry);
@@ -18544,6 +18855,7 @@ function createHomeiiBaseMusicCard({
                 <div class="now-controls-bottom">
                   <div class="now-volume">
                     <button class="big-round-btn" id="bigMuteBtn">${this._iconSvg(this._volumeIconName(player))}</button>
+                    <button class="big-round-btn group-volume-btn" id="bigGroupVolumeBtn" hidden title="${this._esc(this._i18n("ui.group_volume", {}, "Group volume"))}" aria-label="${this._esc(this._i18n("ui.group_volume", {}, "Group volume"))}">${this._iconSvg("speaker_group")}</button>
                     <input id="bigVolumeSlider" type="range" min="0" max="100" value="${volumePct}" style="--vol-pct:${volumePct}%">
                   </div>
                   <div class="now-actions">
@@ -18578,6 +18890,7 @@ function createHomeiiBaseMusicCard({
         this._bindNowPlayingPage();
         this._updateNowPlayingSidePanel();
         this._highlightNowPlaying();
+        this._syncGroupVolumeShortcut(player);
       } catch (e) {
         if (!this._isValidRender(token)) return;
         this._renderError(e, () => this._renderNowPlayingPage());
@@ -18669,6 +18982,7 @@ function createHomeiiBaseMusicCard({
       bind("bigShuffleBtn", () => this._toggleShuffle());
       bind("bigRepeatBtn", () => this._toggleRepeat());
       bind("bigMuteBtn", () => this._toggleMute());
+      bind("bigGroupVolumeBtn", () => this._openGroupVolumeShortcut());
       bind("openQueueBtn", () => this._showQueue());
       bind("transferQueueBtn", () => this._openTransferQueuePicker());
       bind("groupBtn", () => this._openGroupModal());
@@ -19752,6 +20066,136 @@ function createHomeiiBaseMusicCard({
       if (search) data.search = search;
       const raw = await this._callDirectMaCommand(`music/${segment}/library_items`, data);
       return this._libraryItemsFromDirectPayload(raw, mediaType);
+    }
+    _recommendationFolderItems(raw = {}) {
+      if (!raw) return [];
+      if (Array.isArray(raw)) return raw;
+      if (Array.isArray(raw?.items)) return raw.items;
+      if (Array.isArray(raw?.recommendations)) return raw.recommendations;
+      if (Array.isArray(raw?.folders)) return raw.folders;
+      return [];
+    }
+    _normalizeRecommendationEntry(item = {}, fallbackType = "track", folder = null) {
+      const normalized = this._normalizeSearchItem(item?.media_item || item, fallbackType);
+      const mediaType = String(normalized?.media_type || fallbackType || "track").toLowerCase();
+      const artists = Array.isArray(normalized?.artists) ? normalized.artists.map((artist) => artist?.name).filter(Boolean).join(", ") : "";
+      const uri = String(normalized?.uri || item?.uri || item?.media_item?.uri || "").trim();
+      if (!uri) return null;
+      const folderName = String(folder?.name || folder?.title || folder?.item_id || "").trim();
+      const providerLabel = String(normalized?.provider_label || item?.provider_label || folder?.provider || normalized?.provider || "").trim();
+      return {
+        ...normalized,
+        uri,
+        media_type: mediaType,
+        name: normalized?.name || normalized?.title || item?.name || item?.title || uri,
+        title: normalized?.name || normalized?.title || item?.name || item?.title || uri,
+        artist: artists || normalized?.artist || item?.artist || "",
+        album: normalized?.album?.name || normalized?.album || item?.album?.name || item?.album || "",
+        image: this._artUrl(normalized, { size: 240 }) || this._artUrl(item, { size: 240 }) || this._imageUrl(item?.image || item?.image_url, 240) || "",
+        folder_name: folderName,
+        folder_provider: String(folder?.provider || "").trim(),
+        provider_label: providerLabel
+      };
+    }
+    _flattenNativeRecommendations(raw = {}, limit = 48) {
+      const src = raw?.response ?? raw?.result ?? raw;
+      const folders = this._recommendationFolderItems(src);
+      const entries = [];
+      const seen = /* @__PURE__ */ new Set();
+      const addEntry = (item, folder = null) => {
+        const fallbackType = String(item?.media_type || item?.type || item?.media_item?.media_type || "track").toLowerCase();
+        const entry = this._normalizeRecommendationEntry(item, fallbackType, folder);
+        const key = String(entry?.uri || entry?.name || "").trim().toLowerCase();
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        entries.push(entry);
+      };
+      if (folders.some((folder) => Array.isArray(folder?.items))) {
+        folders.forEach((folder) => this._recommendationFolderItems(folder).forEach((item) => addEntry(item, folder)));
+      } else {
+        folders.forEach((item) => addEntry(item, null));
+      }
+      return entries.slice(0, Math.max(1, Math.min(100, Number(limit) || 48)));
+    }
+    async _loadNativeRecommendationEntries(force = false, limit = 48) {
+      const cached = Array.isArray(this._state.mobileNativeRecommendationItems) ? this._state.mobileNativeRecommendationItems : [];
+      const fresh = cached.length && !force && Date.now() - Number(this._state.mobileNativeRecommendationsFetchedAt || 0) < 10 * 60 * 1e3;
+      if (fresh || this._state.mobileNativeRecommendationsLoading) return cached;
+      if (!this._hasDirectMAConnection()) return cached;
+      this._state.mobileNativeRecommendationsLoading = true;
+      try {
+        const raw = await this._callDirectMaCommand("music/recommendations", {});
+        const items = this._flattenNativeRecommendations(raw, limit);
+        this._state.mobileNativeRecommendationItems = items;
+        this._state.mobileNativeRecommendationsFetchedAt = Date.now();
+        return items;
+      } catch (_) {
+        return cached;
+      } finally {
+        this._state.mobileNativeRecommendationsLoading = false;
+      }
+    }
+    _historyNativeRecommendationItems(limit = 8) {
+      return (Array.isArray(this._state.mobileNativeRecommendationItems) ? this._state.mobileNativeRecommendationItems : []).filter((item) => item?.uri).slice(0, limit).map((item) => ({
+        uri: item.uri,
+        media_type: item.media_type || "track",
+        title: item.title || item.name || this._i18n("ui.recommended_track"),
+        artist: item.artist || item.subtitle || "",
+        album: item.album || item.folder_name || item.provider_label || "",
+        image: item.image || this._artUrl(item, { size: 120 }) || ""
+      }));
+    }
+    async _nativeSimilarTrackEntries(entry = {}, limit = 12) {
+      if (!this._hasDirectMAConnection() || !entry?.uri) return [];
+      const mediaType = String(entry.media_type || entry.type || "track").toLowerCase();
+      if (mediaType !== "track") return [];
+      const parsed = this._parseMediaReference(entry.uri, "track");
+      if (!parsed?.provider || !parsed?.item_id) return [];
+      try {
+        const raw = await this._callDirectMaCommand("music/tracks/similar_tracks", {
+          item_id: parsed.item_id,
+          provider_instance_id_or_domain: parsed.provider,
+          limit: Math.max(1, Math.min(50, Number(limit) || 12)),
+          allow_lookup: false
+        });
+        const items = Array.isArray(raw?.items) ? raw.items : Array.isArray(raw) ? raw : [];
+        return items.map((item) => this._normalizeRecommendationEntry(item, "track", { name: this._m("Similar tracks", "שירים דומים") })).filter((item) => item?.uri);
+      } catch (_) {
+        return [];
+      }
+    }
+    _recommendationPresetTokens(preset = null, query = "") {
+      const source = [
+        query,
+        preset?.id,
+        preset?.label,
+        preset?.subtitle,
+        ...Array.isArray(preset?.queries) ? preset.queries : []
+      ].join(" ").toLowerCase();
+      return source.replace(/[^a-z0-9\u0590-\u05ff ]+/g, " ").split(/\s+/).map((token) => token.trim()).filter((token) => token.length >= 3);
+    }
+    _scoreNativeRecommendationEntry(entry = {}, tokens = []) {
+      if (!tokens.length) return 1;
+      const haystack = [
+        entry.name,
+        entry.title,
+        entry.artist,
+        entry.album,
+        entry.folder_name,
+        entry.provider_label,
+        entry.media_type
+      ].join(" ").toLowerCase();
+      return tokens.reduce((score, token) => score + (haystack.includes(token) ? 1 : 0), 0);
+    }
+    async _nativeMixEntriesForPreset(presetId = "", customQuery = "", limit = 16) {
+      const preset = this._controlRoomMixPresets().find((item) => item.id === presetId) || null;
+      const items = await this._loadNativeRecommendationEntries(false, 60);
+      if (!items.length) return [];
+      const tokens = this._recommendationPresetTokens(preset, customQuery);
+      const scored = items.map((entry) => ({ entry, score: this._scoreNativeRecommendationEntry(entry, tokens) })).filter((item) => item.score > 0 || preset?.random || customQuery).sort((left, right) => right.score - left.score).map(({ entry }) => this._controlRoomNormalizeMediaEntry(entry, entry.media_type || "track", {
+        subtitle: entry.folder_name || entry.provider_label || this._m("Music Assistant recommendations", "המלצות Music Assistant")
+      }));
+      return this._controlRoomUniqueEntries(scored).slice(0, Math.max(1, Math.min(30, Number(limit) || 16)));
     }
     async _getLibrary(mediaType, orderBy = "sort_name", limit = 500, favoritesOnly = false) {
       const key = `${mediaType}:${orderBy}:${limit}:${favoritesOnly}`;
@@ -21236,6 +21680,19 @@ function createHomeiiBaseMusicCard({
       const sourceId = String(sourcePlayerEntityId || "").trim();
       const targetId = String(targetPlayerEntityId || "").trim();
       if (!sourceId || !targetId || sourceId === targetId) return false;
+      const canUseHomeiiEngineTransfer = typeof this._homeiiEngineTransferQueue === "function" && this._homeiiEngineEnabled?.() && (this._state?.engineAvailable || this._homeiiEngineRequired?.());
+      if (canUseHomeiiEngineTransfer) {
+        try {
+          const result = await this._homeiiEngineTransferQueue({
+            source_player: sourceId,
+            target_player: targetId,
+            auto_play: true
+          });
+          if (result?.ok) return true;
+        } catch (engineError) {
+          this._debugLog?.("warn", "[HOMEii Flow] HOMEii Flow Engine queue transfer fallback failed", engineError);
+        }
+      }
       const data = { source_player: sourceId, auto_play: true };
       try {
         await this._callHaServiceTargeted("music_assistant", "transfer_queue", data, { entity_id: targetId });
@@ -21280,18 +21737,50 @@ function createHomeiiBaseMusicCard({
         );
       });
     }
+    _cardIssueAckStorageKey(key = "issue", message = "") {
+      const rawKey = String(key || "issue").trim() || "issue";
+      const safeKey = rawKey.replace(/[^a-z0-9_-]+/gi, "_").replace(/^_+|_+$/g, "").slice(0, 64) || "issue";
+      const raw = `${rawKey}|${String(message || "")}`;
+      let hash = 2166136261;
+      for (let index = 0; index < raw.length; index += 1) {
+        hash ^= raw.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+      }
+      return this._lsKey(`homeii_music_flow_card_issue_ack_${safeKey}_${(hash >>> 0).toString(36)}`);
+    }
+    _isCardIssueAcknowledged(key = "issue", message = "") {
+      try {
+        return typeof localStorage !== "undefined" && localStorage.getItem(this._cardIssueAckStorageKey(key, message)) === "1";
+      } catch (_) {
+        return false;
+      }
+    }
+    _acknowledgeCardIssue(key = "issue", message = "") {
+      try {
+        if (typeof localStorage !== "undefined") {
+          localStorage.setItem(this._cardIssueAckStorageKey(key, message), "1");
+        }
+      } catch (_) {
+      }
+    }
     _notifyCardIssue(key = "issue", message = "", variant = "error", cooldown = 3e4) {
       const text = String(message || "").trim();
       if (!text) return;
       if (!this._cardIssueNoticeTimes) this._cardIssueNoticeTimes = /* @__PURE__ */ new Map();
       const now = Date.now();
       const noticeKey = String(key || text);
+      if (this._isCardIssueAcknowledged(noticeKey, text)) return;
       const last = this._cardIssueNoticeTimes.get(noticeKey) || 0;
       if (now - last < cooldown) return;
       this._cardIssueNoticeTimes.set(noticeKey, now);
-      if (variant === "success") this._toastSuccess(text);
-      else if (variant === "info" || variant === "warning" || variant === "warn") this._toast(text);
-      else this._toastError(text);
+      const toastOptions = {
+        duration: Math.max(6500, Math.min(Number(cooldown || 8500) || 8500, 12e3)),
+        issueAckKey: noticeKey,
+        issueAckText: text
+      };
+      if (variant === "success") this._toastSuccess(text, toastOptions);
+      else if (variant === "info" || variant === "warning" || variant === "warn") this._toast(text, "info", toastOptions);
+      else this._toastError(text, toastOptions);
     }
     _isMissingMusicAssistantConfigError(error = null) {
       const message = String(error?.message || error || "").toLowerCase();
@@ -21517,7 +22006,7 @@ function createHomeiiBaseMusicCard({
       if (sel) {
         sel.innerHTML = entities.map((entity) => {
           const active = this._isPlayerActive(entity) ? "● " : "";
-          const name = entity.attributes.friendly_name || entity.entity_id;
+          const name = this._playerDisplayName(entity, entities);
           return `<option value="${this._esc(entity.entity_id)}">${this._esc(active + name)}</option>`;
         }).join("");
         sel.value = this._state.selectedPlayer || "";
@@ -21576,6 +22065,28 @@ function createHomeiiBaseMusicCard({
       try {
         if (this._isDirectMaPlayer(entityId)) {
           return await this._playMediaOnDirectMaPlayer(entityId, uri, mediaType, enqueue, options);
+        }
+        const canUseHomeiiEnginePlayback = typeof this._homeiiEnginePlayMedia === "function" && this._config?.homeii_engine_playback_proxy === true && this._homeiiEngineEnabled?.() && (this._state?.engineAvailable || this._homeiiEngineRequired?.());
+        if (canUseHomeiiEnginePlayback) {
+          try {
+            const engineResult = await this._homeiiEnginePlayMedia({
+              player: entityId,
+              media_id: uri,
+              media_type: mediaType,
+              enqueue,
+              radio_mode: !!options.radioMode
+            });
+            if (engineResult?.ok) {
+              if (!options.silent) {
+                const targetPlayer = this._playerByEntityId(entityId);
+                this._toastMediaQueued(label, targetPlayer?.attributes?.friendly_name || entityId);
+              }
+              if (entityId === this._state.selectedPlayer) setTimeout(() => this._ensureQueueSnapshot(true), 600);
+              return true;
+            }
+          } catch (engineError) {
+            this._debugLog?.("warn", "[HOMEii Flow] HOMEii Flow Engine playback fallback failed", engineError);
+          }
         }
         if (enqueue === "shuffle") {
           await this._callHaServiceRaw("media_player", "shuffle_set", { entity_id: entityId, shuffle: true });
@@ -22248,6 +22759,7 @@ function createHomeiiBaseMusicCard({
         this._renderPlayerSummary();
         this._syncBrandPlayingState();
         this._syncStatus();
+        this._syncGroupVolumeShortcut(null);
         return;
       }
       const queueItem = this._state.maQueueState?.current_item || null;
@@ -22284,6 +22796,7 @@ function createHomeiiBaseMusicCard({
       this._syncBrandPlayingState();
       this._syncStatus();
       this._syncNowPlayingPageLive();
+      this._syncGroupVolumeShortcut(player);
       if (this._state.screensaverOpen) this._syncScreensaverUi();
     }
     _syncNowPlayingPageLive() {
@@ -22467,17 +22980,143 @@ function createHomeiiBaseMusicCard({
       return this._imageUrl(item?.streamdetails?.stream_metadata?.image_url, size) || this._imageUrl(item?.local_image_encoded, size) || this._imageUrl(item?.local_image_url, size) || this._imageUrl(item?.local_image, size) || this._imageUrl(item?.media_image, size) || this._imageUrl(item?.media_image_url, size) || this._imageUrl(item?.image_url, size) || this._imageUrl(item?.image, size) || this._artUrl(item, { size }) || this._artUrl(item?.media_item || item, { size }) || this._imageUrl(item?.media_item?.image_url, size) || this._imageUrl(item?.media_item?.image, size) || this._imageUrl(item?.media_item?.metadata?.images, size) || this._imageUrl(item?.media_item?.album?.image_url, size) || this._imageUrl(item?.media_item?.album?.image, size) || this._imageUrl(item?.media_item?.album?.metadata?.images, size) || null;
     }
     _getAvailableGroupPlayers() {
-      const current = this._state.selectedPlayer;
-      return (this._state.players || []).filter((p) => p.entity_id !== current).filter((p) => !(typeof this._isLikelyBrowserPlayer === "function" && this._isLikelyBrowserPlayer(p))).filter((p) => !(typeof this._isStaticGroupPlayer === "function" && this._isStaticGroupPlayer(p)));
+      return (this._state.players || []).filter((p) => !(typeof this._isLikelyBrowserPlayer === "function" && this._isLikelyBrowserPlayer(p))).filter((p) => !(typeof this._isStaticGroupPlayer === "function" && this._isStaticGroupPlayer(p)));
     }
-    _refreshGroupingState() {
+    _currentSpeakerGroupMemberIds(entityId = this._state.selectedPlayer) {
+      const primaryId = String(entityId || "").trim();
+      if (!primaryId) return [];
+      const players = Array.isArray(this._state.players) ? this._state.players : [];
+      const primary = players.find((player) => player?.entity_id === primaryId) || this._playerByEntityId(primaryId);
+      let ids = this._playerGroupMemberIds(primary).filter(Boolean);
+      if (ids.length <= 1) {
+        const owner = players.find((player) => {
+          const members = this._playerGroupMemberIds(player);
+          return members.length > 1 && members.includes(primaryId);
+        });
+        if (owner) ids = this._playerGroupMemberIds(owner).filter(Boolean);
+      }
+      if (!ids.includes(primaryId)) ids.unshift(primaryId);
+      return [...new Set(ids)];
+    }
+    _currentSpeakerGroupOwnerId(entityId = this._state.selectedPlayer) {
+      const primaryId = String(entityId || "").trim();
+      if (!primaryId) return "";
+      const players = Array.isArray(this._state.players) ? this._state.players : [];
+      const primary = players.find((player) => player?.entity_id === primaryId) || this._playerByEntityId(primaryId);
+      const primaryMembers = this._playerGroupMemberIds(primary);
+      if (primaryMembers.length > 1) return primaryMembers[0] || primaryId;
+      const owner = players.find((player) => {
+        const members = this._playerGroupMemberIds(player);
+        return members.length > 1 && members.includes(primaryId);
+      });
+      const ownerMembers = this._playerGroupMemberIds(owner);
+      return ownerMembers[0] || owner?.entity_id || primaryId;
+    }
+    _selectedSpeakerGroupCount(player = this._getSelectedPlayer()) {
+      const entityId = String(player?.entity_id || this._state.selectedPlayer || "").trim();
+      if (!entityId) return 0;
+      return this._currentSpeakerGroupMemberIds(entityId).length;
+    }
+    _syncGroupVolumeShortcut(player = this._getSelectedPlayer()) {
+      const count = this._selectedSpeakerGroupCount(player);
+      const show = count > 1;
+      const label = this._i18n("ui.group_volume", {}, "Group volume");
+      this.shadowRoot?.querySelectorAll?.(".group-volume-btn").forEach((btn) => {
+        btn.hidden = !show;
+        btn.classList.toggle("active", show);
+        btn.dataset.groupCount = show ? String(count) : "";
+        const title = show ? `${label} · ${count}` : label;
+        btn.title = title;
+        btn.setAttribute("aria-label", title);
+      });
+    }
+    _openGroupVolumeShortcut() {
+      const player = this._getSelectedPlayer();
+      if (!player || this._selectedSpeakerGroupCount(player) <= 1) {
+        this._toast?.(this._m("No active group for this player.", "אין קבוצה פעילה לנגן הזה."));
+        return;
+      }
+      const layoutMode = typeof this._layoutModeConfig === "function" ? this._layoutModeConfig() : "";
+      if (layoutMode && layoutMode !== "desktop" && typeof this._openMobileMenu === "function") {
+        this._openMobileMenu("group");
+        return;
+      }
+      this._openGroupModal();
+    }
+    _currentSpeakerGroupChildIds(entityId = this._state.selectedPlayer) {
+      const primaryId = String(entityId || "").trim();
+      return this._currentSpeakerGroupMemberIds(primaryId).filter((id) => id && id !== primaryId);
+    }
+    _normalizeGroupMemberSelection(ownerId, groupMembers = []) {
+      const primaryId = String(ownerId || "").trim();
+      return [...new Set((Array.isArray(groupMembers) ? groupMembers : []).map((id) => String(id || "").trim()).filter((id) => id && id !== primaryId))];
+    }
+    _groupSelectionDelta(entityId = this._state.selectedPlayer, groupMembers = this._state.pendingGroupSelections || []) {
+      const primaryId = String(entityId || "").trim();
+      const owner = this._currentSpeakerGroupOwnerId(primaryId) || primaryId;
+      const groupAll = this._currentSpeakerGroupMemberIds(primaryId);
+      const current = groupAll.filter((id) => id && id !== owner);
+      const desired = this._normalizeGroupMemberSelection(owner, groupMembers);
+      const currentSet = new Set(current);
+      const desiredSet = new Set(desired);
+      const desiredAll = [...new Set((Array.isArray(groupMembers) ? groupMembers : []).map((id) => String(id || "").trim()).filter(Boolean))];
+      const ownerRemoved = !!(owner && groupAll.length > 1 && this._state.pendingGroupOwnerRemoval && !desiredAll.includes(owner));
+      return {
+        owner,
+        currentAll: groupAll,
+        desiredAll,
+        ownerRemoved,
+        current,
+        desired,
+        added: desired.filter((id) => !currentSet.has(id)),
+        removed: current.filter((id) => !desiredSet.has(id))
+      };
+    }
+    _sameSpeakerGroupMembers(left = [], right = []) {
+      const leftSet = new Set((Array.isArray(left) ? left : []).map((id) => String(id || "").trim()).filter(Boolean));
+      const rightSet = new Set((Array.isArray(right) ? right : []).map((id) => String(id || "").trim()).filter(Boolean));
+      if (leftSet.size !== rightSet.size) return false;
+      for (const id of leftSet) {
+        if (!rightSet.has(id)) return false;
+      }
+      return true;
+    }
+    async _waitForSpeakerGroupConfirmation(ownerId, expectedMembers = [], options = {}) {
+      if (!this._hass?.states || typeof this._loadPlayers !== "function") {
+        return { ok: true, skipped: true, members: expectedMembers };
+      }
+      const leaderId = String(ownerId || "").trim();
+      const expected = [...new Set((Array.isArray(expectedMembers) ? expectedMembers : []).map((id) => String(id || "").trim()).filter(Boolean))];
+      const timeoutMs = Math.max(700, Number(options.timeoutMs || 3200) || 3200);
+      const intervalMs = Math.max(150, Number(options.intervalMs || 350) || 350);
+      const deadline = Date.now() + timeoutMs;
+      let latest = [];
+      do {
+        try {
+          await this._loadPlayers();
+        } catch (_) {
+        }
+        latest = this._currentSpeakerGroupMemberIds(leaderId);
+        if (expected.length <= 1) {
+          if (latest.length <= 1) return { ok: true, skipped: false, members: latest };
+        } else if (this._sameSpeakerGroupMembers(latest, expected)) {
+          return { ok: true, skipped: false, members: latest };
+        }
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      } while (Date.now() < deadline);
+      return { ok: false, skipped: false, members: latest };
+    }
+    _refreshGroupingState(options = {}) {
       const player = this._getSelectedPlayer();
       if (!player) return;
-      const attrs = player.attributes || {};
-      const children = Array.isArray(attrs.group_members) ? attrs.group_members.filter((id) => id !== player.entity_id) : [];
-      if (!this._state.pendingGroupSelections.length) this._state.pendingGroupSelections = [...children];
+      const members = this._currentSpeakerGroupMemberIds(player.entity_id);
+      if (options.force || !this._state.pendingGroupSelectionsDirty) {
+        this._state.pendingGroupSelections = [...members];
+        this._state.pendingGroupOwnerRemoval = false;
+      }
     }
     _openGroupModal() {
+      this._refreshGroupingState({ force: true });
       this.shadowRoot.querySelector(".card")?.appendChild(this.$("groupModal"));
       const players = this._getAvailableGroupPlayers();
       const list = this.$("groupList");
@@ -22485,25 +23124,43 @@ function createHomeiiBaseMusicCard({
       const selected = this._getSelectedPlayer();
       const subtitle = this.$("groupModalSubtitle");
       const badge = this.$("groupCountBadge");
-      if (subtitle) subtitle.textContent = selected?.attributes?.friendly_name || this._i18n("ui.choose_player");
+      const groupOwner = this._currentSpeakerGroupOwnerId(selected?.entity_id);
+      const groupDelta = this._groupSelectionDelta(selected?.entity_id, this._state.pendingGroupSelections || []);
+      const currentAllSet = new Set(groupDelta.currentAll || []);
+      const desiredAllSet = new Set(groupDelta.desiredAll || []);
+      if (subtitle) subtitle.textContent = this._playerDisplayName(selected) || this._i18n("ui.choose_player");
       if (badge) badge.textContent = String(players.length);
       list.innerHTML = players.length ? players.map((p) => {
-        const checked = (this._state.pendingGroupSelections || []).includes(p.entity_id);
-        return `<label class="group-item ${checked ? "checked" : ""}"><span class="group-meta"><span class="group-name">${this._esc(p.attributes.friendly_name || p.entity_id)}<span class="group-item-toggle ${checked ? "checked" : ""}" aria-hidden="true">${this._iconSvg(checked ? "check" : "plus")}</span></span><span class="group-sub"></span></span><input type="checkbox" data-group-player="${this._esc(p.entity_id)}" ${checked ? "checked" : ""}></label>`;
+        const checked = desiredAllSet.has(p.entity_id);
+        const connected = currentAllSet.has(p.entity_id);
+        const isOwner = p.entity_id === groupOwner;
+        return `<label class="group-item ${checked ? "checked" : ""} ${connected ? "connected" : ""} ${isOwner ? "group-owner" : ""}"><span class="group-meta"><span class="group-name">${this._esc(this._playerDisplayName(p, players))}<span class="group-item-toggle ${checked ? "checked" : ""}" aria-hidden="true">${this._iconSvg(checked ? "check" : "plus")}</span></span><span class="group-sub">${isOwner ? this._esc(this._m("Master", "מוביל")) : ""}</span></span><input type="checkbox" data-group-player="${this._esc(p.entity_id)}" data-group-owner="${isOwner ? "true" : "false"}" ${checked ? "checked" : ""}></label>`;
       }).join("") : `<div class="state-box" style="min-height:80px;padding:8px 0;">${this._esc(this._i18n("ui.no_extra_ma_players"))}</div>`;
+      this._syncGroupModalApplyButton();
       this.$("groupModal").classList.add("open");
     }
     _closeGroupModal() {
       this.$("groupModal").classList.remove("open");
     }
+    _syncGroupModalApplyButton() {
+      const applyButton = this.$("applyGroupBtn");
+      if (!applyButton) return;
+      const selected = this._getSelectedPlayer();
+      const delta = this._groupSelectionDelta(selected?.entity_id, this._state.pendingGroupSelections || []);
+      applyButton.textContent = this._m("Update group", "עדכן קבוצה");
+      applyButton.disabled = !delta.ownerRemoved && !delta.added.length && !delta.removed.length;
+    }
     _handleGroupChange(e) {
       const checkbox = e.target.closest("input[data-group-player]");
       if (!checkbox) return;
       const entityId = checkbox.dataset.groupPlayer;
+      const isOwner = checkbox.dataset.groupOwner === "true";
       const next = new Set(this._state.pendingGroupSelections || []);
       if (checkbox.checked) next.add(entityId);
       else next.delete(entityId);
       this._state.pendingGroupSelections = Array.from(next);
+      if (isOwner) this._state.pendingGroupOwnerRemoval = !checkbox.checked;
+      this._state.pendingGroupSelectionsDirty = true;
       const groupItem = checkbox.closest(".group-item");
       groupItem?.classList.toggle("checked", checkbox.checked);
       const toggle = groupItem?.querySelector(".group-item-toggle");
@@ -22511,13 +23168,66 @@ function createHomeiiBaseMusicCard({
         toggle.classList.toggle("checked", checkbox.checked);
         toggle.innerHTML = this._iconSvg(checkbox.checked ? "check" : "plus");
       }
+      this._syncGroupModalApplyButton();
     }
     async _applySpeakerGroupFor(entityId, groupMembers = []) {
       const primaryId = String(entityId || "").trim();
       if (!primaryId) return false;
-      const members = [...new Set((Array.isArray(groupMembers) ? groupMembers : []).map((id) => String(id || "").trim()).filter((id) => id && id !== primaryId))];
-      if (!members.length) return false;
-      await this._callHaMediaPlayerService(primaryId, "join", { group_members: members });
+      const { owner, current, desired: members, added, removed } = this._groupSelectionDelta(primaryId, groupMembers);
+      const leaderId = owner || primaryId;
+      if (!members.length && !current.length) return false;
+      const ownerRemovedFromMemberView = !!(owner && owner !== primaryId && removed.includes(owner));
+      const ownerRemovalRequested = !!(owner && this._state.pendingGroupOwnerRemoval);
+      if (ownerRemovedFromMemberView || ownerRemovalRequested) {
+        await this._clearSpeakerGroupFor(owner);
+        this._state.pendingGroupSelections = [];
+        this._state.pendingGroupOwnerRemoval = false;
+        this._state.pendingGroupSelectionsDirty = false;
+        return true;
+      }
+      if (!added.length && !removed.length) return false;
+      const canUseHomeiiEngineGroup = typeof this._homeiiEngineApplyGroup === "function" && this._homeiiEngineEnabled?.() && (this._state?.engineAvailable || this._homeiiEngineRequired?.());
+      if (canUseHomeiiEngineGroup) {
+        try {
+          await this._homeiiEngineApplyGroup({
+            owner: leaderId,
+            entity_id: leaderId,
+            members,
+            remove_members: removed
+          });
+          const expectedMembers2 = [.../* @__PURE__ */ new Set([leaderId, ...members])];
+          const confirmed2 = await this._waitForSpeakerGroupConfirmation(leaderId, expectedMembers2);
+          if (!confirmed2.ok) {
+            throw new Error(this._m("Group command was sent, but Home Assistant did not confirm the new group state.", "×¤×§×•×“×ª ×”×§×‘×•×¦×” × ×©×œ×—×”, ××‘×œ Home Assistant ×œ× ××™×©×¨ ×©×”×§×‘×•×¦×” ×”×ª×¢×“×›× ×”."));
+          }
+          this._state.pendingGroupSelections = expectedMembers2;
+          this._state.pendingGroupOwnerRemoval = false;
+          this._state.pendingGroupSelectionsDirty = false;
+          setTimeout(() => {
+            this._loadPlayers();
+            this._refreshGroupingState();
+            if (this._state.menuOpen) this._renderMobileMenu();
+            if (this._state.controlRoomOpen) this._syncControlRoomUi({ force: true });
+          }, 650);
+          return true;
+        } catch (engineError) {
+          this._debugLog?.("warn", "[HOMEii Flow] HOMEii Flow Engine group fallback failed", engineError);
+        }
+      }
+      const removalResults = removed.length ? await Promise.allSettled(removed.map((id) => this._callHaMediaPlayerService(id, "unjoin"))) : [];
+      if (added.length && members.length) {
+        await this._callHaMediaPlayerService(leaderId, "join", { group_members: members });
+      }
+      const failedRemoval = removalResults.find((result) => result.status === "rejected");
+      if (failedRemoval && !added.length) throw failedRemoval.reason || new Error(this._i18n("ui.player_groups_could_not_be_disconnected"));
+      const expectedMembers = [.../* @__PURE__ */ new Set([leaderId, ...members])];
+      const confirmed = await this._waitForSpeakerGroupConfirmation(leaderId, expectedMembers);
+      if (!confirmed.ok) {
+        throw new Error(this._m("Group command was sent, but Home Assistant did not confirm the new group state.", "פקודת הקבוצה נשלחה, אבל Home Assistant לא אישר שהקבוצה התעדכנה."));
+      }
+      this._state.pendingGroupSelections = expectedMembers;
+      this._state.pendingGroupOwnerRemoval = false;
+      this._state.pendingGroupSelectionsDirty = false;
       setTimeout(() => {
         this._loadPlayers();
         this._refreshGroupingState();
@@ -22538,7 +23248,7 @@ function createHomeiiBaseMusicCard({
         return false;
       }
       if (!ok) {
-        this._toastError(this._i18n("ui.select_at_least_two_players_to_create_a_group"));
+        this._toastError(this._m("Choose at least one speaker to add or remove.", "בחר לפחות רמקול אחד לצירוף או להסרה."));
         return false;
       }
       this._toastSuccess(this._i18n("ui.group_updated"));
@@ -22582,6 +23292,8 @@ function createHomeiiBaseMusicCard({
         return { ...player, attributes: nextAttrs };
       });
       this._state.pendingGroupSelections = [];
+      this._state.pendingGroupOwnerRemoval = false;
+      this._state.pendingGroupSelectionsDirty = false;
       this._refreshGroupingState();
       this._syncNowPlayingUI();
       if (this._state.view === "now_playing") this._renderNowPlayingPage();
@@ -22589,15 +23301,17 @@ function createHomeiiBaseMusicCard({
       });
     }
     async _clearSpeakerGroupFor(entityId) {
-      const player = this._playerByEntityId(entityId);
+      const requestedId = String(entityId || "").trim();
+      const ownerId = this._currentSpeakerGroupOwnerId(requestedId) || requestedId;
+      const player = this._playerByEntityId(ownerId) || this._playerByEntityId(requestedId);
       if (!player) return;
       if (typeof this._isStaticGroupPlayer === "function" && this._isStaticGroupPlayer(player)) {
-        const targets = this._playerGroupMemberIds(player).filter((id) => id && id !== player.entity_id).filter((id) => {
+        const targets2 = this._playerGroupMemberIds(player).filter((id) => id && id !== player.entity_id).filter((id) => {
           const target = (this._state.players || []).find((p) => p.entity_id === id) || this._hass?.states?.[id];
           return target && !this._isStaticGroupPlayer(target);
         });
-        if (targets.length) {
-          await Promise.allSettled(targets.map((id) => this._callHaMediaPlayerService(id, "unjoin")));
+        if (targets2.length) {
+          await Promise.allSettled(targets2.map((id) => this._callHaMediaPlayerService(id, "unjoin")));
         }
         this._clearLocalGroupState(player.entity_id);
         setTimeout(() => {
@@ -22608,11 +23322,20 @@ function createHomeiiBaseMusicCard({
         }, 500);
         return true;
       }
+      const groupIds = this._currentSpeakerGroupMemberIds(ownerId);
+      const targets = groupIds.length > 1 ? groupIds.filter((id) => {
+        const target = (this._state.players || []).find((p) => p.entity_id === id) || this._hass?.states?.[id];
+        return target && !(typeof this._isStaticGroupPlayer === "function" && this._isStaticGroupPlayer(target));
+      }) : [player.entity_id];
       try {
-        await this._callHaMediaPlayerService(player.entity_id, "unjoin");
+        await Promise.allSettled(targets.map((id) => this._callHaMediaPlayerService(id, "unjoin")));
       } catch (_) {
       }
-      this._clearLocalGroupState(player.entity_id);
+      const confirmed = await this._waitForSpeakerGroupConfirmation(ownerId, [ownerId], { timeoutMs: 2600 });
+      if (!confirmed.ok) {
+        throw new Error(this._m("Group disconnect was sent, but Home Assistant did not confirm the group is clear.", "פקודת ניתוק הקבוצה נשלחה, אבל Home Assistant לא אישר שהקבוצה התנתקה."));
+      }
+      this._clearLocalGroupState(ownerId);
       setTimeout(() => {
         this._loadPlayers();
         this._refreshGroupingState();
@@ -22624,7 +23347,8 @@ function createHomeiiBaseMusicCard({
     async _clearSpeakerGroup() {
       const player = this._getSelectedPlayer();
       if (!player) return false;
-      await this._clearSpeakerGroupFor(player.entity_id);
+      await this._clearSpeakerGroupFor(this._currentSpeakerGroupOwnerId(player.entity_id) || player.entity_id);
+      this._state.pendingGroupSelectionsDirty = false;
       this._toast(this._i18n("ui.group_cleared"));
       this._closeGroupModal();
       return true;
@@ -22979,7 +23703,7 @@ function createHomeiiBaseMusicCard({
                     <span class="player-card-art">${art ? `<img src="${this._esc(art)}" alt="">` : this._artPlaceholderHtml("speaker")}</span>
                     <span class="player-card-meta">
                       <span class="player-card-top">
-                        <span class="player-card-title">${this._esc(p.attributes?.friendly_name || p.entity_id)}</span>
+                        <span class="player-card-title">${this._esc(this._playerDisplayName(p, others))}</span>
                         <span class="player-card-badge">${this._esc(this._playerStateLabel(p))}</span>
                       </span>
                       <span class="player-card-sub">${this._esc(this._playerStateLabel(p))}</span>
@@ -23103,12 +23827,30 @@ function createHomeiiBaseMusicCard({
       el.className = `toast ${safeVariant}${centered ? " centered" : ""}${top ? " top" : ""}`;
       const icon = safeVariant === "success" ? "✓" : safeVariant === "error" ? "×" : "i";
       el.innerHTML = `<span class="toast-icon">${icon}</span><span class="toast-text">${this._esc(text)}</span>`;
-      wrap.appendChild(el);
-      setTimeout(() => {
+      const issueAckKey = String(options?.issueAckKey || "").trim();
+      const issueAckText = String(options?.issueAckText || text).trim();
+      let removed = false;
+      const removeToast = () => {
+        if (removed) return;
+        removed = true;
         el.remove();
         if (centered && !wrap.querySelector(".toast.centered")) wrap.classList.remove("center-toast");
         if (top && !wrap.querySelector(".toast.top")) wrap.classList.remove("top-toast");
-      }, Number(options?.duration || 3300));
+      };
+      if (issueAckKey) {
+        const ack = document.createElement("button");
+        ack.type = "button";
+        ack.className = "toast-ack";
+        ack.textContent = this._i18n("ui.confirm", {}, "OK") || "OK";
+        ack.addEventListener("click", (event) => {
+          event?.stopPropagation?.();
+          this._acknowledgeCardIssue(issueAckKey, issueAckText);
+          removeToast();
+        });
+        el.appendChild(ack);
+      }
+      wrap.appendChild(el);
+      setTimeout(removeToast, Number(options?.duration || 3300));
     }
     _toastSuccess(message, options = {}) {
       this._toast(message, "success", options);
@@ -23151,7 +23893,7 @@ function createHomeiiBaseMusicCard({
     }
     _selectedPlayerName() {
       const player = this._getSelectedPlayer();
-      return player?.attributes?.friendly_name || player?.entity_id || this._i18n("ui.choose_player");
+      return this._playerDisplayName(player) || player?.entity_id || this._i18n("ui.choose_player");
     }
     _mediaFeedbackLabel(uri = "", fallback = "") {
       return HomeiiMediaHistoryFoundation2.mediaFeedbackLabel(
@@ -23209,29 +23951,70 @@ function createHomeiiBaseMusicCard({
     async _loadImgInto(url, el, fallback = "💿") {
       const supportedFallbacks = ["artist", "radio", "podcast", "music_note", "album", "playlist", "tracks", "speaker", "repeat"];
       const fallbackIcon = supportedFallbacks.includes(String(fallback || "")) ? fallback : fallback === "🎤" ? "artist" : fallback === "📻" ? "radio" : "music_note";
-      if (!url || !el?.isConnected) {
+      const setPlaceholder = () => {
         if (el?.isConnected) el.innerHTML = `<div class="media-placeholder">${this._artPlaceholderHtml(fallbackIcon)}</div>`;
+      };
+      const setDirectImage = (src = url) => {
+        if (!el?.isConnected) return;
+        try {
+          const doc = el.ownerDocument || (typeof document !== "undefined" ? document : null);
+          const img = doc?.createElement?.("img");
+          if (!img) throw new Error("Image element unavailable");
+          img.alt = "";
+          img.loading = "lazy";
+          img.decoding = "async";
+          img.onload = () => this._imageFailed.delete(url);
+          img.onerror = () => {
+            this._imageFailed.add(url);
+            setPlaceholder();
+          };
+          img.src = src;
+          el.innerHTML = "";
+          el.appendChild(img);
+        } catch (_) {
+          el.innerHTML = `<img src="${this._esc(src)}" alt="" loading="lazy" decoding="async">`;
+        }
+      };
+      const isCrossOrigin = (() => {
+        try {
+          const base = typeof window !== "undefined" ? window.location?.href : "";
+          const currentOrigin = typeof window !== "undefined" ? window.location?.origin : "";
+          const parsed = new URL(url, base || "http://homeii.local");
+          return !!(currentOrigin && parsed.origin && parsed.origin !== currentOrigin);
+        } catch (_) {
+          return false;
+        }
+      })();
+      if (!url || !el?.isConnected) {
+        setPlaceholder();
         return;
       }
-      if (this._imageFailed.has(url)) {
-        if (el.isConnected) el.innerHTML = `<div class="media-placeholder">${this._artPlaceholderHtml(fallbackIcon)}</div>`;
+      if (this._imageFailed.has(url) && !this._shouldFetchArtworkUrl(url, { crossOrigin: isCrossOrigin })) {
+        setPlaceholder();
         return;
       }
       const existing = this._imageBlobCache.get(url);
       if (existing) {
-        el.innerHTML = `<img src="${existing}" alt="">`;
+        setDirectImage(existing);
+        return;
+      }
+      if (isCrossOrigin) {
+        try {
+          const objectUrl = await this._fetchArtworkBlobUrl(url, { crossOrigin: true });
+          if (objectUrl) {
+            setDirectImage(objectUrl);
+            return;
+          }
+        } catch (_) {
+        }
+        setDirectImage();
         return;
       }
       try {
-        const response = await fetch(url, { cache: "force-cache", credentials: "same-origin" });
-        if (!response.ok) throw new Error(`Image load failed: ${response.status}`);
-        const blob = await response.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        this._imageBlobCache.set(url, objectUrl);
-        if (el.isConnected) el.innerHTML = `<img src="${objectUrl}" alt="">`;
+        const objectUrl = await this._fetchArtworkBlobUrl(url);
+        if (objectUrl && el.isConnected) setDirectImage(objectUrl);
       } catch (_) {
-        this._imageFailed.add(url);
-        if (el.isConnected) el.innerHTML = `<div class="media-placeholder">${this._artPlaceholderHtml(fallbackIcon)}</div>`;
+        setDirectImage();
       }
     }
     connectedCallback() {
@@ -23245,6 +24028,10 @@ function createHomeiiBaseMusicCard({
       this._cancelLocalSendspinDisconnect();
       this._attachLocalSendspinLifecycleListeners();
       this._scheduleLocalSendspinReconnect("connected", 600);
+      if (typeof this._refreshHomeiiEngineContext === "function") {
+        setTimeout(() => this._refreshHomeiiEngineContext({ force: true }).catch(() => {
+        }), 800);
+      }
     }
     disconnectedCallback() {
       clearInterval(this._pollTimer);
@@ -23354,6 +24141,8 @@ function createBaseBrowserState() {
     mobileQueuePlayPendingPlayerId: "",
     lang: "en",
     pendingGroupSelections: [],
+    pendingGroupOwnerRemoval: false,
+    pendingGroupSelectionsDirty: false,
     nowPlayingUri: "",
     renderToken: 0,
     playerModalOpen: false,
@@ -23381,11 +24170,15 @@ function createBaseBrowserState() {
     quickMixPendingUntil: 0,
     quickMixPendingEntry: null,
     quickMixRecommendationItems: [],
+    mobileNativeRecommendationItems: [],
+    mobileNativeRecommendationsFetchedAt: 0,
+    mobileNativeRecommendationsLoading: false,
     likedSelectionMode: false,
     likedSelectedUris: [],
     libraryTabSearchQueries: {},
     libraryTabSearchDrafts: {},
     libraryTabSearchOpen: false,
+    mobileLibraryFavoritesOnlyTabs: [],
     mobileLibraryDetail: null,
     mobileLibraryDetailParentPage: "",
     mobileLibraryDetailStack: [],
@@ -23403,6 +24196,15 @@ function createBaseBrowserState() {
     controlRoomRevealThisDevicePending: false,
     controlRoomRenderedHtml: "",
     controlRoomRenderSignature: "",
+    engineStatus: "unknown",
+    engineAvailable: false,
+    engineVersion: "",
+    engineCapabilities: {},
+    engineContext: null,
+    engineInstanceId: "",
+    engineProfileId: "",
+    engineLastChecked: 0,
+    engineLastError: "",
     activePlayerHelperLastValue: void 0
   };
 }
@@ -23487,9 +24289,10 @@ const MOBILE_LIBRARY_LAYOUT_MODES = ["grid", "list"];
 const MOBILE_MIC_MODES = ["on", "off", "smart"];
 const MOBILE_LIKED_MODES = ["ma", "local"];
 const MOBILE_SWIPE_MODES = ["play", "browse"];
+const MOBILE_RADIO_SOURCE_MODES = ["combined", "ma_first", "ma_only", "radiobrowser_only"];
 const VOICE_ASSISTANT_MODES = ["hybrid", "music", "assist"];
 const SCREENSAVER_CLOCK_MODES = ["digital", "analog"];
-const SCREENSAVER_CONTROL_BUTTONS = ["previous", "play_pause", "next", "mute", "power", "like", "lyrics", "voice"];
+const SCREENSAVER_CONTROL_BUTTONS = ["previous", "play_pause", "next", "mute", "power", "like", "lyrics", "lyrics_sync", "lyrics_font_minus", "lyrics_font_plus", "voice"];
 const POWER_BUTTON_ACTIONS = ["stop_player", "toggle", "turn_on", "turn_off", "scene", "script"];
 const AUXILIARY_BUTTON_ICONS = ["power", "home", "speaker", "music_note", "wand", "grid", "settings", "heart_outline", "play", "stop", "radio", "timer", "info"];
 const PLAYER_SORT_MODES = ["default", "alphabetical", "custom"];
@@ -23662,6 +24465,9 @@ function normalizeMobileLayoutMode(value) {
 function normalizeMobileLibraryDefaultLayout(value, fallback = "list") {
   return normalizeEnum(value, MOBILE_LIBRARY_LAYOUT_MODES, normalizeEnum(fallback, MOBILE_LIBRARY_LAYOUT_MODES, "list"));
 }
+function normalizeMobileRadioSourceMode(value) {
+  return normalizeEnum(value, MOBILE_RADIO_SOURCE_MODES, "combined");
+}
 function normalizePinnedPlayerEntityList(value) {
   const next = [];
   normalizeStringArray(value).forEach((entityId) => {
@@ -23776,6 +24582,7 @@ function normalizeVisualMobileState(config = {}, {
     voiceAssistantSpeakFeedback: config.voice_assistant_speak_feedback === true,
     mobileLikedMode: normalizeEnum(config.mobile_liked_mode, MOBILE_LIKED_MODES, "ma"),
     mobileSwipeMode: normalizeEnum(config.mobile_swipe_mode, MOBILE_SWIPE_MODES, "browse"),
+    mobileRadioSourceMode: normalizeMobileRadioSourceMode(config.mobile_radio_source_mode),
     mobileRadioBrowserCountry: String(config.mobile_radio_browser_country || "all"),
     mobileLibraryTabs: Array.isArray(config.mobile_library_tabs) && config.mobile_library_tabs.length ? config.mobile_library_tabs.slice() : normalizeStringArray(defaultLibraryTabs),
     mobileMainBarItems: Array.isArray(config.mobile_main_bar_items) && config.mobile_main_bar_items.length ? config.mobile_main_bar_items.slice() : normalizeStringArray(defaultMainBarItems),
@@ -23795,6 +24602,7 @@ function normalizeVisualMobileState(config = {}, {
     ambientLightTransition: clampSeconds(config.ambient_light_transition, 3, { min: 0, max: 120 }),
     ambientLightCooldown: clampSeconds(config.ambient_light_cooldown, 8, { min: 0, max: 120 }),
     screensaverEnabled: config.screensaver_enabled === true,
+    screensaverAutoLyricsWhenPlaying: config.screensaver_auto_lyrics_when_playing === true || config.screensaver_auto_lyrics === true,
     screensaverControlsEnabled: config.screensaver_controls_enabled === true,
     screensaverControlButtons: normalizeScreensaverControlButtons(config.screensaver_control_buttons, screensaverControlFallback),
     screensaverClockMode: normalizeScreensaverClockMode(config.screensaver_clock_mode),
@@ -23840,6 +24648,7 @@ const HomeiiMobileSettingsFoundationSource = /* @__PURE__ */ Object.freeze(/* @_
   normalizeMobileMicMode,
   normalizeMobileQuickActionSlots,
   normalizeMobileQuickActions,
+  normalizeMobileRadioSourceMode,
   normalizeMobileVolumeMode,
   normalizePerformanceProfile,
   normalizePinnedPlayerEntities,
@@ -24336,6 +25145,51 @@ const GENERIC_PLAYER_TOKENS = /* @__PURE__ */ new Set([
   "נגן"
 ]);
 const genericPlayerTokens = GENERIC_PLAYER_TOKENS;
+const GENERIC_PLAYER_NAME_KEYS = /* @__PURE__ */ new Set([
+  "media player",
+  "media players",
+  "music player",
+  "player",
+  "speaker",
+  "speakers",
+  "renderer",
+  "media renderer",
+  "home assistant media player",
+  "esphome media player",
+  "נגן",
+  "נגן מדיה",
+  "רמקול",
+  "רמקולים"
+]);
+function normalizedPlayerDisplayKey(value = "") {
+  return String(value || "").trim().toLowerCase().replace(/^media_player\./, "").replace(/[_\-.]+/g, " ").replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim();
+}
+function playerEntityDisplayName(entityId = "") {
+  const raw = String(entityId || "").trim().replace(/^media_player\./, "").replace(/[_\-.]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!raw) return "";
+  return raw.replace(/\b([a-z])([a-z0-9]*)/gi, (match, first, rest) => `${first.toUpperCase()}${rest}`);
+}
+function isGenericPlayerDisplayName(name = "") {
+  const key = normalizedPlayerDisplayKey(name);
+  if (!key) return true;
+  return GENERIC_PLAYER_NAME_KEYS.has(key) || /^media player \d+$/.test(key) || /^player \d+$/.test(key) || /^speaker \d+$/.test(key);
+}
+function playerDisplayName(player = null, { players = [], includeEntityId = true } = {}) {
+  const entityId = String(player?.entity_id || "").trim();
+  const friendly = String(player?.attributes?.friendly_name || "").trim();
+  const entityLabel = playerEntityDisplayName(entityId);
+  const base = friendly || entityLabel || entityId;
+  if (!base) return "";
+  if (!includeEntityId || !entityId) return base;
+  const sourcePlayers = Array.isArray(players) ? players : [];
+  const friendlyKey = normalizedPlayerDisplayKey(friendly);
+  const duplicateFriendly = !!friendlyKey && sourcePlayers.filter((entry) => normalizedPlayerDisplayKey(entry?.attributes?.friendly_name || "") === friendlyKey).length > 1;
+  const genericFriendly = friendly ? isGenericPlayerDisplayName(friendly) : false;
+  const baseKey = normalizedPlayerDisplayKey(base);
+  const entityKey = normalizedPlayerDisplayKey(entityLabel || entityId);
+  const suffix = entityLabel && entityKey !== baseKey ? entityLabel : entityId;
+  return (genericFriendly || duplicateFriendly) && suffix && normalizedPlayerDisplayKey(suffix) !== baseKey ? `${base} (${suffix})` : base;
+}
 function entityMatchTokens(value = "") {
   return String(value || "").toLowerCase().replace(/^media_player\./, "").replace(/^button\./, "").replace(/[_\-.]+/g, " ").split(/\s+/).map((token) => token.trim()).filter((token) => token && token.length > 1);
 }
@@ -24546,11 +25400,14 @@ const HomeiiPlayersFoundationSource = /* @__PURE__ */ Object.freeze(/* @__PURE__
   getThisDevicePlayer,
   groupAverageVolume,
   groupedPlayerIds,
+  isGenericPlayerDisplayName,
   isLikelyBrowserPlayer,
   isMusicAssistantPlayer,
   isStaticGroupPlayer,
   mobileNavigableActivePlayers,
   playerByEntityId,
+  playerDisplayName,
+  playerEntityDisplayName,
   playerGroupCount,
   playerGroupMemberIds,
   playerGroupMemberNames,
@@ -26260,9 +27117,9 @@ function ensureHaEditorComponents() {
   } catch (_) {
   }
 }
-const HOMEII_CARD_VERSION = "5.9.0";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v5900";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v5900";
+const HOMEII_CARD_VERSION = "5.9.1";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v591";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v591";
 const AMBIENT_LIGHT_PAIR_PLAYER_PREFIX = "__homeii_ambient_light_pair_player_";
 const AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX = "__homeii_ambient_light_pair_lights_";
 const HomeiiEditorLocale = Object.freeze({
@@ -26357,6 +27214,9 @@ const HomeiiNowPlayingFoundation = Object.freeze({
 });
 const HomeiiCardIdFoundation = Object.freeze({
   ...HomeiiCardIdFoundationSource
+});
+const HomeiiEngineFoundation = Object.freeze({
+  ...HomeiiEngineFoundationSource
 });
 configureHomeiiEditorForms({
   homeiiEditorI18n,
@@ -26493,6 +27353,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.diagnosticsStatus = "idle";
     this._state.diagnosticsItems = [];
     this._state.diagnosticsRunAt = 0;
+    this._state.engineStatus = "unknown";
+    this._state.engineAvailable = false;
+    this._state.engineVersion = "";
+    this._state.engineCapabilities = {};
+    this._state.engineContext = null;
+    this._state.engineInstanceId = "";
+    this._state.engineProfileId = "";
+    this._state.engineLastChecked = 0;
+    this._state.engineLastError = "";
     this._state.controlRoomRestoreAfterMenu = false;
     this._state.controlRoomRenderedHtml = "";
     this._state.controlRoomRenderSignature = "";
@@ -26528,10 +27397,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.voiceAssistantResponse = "";
     this._state.voiceAssistantKeepScreensaver = false;
     this._state.mobileLibraryTabs = ["library_search", "library_playlists", "library_artists", "library_albums", "library_tracks", "library_radio", "library_podcasts"];
+    this._state.mobileLibraryFavoritesOnlyTabs = [];
     this._state.mobileMainBarItems = ["actions", "players", "library", "settings"];
     this._state.mobileQuickActions = ["timer", "like", "lyrics", "queue", "queue_flow", "radio", "history"];
     this._state.mobileLikedMode = "ma";
     this._state.mobileSwipeMode = "browse";
+    this._state.mobileRadioSourceMode = "combined";
     this._state.mobileRadioBrowserCountry = "all";
     this._state.mobileRadioBrowseCountry = "";
     this._state.mobileRadioBrowseCountryName = "";
@@ -26547,6 +27418,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.ambientLightTransition = 3;
     this._state.ambientLightCooldown = 8;
     this._state.screensaverEnabled = false;
+    this._state.screensaverAutoLyricsWhenPlaying = false;
     this._state.screensaverControlsEnabled = false;
     this._state.screensaverControlButtons = ["previous", "next"];
     this._state.screensaverClockMode = "digital";
@@ -26870,12 +27742,21 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     } catch (_) {
     }
     try {
+      this._state.mobileRadioSourceMode = HomeiiMobileSettingsFoundation.normalizeMobileRadioSourceMode(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_radio_source_mode")) || "combined");
+    } catch (_) {
+    }
+    try {
       this._state.mobileRadioBrowserCountry = localStorage.getItem(this._lsKey("homeii_music_flow_mobile_radio_country")) || "all";
     } catch (_) {
     }
     try {
       const rawTabs = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_library_tabs")) || "[]");
       if (Array.isArray(rawTabs) && rawTabs.length) this._state.mobileLibraryTabs = rawTabs;
+    } catch (_) {
+    }
+    try {
+      const rawFavoriteTabs = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_mobile_library_favorites_tabs")) || "[]");
+      if (Array.isArray(rawFavoriteTabs)) this._state.mobileLibraryFavoritesOnlyTabs = rawFavoriteTabs.filter((page) => this._libraryFavoritesPageKey(page));
     } catch (_) {
     }
     try {
@@ -26956,7 +27837,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     } catch {
     }
     try {
-      this._state.screensaverControlsEnabled = JSON.parse(localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_controls_enabled")) ?? "false");
+      const storedAutoLyrics = localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_auto_lyrics_when_playing")) ?? localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_auto_lyrics"));
+      this._state.screensaverAutoLyricsWhenPlaying = JSON.parse(storedAutoLyrics ?? "false");
     } catch {
     }
     try {
@@ -26983,11 +27865,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     } catch {
     }
     try {
-      this._state.screensaverClockX = HomeiiMobileSettingsFoundation.clampNumber(localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_clock_x")) || 82, 82, { min: 8, max: 92 });
+      this._state.screensaverClockX = HomeiiMobileSettingsFoundation.clampNumber(localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_clock_x")) || 82, 82, { min: 0, max: 100 });
     } catch {
     }
     try {
-      this._state.screensaverClockY = HomeiiMobileSettingsFoundation.clampNumber(localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_clock_y")) || 24, 24, { min: 8, max: 70 });
+      this._state.screensaverClockY = HomeiiMobileSettingsFoundation.clampNumber(localStorage.getItem(this._lsKey("homeii_music_flow_screensaver_clock_y")) || 24, 24, { min: 0, max: 100 });
     } catch {
     }
     try {
@@ -27107,6 +27989,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       mobile_quick_action_10: "",
       mobile_liked_mode: "ma",
       mobile_swipe_mode: "browse",
+      mobile_radio_source_mode: "combined",
       mobile_radio_browser_country: "all",
       mobile_announcement_presets: [],
       mobile_announcement_volume: 20,
@@ -27119,7 +28002,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       ambient_light_transition: 3,
       ambient_light_cooldown: 8,
       screensaver_enabled: false,
-      screensaver_controls_enabled: false,
+      screensaver_auto_lyrics_when_playing: false,
       screensaver_control_buttons: ["previous", "next"],
       screensaver_clock_mode: "digital",
       screensaver_timeout_seconds: 90,
@@ -27964,6 +28847,132 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.mobileStartSchedules = schedules;
     return schedules;
   }
+  _engineScheduleToScheduledStartSchedule(schedule = {}, index = 0) {
+    const mediaId = String(schedule?.media_id || schedule?.media_content_id || schedule?.playlist || "").trim();
+    return this._normalizeScheduledStartSchedule({
+      id: schedule?.id || schedule?.schedule_id || `engine_schedule_${index + 1}`,
+      enabled: schedule?.enabled !== false,
+      time: schedule?.time || "07:00",
+      player: schedule?.player || schedule?.entity_id || "",
+      playlist: mediaId,
+      playlistName: schedule?.playlistName || schedule?.playlist_name || schedule?.media_name || schedule?.name || "",
+      volume: schedule?.volume ?? 35,
+      days: schedule?.days,
+      lastRunKey: schedule?.lastRunKey || schedule?.last_run_key || "",
+      afterRun: schedule?.afterRun || schedule?.after_run || "keep"
+    }, index);
+  }
+  _scheduledStartEnginePayload(schedule = {}) {
+    const normalized = this._normalizeScheduledStartSchedule(schedule);
+    const playlistLabel = normalized.playlistName || this._scheduledStartPlaylistLabel(normalized) || "";
+    const mediaMode = normalized.playlist ? "selected" : "random_playlist";
+    return {
+      kind: "wake_playback",
+      action: "wake_playback",
+      schedule_id: String(normalized.id || "").trim(),
+      name: playlistLabel || this._i18n("ui.scheduled_start"),
+      player: this._scheduledStartPlayerId(normalized),
+      media_id: normalized.playlist,
+      playlist: normalized.playlist,
+      media_type: "playlist",
+      media_name: playlistLabel,
+      playlist_name: playlistLabel,
+      media_mode: mediaMode,
+      selection_mode: mediaMode,
+      enqueue: "play",
+      fallback_action: "media_play",
+      time: normalized.time,
+      days: this._normalizeNightModeDays(normalized.days),
+      volume: Math.max(0, Math.min(100, Number(normalized.volume || 35) || 35)),
+      enabled: normalized.enabled !== false,
+      after_run: normalized.afterRun || "keep"
+    };
+  }
+  _strictSchedulePlayers() {
+    const seen = /* @__PURE__ */ new Set();
+    const players = [
+      ...Array.isArray(this._state.configurableMusicAssistantPlayers) ? this._state.configurableMusicAssistantPlayers : [],
+      ...Array.isArray(this._state.players) ? this._state.players : []
+    ];
+    return players.filter((player) => {
+      const entityId = String(player?.entity_id || "").trim();
+      if (!entityId || seen.has(entityId)) return false;
+      const strict = this._isDirectMaPlayer?.(player) || HomeiiPlayersFoundation.isMusicAssistantPlayer(player, this._hass?.entities?.[entityId]);
+      if (!strict) return false;
+      seen.add(entityId);
+      return true;
+    });
+  }
+  async _homeiiEngineReadyForPersistence() {
+    if (!this._homeiiEngineEnabled()) return false;
+    const context = await this._refreshHomeiiEngineContext({ force: true }).catch(() => null);
+    return !!(context?.available || this._state.engineAvailable);
+  }
+  async _syncScheduleToHomeiiEngine(schedule = {}, options = {}) {
+    if (!this._homeiiEngineEnabled()) return false;
+    const payload = this._scheduledStartEnginePayload(schedule);
+    if (!payload.player) return false;
+    const ready = await this._homeiiEngineReadyForPersistence();
+    if (!ready) {
+      if (this._homeiiEngineRequired() || options.toast) {
+        this._toastError(this._m("Saved locally, but HOMEii Flow Engine did not confirm the schedule.", "נשמר מקומית, אבל HOMEii Flow Engine לא אישר את התזמון."));
+      }
+      return false;
+    }
+    try {
+      const result = await this._homeiiEngineSetSchedule(payload, { required: true });
+      if (!result) return false;
+      const confirmed = await this._confirmScheduleInHomeiiEngine(payload.schedule_id);
+      if (!confirmed && (this._homeiiEngineRequired() || options.toast)) {
+        this._toastError("HOMEii Flow Engine accepted the schedule write, but it was not found when reading it back.");
+      }
+      return confirmed;
+    } catch (error) {
+      if (this._homeiiEngineRequired() || options.toast) this._toastError(error?.message || "HOMEii Flow Engine schedule sync failed");
+      return false;
+    }
+  }
+  async _confirmScheduleInHomeiiEngine(scheduleId = "") {
+    const id = String(scheduleId || "").trim();
+    if (!id || !this._homeiiEngineEnabled()) return false;
+    try {
+      const result = await this._homeiiEngineGetSchedules({}, { required: true, timeoutMs: this._homeiiEngineTimeoutMs() });
+      const schedules = Array.isArray(result?.schedules) ? result.schedules : [];
+      return schedules.some((schedule) => String(schedule?.id || schedule?.schedule_id || "").trim() === id);
+    } catch (_) {
+      return false;
+    }
+  }
+  async _deleteScheduleFromHomeiiEngine(id = "", options = {}) {
+    const scheduleId = String(id || "").trim();
+    if (!scheduleId || !this._homeiiEngineEnabled()) return false;
+    const ready = await this._homeiiEngineReadyForPersistence();
+    if (!ready) return false;
+    try {
+      const result = await this._homeiiEngineDeleteSchedule({ schedule_id: scheduleId }, { required: true });
+      return !!result;
+    } catch (error) {
+      if (this._homeiiEngineRequired() || options.toast) this._toastError(error?.message || "HOMEii Flow Engine schedule delete failed");
+      return false;
+    }
+  }
+  async _hydrateSchedulesFromHomeiiEngine() {
+    if (!this._homeiiEngineEnabled()) return false;
+    const result = await this._homeiiEngineGetSchedules();
+    const engineSchedules = Array.isArray(result?.schedules) ? result.schedules : [];
+    if (!engineSchedules.length) {
+      this._scheduledStartSchedules().forEach((schedule) => this._syncScheduleToHomeiiEngine(schedule).catch(() => {
+      }));
+      return false;
+    }
+    const schedules = engineSchedules.map((schedule, index) => this._engineScheduleToScheduledStartSchedule(schedule, index));
+    this._state.mobileStartSchedules = schedules;
+    this._state.mobileStartTimerEnabled = schedules.some((schedule) => schedule.enabled !== false);
+    const editId = String(this._state.mobileStartScheduleEditId || "").trim();
+    if (editId && !schedules.some((schedule) => schedule.id === editId)) this._state.mobileStartScheduleEditId = "";
+    this._writeSchedulesToLocalStorage();
+    return true;
+  }
   _activeScheduledStartSchedules() {
     return this._scheduledStartSchedules().filter((schedule) => schedule.enabled !== false);
   }
@@ -27989,17 +28998,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       "lofi",
       "lo-fi",
       "pleasant",
-      "בוקר",
-      "זריחה",
-      "קפה",
-      "רגוע",
-      "רגועה",
-      "שקט",
-      "שקטה",
-      "נעים",
-      "נעימה",
-      "צ'יל",
-      "צ׳יל"
+      "????",
+      "?????",
+      "???",
+      "????",
+      "?????",
+      "???",
+      "????",
+      "????",
+      "?????",
+      "?'??",
+      "????"
     ];
   }
   async _loadScheduledStartPlaylists(force = false) {
@@ -28097,7 +29106,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const playlist = this._scheduledStartPlaylistLabel(schedule);
     return `${time} · ${playerName} · ${playlist} · ${volume}% · ${dayLabels}`;
   }
-  _setScheduledStartFromMenu() {
+  async _setScheduledStartFromMenu() {
     const timeInput = this.$("scheduledStartTimeInput");
     const playerSelect = this.$("scheduledStartPlayerSelect");
     const playlistSelect = this.$("scheduledStartPlaylistSelect");
@@ -28138,14 +29147,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.mobileStartTimerLastRunKey = schedule.lastRunKey;
     this._state.mobileStartTimerAfterRun = schedule.afterRun || "keep";
     this._persistMobileAppearance();
-    this._toastSuccess(this._i18n("ui.scheduled_start_saved"));
+    const engineSaved = await this._syncScheduleToHomeiiEngine(schedule, { toast: true });
+    this._toastSuccess(engineSaved ? this._m("Schedule saved to HOMEii Flow Engine", "התזמון נשמר ב-HOMEii Flow Engine") : this._i18n("ui.scheduled_start_saved"));
     return true;
   }
-  _clearScheduledStart(showToast = false) {
+  async _clearScheduledStart(showToast = false) {
     const editId = String(this._state.mobileStartScheduleEditId || "").trim();
     if (editId && editId !== "__new__") {
       this._state.mobileStartSchedules = this._scheduledStartSchedules().filter((schedule) => schedule.id !== editId);
+      await this._deleteScheduleFromHomeiiEngine(editId, { toast: showToast });
     } else if (!editId) {
+      await Promise.allSettled(this._scheduledStartSchedules().map((schedule) => this._deleteScheduleFromHomeiiEngine(schedule.id, { toast: false })));
       this._state.mobileStartSchedules = [];
     }
     this._state.mobileStartScheduleEditId = "";
@@ -28181,7 +29193,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.mobileStartTimerLastRunKey = "";
     this._state.mobileStartTimerAfterRun = "keep";
   }
-  _toggleScheduledStart(id = "") {
+  async _toggleScheduledStart(id = "") {
     const schedules = this._scheduledStartSchedules();
     const index = schedules.findIndex((schedule) => schedule.id === id);
     if (index < 0) return false;
@@ -28189,14 +29201,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.mobileStartSchedules = schedules;
     this._state.mobileStartTimerEnabled = schedules.some((item) => item.enabled !== false);
     this._persistMobileAppearance();
+    await this._syncScheduleToHomeiiEngine(schedules[index], { toast: true });
     return true;
   }
-  _deleteScheduledStart(id = "") {
+  async _deleteScheduledStart(id = "") {
     const schedules = this._scheduledStartSchedules().filter((schedule) => schedule.id !== id);
     this._state.mobileStartSchedules = schedules;
     if (this._state.mobileStartScheduleEditId === id) this._state.mobileStartScheduleEditId = "";
     this._state.mobileStartTimerEnabled = schedules.some((item) => item.enabled !== false);
     this._persistMobileAppearance();
+    await this._deleteScheduleFromHomeiiEngine(id, { toast: true });
     return true;
   }
   async _runScheduledStart(entityId, schedule = null) {
@@ -28235,6 +29249,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _syncScheduledStartState(date = /* @__PURE__ */ new Date()) {
     const schedules = this._activeScheduledStartSchedules();
     if (!schedules.length) return;
+    if (this._homeiiEngineEnabled() && this._state.engineAvailable) return;
     let changed = false;
     schedules.forEach((schedule) => {
       const time = this._normalizeClockTime(schedule.time || "07:00", "07:00");
@@ -28303,7 +29318,102 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       showUpNextInline: upNextVisible
     }));
   }
-  _setSleepTimerMinutes(minutes = 15, source = "general") {
+  _homeiiSleepTimerId(playerId = "") {
+    const safePlayer = String(playerId || "player").trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "") || "player";
+    return `sleep_${safePlayer}`;
+  }
+  async _syncSleepTimerToHomeiiEngine(minutes = 15, source = "general", options = {}) {
+    if (!this._homeiiEngineEnabled()) return false;
+    const playerId = String(this._state.mobileSleepTimerPlayer || this._state.selectedPlayer || this._getSelectedPlayer()?.entity_id || "").trim();
+    const target = Number(this._state.mobileSleepTimerEndsAt || 0);
+    if (!playerId || !target) return false;
+    const ready = await this._homeiiEngineReadyForPersistence();
+    if (!ready) {
+      if (this._homeiiEngineRequired() || options.toast) {
+        this._toastError("Saved locally, but HOMEii Flow Engine did not confirm the sleep timer.");
+      }
+      return false;
+    }
+    try {
+      const result = await this._homeiiEngineSetTimer({
+        timer_id: this._homeiiSleepTimerId(playerId),
+        timer_type: "sleep",
+        player: playerId,
+        action: "pause",
+        minutes: Math.max(1, Number(minutes) || Math.ceil(this._sleepTimerRemainingMs() / 6e4) || 1),
+        ends_at: new Date(target).toISOString(),
+        origin: HomeiiNightFoundation.normalizeSleepTimerOrigin(source),
+        enabled: true
+      }, { required: true });
+      if (!result) return false;
+      const confirmed = await this._confirmSleepTimerInHomeiiEngine(this._homeiiSleepTimerId(playerId), playerId);
+      if (!confirmed && (this._homeiiEngineRequired() || options.toast)) {
+        this._toastError("HOMEii Flow Engine accepted the timer write, but it was not found when reading it back.");
+      }
+      return confirmed;
+    } catch (error) {
+      if (this._homeiiEngineRequired() || options.toast) this._toastError(error?.message || "HOMEii Flow Engine timer sync failed");
+      return false;
+    }
+  }
+  async _confirmSleepTimerInHomeiiEngine(timerId = "", playerId = "") {
+    const id = String(timerId || "").trim();
+    const player = String(playerId || "").trim();
+    if (!id && !player || !this._homeiiEngineEnabled()) return false;
+    try {
+      const result = await this._homeiiEngineGetTimers({}, { required: true, timeoutMs: this._homeiiEngineTimeoutMs() });
+      const timers = Array.isArray(result?.timers) ? result.timers : [];
+      const now = Date.now();
+      return timers.some((timer) => {
+        const timerType = String(timer?.type || timer?.timer_type || "sleep");
+        const targetMs = Date.parse(timer?.ends_at || timer?.target_at || "");
+        const matchesId = id && String(timer?.id || timer?.timer_id || "").trim() === id;
+        const matchesPlayer = player && String(timer?.player || timer?.entity_id || "").trim() === player;
+        return timerType === "sleep" && (matchesId || matchesPlayer) && Number.isFinite(targetMs) && targetMs > now;
+      });
+    } catch (_) {
+      return false;
+    }
+  }
+  async _deleteSleepTimerFromHomeiiEngine(playerId = "", options = {}) {
+    if (!this._homeiiEngineEnabled()) return false;
+    const player = String(playerId || this._state.mobileSleepTimerPlayer || this._state.selectedPlayer || this._getSelectedPlayer()?.entity_id || "").trim();
+    if (!player) return false;
+    const ready = await this._homeiiEngineReadyForPersistence();
+    if (!ready) return false;
+    try {
+      const result = await this._homeiiEngineDeleteTimer({
+        timer_id: this._homeiiSleepTimerId(player),
+        player
+      }, { required: true });
+      return !!result;
+    } catch (error) {
+      if (this._homeiiEngineRequired() || options.toast) this._toastError(error?.message || "HOMEii Flow Engine timer delete failed");
+      return false;
+    }
+  }
+  async _hydrateSleepTimerFromHomeiiEngine() {
+    if (!this._homeiiEngineEnabled()) return false;
+    const result = await this._homeiiEngineGetTimers();
+    const timers = Array.isArray(result?.timers) ? result.timers : [];
+    const now = Date.now();
+    const selectedPlayer = String(this._state.selectedPlayer || this._getSelectedPlayer()?.entity_id || "").trim();
+    const activeSleepTimers = timers.filter((timer2) => String(timer2?.type || timer2?.timer_type || "sleep") === "sleep").map((timer2) => ({ ...timer2, targetMs: Date.parse(timer2?.ends_at || "") })).filter((timer2) => Number.isFinite(timer2.targetMs) && timer2.targetMs > now).sort((a, b) => a.targetMs - b.targetMs);
+    const timer = activeSleepTimers.find((item) => String(item?.player || "") === selectedPlayer) || activeSleepTimers[0] || null;
+    if (!timer) {
+      if (this._sleepTimerRemainingMs() > 0) {
+        await this._syncSleepTimerToHomeiiEngine(Math.ceil(this._sleepTimerRemainingMs() / 6e4), this._state.mobileSleepTimerOrigin || "general").catch(() => false);
+      }
+      return false;
+    }
+    this._state.mobileSleepTimerEndsAt = timer.targetMs;
+    this._state.mobileSleepTimerPlayer = String(timer.player || selectedPlayer || "").trim();
+    this._state.mobileSleepTimerOrigin = HomeiiNightFoundation.normalizeSleepTimerOrigin(timer.origin || "general");
+    this._persistMobileAppearance();
+    this._syncSleepTimerChip();
+    return true;
+  }
+  async _setSleepTimerMinutes(minutes = 15, source = "general") {
     const amount = Math.max(1, Number(minutes) || 0);
     const player = this._getSelectedPlayer();
     if (!player?.entity_id) {
@@ -28317,10 +29427,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._persistMobileAppearance();
     this._syncNightModeUi();
     this._syncSleepTimerChip();
+    const engineSaved = await this._syncSleepTimerToHomeiiEngine(amount, source, { toast: true });
     this._toastSuccess(this._i18n("ui.sleep_timer_set_minutes", { minutes: amount }));
-    return true;
+    return { ok: true, engineSaved };
   }
-  _addSleepTimerMinutes(minutes = 15) {
+  async _addSleepTimerMinutes(minutes = 15) {
     const amount = Math.max(1, Number(minutes) || 0);
     const player = this._getSelectedPlayer();
     this._state.mobileSleepTimerEndsAt = HomeiiNightFoundation.extendSleepTimerTargetAt(
@@ -28332,6 +29443,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._persistMobileAppearance();
     this._syncNightModeUi();
     this._syncSleepTimerChip();
+    await this._syncSleepTimerToHomeiiEngine(Math.ceil(this._sleepTimerRemainingMs() / 6e4), this._state.mobileSleepTimerOrigin || "general", { toast: true });
     this._toastSuccess(this._i18n("ui.sleep_timer_added_minutes", { minutes: amount }));
   }
   _toggleSleepTimerMenu(force = null) {
@@ -28347,7 +29459,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._persistMobileAppearance();
     this._rebuildMobileUi({ reopenPage: this._state.menuOpen ? this._state.menuPage || "settings" : "", reopenStudio: this._state.controlRoomOpen });
   }
-  _clearSleepTimer(showToast = false) {
+  async _clearSleepTimer(showToast = false) {
+    const timerPlayer = String(this._state.mobileSleepTimerPlayer || this._state.selectedPlayer || this._getSelectedPlayer()?.entity_id || "").trim();
     this._state.mobileSleepTimerEndsAt = 0;
     this._state.mobileSleepTimerPlayer = "";
     this._state.mobileSleepTimerOrigin = "";
@@ -28355,11 +29468,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._persistMobileAppearance();
     this._syncNightModeUi();
     this._syncSleepTimerChip();
+    await this._deleteSleepTimerFromHomeiiEngine(timerPlayer, { toast: showToast });
     if (showToast) {
       this._toast(this._i18n("ui.sleep_timer_cleared"));
     }
   }
-  _cycleSleepTimer(source = "general") {
+  async _cycleSleepTimer(source = "general") {
     const currentRemaining = this._sleepTimerRemainingMs();
     const steps = [15, 30, 45, 60, 0];
     const normalizedSource = HomeiiNightFoundation.normalizeSleepTimerOrigin(source);
@@ -28376,12 +29490,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._persistMobileAppearance();
       this._syncNightModeUi();
       this._syncSleepTimerChip();
+      await this._syncSleepTimerToHomeiiEngine(steps[0], normalizedSource, { toast: true });
       this._toastSuccess(this._i18n("ui.sleep_timer_set_for_15_minutes"));
       return;
     }
     const nextStep = HomeiiNightFoundation.nextSleepTimerStep(currentRemaining, steps);
     if (!nextStep) {
-      this._clearSleepTimer(true);
+      await this._clearSleepTimer(true);
       return;
     }
     const player = this._getSelectedPlayer();
@@ -28392,6 +29507,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._persistMobileAppearance();
     this._syncNightModeUi();
     this._syncSleepTimerChip();
+    await this._syncSleepTimerToHomeiiEngine(nextStep, normalizedSource, { toast: true });
     this._toastSuccess(this._i18n("ui.sleep_timer_updated_minutes", { minutes: nextStep }));
   }
   async _playNightMix() {
@@ -28509,6 +29625,29 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       };
     }).filter(Boolean).slice(0, limit);
   }
+  async _primeQuickMixNativeRecommendations(entry = null, limit = 10) {
+    const similar = await this._nativeSimilarTrackEntries(entry, limit);
+    if (!similar.length) return;
+    const seen = /* @__PURE__ */ new Set();
+    const next = [
+      ...similar.map((item) => ({
+        uri: item.uri,
+        media_type: item.media_type || "track",
+        title: item.title || item.name || this._i18n("ui.recommended_track"),
+        artist: item.artist || item.subtitle || "",
+        album: item.album || item.folder_name || "",
+        image: item.image || this._artUrl(item, { size: 120 }) || ""
+      })),
+      ...Array.isArray(this._state.quickMixRecommendationItems) ? this._state.quickMixRecommendationItems : []
+    ].filter((item) => {
+      const uri = String(item?.uri || "").trim();
+      if (!uri || seen.has(uri)) return false;
+      seen.add(uri);
+      return true;
+    });
+    this._state.quickMixRecommendationItems = next.slice(0, limit);
+    this._syncRecentHistoryUi();
+  }
   async _startQuickMix() {
     try {
       const entry = await this._resolveQuickMixEntry();
@@ -28517,6 +29656,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         return;
       }
       this._rememberQuickMixRecommendationSeed();
+      this._primeQuickMixNativeRecommendations(entry).catch(() => {
+      });
       this._state.quickMixPendingUntil = Date.now() + 6500;
       this._state.quickMixPendingEntry = entry;
       this._syncNowPlayingUI();
@@ -28649,6 +29790,217 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
     return Promise.reject(new Error("Home Assistant WebSocket API is unavailable"));
   }
+  _homeiiEngineMode() {
+    return HomeiiEngineFoundation.normalizeHomeiiEngineMode(this._config?.homeii_engine_mode);
+  }
+  _homeiiEngineEnabled() {
+    return HomeiiEngineFoundation.homeiiEngineModeAllowsCalls(this._homeiiEngineMode());
+  }
+  _homeiiEngineRequired() {
+    return HomeiiEngineFoundation.homeiiEngineModeRequiresEngine(this._homeiiEngineMode());
+  }
+  _homeiiEngineTimeoutMs() {
+    return HomeiiEngineFoundation.clampHomeiiEngineTimeoutMs(this._config?.homeii_engine_timeout_ms, 3500);
+  }
+  _homeiiEngineVersionAtLeast(minimum = "0.1.30") {
+    const currentParts = String(this._state.engineVersion || "").split(".").map((part) => Number(part) || 0);
+    const minimumParts = String(minimum || "").split(".").map((part) => Number(part) || 0);
+    const length = Math.max(currentParts.length, minimumParts.length);
+    for (let index = 0; index < length; index += 1) {
+      const current = currentParts[index] || 0;
+      const required = minimumParts[index] || 0;
+      if (current > required) return true;
+      if (current < required) return false;
+    }
+    return true;
+  }
+  _homeiiEngineConfiguredInstanceId() {
+    return HomeiiEngineFoundation.normalizeHomeiiEngineId(this._config?.homeii_engine_instance_id);
+  }
+  _homeiiEngineConfiguredProfileId() {
+    return HomeiiEngineFoundation.normalizeHomeiiEngineId(this._config?.homeii_engine_profile_id);
+  }
+  _homeiiEngineResolvedInstanceId(command = "") {
+    const configured = this._homeiiEngineConfiguredInstanceId();
+    if (configured) return configured;
+    if (String(command || "") === "get_context") return "";
+    return HomeiiEngineFoundation.normalizeHomeiiEngineId(this._state.engineInstanceId || this._state.engineContext?.instanceId);
+  }
+  _homeiiEngineResolvedProfileId(command = "") {
+    const configured = this._homeiiEngineConfiguredProfileId();
+    if (configured) return configured;
+    if (String(command || "") === "get_context") return "";
+    return HomeiiEngineFoundation.normalizeHomeiiEngineId(this._state.engineProfileId || this._state.engineContext?.profileId);
+  }
+  _homeiiEngineMessage(command = "get_context", payload = {}) {
+    const message = {
+      ...payload && typeof payload === "object" && !Array.isArray(payload) ? payload : { payload },
+      type: HomeiiEngineFoundation.homeiiEngineCommandType(command),
+      card_id: String(this._config?.card_id || "").trim(),
+      instance_id: this._homeiiEngineResolvedInstanceId(command),
+      profile_id: this._homeiiEngineResolvedProfileId(command)
+    };
+    ["card_id", "instance_id", "profile_id"].forEach((key) => {
+      if (message[key] === "") delete message[key];
+    });
+    return message;
+  }
+  async _homeiiEngineCommand(command = "get_context", payload = {}, options = {}) {
+    const mode = this._homeiiEngineMode();
+    if (!HomeiiEngineFoundation.homeiiEngineModeAllowsCalls(mode)) {
+      this._state.engineStatus = "off";
+      this._state.engineAvailable = false;
+      this._state.engineLastError = "";
+      return null;
+    }
+    const required = options?.required === true || options?.respectRequiredMode !== false && HomeiiEngineFoundation.homeiiEngineModeRequiresEngine(mode);
+    const timeoutMs = HomeiiEngineFoundation.clampHomeiiEngineTimeoutMs(options?.timeoutMs, this._homeiiEngineTimeoutMs());
+    try {
+      return await this._callHomeAssistantWs(this._homeiiEngineMessage(command, payload), { timeoutMs });
+    } catch (error) {
+      const message = error?.message || "HOMEii Flow Engine is not available.";
+      this._state.engineStatus = "missing";
+      this._state.engineAvailable = false;
+      this._state.engineLastError = message;
+      this._debugLog?.("debug", "HOMEii Flow Engine command failed", command, message);
+      if (required) throw error;
+      return null;
+    }
+  }
+  async _refreshHomeiiEngineContext({ force = false } = {}) {
+    const mode = this._homeiiEngineMode();
+    if (!HomeiiEngineFoundation.homeiiEngineModeAllowsCalls(mode)) {
+      this._state.engineStatus = "off";
+      this._state.engineAvailable = false;
+      this._state.engineVersion = "";
+      this._state.engineCapabilities = {};
+      this._state.engineContext = null;
+      this._state.engineInstanceId = "";
+      this._state.engineProfileId = "";
+      this._state.engineLastError = "";
+      this._state.engineLastChecked = Date.now();
+      return null;
+    }
+    const now = Date.now();
+    if (!force && this._state.engineLastChecked && now - this._state.engineLastChecked < 3e4) {
+      return this._state.engineContext;
+    }
+    this._state.engineStatus = "checking";
+    this._state.engineLastChecked = now;
+    const result = await this._homeiiEngineCommand("get_context", {
+      card_version: HOMEII_CARD_VERSION,
+      selected_player: this._state?.selectedPlayer || ""
+    }, { required: false, respectRequiredMode: false });
+    if (!result) {
+      this._state.engineStatus = this._homeiiEngineRequired() ? "required_missing" : "missing";
+      this._state.engineAvailable = false;
+      this._state.engineVersion = "";
+      this._state.engineCapabilities = {};
+      this._state.engineContext = null;
+      this._state.engineInstanceId = "";
+      this._state.engineProfileId = "";
+      return null;
+    }
+    const context = HomeiiEngineFoundation.normalizeHomeiiEngineContext(result);
+    this._state.engineStatus = "connected";
+    this._state.engineAvailable = true;
+    this._state.engineVersion = context.version;
+    this._state.engineCapabilities = context.capabilities;
+    this._state.engineContext = context;
+    this._state.engineInstanceId = context.instanceId;
+    this._state.engineProfileId = context.profileId;
+    this._state.engineLastError = "";
+    this._syncHomeiiEngineScreensaverConnection().catch((error) => {
+      this._debugLog?.("debug", "HOMEii Flow Engine screensaver connection sync skipped", error?.message || error);
+    });
+    return context;
+  }
+  async _syncHomeiiEngineScreensaverConnection() {
+    if (!this._homeiiEngineEnabled() || !this._state.engineAvailable) return false;
+    if (!this._homeiiEngineVersionAtLeast("0.1.30")) return false;
+    const musicAssistantUrl = this._maBrowserUrl();
+    if (!musicAssistantUrl) return false;
+    const profileId = this._homeiiEngineResolvedProfileId("screensaver/set") || "default";
+    const syncKey = `${profileId}|${musicAssistantUrl}`;
+    if (this._homeiiEngineLastScreensaverConnectionKey === syncKey) return false;
+    const result = await this._homeiiEngineSetScreensaver(
+      {
+        music_assistant_url: musicAssistantUrl
+      },
+      { required: false, respectRequiredMode: false, timeoutMs: 2500 }
+    );
+    if (result) this._homeiiEngineLastScreensaverConnectionKey = syncKey;
+    return !!result;
+  }
+  _homeiiEngineGetQueue(payload = {}) {
+    return this._homeiiEngineCommand("queue/get", payload);
+  }
+  _homeiiEngineGetLibrary(payload = {}) {
+    return this._homeiiEngineCommand("library/get", payload);
+  }
+  _homeiiEngineRunDiagnostics(payload = {}) {
+    return this._homeiiEngineCommand("diagnostics/run", payload);
+  }
+  _homeiiEngineApplyGroup(payload = {}) {
+    return this._homeiiEngineCommand("group/apply", payload);
+  }
+  _homeiiEngineGetStats(payload = {}) {
+    return this._homeiiEngineCommand("stats/get", payload);
+  }
+  _homeiiEngineGetPlayers(payload = {}) {
+    return this._homeiiEngineCommand("players/get", payload);
+  }
+  _homeiiEnginePlayMedia(payload = {}) {
+    return this._homeiiEngineCommand("playback/play_media", payload);
+  }
+  _homeiiEnginePlayerCommand(payload = {}) {
+    return this._homeiiEngineCommand("player/command", payload);
+  }
+  _homeiiEngineTransferQueue(payload = {}) {
+    return this._homeiiEngineCommand("queue/transfer", payload);
+  }
+  _homeiiEngineGetSchedules(payload = {}, options = {}) {
+    return this._homeiiEngineCommand("schedules/get", payload, options);
+  }
+  _homeiiEngineSetSchedule(payload = {}, options = {}) {
+    return this._homeiiEngineCommand("schedules/set", payload, options);
+  }
+  _homeiiEngineDeleteSchedule(payload = {}, options = {}) {
+    return this._homeiiEngineCommand("schedules/delete", payload, options);
+  }
+  _homeiiEngineGetTimers(payload = {}, options = {}) {
+    return this._homeiiEngineCommand("timers/get", payload, options);
+  }
+  _homeiiEngineSetTimer(payload = {}, options = {}) {
+    return this._homeiiEngineCommand("timers/set", payload, options);
+  }
+  _homeiiEngineDeleteTimer(payload = {}, options = {}) {
+    return this._homeiiEngineCommand("timers/delete", payload, options);
+  }
+  _homeiiEngineSetVolumeRule(payload = {}) {
+    return this._homeiiEngineCommand("volume_rules/set", payload);
+  }
+  _homeiiEngineGetAnnouncements(payload = {}) {
+    return this._homeiiEngineCommand("announcements/get", payload);
+  }
+  _homeiiEngineGetActivity(payload = {}) {
+    return this._homeiiEngineCommand("activity/get", payload);
+  }
+  _homeiiEngineGetPlaybackStats(payload = {}) {
+    return this._homeiiEngineCommand("playback_stats/get", payload);
+  }
+  _homeiiEngineGetScreensaver(payload = {}) {
+    return this._homeiiEngineCommand("screensaver/get", payload);
+  }
+  _homeiiEngineSetScreensaver(payload = {}, options = {}) {
+    return this._homeiiEngineCommand("screensaver/set", payload, options);
+  }
+  _homeiiEngineAnnounce(payload = {}) {
+    return this._homeiiEngineCommand("announce", payload);
+  }
+  _homeiiEngineSendspinStatus(payload = {}) {
+    return this._homeiiEngineCommand("sendspin/status", payload);
+  }
   async _getHomeAssistantUserData(key = "") {
     const result = await this._callHomeAssistantWs({ type: "frontend/get_user_data", key });
     if (result && typeof result === "object" && Object.prototype.hasOwnProperty.call(result, "value")) return result.value;
@@ -28660,7 +30012,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _systemMobileStatePayload() {
     const schedules = this._scheduledStartSchedules();
     const nightWindow = this._nightModeWindow();
-    return {
+    const sleepTimerEndsAt = Number(this._state.mobileSleepTimerEndsAt || 0) || 0;
+    const payload = {
       version: 1,
       updatedAt: Date.now(),
       schedulesTab: this._state.mobileSchedulesTab || "timers",
@@ -28673,13 +30026,20 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       nightModeEnd: nightWindow.end,
       nightModeDays: this._nightModeDays()
     };
+    if (sleepTimerEndsAt > Date.now()) {
+      payload.sleepTimerEndsAt = sleepTimerEndsAt;
+      payload.sleepTimerPlayer = this._state.mobileSleepTimerPlayer || "";
+      payload.sleepTimerOrigin = this._state.mobileSleepTimerOrigin || "";
+    }
+    return payload;
   }
   _applySystemMobileStatePayload(payload = null) {
     if (!payload || typeof payload !== "object") return false;
     const rawSchedules = Array.isArray(payload.startSchedules) ? payload.startSchedules : Array.isArray(payload.mobileStartSchedules) ? payload.mobileStartSchedules : null;
     const rawNightMode = String(payload.nightMode || payload.mobileNightMode || "").trim();
     const hasNightPayload = ["off", "auto", "on"].includes(rawNightMode) || Object.prototype.hasOwnProperty.call(payload, "nightModeStart") || Object.prototype.hasOwnProperty.call(payload, "nightModeEnd") || Object.prototype.hasOwnProperty.call(payload, "nightModeDays") || Object.prototype.hasOwnProperty.call(payload, "mobileNightModeStart") || Object.prototype.hasOwnProperty.call(payload, "mobileNightModeEnd") || Object.prototype.hasOwnProperty.call(payload, "mobileNightModeDays");
-    if (!rawSchedules && !hasNightPayload) return false;
+    const hasSleepTimerPayload = Object.prototype.hasOwnProperty.call(payload, "sleepTimerEndsAt") || Object.prototype.hasOwnProperty.call(payload, "mobileSleepTimerEndsAt");
+    if (!rawSchedules && !hasNightPayload && !hasSleepTimerPayload) return false;
     if (rawSchedules) {
       const schedules = rawSchedules.map((schedule, index) => this._normalizeScheduledStartSchedule(schedule, index));
       this._state.mobileStartSchedules = schedules;
@@ -28706,6 +30066,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._state.mobileNightModeStart = this._normalizeClockTime(payload.nightModeStart || payload.mobileNightModeStart || this._state.mobileNightModeStart || "22:00", "22:00");
       this._state.mobileNightModeEnd = this._normalizeClockTime(payload.nightModeEnd || payload.mobileNightModeEnd || this._state.mobileNightModeEnd || "06:00", "06:00");
       this._state.mobileNightModeDays = this._normalizeNightModeDays(payload.nightModeDays || payload.mobileNightModeDays || this._state.mobileNightModeDays);
+    }
+    if (hasSleepTimerPayload) {
+      const sleepTimerEndsAt = Number(payload.sleepTimerEndsAt ?? payload.mobileSleepTimerEndsAt ?? 0) || 0;
+      if (sleepTimerEndsAt > Date.now()) {
+        this._state.mobileSleepTimerEndsAt = sleepTimerEndsAt;
+        this._state.mobileSleepTimerPlayer = String(payload.sleepTimerPlayer || payload.mobileSleepTimerPlayer || this._state.mobileSleepTimerPlayer || this._state.selectedPlayer || "").trim();
+        this._state.mobileSleepTimerOrigin = HomeiiNightFoundation.normalizeSleepTimerOrigin(payload.sleepTimerOrigin || payload.mobileSleepTimerOrigin || "general");
+      }
     }
     return true;
   }
@@ -28794,6 +30162,24 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     } catch (_) {
     }
   }
+  _writeSleepTimerToLocalStorage() {
+    try {
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_sleep_timer_at"), String(Number(this._state.mobileSleepTimerEndsAt || 0) || 0));
+    } catch (_) {
+    }
+    try {
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_sleep_timer_player"), this._state.mobileSleepTimerPlayer || "");
+    } catch (_) {
+    }
+    try {
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_sleep_timer_origin"), this._state.mobileSleepTimerOrigin || "");
+    } catch (_) {
+    }
+  }
+  _writeOperationalMobileStateToLocalStorage() {
+    this._writeSleepTimerToLocalStorage();
+    this._writeSchedulesToLocalStorage();
+  }
   _scheduleSystemMobileStatePersist(delayMs = 450) {
     if (!this._hass) return;
     clearTimeout(this._systemMobileStatePersistTimer);
@@ -28834,6 +30220,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     corner.hidden = false;
   }
   _persistMobileAppearance() {
+    this._writeOperationalMobileStateToLocalStorage();
     this._scheduleSystemMobileStatePersist();
     if (this._usesVisualSettings()) return;
     const storedDynamicThemeMode = ["off", "auto", "strong"].includes(String(this._state.mobileDynamicThemeMode || "auto").toLowerCase()) ? String(this._state.mobileDynamicThemeMode || "auto").toLowerCase() : "auto";
@@ -28869,74 +30256,6 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
     try {
       localStorage.setItem(this._lsKey("homeii_music_flow_mobile_icon_scale"), String(this._mobileIconScale()));
-    } catch (_) {
-    }
-    try {
-      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_mode"), this._mobileNightMode());
-    } catch (_) {
-    }
-    try {
-      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_start"), this._normalizeClockTime(this._state.mobileNightModeStart || "22:00", "22:00"));
-    } catch (_) {
-    }
-    try {
-      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_end"), this._normalizeClockTime(this._state.mobileNightModeEnd || "06:00", "06:00"));
-    } catch (_) {
-    }
-    try {
-      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_night_days"), JSON.stringify(this._nightModeDays()));
-    } catch (_) {
-    }
-    try {
-      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_sleep_timer_at"), String(Number(this._state.mobileSleepTimerEndsAt || 0) || 0));
-    } catch (_) {
-    }
-    try {
-      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_sleep_timer_player"), this._state.mobileSleepTimerPlayer || "");
-    } catch (_) {
-    }
-    try {
-      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_sleep_timer_origin"), this._state.mobileSleepTimerOrigin || "");
-    } catch (_) {
-    }
-    try {
-      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_enabled"), JSON.stringify(!!this._state.mobileStartTimerEnabled));
-    } catch (_) {
-    }
-    try {
-      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_time"), this._normalizeClockTime(this._state.mobileStartTimerTime || "07:00", "07:00"));
-    } catch (_) {
-    }
-    try {
-      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_player"), this._state.mobileStartTimerPlayer || "");
-    } catch (_) {
-    }
-    try {
-      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_playlist"), this._state.mobileStartTimerPlaylist || "");
-    } catch (_) {
-    }
-    try {
-      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_playlist_name"), this._state.mobileStartTimerPlaylistName || "");
-    } catch (_) {
-    }
-    try {
-      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_volume"), String(Math.max(0, Math.min(100, Number(this._state.mobileStartTimerVolume || 35) || 35))));
-    } catch (_) {
-    }
-    try {
-      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_days"), JSON.stringify(this._scheduledStartDays()));
-    } catch (_) {
-    }
-    try {
-      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_timer_last_run"), this._state.mobileStartTimerLastRunKey || "");
-    } catch (_) {
-    }
-    try {
-      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_start_schedules"), JSON.stringify(this._scheduledStartSchedules()));
-    } catch (_) {
-    }
-    try {
-      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_schedules_tab"), this._state.mobileSchedulesTab || "timers");
     } catch (_) {
     }
     try {
@@ -29044,6 +30363,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     } catch (_) {
     }
     try {
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_library_favorites_tabs"), JSON.stringify(this._libraryFavoritesOnlyTabs()));
+    } catch (_) {
+    }
+    try {
       const storedMainBarItems = HomeiiMobileSettingsFoundation.normalizeMobileMainBarItems(this._state.mobileMainBarItems, {
         usesVisualSettings: this._usesVisualSettings(),
         hidePlayers: false,
@@ -29062,6 +30385,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
     try {
       localStorage.setItem(this._lsKey("homeii_music_flow_mobile_swipe_mode"), this._state.mobileSwipeMode || "play");
+    } catch (_) {
+    }
+    try {
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_radio_source_mode"), this._mobileRadioSourceMode());
     } catch (_) {
     }
     try {
@@ -29113,7 +30440,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     } catch {
     }
     try {
-      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_controls_enabled"), JSON.stringify(!!this._state.screensaverControlsEnabled));
+      localStorage.setItem(this._lsKey("homeii_music_flow_screensaver_auto_lyrics_when_playing"), JSON.stringify(!!this._state.screensaverAutoLyricsWhenPlaying));
     } catch {
     }
     try {
@@ -29211,7 +30538,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     return ["timer", "like", "lyrics", "queue", "queue_flow", "radio", "history"];
   }
   _defaultAnnouncementPresets(lang = this._state?.lang || this._config?.language || "en") {
-    return HomeiiEditorLocale.isHebrewLanguageTag(lang) ? ["האוכל מוכן", "נא להגיע לסלון", "יוצאים בעוד חמש דקות"] : ["Dinner is ready", "Please come to the living room", "Leaving in five minutes"];
+    return HomeiiEditorLocale.isHebrewLanguageTag(lang) ? ["????? ????", "?? ????? ?????", "?????? ???? ??? ????"] : ["Dinner is ready", "Please come to the living room", "Leaving in five minutes"];
   }
   _isDefaultAnnouncementPresetSet(presets = []) {
     if (!Array.isArray(presets) || !presets.length) return false;
@@ -29341,6 +30668,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _screensaverControlsEnabled() {
     return this._state.screensaverControlsEnabled === true;
   }
+  _screensaverAutoLyricsWhenPlaying() {
+    return this._state.screensaverAutoLyricsWhenPlaying === true;
+  }
+  _maybeOpenScreensaverLyricsForPlayback(player = this._getSelectedPlayer()) {
+    if (!this._screensaverAutoLyricsWhenPlaying()) return false;
+    if (this._state.lyricsOpen || this._state.screensaverLyricsOpen) return false;
+    if (player?.state !== "playing") return false;
+    this._state.screensaverLyricsOpen = true;
+    return true;
+  }
   _defaultScreensaverControlButtons() {
     return ["previous", "next"];
   }
@@ -29362,6 +30699,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       { value: "power", icon: this._powerButtonIcon(), label: this._i18n("ui.auxiliary_button") },
       { value: "like", icon: this._currentMediaFavoriteState() ? "heart_filled" : "heart_outline", label: this._i18n("ui.like_2") },
       { value: "lyrics", icon: "lyrics", label: this._i18n("ui.lyrics") },
+      { value: "lyrics_sync", icon: "sync", label: this._i18n("ui.sync_lyrics") },
+      { value: "lyrics_font_minus", icon: "minus", label: this._i18n("ui.smaller_lyrics") },
+      { value: "lyrics_font_plus", icon: "plus", label: this._i18n("ui.larger_lyrics") },
       { value: "voice", icon: "mic", label: this._flowAssistantLabel() }
     ];
   }
@@ -29376,14 +30716,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       mute: "screensaverMuteBtn",
       power: "screensaverPowerBtn",
       lyrics: "screensaverLyricsBtn",
+      lyrics_sync: "screensaverLyricsSyncBtn",
+      lyrics_font_minus: "screensaverLyricsFontMinusBtn",
+      lyrics_font_plus: "screensaverLyricsFontPlusBtn",
       voice: "screensaverVoiceBtn"
     };
     const id = idMap[value];
     if (!id) return "";
     const voiceAttrs = value === "voice" ? " data-screensaver-voice" : "";
     const pressedClass = value === "voice" && this._state.voiceAssistantListening ? " listening" : "";
+    const activeClass = value === "lyrics_sync" && this._state.mobileLyricsSyncEnabled !== false ? " active" : "";
     const primaryClass = value === "play_pause" ? " primary" : "";
-    return `<button class="screensaver-voice-btn screensaver-control-btn${primaryClass}${pressedClass}" id="${id}" data-screensaver-control="${this._esc(value)}"${voiceAttrs} title="${this._esc(option.label)}" aria-label="${this._esc(option.label)}">${this._iconSvg(option.icon)}</button>`;
+    return `<button class="screensaver-voice-btn screensaver-control-btn${primaryClass}${pressedClass}${activeClass}" id="${id}" data-screensaver-control="${this._esc(value)}"${voiceAttrs} title="${this._esc(option.label)}" aria-label="${this._esc(option.label)}">${this._iconSvg(option.icon)}</button>`;
   }
   _screensaverClockMode() {
     const mode = HomeiiMobileSettingsFoundation.normalizeScreensaverClockMode(this._state.screensaverClockMode);
@@ -29649,6 +30993,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (this._state.lyricsOpen) {
       this._state.screensaverLyricsOpen = true;
       this._closeLyricsModal?.({ preserveLyrics: true, sync: false });
+    } else {
+      this._maybeOpenScreensaverLyricsForPlayback(this._getSelectedPlayer());
     }
     if (this._lyricsSessionActive?.()) this._syncLyricsForCurrentTrack();
     this._ensureQueueSnapshot(true).then(() => {
@@ -29808,6 +31154,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const overlay = this.$("screensaverBackdrop");
     const host = this.$("screensaverLyrics");
     if (!overlay || !host) return;
+    host.style?.setProperty("--lyrics-font-scale", this._lyricsFontScale().toFixed(2));
     const active = this._screensaverLyricsModeActive(player);
     overlay.classList.toggle("lyrics-mode", active);
     if (!active) {
@@ -29847,7 +31194,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const mediaTitle = player?.attributes?.media_title || queueItem?.media_item?.name || "";
     const mediaArtist = player?.attributes?.media_artist || (queueItem?.media_item?.artists || []).map((artistEntry) => artistEntry?.name).filter(Boolean).join(", ") || "";
     const hasMedia = !!(mediaTitle || mediaArtist || art);
-    ["screensaverPrevBtn", "screensaverPlayPauseBtn", "screensaverNextBtn", "screensaverMuteBtn", "screensaverPowerBtn", "screensaverLyricsBtn"].forEach((id) => {
+    ["screensaverPrevBtn", "screensaverPlayPauseBtn", "screensaverNextBtn", "screensaverMuteBtn", "screensaverPowerBtn", "screensaverLyricsBtn", "screensaverLyricsSyncBtn", "screensaverLyricsFontMinusBtn", "screensaverLyricsFontPlusBtn"].forEach((id) => {
       const btn = this.$(id);
       if (!btn) return;
       const available = id === "screensaverPowerBtn" ? !!this._hass : !!player;
@@ -29879,10 +31226,22 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._setScreensaverBackgroundArt(overlay, art);
     this._syncScreensaverLyricsUi(player);
     const lyricsBtn = this.$("screensaverLyricsBtn");
+    const lyricsActive = overlay.classList.contains("lyrics-mode");
     if (lyricsBtn) {
-      const lyricsActive = overlay.classList.contains("lyrics-mode");
       lyricsBtn.classList.toggle("active", lyricsActive);
       lyricsBtn.setAttribute("aria-pressed", lyricsActive ? "true" : "false");
+    }
+    ["screensaverLyricsSyncBtn", "screensaverLyricsFontMinusBtn", "screensaverLyricsFontPlusBtn"].forEach((id) => {
+      const btn = this.$(id);
+      if (!btn) return;
+      btn.disabled = !lyricsActive;
+      btn.setAttribute("aria-disabled", lyricsActive ? "false" : "true");
+    });
+    const lyricsSyncBtn = this.$("screensaverLyricsSyncBtn");
+    if (lyricsSyncBtn) {
+      const syncActive = lyricsActive && this._state.mobileLyricsSyncEnabled !== false;
+      lyricsSyncBtn.classList.toggle("active", syncActive);
+      lyricsSyncBtn.setAttribute("aria-pressed", syncActive ? "true" : "false");
     }
     const clock = this.$("screensaverClock");
     if (clock) {
@@ -30087,13 +31446,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._state.playerOrderEntities = next;
     return next;
   }
-  _playerDisplayName(player = null) {
-    return String(player?.attributes?.friendly_name || player?.entity_id || "").trim();
+  _playerDisplayName(player = null, players = this._state.players || []) {
+    return HomeiiPlayersFoundation.playerDisplayName(player, { players });
   }
   _sortPlayerList(players = []) {
     const list = Array.isArray(players) ? players.slice() : [];
     const locale = this._state.lang === "he" || this._state.lang === "en" ? this._state.lang : void 0;
-    const byName = (left, right) => this._playerDisplayName(left).localeCompare(this._playerDisplayName(right), locale, { sensitivity: "base", numeric: true });
+    const byName = (left, right) => this._playerDisplayName(left, list).localeCompare(this._playerDisplayName(right, list), locale, { sensitivity: "base", numeric: true });
     const mode = this._playerSortMode();
     if (mode === "alphabetical") return list.sort(byName);
     if (mode !== "custom") return list;
@@ -30298,7 +31657,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (next) this._selectPlayer(next, true);
     this._loadPlayers();
     this._syncNowPlayingUI();
-    this._toast(next ? this._m("Player pinned to front", "הנגן נעוץ לחזית") : this._m("Front pin cleared", "נעץ החזית בוטל"));
+    this._toast(next ? this._m("Player pinned to front", "???? ???? ?????") : this._m("Front pin cleared", "??? ????? ????"));
   }
   _mobileVolumeMode() {
     return HomeiiMobileSettingsFoundation.normalizeMobileVolumeMode(this._state.mobileVolumeMode);
@@ -30310,6 +31669,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const step = HomeiiMobileSettingsFoundation.clampMobileVolumeStepPercent(this._state.mobileVolumeStepPercent);
     this._state.mobileVolumeStepPercent = step;
     return step;
+  }
+  _mobileRadioSourceMode() {
+    const mode = HomeiiMobileSettingsFoundation.normalizeMobileRadioSourceMode(this._state.mobileRadioSourceMode || this._config?.mobile_radio_source_mode);
+    this._state.mobileRadioSourceMode = mode;
+    return mode;
   }
   _entityMatchTokens(value = "") {
     return HomeiiPlayersFoundation.entityMatchTokens(value);
@@ -30329,6 +31693,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     return this._favoriteButtonEntityForPlayer(this._getSelectedPlayer());
   }
   _entryTargetsCurrentMedia(entry = {}) {
+    const favoriteScope = String(
+      entry?.favorite_scope || entry?.favoriteScope || entry?.favorite_target || entry?.favoriteTarget || entry?.source_context || entry?.sourceContext || ""
+    ).trim().toLowerCase();
+    if (entry?.targets_current_media === false || ["item", "library", "search", "radio", "media"].includes(favoriteScope)) {
+      return false;
+    }
     return HomeiiMediaQueueFoundation.entryTargetsCurrentMedia(
       entry,
       this._currentMediaLikeMeta(),
@@ -31108,7 +32478,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _mobileThemeFooterInner() {
     const mode = this._mobileFooterMode();
     const effective = this._effectiveTheme();
-    const icon = `<span class="footer-theme-ic" aria-hidden="true">${effective === "dark" ? "☀" : "☾"}</span>`;
+    const icon = `<span class="footer-theme-ic" aria-hidden="true">${effective === "dark" ? "?" : "?"}</span>`;
     const label = `<span class="footer-btn-label">${this._esc(this._i18n("ui.theme_2"))}</span>`;
     if (mode === "icon") return icon;
     if (mode === "text") return label;
@@ -31379,7 +32749,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (!normalized) return Promise.resolve(false);
     if (this._decodedArtworkUrls.has(normalized)) return Promise.resolve(true);
     if (this._artworkDecodePromises.has(normalized)) return this._artworkDecodePromises.get(normalized);
-    const promise = new Promise((resolve) => {
+    const loadImage = (src) => new Promise((resolve) => {
       let settled = false;
       let timeout = null;
       const img = new Image();
@@ -31424,12 +32794,31 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         img.onload = () => finish(true);
         img.onerror = () => finish(false);
         timeout = setTimeout(() => finish(false), 5200);
-        img.src = normalized;
+        img.src = src;
         if (img.complete && img.naturalWidth > 0) finish(true);
       } catch (_) {
         finish(false);
       }
     });
+    const promise = (async () => {
+      const isCrossOrigin = (() => {
+        try {
+          const currentOrigin = typeof window !== "undefined" ? window.location?.origin : "";
+          const parsed = new URL(normalized, typeof window !== "undefined" ? window.location?.href : "http://homeii.local");
+          return !!(currentOrigin && parsed.origin && parsed.origin !== currentOrigin);
+        } catch (_) {
+          return false;
+        }
+      })();
+      if (this._shouldFetchArtworkUrl?.(normalized, { crossOrigin: isCrossOrigin })) {
+        try {
+          const objectUrl = await this._fetchArtworkBlobUrl(normalized, { crossOrigin: isCrossOrigin });
+          if (objectUrl && await loadImage(objectUrl)) return true;
+        } catch (_) {
+        }
+      }
+      return loadImage(normalized);
+    })();
     this._artworkDecodePromises.set(normalized, promise);
     return promise;
   }
@@ -31437,14 +32826,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const normalized = String(art || "").trim();
     if (!normalized) return this._mobileArtFallbackHtml(fallbackIcon);
     const ready = this._decodedArtworkUrls.has(normalized);
+    const displayUrl = ready ? this._artworkDisplayUrl?.(normalized) || normalized : normalized;
     const priority = current ? "high" : "low";
-    return ready ? `<img src="${this._esc(normalized)}" alt="${this._esc(alt)}" decoding="async" loading="eager" fetchpriority="${priority}" data-homeii-art-ready="1" data-homeii-applied-art-src="${this._esc(normalized)}" data-homeii-art-fallback="1" data-homeii-art-fallback-icon="${this._esc(fallbackIcon)}">` : `<img src="${this._esc(normalized)}" alt="${this._esc(alt)}" decoding="async" loading="eager" fetchpriority="${priority}" data-homeii-art-src="${this._esc(normalized)}" data-homeii-art-ready="0" data-homeii-art-fallback="1" data-homeii-art-fallback-icon="${this._esc(fallbackIcon)}">`;
+    return ready ? `<img src="${this._esc(displayUrl)}" alt="${this._esc(alt)}" decoding="async" loading="eager" fetchpriority="${priority}" data-homeii-art-ready="1" data-homeii-art-src="${this._esc(normalized)}" data-homeii-applied-art-src="${this._esc(normalized)}" data-homeii-art-display-src="${this._esc(displayUrl)}" data-homeii-art-fallback="1" data-homeii-art-fallback-icon="${this._esc(fallbackIcon)}">` : `<img src="${this._esc(normalized)}" alt="${this._esc(alt)}" decoding="async" loading="eager" fetchpriority="${priority}" data-homeii-art-src="${this._esc(normalized)}" data-homeii-art-ready="0" data-homeii-art-fallback="1" data-homeii-art-fallback-icon="${this._esc(fallbackIcon)}">`;
   }
   _setDecodedArtworkImage(img, url = "", alt = "") {
     if (!img) return;
     const nextUrl = String(url || "").trim();
     if (alt !== void 0) img.alt = String(alt || "");
     const currentSrc = img.getAttribute("src") || "";
+    const displayUrl = () => this._artworkDisplayUrl?.(nextUrl) || nextUrl;
     if (!nextUrl) {
       img.removeAttribute("src");
       img.dataset.homeiiArtSrc = "";
@@ -31454,11 +32845,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       img.dataset.homeiiArtReady = "0";
       return;
     }
-    if (currentSrc === nextUrl && img.dataset.homeiiArtReady === "1") return;
+    if ((currentSrc === nextUrl || currentSrc === displayUrl()) && img.dataset.homeiiArtReady === "1") return;
     if (this._decodedArtworkUrls.has(nextUrl)) {
-      img.src = nextUrl;
+      img.src = displayUrl();
       img.dataset.homeiiArtSrc = nextUrl;
       img.dataset.homeiiAppliedArtSrc = nextUrl;
+      img.dataset.homeiiArtDisplaySrc = displayUrl();
       img.dataset.homeiiArtLoadToken = "";
       img.dataset.homeiiArtPendingAt = "";
       img.dataset.homeiiArtReady = "1";
@@ -31468,7 +32860,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       img.dataset.homeiiArtSrc = nextUrl;
       this._decodeArtworkUrl(nextUrl).then((ok) => {
         if (!ok || !img.isConnected || img.dataset.homeiiArtSrc !== nextUrl) return;
+        img.src = displayUrl();
         img.dataset.homeiiAppliedArtSrc = nextUrl;
+        img.dataset.homeiiArtDisplaySrc = displayUrl();
         img.dataset.homeiiArtLoadToken = "";
         img.dataset.homeiiArtPendingAt = "";
         img.dataset.homeiiArtReady = "1";
@@ -31488,8 +32882,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     img.src = nextUrl;
     const applyImage = () => {
       if (!img.isConnected || img.dataset.homeiiArtSrc !== nextUrl || img.dataset.homeiiArtLoadToken !== token) return;
-      img.src = nextUrl;
+      img.src = displayUrl();
       img.dataset.homeiiAppliedArtSrc = nextUrl;
+      img.dataset.homeiiArtDisplaySrc = displayUrl();
       img.dataset.homeiiArtLoadToken = "";
       img.dataset.homeiiArtPendingAt = "";
       img.dataset.homeiiArtReady = "1";
@@ -31520,7 +32915,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       el.style.backgroundImage = "";
       return;
     }
-    const nextValue = typeof valueForUrl === "function" ? valueForUrl(nextUrl) : `url(${JSON.stringify(nextUrl)})`;
+    const displayValue = () => {
+      const displayUrl = this._artworkDisplayUrl?.(nextUrl) || nextUrl;
+      return typeof valueForUrl === "function" ? valueForUrl(displayUrl) : `url(${JSON.stringify(displayUrl)})`;
+    };
+    const nextValue = displayValue();
     if (el.dataset.homeiiBgArtSrc === nextUrl && el.dataset.homeiiBgArtValue === nextValue) return;
     el.dataset.homeiiBgArtSrc = nextUrl;
     el.dataset.homeiiBgArtValue = nextValue;
@@ -31530,7 +32929,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
     const applyBackground = () => {
       if (!el.isConnected || el.dataset.homeiiBgArtSrc !== nextUrl) return;
-      el.style.backgroundImage = el.dataset.homeiiBgArtValue || nextValue;
+      el.style.backgroundImage = displayValue();
     };
     const fallbackTimer = setTimeout(applyBackground, el.style.backgroundImage ? 5200 : 2400);
     this._decodeArtworkUrl(nextUrl).then((ok) => {
@@ -31560,7 +32959,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       el.style.removeProperty("--homeii-bg-art-next");
       return;
     }
-    const nextValue = `url(${JSON.stringify(nextUrl)})`;
+    const displayValue = () => `url(${JSON.stringify(this._artworkDisplayUrl?.(nextUrl) || nextUrl)})`;
+    const nextValue = displayValue();
     if (el.dataset.homeiiBgArtSrc === nextUrl && el.dataset.homeiiBgArtValue === nextValue) return;
     el.dataset.homeiiBgArtSrc = nextUrl;
     el.dataset.homeiiBgArtValue = nextValue;
@@ -31572,12 +32972,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._backgroundCrossfadeTimers?.delete(el);
       if (!currentValue || currentValue === "none" || el.dataset.homeiiBgArtReady !== "1") {
         el.classList.remove("bg-art-transitioning");
-        el.style.setProperty("--homeii-bg-art-current", nextValue);
+        el.style.setProperty("--homeii-bg-art-current", displayValue());
         el.style.removeProperty("--homeii-bg-art-next");
         el.dataset.homeiiBgArtReady = "1";
         return;
       }
-      el.style.setProperty("--homeii-bg-art-next", nextValue);
+      el.style.setProperty("--homeii-bg-art-next", displayValue());
       el.classList.remove("bg-art-transitioning");
       const raf = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (callback) => setTimeout(callback, 0);
       raf(() => {
@@ -31585,7 +32985,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         el.classList.add("bg-art-transitioning");
         const settleTimer = setTimeout(() => {
           if (!el.isConnected || el.dataset.homeiiBgArtSrc !== nextUrl) return;
-          el.style.setProperty("--homeii-bg-art-current", nextValue);
+          el.style.setProperty("--homeii-bg-art-current", displayValue());
           el.style.removeProperty("--homeii-bg-art-next");
           el.classList.remove("bg-art-transitioning");
           el.dataset.homeiiBgArtReady = "1";
@@ -32300,14 +33700,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           <input class="volume-slider" id="volSlider" type="range" min="0" max="100" value="50" style="--vol-pct:50%">
         </div>
         ${volumeUpButtonHtml}
+        <button class="volume-btn group-volume-btn" id="mobileGroupVolumeBtn" hidden title="${this._esc(this._i18n("ui.group_volume", {}, "Group volume"))}" aria-label="${this._esc(this._i18n("ui.group_volume", {}, "Group volume"))}">${this._iconSvg("speaker_group")}</button>
         <button class="volume-btn" id="btnMute">${this._iconSvg("volume_high")}</button>
       </div>`;
     const footerHtml = mainBarButtons.length ? `<div class="footer-nav count-${mainBarButtons.length}">${mainBarButtons.join("")}</div>` : "";
     const compactCollapseFabHtml = compactPopupMode ? `<button class="compact-collapse-fab ${rtl ? "rtl" : "ltr"}" id="compactCollapseBtn" title="${this._i18n("ui.collapse_compact_player")}">${this._iconSvg("close")}</button>` : ``;
     const mobileEdgeCornerClass = rtl ? "rtl" : "ltr";
     const mobileEdgeOverlayOpen = !!(this._state.menuOpen || this._state.controlRoomOpen || this._state.screensaverOpen || this._state.mobileQueueActionEntry || this._state.mobileSmartVoice);
-    const mobileEdgeExitHtml = mobileEdgeToEdgeMode && !mobileEdgeOverlayOpen ? `<button class="mobile-edge-corner-btn mobile-edge-exit ${mobileEdgeCornerClass}" id="mobileEdgeExitBtn" title="${this._esc(this._m("Exit edge-to-edge", "יציאה ממסך קצה לקצה"))}" aria-label="${this._esc(this._m("Exit edge-to-edge", "יציאה ממסך קצה לקצה"))}">${this._iconSvg("close")}</button>` : ``;
-    const mobileEdgeReturnHtml = !mobileEdgeOverlayOpen && !visualEditorContext && !compactPopupLayoutMode && !compactTileMode && layoutMode === "mobile" && !mobileEdgeToEdgeMode && this._mobileLayoutMode() === "full" && this._state.mobileEdgeReturnAvailable === true ? `<button class="mobile-edge-corner-btn mobile-edge-return ${mobileEdgeCornerClass}" id="mobileEdgeEnterBtn" title="${this._esc(this._m("Back to edge-to-edge", "חזרה למסך קצה לקצה"))}" aria-label="${this._esc(this._m("Back to edge-to-edge", "חזרה למסך קצה לקצה"))}">${this._iconSvg("fullscreen")}</button>` : ``;
+    const mobileEdgeExitHtml = mobileEdgeToEdgeMode && !mobileEdgeOverlayOpen ? `<button class="mobile-edge-corner-btn mobile-edge-exit ${mobileEdgeCornerClass}" id="mobileEdgeExitBtn" title="${this._esc(this._m("Exit edge-to-edge", "יציאה מקצה לקצה"))}" aria-label="${this._esc(this._m("Exit edge-to-edge", "יציאה מקצה לקצה"))}">${this._iconSvg("close")}</button>` : ``;
+    const mobileEdgeReturnHtml = !mobileEdgeOverlayOpen && !visualEditorContext && !compactPopupLayoutMode && !compactTileMode && layoutMode === "mobile" && !mobileEdgeToEdgeMode && this._mobileLayoutMode() === "full" && this._state.mobileEdgeReturnAvailable === true ? `<button class="mobile-edge-corner-btn mobile-edge-return ${mobileEdgeCornerClass}" id="mobileEdgeEnterBtn" title="${this._esc(this._m("Back to edge-to-edge", "חזרה לקצה לקצה"))}" aria-label="${this._esc(this._m("Back to edge-to-edge", "חזרה לקצה לקצה"))}">${this._iconSvg("fullscreen")}</button>` : ``;
     const homeShortcutFabHtml = ``;
     const historyEdgeClass = rtl ? "left-edge" : "right-edge";
     const historyToggleButtonHtml = !compactTileMode ? `<button class="history-toggle-fab ${layoutMode === "tablet" ? "tablet-history-fab history-drawer-fab" : ""} ${historyEdgeClass}" id="historyToggleFab" title="${this._i18n("ui.recently_played_2")}" aria-expanded="false" hidden>${this._iconSvg(layoutMode === "tablet" ? "drawer_handle" : "history")}</button>` : ``;
@@ -32385,6 +33786,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           </div>
           <div class="compact-volume-inline${volumeInlineClass}" data-volume-step-percent="${this._esc(String(volumeStepPercent))}">
             <button class="volume-btn compact-mute-btn" id="btnMute">${this._iconSvg("volume_high")}</button>
+            <button class="volume-btn group-volume-btn compact-group-volume-btn" id="compactGroupVolumeBtn" hidden title="${this._esc(this._i18n("ui.group_volume", {}, "Group volume"))}" aria-label="${this._esc(this._i18n("ui.group_volume", {}, "Group volume"))}">${this._iconSvg("speaker_group")}</button>
             ${volumeDownButtonHtml}
             <div class="tablet-volume-track compact-volume-track">
               <input class="volume-slider compact-volume-slider" id="volSlider" type="range" min="0" max="100" value="50" style="--vol-pct:50%">
@@ -33278,6 +34680,22 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           overflow:auto !important;
           -webkit-overflow-scrolling:touch;
         }
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .queue-action-backdrop.clean-all-confirm-backdrop.open {
+          padding:max(20px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom)) !important;
+          align-items:center !important;
+          justify-content:center !important;
+        }
+        :host(.mobile-edge-to-edge-open) .card.mobile-edge-to-edge .queue-action-backdrop.clean-all-confirm-backdrop.open .clean-all-confirm-sheet {
+          width:min(420px, calc(100vw - 36px)) !important;
+          max-width:calc(100vw - 36px) !important;
+          height:auto !important;
+          min-height:0 !important;
+          max-height:calc(100dvh - 40px) !important;
+          margin:auto !important;
+          border-radius:26px !important;
+          box-shadow:0 22px 60px rgba(0,0,0,.3) !important;
+          overflow:auto !important;
+        }
         .mobile-edge-corner-btn {
           position:absolute;
           top:max(12px, env(safe-area-inset-top, 0px));
@@ -33629,6 +35047,24 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         :host(.compact-popup-open) .card.compact-mode.compact-expanded .queue-action-backdrop.open .queue-action-sheet {
           overflow:auto !important;
           -webkit-overflow-scrolling:touch;
+        }
+        :host(.compact-popup-open) .card.compact-expanded .queue-action-backdrop.clean-all-confirm-backdrop.open,
+        :host(.compact-popup-open) .card.compact-mode.compact-expanded .queue-action-backdrop.clean-all-confirm-backdrop.open {
+          padding:max(20px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom)) !important;
+          align-items:center !important;
+          justify-content:center !important;
+        }
+        :host(.compact-popup-open) .card.compact-expanded .queue-action-backdrop.clean-all-confirm-backdrop.open .clean-all-confirm-sheet,
+        :host(.compact-popup-open) .card.compact-mode.compact-expanded .queue-action-backdrop.clean-all-confirm-backdrop.open .clean-all-confirm-sheet {
+          width:min(420px, calc(100% - 36px)) !important;
+          max-width:calc(100% - 36px) !important;
+          height:auto !important;
+          min-height:0 !important;
+          max-height:calc(100% - 40px) !important;
+          margin:auto !important;
+          border-radius:26px !important;
+          box-shadow:0 22px 60px rgba(0,0,0,.3) !important;
+          overflow:auto !important;
         }
         @media (max-width: 760px) {
           :host(.compact-popup-open) .card.compact-expanded,
@@ -34363,13 +35799,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           border:none;
           backdrop-filter:none;
           display:grid !important;
-          grid-template-columns:auto minmax(0,1fr) auto;
+          grid-template-columns:auto auto minmax(0,1fr) auto;
           gap:10px;
           align-items:center;
           box-shadow:none;
         }
         .compact-volume-inline.has-volume-step-buttons {
-          grid-template-columns:auto auto minmax(0,1fr) auto auto;
+          grid-template-columns:auto auto auto minmax(0,1fr) auto auto;
           gap:8px;
         }
         .compact-volume-inline .volume-step-btn {
@@ -36792,7 +38228,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           pointer-events:none;
         }
         #mobileRepeatBtn[data-repeat-mode="one"]::before { content:"1"; }
-        #mobileRepeatBtn[data-repeat-mode="all"]::before { content:"∞"; font-size:10px; }
+        #mobileRepeatBtn[data-repeat-mode="all"]::before { content:"8"; font-size:10px; }
         .card.layout-tablet .side-btn.minor-btn.active::after {
           bottom:13px;
           width:7px;
@@ -36969,7 +38405,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         }
         .mobile-volume-inline {
           display:grid;
-          grid-template-columns:auto minmax(0, 1fr) auto;
+          grid-template-columns:auto minmax(0, 1fr) auto auto;
           align-items:center;
           gap:14px;
           width:100%;
@@ -36992,8 +38428,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           height:46px;
         }
         .mobile-volume-inline.has-volume-step-buttons {
-          grid-template-columns:auto auto minmax(0, 1fr) auto auto;
+          grid-template-columns:auto auto minmax(0, 1fr) auto auto auto;
           gap:8px;
+        }
+        .group-volume-btn[hidden] {
+          display:none !important;
         }
         .volume-step-btn {
           width:38px;
@@ -37722,11 +39161,28 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .confirm-actions.clean-all-confirm-actions {
           margin-top:0;
         }
-        .clean-all-confirm-actions .menu-item {
-          min-height:48px;
-          border-radius:18px;
+        .clean-all-confirm-actions {
+          grid-template-columns:repeat(2, minmax(0, 1fr));
+          gap:10px;
         }
-        .confirm-actions .menu-item.danger-confirm-action {
+        .clean-all-confirm-btn {
+          min-width:0;
+          min-height:46px;
+          border-radius:16px;
+          border:1px solid rgba(255,255,255,.12);
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          padding:0 14px;
+          color:#fff;
+          background:rgba(255,255,255,.08);
+          font-size:14px;
+          font-weight:900;
+          line-height:1;
+          cursor:pointer;
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.1);
+        }
+        .clean-all-confirm-btn.danger-confirm-action {
           color:#ffd9d9;
           background:linear-gradient(145deg, rgba(255,85,95,.24), rgba(255,85,95,.1));
           border:1px solid rgba(255,105,115,.3);
@@ -37734,7 +39190,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .danger-confirm-icon {
           color:#ffb6b6;
         }
-        .theme-light .confirm-actions .menu-item.danger-confirm-action {
+        .theme-light .clean-all-confirm-btn {
+          color:#16202d;
+          background:rgba(31,38,51,.06);
+          border-color:rgba(31,38,51,.1);
+        }
+        .theme-light .clean-all-confirm-btn.danger-confirm-action {
           color:#b4232b;
           background:#fff1f2;
           border-color:rgba(180,35,43,.18);
@@ -38666,12 +40127,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           border-radius:999px;
         }
         .card:not(.layout-tablet) .mobile-volume-inline {
-          grid-template-columns:auto minmax(0,1fr) auto;
+          grid-template-columns:auto minmax(0,1fr) auto auto;
           gap:10px;
           align-items:center;
         }
         .card:not(.layout-tablet) .mobile-volume-inline.has-volume-step-buttons {
-          grid-template-columns:auto auto minmax(0,1fr) auto auto;
+          grid-template-columns:auto auto minmax(0,1fr) auto auto auto;
           gap:8px;
         }
         .card:not(.layout-tablet) .mobile-volume-inline .volume-value {
@@ -39876,6 +41337,29 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         }
         .card.layout-tablet .lyrics-body {
           padding-block-start:clamp(34px, 5vh, 56px);
+        }
+        @media (min-width: 901px) {
+          .card:not(.layout-tablet) .lyrics-head {
+            align-items:center;
+            grid-template-columns:minmax(0, 1fr) minmax(280px, auto);
+          }
+          .card:not(.layout-tablet) .lyrics-head-actions {
+            display:flex !important;
+            visibility:visible !important;
+            opacity:1 !important;
+            flex-wrap:nowrap;
+            max-width:min(640px, 48vw);
+            overflow:auto;
+            scrollbar-width:none;
+          }
+          .card:not(.layout-tablet) .lyrics-head-actions::-webkit-scrollbar {
+            display:none;
+          }
+          .card:not(.layout-tablet) .lyrics-offset-controls,
+          .card:not(.layout-tablet) .lyrics-font-controls,
+          .card:not(.layout-tablet) .lyrics-sync-btn {
+            flex:0 0 auto;
+          }
         }
         @media (max-width: 600px) {
           .lyrics-backdrop {
@@ -43355,7 +44839,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           transform:scale(1.04);
         }
         .liked-select-box.checked span::before {
-          content:"✓";
+          content:"?";
           color:var(--ma-accent);
           font-size:13px;
           font-weight:1000;
@@ -43410,6 +44894,23 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           border-color:color-mix(in srgb, var(--ma-accent) 20%, rgba(147,161,183,.2));
         }
         .theme-light .group-connected-row span { color:rgba(55,68,85,.64); }
+        .group-change-row {
+          min-height:38px;
+          border-radius:16px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          padding:0 14px;
+          font-size:12px;
+          font-weight:900;
+          color:var(--ma-accent);
+          background:color-mix(in srgb, var(--ma-accent) 13%, rgba(255,255,255,.07));
+          border:1px solid color-mix(in srgb, var(--ma-accent) 22%, rgba(255,255,255,.12));
+        }
+        .theme-light .group-change-row {
+          background:color-mix(in srgb, var(--ma-accent) 12%, rgba(255,255,255,.82));
+          border-color:color-mix(in srgb, var(--ma-accent) 20%, rgba(147,161,183,.2));
+        }
         .group-volume-card {
           display:grid;
           gap:10px;
@@ -43456,6 +44957,24 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           background:rgba(255,255,255,.78);
           border-color:rgba(147,161,183,.18);
         }
+        .group-player-card.connected,
+        .group-player-card.will-add {
+          border-color:color-mix(in srgb, var(--ma-accent) 34%, rgba(255,255,255,.14));
+          background:linear-gradient(135deg, color-mix(in srgb, var(--ma-accent) 14%, rgba(255,255,255,.09)), rgba(255,255,255,.065));
+        }
+        .group-player-card.will-remove {
+          border-color:rgba(255,190,116,.34);
+          background:linear-gradient(135deg, rgba(255,190,116,.12), rgba(255,255,255,.055));
+        }
+        .theme-light .group-player-card.connected,
+        .theme-light .group-player-card.will-add {
+          background:linear-gradient(135deg, color-mix(in srgb, var(--ma-accent) 14%, rgba(255,255,255,.86)), rgba(255,255,255,.78));
+          border-color:color-mix(in srgb, var(--ma-accent) 30%, rgba(147,161,183,.24));
+        }
+        .theme-light .group-player-card.will-remove {
+          background:linear-gradient(135deg, rgba(255,190,116,.18), rgba(255,255,255,.8));
+          border-color:rgba(205,137,52,.34);
+        }
         .group-player-card .group-player-row {
           position:relative;
           padding:10px 50px 0 0;
@@ -43501,6 +45020,55 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .theme-light .group-player-toggle.checked {
           color:rgb(var(--dynamic-accent-rgb, 224 161 27));
         }
+        .group-player-card.will-remove .group-player-toggle {
+          color:#ffcf86;
+          filter:drop-shadow(0 0 8px rgba(255,207,134,.28));
+        }
+        .group-player-status {
+          width:max-content;
+          max-width:100%;
+          min-height:22px;
+          border-radius:999px;
+          display:inline-flex;
+          align-items:center;
+          padding:0 9px;
+          margin-top:5px;
+          font-size:10.5px;
+          font-weight:950;
+          color:rgba(255,255,255,.7);
+          background:rgba(255,255,255,.08);
+          border:1px solid rgba(255,255,255,.1);
+        }
+        .group-player-status.connected,
+        .group-player-status.will-add,
+        .group-player-status.master {
+          color:var(--ma-accent);
+          background:color-mix(in srgb, var(--ma-accent) 13%, rgba(255,255,255,.08));
+          border-color:color-mix(in srgb, var(--ma-accent) 22%, rgba(255,255,255,.12));
+        }
+        .group-player-status.will-remove,
+        .group-player-status.will-clear {
+          color:#ffcf86;
+          background:rgba(255,207,134,.1);
+          border-color:rgba(255,207,134,.18);
+        }
+        .theme-light .group-player-status {
+          color:rgba(55,68,85,.68);
+          background:rgba(242,246,250,.75);
+          border-color:rgba(147,161,183,.2);
+        }
+        .theme-light .group-player-status.connected,
+        .theme-light .group-player-status.will-add,
+        .theme-light .group-player-status.master {
+          color:rgb(var(--dynamic-accent-rgb, 224 161 27));
+          background:color-mix(in srgb, var(--ma-accent) 12%, rgba(255,255,255,.82));
+        }
+        .theme-light .group-player-status.will-remove,
+        .theme-light .group-player-status.will-clear {
+          color:#b46b20;
+          background:rgba(255,207,134,.22);
+          border-color:rgba(205,137,52,.22);
+        }
         .group-player-check {
           position:absolute!important;
           width:1px!important;
@@ -43514,13 +45082,38 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           background:rgba(255,255,255,.06);
         }
         .theme-light .group-inline-volume { background:rgba(242,246,250,.72); }
-        .menu-body.sheet-group .group-actions { width:min(100%, 460px); margin:22px auto 0; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; }
+        .menu-body.sheet-group .group-actions { width:min(100%, 460px); margin:22px auto 0; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; }
         .card.layout-tablet .menu-body.sheet-group .group-actions {
           width:min(480px, 100%);
-          gap:18px;
+          gap:14px;
           margin-top:26px;
         }
         .menu-body.sheet-group .action-btn { min-height:58px; border-radius:22px; padding:0 22px; font-size:15px; font-weight:850; letter-spacing:0; background:linear-gradient(180deg, rgba(255,255,255,.13), rgba(255,255,255,.055)); border:1px solid rgba(255,255,255,.16); box-shadow:0 14px 26px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.12); }
+        .menu-body.sheet-group .action-btn:disabled { opacity:.46; cursor:default; pointer-events:none; box-shadow:none; }
+        .menu-body.sheet-group .group-disconnect-all-btn {
+          width:100%;
+          max-width:100%;
+          min-height:58px;
+          margin:0;
+          padding:0 18px;
+          border-radius:22px;
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          gap:7px;
+          font-size:15px;
+          font-weight:850;
+          letter-spacing:0;
+          color:#ffd88b;
+          border:1px solid rgba(255,216,139,.22);
+          background:rgba(255,216,139,.08);
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.1);
+        }
+        .theme-light .menu-body.sheet-group .group-disconnect-all-btn {
+          color:#9a6410;
+          border-color:rgba(205,137,52,.2);
+          background:rgba(255,207,134,.2);
+        }
         .action-btn.busy {
           position:relative;
           display:inline-flex!important;
@@ -44541,6 +46134,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           display:flex;
           align-items:center;
           gap:10px;
+          pointer-events:auto;
           box-shadow:0 16px 34px rgba(0,0,0,.22);
           animation:toastIn .18s ease-out;
         }
@@ -44554,7 +46148,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           flex-shrink:0;
           background:rgba(255,255,255,.12);
         }
-        .toast-text { min-width:0; line-height:1.35; font-weight:800; }
+        .toast-text { min-width:0; flex:1; line-height:1.35; font-weight:800; }
+        .toast-ack {
+          border:1px solid rgba(255,255,255,.22);
+          border-radius:999px;
+          padding:6px 10px;
+          color:inherit;
+          background:rgba(255,255,255,.13);
+          font-size:11px;
+          font-weight:900;
+          cursor:pointer;
+        }
+        .toast-ack:hover { background:rgba(255,255,255,.2); }
         .toast.success { border-color:rgba(102,211,138,.28); background:rgba(22,45,34,.9); }
         .toast.success .toast-icon { color:#dff8e7; background:rgba(102,211,138,.26); }
         .toast.error { border-color:rgba(255,112,112,.28); background:rgba(58,24,28,.9); }
@@ -44701,7 +46306,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             border-radius:14px;
           }
           .queue-actions .chip-btn { min-width:32px; min-height:32px; width:32px; border-radius:11px; }
-          .group-actions { grid-template-columns:1fr; }
+          .group-actions { grid-template-columns:repeat(2, minmax(0, 1fr)); }
         }
         .card.height-short .stage {
           gap:6px;
@@ -45172,10 +46777,11 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           display:none !important;
         }
       .mobile-volume-inline .volume-btn .ui-ic{width:20px;height:20px;}
-.card:not(.layout-tablet) .mobile-volume-inline{grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;}
+.card:not(.layout-tablet) .mobile-volume-inline{grid-template-columns:auto minmax(0,1fr) auto auto;gap:10px;align-items:center;}
 .card:not(.layout-tablet) .mobile-volume-inline .volume-value{order:1;min-width:46px;text-align:center;}
 .card:not(.layout-tablet) .mobile-volume-inline .tablet-volume-track{order:2;}
 .card:not(.layout-tablet) .mobile-volume-inline .volume-btn{order:3;width:38px;height:38px;border-radius:999px;}
+.group-volume-btn[hidden]{display:none!important;}
 .card:not(.layout-tablet) .mobile-volume-inline .volume-btn.active{background:rgba(170,38,38,.28)!important;border-color:rgba(255,98,98,.36)!important;color:#fff!important;box-shadow:0 10px 24px rgba(120,22,22,.22)!important;}
 .card:not(.layout-tablet) .queue-action-item{min-height:58px;}
 .card.mobile-content-dense:not(.layout-tablet){
@@ -49266,9 +50872,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   display:flex;
   align-items:center;
   justify-content:flex-end;
-  flex-wrap:wrap;
-  gap:10px;
-  max-width:min(72vw, 560px);
+  flex-wrap:nowrap;
+  gap:clamp(6px, .8vw, 10px);
+  max-width:min(92vw, 860px);
+  overflow:visible;
 }
 .screensaver-voice-btn{
   position:relative;
@@ -49289,8 +50896,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   transition:opacity .18s ease, transform .18s ease, background .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease, filter .18s ease;
 }
 .screensaver-control-btn{
-  width:clamp(48px, 4.8vw, 62px);
-  height:clamp(48px, 4.8vw, 62px);
+  flex:0 0 auto;
+  width:clamp(44px, 4.2vw, 58px);
+  height:clamp(44px, 4.2vw, 58px);
   opacity:.34;
 }
 .screensaver-control-btn.primary{
@@ -49302,7 +50910,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 }
 .screensaver-voice-btn:hover,
 .screensaver-voice-btn:focus-visible,
-.screensaver-voice-btn.active,
+.screensaver-voice-btn.pressed,
 .screensaver-voice-btn.listening{
   opacity:.88;
   filter:saturate(1);
@@ -49502,7 +51110,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 }
 .screensaver-lyric-line{
   max-width:100%;
-  font-size:clamp(24px, 4.2vw, 58px);
+  font-size:calc(clamp(24px, 4.2vw, 58px) * var(--lyrics-font-scale, 1));
   line-height:1.14;
   font-weight:950;
   letter-spacing:0;
@@ -49551,6 +51159,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   display:grid;
   gap:clamp(10px, 1.8vh, 18px);
   max-width:100%;
+}
+.screensaver-lyrics-lines{
+  display:grid;
+  gap:clamp(10px, 1.8vh, 18px);
 }
 .screensaver-clock{
   font-size:96px;
@@ -49762,10 +51374,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   border:0;
 }
 .card.layout-tablet .screensaver-next-title{
-  font-size:15px;
+  font-size:max(15px, 14px);
 }
 .card.layout-tablet .screensaver-next-artist{
-  font-size:12px;
+  font-size:max(12px, 12px);
 }
 .card.layout-tablet .screensaver-backdrop.lyrics-mode .screensaver-shell{
   grid-template-columns:minmax(320px, 430px) minmax(0, 720px);
@@ -49836,7 +51448,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     z-index:2;
     transform:translate(-50%, -50%) scale(var(--screensaver-clock-scale, 1));
     transform-origin:center;
-  }
+      }
   .screensaver-backdrop.open .screensaver-clock,
   .screensaver-backdrop.open .screensaver-analog-clock{
     animation:screensaverClockGuard 137s ease-in-out infinite;
@@ -49912,6 +51524,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 }
 .theme-light .screensaver-voice-btn:hover,
 .theme-light .screensaver-voice-btn:focus-visible,
+.theme-light .screensaver-voice-btn.pressed,
 .theme-light .screensaver-voice-btn.listening{
   color:#5f420f;
   background:linear-gradient(180deg, color-mix(in srgb, var(--ma-accent) 14%, white 86%), rgba(255,255,255,.62));
@@ -50951,10 +52564,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   50%{transform:translate3d(5px,-4px,0);opacity:.58;}
 }
 @keyframes screensaverClockGuard{
-  0%,100%{transform:translate(calc(-50% - 4px), calc(-50% + 3px)) scale(var(--screensaver-clock-scale, 1));opacity:.94;}
-  25%{transform:translate(calc(-50% + 5px), calc(-50% - 2px)) scale(var(--screensaver-clock-scale, 1));opacity:.88;}
-  50%{transform:translate(calc(-50% + 2px), calc(-50% + 5px)) scale(var(--screensaver-clock-scale, 1));opacity:.92;}
-  75%{transform:translate(calc(-50% - 5px), calc(-50% - 3px)) scale(var(--screensaver-clock-scale, 1));opacity:.9;}
+  0%,100%{transform:translate(calc(-50% - 4px), calc(-50% + 3px)) scale(var(--screensaver-clock-scale, 1));}
+  25%{transform:translate(calc(-50% + 5px), calc(-50% - 2px)) scale(var(--screensaver-clock-scale, 1));}
+  50%{transform:translate(calc(-50% + 2px), calc(-50% + 5px)) scale(var(--screensaver-clock-scale, 1));}
+  75%{transform:translate(calc(-50% - 5px), calc(-50% - 3px)) scale(var(--screensaver-clock-scale, 1));}
 }
 @keyframes screensaverClockGlow{
   0%,100%{text-shadow:0 10px 36px rgba(0,0,0,.48), 0 0 0 rgba(var(--dynamic-accent-rgb,245 166 35) / 0);}
@@ -51024,15 +52637,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   .screensaver-action-cluster{
     inset-inline-end:18px;
     inset-block-end:18px;
-    gap:8px;
+    gap:6px;
+    flex-wrap:nowrap;
+    max-width:calc(100vw - 36px);
   }
   .screensaver-voice-btn{
     width:58px;
     height:58px;
   }
   .screensaver-control-btn{
-    width:50px;
-    height:50px;
+    width:44px;
+    height:44px;
   }
 }
 
@@ -51111,8 +52726,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
               </div>
             </div>
             <div class="confirm-actions clean-all-confirm-actions">
-              <button class="menu-item danger-confirm-action" id="cleanAllConfirmContinueBtn">${this._esc(this._cleanAllLabel())}</button>
-              <button class="menu-item" id="cleanAllConfirmCancelBtn">${this._esc(this._i18n("ui.cancel"))}</button>
+              <button class="clean-all-confirm-btn danger-confirm-action" id="cleanAllConfirmContinueBtn">${this._esc(this._cleanAllLabel())}</button>
+              <button class="clean-all-confirm-btn" id="cleanAllConfirmCancelBtn">${this._esc(this._i18n("ui.cancel"))}</button>
             </div>
           </div>
         </div>
@@ -51185,7 +52800,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       if (!this._pressUiButton(e.currentTarget, [8, 18, 8])) return;
       this._startVoiceAssistantCommand({ keepScreensaver: true, ignoreWhenListening: true });
     });
-    ["screensaverPrevBtn", "screensaverPlayPauseBtn", "screensaverNextBtn", "screensaverMuteBtn", "screensaverPowerBtn", "screensaverLikeBtn", "screensaverLyricsBtn"].forEach((id) => {
+    ["screensaverPrevBtn", "screensaverPlayPauseBtn", "screensaverNextBtn", "screensaverMuteBtn", "screensaverPowerBtn", "screensaverLikeBtn", "screensaverLyricsBtn", "screensaverLyricsSyncBtn", "screensaverLyricsFontMinusBtn", "screensaverLyricsFontPlusBtn"].forEach((id) => {
       this.$(id)?.addEventListener("pointerdown", (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -51237,6 +52852,27 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._syncLyricsForCurrentTrack?.();
       this._syncScreensaverUi();
     });
+    this.$("screensaverLyricsSyncBtn")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!this._pressUiButton(e.currentTarget)) return;
+      this._toggleLyricsSyncEnabled();
+      this._syncScreensaverUi();
+    });
+    this.$("screensaverLyricsFontMinusBtn")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!this._pressUiButton(e.currentTarget)) return;
+      this._nudgeLyricsFontScale(-0.08);
+      this._syncScreensaverUi();
+    });
+    this.$("screensaverLyricsFontPlusBtn")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!this._pressUiButton(e.currentTarget)) return;
+      this._nudgeLyricsFontScale(0.08);
+      this._syncScreensaverUi();
+    });
     this.$("screensaverLikeBtn")?.addEventListener("click", async (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -51256,6 +52892,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this.$("mobileShuffleBtn")?.addEventListener("click", () => this._toggleShuffle());
     this.$("mobileRepeatBtn")?.addEventListener("click", () => this._toggleRepeat());
     this.$("btnMute")?.addEventListener("click", () => this._toggleMute());
+    this.shadowRoot.querySelectorAll(".group-volume-btn").forEach((btn) => btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!this._pressUiButton(e.currentTarget)) return;
+      this._openGroupVolumeShortcut();
+    }));
     this.shadowRoot.querySelectorAll("[data-volume-step]").forEach((btn) => btn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -51296,9 +52938,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       if (!this._pressUiButton(e.currentTarget)) return;
       this._cycleNightMode();
     });
-    this.$("nightSleepBtn")?.addEventListener("click", (e) => {
+    this.$("nightSleepBtn")?.addEventListener("click", async (e) => {
       if (!this._pressUiButton(e.currentTarget)) return;
-      this._cycleSleepTimer("night");
+      await this._cycleSleepTimer("night");
     });
     this.$("nightChillBtn")?.addEventListener("click", async (e) => {
       if (!this._pressUiButton(e.currentTarget)) return;
@@ -51343,7 +52985,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._state.mobileHistoryRenderedHtml = "";
       this._syncRecentHistoryUi();
     });
-    this.$("sleepTimerCorner")?.addEventListener("click", (e) => {
+    this.$("sleepTimerCorner")?.addEventListener("click", async (e) => {
       const chipBtn = e.target.closest("#sleepTimerChip");
       if (chipBtn) {
         if (!this._pressUiButton(chipBtn)) return;
@@ -51352,13 +52994,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       }
       const addBtn = e.target.closest("[data-sleep-timer-add]");
       if (addBtn) {
-        this._addSleepTimerMinutes(Number(addBtn.dataset.sleepTimerAdd || 15));
+        await this._addSleepTimerMinutes(Number(addBtn.dataset.sleepTimerAdd || 15));
         this._toggleSleepTimerMenu(false);
         return;
       }
       const clearBtn = e.target.closest("[data-sleep-timer-clear]");
       if (clearBtn) {
-        this._clearSleepTimer(true);
+        await this._clearSleepTimer(true);
         return;
       }
       const closeBtn = e.target.closest("[data-sleep-timer-close]");
@@ -51401,7 +53043,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         if (result === "kept") {
           this._toast(this._i18n("ui.at_least_one_player_must_stay_selected"));
         } else {
-          this._toastSuccess(result === "removed" ? this._m(`${name} removed from studio selection`, `${name} הוסר מבחירת הסטודיו`) : this._m(`${name} added to studio selection`, `${name} נוסף לבחירת הסטודיו`));
+          this._toastSuccess(result === "removed" ? this._m(`${name} removed from studio selection`, `${name} ???? ?????? ???????`) : this._m(`${name} added to studio selection`, `${name} ???? ?????? ???????`));
         }
         return;
       }
@@ -51414,7 +53056,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         this._setControlRoomPrimary(entityId);
         this._toastSuccess(this._m(
           `Studio is now controlling ${this._controlRoomPlayerName(entityId)}`,
-          `הסטודיו שולט עכשיו ב־${this._controlRoomPlayerName(entityId)}`
+          `??????? ???? ????? ??${this._controlRoomPlayerName(entityId)}`
         ));
         return;
       }
@@ -51427,7 +53069,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         const player = this._playerByEntityId(entityId);
         try {
           await this._togglePlayFor(entityId);
-          this._toastSuccess(player?.state === "playing" ? this._m(`${this._controlRoomPlayerName(entityId)} paused`, `${this._controlRoomPlayerName(entityId)} הושהה`) : this._m(`${this._controlRoomPlayerName(entityId)} started playing`, `${this._controlRoomPlayerName(entityId)} התחיל לנגן`));
+          this._toastSuccess(player?.state === "playing" ? this._m(`${this._controlRoomPlayerName(entityId)} paused`, `${this._controlRoomPlayerName(entityId)} ?????`) : this._m(`${this._controlRoomPlayerName(entityId)} started playing`, `${this._controlRoomPlayerName(entityId)} ????? ????`));
           setTimeout(() => this._updateNowPlayingState(), 250);
         } catch (error) {
           this._toastError(error?.message || this._i18n("ui.playback_command_failed_2"));
@@ -51442,7 +53084,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         const entityId = nextBtn.dataset.roomNext;
         try {
           await this._playerCmdFor(entityId, "next");
-          this._toastSuccess(this._m(`${this._controlRoomPlayerName(entityId)} skipped to next`, `${this._controlRoomPlayerName(entityId)} עבר לשיר הבא`));
+          this._toastSuccess(this._m(`${this._controlRoomPlayerName(entityId)} skipped to next`, `${this._controlRoomPlayerName(entityId)} ??? ???? ???`));
           setTimeout(() => this._updateNowPlayingState(), 250);
         } catch (error) {
           this._toastError(error?.message || this._i18n("ui.next_track_failed"));
@@ -51458,7 +53100,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         const wasMuted = this._isMuted(this._playerByEntityId(entityId));
         try {
           await this._toggleMuteFor(entityId);
-          this._toastSuccess(wasMuted ? this._m(`${this._controlRoomPlayerName(entityId)} unmuted`, `${this._controlRoomPlayerName(entityId)} הוחזר לווליום`) : this._m(`${this._controlRoomPlayerName(entityId)} muted`, `${this._controlRoomPlayerName(entityId)} הושתק`));
+          this._toastSuccess(wasMuted ? this._m(`${this._controlRoomPlayerName(entityId)} unmuted`, `${this._controlRoomPlayerName(entityId)} ????? ???????`) : this._m(`${this._controlRoomPlayerName(entityId)} muted`, `${this._controlRoomPlayerName(entityId)} ?????`));
           setTimeout(() => this._updateNowPlayingState(), 160);
         } catch (error) {
           this._toastError(error?.message || this._i18n("ui.mute_command_failed"));
@@ -51475,7 +53117,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         this._syncControlRoomUi();
         this._toast(this._m(
           `Transfer source: ${this._controlRoomPlayerName(this._state.controlRoomTransferSource)}`,
-          `מקור להעברה: ${this._controlRoomPlayerName(this._state.controlRoomTransferSource)}`
+          `???? ??????: ${this._controlRoomPlayerName(this._state.controlRoomTransferSource)}`
         ));
         return;
       }
@@ -51490,7 +53132,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           this._syncControlRoomUi();
           this._toast(this._m(
             `Transfer target: ${this._controlRoomPlayerName(targetId)}`,
-            `יעד להעברה: ${this._controlRoomPlayerName(targetId)}`
+            `??? ??????: ${this._controlRoomPlayerName(targetId)}`
           ));
         }
         return;
@@ -51554,7 +53196,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           media_type: libraryActionBtn.dataset.roomLibraryType || "album",
           name: libraryActionBtn.dataset.roomLibraryName || "",
           subtitle: libraryActionBtn.dataset.roomLibrarySubtitle || "",
-          image: libraryActionBtn.dataset.roomLibraryImage || ""
+          image: libraryActionBtn.dataset.roomLibraryImage || "",
+          favorite_scope: libraryActionBtn.dataset.roomLibraryFavoriteScope || "library"
         };
         if (!entry?.uri) return;
         const played = await this._playControlRoomLibraryEntry(entry, action);
@@ -51566,7 +53209,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             else this._syncControlRoomUi({ force: true });
           }
           const messages2 = {
-            play: this._m(`Started ${entry.name || "media"} in Studio`, `${entry.name || "מדיה"} הופעל בסטודיו`),
+            play: this._m(`Started ${entry.name || "media"} in Studio`, `${entry.name || "????"} ????? ???????`),
             next: this._i18n("ui.will_play_next_in_studio"),
             add: this._i18n("ui.added_to_studio_queue"),
             radio_mode: this._i18n("ui.radio_mode_started"),
@@ -51589,13 +53232,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           media_type: libraryPlayBtn.dataset.roomLibraryType || "album",
           name: libraryPlayBtn.dataset.roomLibraryName || "",
           subtitle: libraryPlayBtn.dataset.roomLibrarySubtitle || "",
-          image: libraryPlayBtn.dataset.roomLibraryImage || ""
+          image: libraryPlayBtn.dataset.roomLibraryImage || "",
+          favorite_scope: libraryPlayBtn.dataset.roomLibraryFavoriteScope || "library"
         };
         if (!entry?.uri) return;
         const played = await this._playControlRoomLibraryEntry(entry);
         if (played) {
           this._state.controlRoomPanel = "";
-          this._toastSuccess(this._m(`Started ${entry.name || "media"} in Studio`, `${entry.name || "מדיה"} הופעל בסטודיו`));
+          this._toastSuccess(this._m(`Started ${entry.name || "media"} in Studio`, `${entry.name || "????"} ????? ???????`));
           setTimeout(() => this._updateNowPlayingState(), 350);
         } else {
           this._toastError(this._i18n("ui.could_not_start_playback_in_studio"));
@@ -51673,7 +53317,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         if (result === "kept") {
           this._toast(this._i18n("ui.at_least_one_player_must_stay_selected"));
         } else {
-          this._toastSuccess(result === "removed" ? this._m(`${this._controlRoomPlayerName(entityId)} removed from selection`, `${this._controlRoomPlayerName(entityId)} הוסר מהבחירה`) : this._m(`${this._controlRoomPlayerName(entityId)} selected`, `${this._controlRoomPlayerName(entityId)} נבחר`));
+          this._toastSuccess(result === "removed" ? this._m(`${this._controlRoomPlayerName(entityId)} removed from selection`, `${this._controlRoomPlayerName(entityId)} ???? ???????`) : this._m(`${this._controlRoomPlayerName(entityId)} selected`, `${this._controlRoomPlayerName(entityId)} ????`));
         }
         return;
       }
@@ -51685,7 +53329,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         const entityId = visibleToggleBtn.dataset.roomVisibleToggle;
         const wasVisible = this._controlRoomVisiblePlayerIds().includes(entityId);
         this._toggleControlRoomVisiblePlayer(entityId);
-        this._toastSuccess(wasVisible ? this._m(`${this._controlRoomPlayerName(entityId)} hidden from Studio`, `${this._controlRoomPlayerName(entityId)} הוסתר מהסטודיו`) : this._m(`${this._controlRoomPlayerName(entityId)} shown in Studio`, `${this._controlRoomPlayerName(entityId)} מוצג בסטודיו`));
+        this._toastSuccess(wasVisible ? this._m(`${this._controlRoomPlayerName(entityId)} hidden from Studio`, `${this._controlRoomPlayerName(entityId)} ????? ????????`) : this._m(`${this._controlRoomPlayerName(entityId)} shown in Studio`, `${this._controlRoomPlayerName(entityId)} ???? ???????`));
         return;
       }
       const dockBtn = e.target.closest("[data-room-selection-action]");
@@ -51727,7 +53371,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           this._pressUiButton(dockBtn);
           const wasOpen = this._state.controlRoomPanel === action;
           this._toggleControlRoomPanel(action);
-          this._toast(wasOpen ? this._m(`${this._controlRoomPanelLabel(action)} closed`, `${this._controlRoomPanelLabel(action)} נסגר`) : this._m(`${this._controlRoomPanelLabel(action)} opened`, `${this._controlRoomPanelLabel(action)} נפתח`));
+          this._toast(wasOpen ? this._m(`${this._controlRoomPanelLabel(action)} closed`, `${this._controlRoomPanelLabel(action)} ????`) : this._m(`${this._controlRoomPanelLabel(action)} opened`, `${this._controlRoomPanelLabel(action)} ????`));
           return;
         }
         const primaryId = this._controlRoomPrimaryPlayerId();
@@ -51737,7 +53381,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           const player = this._playerByEntityId(primaryId);
           try {
             await this._togglePlayFor(primaryId);
-            this._toastSuccess(player?.state === "playing" ? this._m(`${this._controlRoomPlayerName(primaryId)} paused`, `${this._controlRoomPlayerName(primaryId)} הושהה`) : this._m(`${this._controlRoomPlayerName(primaryId)} started playing`, `${this._controlRoomPlayerName(primaryId)} התחיל לנגן`));
+            this._toastSuccess(player?.state === "playing" ? this._m(`${this._controlRoomPlayerName(primaryId)} paused`, `${this._controlRoomPlayerName(primaryId)} ?????`) : this._m(`${this._controlRoomPlayerName(primaryId)} started playing`, `${this._controlRoomPlayerName(primaryId)} ????? ????`));
             setTimeout(() => this._updateNowPlayingState(), 250);
           } catch (error) {
             this._toastError(error?.message || this._i18n("ui.playback_command_failed_2"));
@@ -51749,7 +53393,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           this._pressUiButton(dockBtn);
           try {
             await this._playerCmdFor(primaryId, "next");
-            this._toastSuccess(this._m(`${this._controlRoomPlayerName(primaryId)} skipped to next`, `${this._controlRoomPlayerName(primaryId)} עבר לשיר הבא`));
+            this._toastSuccess(this._m(`${this._controlRoomPlayerName(primaryId)} skipped to next`, `${this._controlRoomPlayerName(primaryId)} ??? ???? ???`));
             setTimeout(() => this._updateNowPlayingState(), 250);
           } catch (error) {
             this._toastError(error?.message || this._i18n("ui.next_track_failed"));
@@ -51762,7 +53406,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           const wasMuted = this._isMuted(this._playerByEntityId(primaryId));
           try {
             await this._toggleMuteFor(primaryId);
-            this._toastSuccess(wasMuted ? this._m(`${this._controlRoomPlayerName(primaryId)} unmuted`, `${this._controlRoomPlayerName(primaryId)} הוחזר לווליום`) : this._m(`${this._controlRoomPlayerName(primaryId)} muted`, `${this._controlRoomPlayerName(primaryId)} הושתק`));
+            this._toastSuccess(wasMuted ? this._m(`${this._controlRoomPlayerName(primaryId)} unmuted`, `${this._controlRoomPlayerName(primaryId)} ????? ???????`) : this._m(`${this._controlRoomPlayerName(primaryId)} muted`, `${this._controlRoomPlayerName(primaryId)} ?????`));
             setTimeout(() => this._updateNowPlayingState(), 160);
           } catch (error) {
             this._toastError(error?.message || this._i18n("ui.mute_command_failed"));
@@ -51774,7 +53418,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           this._pressUiButton(dockBtn);
           try {
             await this._stopPlayer(primaryId);
-            this._toastSuccess(this._m(`${this._controlRoomPlayerName(primaryId)} stopped`, `${this._controlRoomPlayerName(primaryId)} נעצר`));
+            this._toastSuccess(this._m(`${this._controlRoomPlayerName(primaryId)} stopped`, `${this._controlRoomPlayerName(primaryId)} ????`));
             setTimeout(() => this._updateNowPlayingState(), 250);
           } catch (error) {
             this._toastError(error?.message || this._i18n("ui.stop_command_failed"));
@@ -51790,7 +53434,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           await Promise.allSettled(selectedIds.map((entityId) => this._togglePlayFor(entityId)));
           this._toastSuccess(this._m(
             `Play / pause sent to ${this._controlRoomPlayerCountLabel(selectedIds.length)}`,
-            `פקודת נגן / השהה נשלחה אל ${this._controlRoomPlayerCountLabel(selectedIds.length)}`
+            `????? ??? / ???? ????? ?? ${this._controlRoomPlayerCountLabel(selectedIds.length)}`
           ));
           setTimeout(() => this._updateNowPlayingState(), 250);
           return;
@@ -51800,7 +53444,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           await Promise.allSettled(selectedIds.map((entityId) => this._playerCmdFor(entityId, "next")));
           this._toastSuccess(this._m(
             `Next sent to ${this._controlRoomPlayerCountLabel(selectedIds.length)}`,
-            `פקודת הבא נשלחה אל ${this._controlRoomPlayerCountLabel(selectedIds.length)}`
+            `????? ??? ????? ?? ${this._controlRoomPlayerCountLabel(selectedIds.length)}`
           ));
           setTimeout(() => this._updateNowPlayingState(), 250);
           return;
@@ -51810,7 +53454,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           await Promise.allSettled(selectedIds.map((entityId) => this._toggleMuteFor(entityId)));
           this._toastSuccess(this._m(
             `Mute sent to ${this._controlRoomPlayerCountLabel(selectedIds.length)}`,
-            `פקודת השתק נשלחה אל ${this._controlRoomPlayerCountLabel(selectedIds.length)}`
+            `????? ???? ????? ?? ${this._controlRoomPlayerCountLabel(selectedIds.length)}`
           ));
           setTimeout(() => this._updateNowPlayingState(), 250);
           return;
@@ -51820,7 +53464,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           await Promise.allSettled(selectedIds.map((entityId) => this._clearQueueForPlayer(entityId)));
           this._toastSuccess(this._m(
             `Queues cleared for ${this._controlRoomPlayerCountLabel(selectedIds.length)}`,
-            `התורים נוקו עבור ${this._controlRoomPlayerCountLabel(selectedIds.length)}`
+            `?????? ???? ???? ${this._controlRoomPlayerCountLabel(selectedIds.length)}`
           ));
           this._loadControlRoomQueues(selectedIds).catch(() => {
           });
@@ -51911,7 +53555,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const pct = Math.max(0, Math.min(100, Number(volumeInput.value || 0)));
       this._toastSuccess(this._m(
         `${this._controlRoomPlayerName(volumeInput.dataset.roomVolume)} volume set to ${pct}%`,
-        `הווליום של ${this._controlRoomPlayerName(volumeInput.dataset.roomVolume)} עודכן ל־${pct}%`
+        `??????? ?? ${this._controlRoomPlayerName(volumeInput.dataset.roomVolume)} ????? ??${pct}%`
       ));
     });
     this.$("controlRoomBackdrop")?.addEventListener("input", (e) => {
@@ -52013,15 +53657,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const actionContext = this._state.mobileActionContext;
       if (action === "close") return this._closeMobileQueueActionMenu();
       if (!entry) return;
+      let actionOk = true;
       if (actionContext === "media") {
-        await this._handleMobileMediaAction(action, entry);
+        actionOk = await this._handleMobileMediaAction(action, entry);
       } else if (action === "like") {
-        await this._toggleLikeEntry(entry, btn);
+        actionOk = await this._toggleLikeEntry(entry, btn);
       } else {
         const targetPosition = action === "move_to" ? this._queueMoveTargetFromElement(btn) : null;
         if (action === "move_to" && !targetPosition) return;
         await this._handleQueueAction(action, entry.queue_item_id, entry.uri || "", entry.sort_index || "", targetPosition);
       }
+      if (actionOk === false) return;
       this._closeMobileQueueActionMenu();
       if (this._state.menuOpen && (actionContext === "media" || action === "like" || String(this._state.menuPage || "").startsWith("library_"))) {
         await this._renderMobileMenu();
@@ -52123,7 +53769,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._setMobileRandomFabVisible(false);
       return;
     }
-    if (title) title.textContent = player?.attributes?.friendly_name || this._i18n("ui.selected_player");
+    if (title) title.textContent = this._playerDisplayName(player) || this._i18n("ui.selected_player");
     if (sub) sub.textContent = "";
     if (tags) {
       const groupCount = this._playerGroupCount(player);
@@ -52231,6 +53877,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this.$("mobileQueueActionModal")?.classList.add("open");
   }
   _openMobileMediaActionMenu(entry = {}) {
+    if (!entry.favorite_scope && !entry.favoriteScope) entry.favorite_scope = "library";
     this._state.mobileActionContext = "media";
     this._state.mobileQueueActionEntry = entry;
     const host = this.$("mobileQueueActionSheet");
@@ -52251,7 +53898,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         <button class="queue-action-item" data-media-popup="next_clear">${this._iconSvg("next")}<span>${this._esc(this._i18n("ui.play_next_and_clear_queue"))}</span></button>
         <button class="queue-action-item" data-media-popup="add">${this._iconSvg("queue")}<span>${this._esc(this._i18n("ui.add_to_queue"))}</span></button>
         ${radioMode ? `<button class="queue-action-item" data-media-popup="radio_mode">${this._iconSvg("radio")}<span>${this._esc(this._i18n("ui.start_radio_mode"))}</span></button>` : ``}
-        <button class="queue-action-item" data-media-popup="like">${this._iconSvg(liked ? "heart_filled" : "heart_outline")}<span>${this._esc(this._m(liked ? "Remove like" : "Like", liked ? "בטל אהבתי" : "סמן אהבתי"))}</span></button>
+        <button class="queue-action-item" data-media-popup="like">${this._iconSvg(liked ? "heart_filled" : "heart_outline")}<span>${this._esc(this._m(liked ? "Remove like" : "Like", liked ? "הסר לייק" : "הוסף לייק"))}</span></button>
         <button class="queue-action-item warn" data-media-popup="close">${this._iconSvg("close")}<span>${this._esc(this._i18n("ui.close"))}</span></button>
       `;
     }
@@ -52269,7 +53916,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       name: String(dataset.mediaName || "").trim(),
       artist: String(dataset.mediaArtist || "").trim(),
       album: String(dataset.mediaAlbum || "").trim(),
-      image: String(dataset.mediaImage || "").trim()
+      image: String(dataset.mediaImage || "").trim(),
+      favorite_scope: String(dataset.mediaFavoriteScope || dataset.mediaScope || "library").trim() || "library"
     };
   }
   async _handleMediaDetailActionButton(button = null) {
@@ -52286,7 +53934,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     });
     if (action === "like") {
       const wasLiked = this._isEntryLiked(entry);
-      await this._toggleLikeEntry(entry, button);
+      const ok = await this._toggleLikeEntry(entry, button);
+      if (!ok) return false;
       if (!this._useMaLikedMode()) this._toastSuccess(wasLiked ? this._i18n("ui.removed_from_liked") : this._i18n("ui.added_to_liked"));
       await this._renderMobileMenu();
       if (scrollSnapshot) this._restoreMobileMenuScrollSnapshot(scrollSnapshot, scrollSnapshot.page);
@@ -52313,44 +53962,47 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     return false;
   }
   async _handleMobileMediaAction(action, entry = {}) {
-    if (!entry?.uri) return;
+    if (!entry?.uri) return false;
     const label = String(entry.name || "").trim();
     if (action === "like") {
       const wasLiked = this._isEntryLiked(entry);
-      await this._toggleLikeEntry(entry);
+      const ok = await this._toggleLikeEntry(entry);
+      if (!ok) return false;
       if (!this._useMaLikedMode()) {
         this._toastSuccess(wasLiked ? this._i18n("ui.removed_from_liked") : this._i18n("ui.added_to_liked"));
       }
-      return;
+      return true;
     }
     if (action === "play" || action === "play_clear") {
-      await this._playMedia(entry.uri, entry.media_type || "album", "play", { label });
-      return;
+      return this._playMedia(entry.uri, entry.media_type || "album", "play", { label });
     }
     if (action === "next") {
       const ok = await this._playMedia(entry.uri, entry.media_type || "album", "next", { label, silent: true });
       if (ok) this._toastSuccess(this._i18n("ui.will_play_next"));
-      return;
+      return ok;
     }
     if (action === "next_clear") {
       await this._clearQueueForPlayer(this._state.selectedPlayer);
       const ok = await this._playMedia(entry.uri, entry.media_type || "album", "next", { label, silent: true });
       if (ok) this._toastSuccess(this._i18n("ui.queue_cleared_and_item_moved_next"));
-      return;
+      return ok;
     }
     if (action === "add") {
       const ok = await this._playMedia(entry.uri, entry.media_type || "album", "add", { label, silent: true });
       if (ok) this._toastSuccess(this._i18n("ui.added_to_queue"));
+      return ok;
     }
     if (action === "radio_mode") {
       const mediaType = entry.media_type || "album";
       if (!this._supportsMusicAssistantRadioMode(mediaType)) {
         this._toastError(this._i18n("ui.radio_mode_is_not_available_for_this_media_type"));
-        return;
+        return false;
       }
       const ok = await this._playMedia(entry.uri, mediaType, "play", { label, radioMode: true, silent: true });
       if (ok) this._toastSuccess(this._i18n("ui.radio_mode_started"));
+      return ok;
     }
+    return false;
   }
   _openMobileVolumePresets() {
     const host = this.$("mobileVolumePresetSheet");
@@ -52812,6 +54464,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       return;
     }
     if (!player) {
+      this._syncGroupVolumeShortcut(null);
       this._syncControlRoomUi();
       this._resetLocalSendspinMediaSession();
     }
@@ -52919,6 +54572,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
     const cardRoot = this.shadowRoot.querySelector(".card");
     const wasEmptyMedia = !!cardRoot?.classList.contains("empty-media");
+    this._syncGroupVolumeShortcut(player);
     cardRoot?.classList.remove("empty-media");
     cardRoot?.classList.remove("radio-media");
     this._hideEmptyPlaybackLoading();
@@ -53487,182 +55141,182 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       ...extra
     });
     const styles = [
-      style("pop", "music_note", "Pop", t("Popular hits", "להיטי פופ"), ["pop hits playlist", "top pop playlist", "pop music"]),
-      style("indie-pop", "music_note", "Indie Pop", t("Fresh alternative pop", "פופ אינדי"), ["indie pop playlist", "fresh indie pop", "alternative pop"]),
-      style("k-pop", "music_note", "K-Pop", t("Korean pop", "קיי-פופ"), ["k-pop playlist", "kpop hits", "korean pop"]),
-      style("j-pop", "music_note", "J-Pop", t("Japanese pop", "ג'יי-פופ"), ["j-pop playlist", "jpop hits", "japanese pop"]),
-      style("hip-hop", "tracks", "Hip-Hop", t("Beats and flow", "היפ-הופ"), ["hip hop playlist", "hip hop hits", "rap hip hop"]),
-      style("rap", "tracks", "Rap", t("Rap essentials", "ראפ"), ["rap playlist", "rap hits", "new rap"]),
-      style("trap", "tracks", "Trap", t("Modern trap", "טראפ"), ["trap playlist", "trap hits", "modern trap"]),
+      style("pop", "music_note", "Pop", t("Popular hits", "????? ???"), ["pop hits playlist", "top pop playlist", "pop music"]),
+      style("indie-pop", "music_note", "Indie Pop", t("Fresh alternative pop", "??? ?????"), ["indie pop playlist", "fresh indie pop", "alternative pop"]),
+      style("k-pop", "music_note", "K-Pop", t("Korean pop", "???-???"), ["k-pop playlist", "kpop hits", "korean pop"]),
+      style("j-pop", "music_note", "J-Pop", t("Japanese pop", "?'??-???"), ["j-pop playlist", "jpop hits", "japanese pop"]),
+      style("hip-hop", "tracks", "Hip-Hop", t("Beats and flow", "???-???"), ["hip hop playlist", "hip hop hits", "rap hip hop"]),
+      style("rap", "tracks", "Rap", t("Rap essentials", "???"), ["rap playlist", "rap hits", "new rap"]),
+      style("trap", "tracks", "Trap", t("Modern trap", "????"), ["trap playlist", "trap hits", "modern trap"]),
       style("rnb", "heart_filled", "R&B", t("Smooth rhythm", "R&B"), ["r&b playlist", "rnb hits", "smooth r&b"]),
-      style("soul", "heart_filled", "Soul", t("Warm vocals", "סול"), ["soul playlist", "neo soul", "soul classics"]),
-      style("funk", "radio", "Funk", t("Groove and bass", "פאנק"), ["funk playlist", "funk classics", "groove funk"]),
-      style("rock", "album", "Rock", t("Guitars and bands", "רוק"), ["rock playlist", "rock hits", "rock music"]),
-      style("classic-rock", "album", "Classic Rock", t("Rock classics", "רוק קלאסי"), ["classic rock playlist", "rock classics", "70s rock"]),
-      style("alternative-rock", "album", "Alternative Rock", t("Alternative bands", "רוק אלטרנטיבי"), ["alternative rock playlist", "alt rock", "alternative music"]),
-      style("indie-rock", "album", "Indie Rock", t("Independent rock", "אינדי רוק"), ["indie rock playlist", "indie bands", "garage rock"]),
-      style("punk", "album", "Punk", t("Fast guitars", "פאנק רוק"), ["punk rock playlist", "punk hits", "pop punk"]),
-      style("metal", "album", "Metal", t("Heavy guitars", "מטאל"), ["metal playlist", "heavy metal", "metal hits"]),
-      style("electronic", "grid", "Electronic", t("Electronic music", "אלקטרוני"), ["electronic playlist", "electronica", "electronic music"]),
+      style("soul", "heart_filled", "Soul", t("Warm vocals", "???"), ["soul playlist", "neo soul", "soul classics"]),
+      style("funk", "radio", "Funk", t("Groove and bass", "????"), ["funk playlist", "funk classics", "groove funk"]),
+      style("rock", "album", "Rock", t("Guitars and bands", "???"), ["rock playlist", "rock hits", "rock music"]),
+      style("classic-rock", "album", "Classic Rock", t("Rock classics", "??? ?????"), ["classic rock playlist", "rock classics", "70s rock"]),
+      style("alternative-rock", "album", "Alternative Rock", t("Alternative bands", "??? ?????????"), ["alternative rock playlist", "alt rock", "alternative music"]),
+      style("indie-rock", "album", "Indie Rock", t("Independent rock", "????? ???"), ["indie rock playlist", "indie bands", "garage rock"]),
+      style("punk", "album", "Punk", t("Fast guitars", "???? ???"), ["punk rock playlist", "punk hits", "pop punk"]),
+      style("metal", "album", "Metal", t("Heavy guitars", "????"), ["metal playlist", "heavy metal", "metal hits"]),
+      style("electronic", "grid", "Electronic", t("Electronic music", "????????"), ["electronic playlist", "electronica", "electronic music"]),
       style("edm", "grid", "EDM", t("Festival energy", "EDM"), ["edm playlist", "edm hits", "festival edm"]),
-      style("house", "grid", "House", t("House music", "האוס"), ["house music playlist", "house hits", "club house"]),
-      style("deep-house", "grid", "Deep House", t("Deep club sound", "דיפ האוס"), ["deep house playlist", "deep house music", "melodic house"]),
-      style("tech-house", "grid", "Tech House", t("Club groove", "טק האוס"), ["tech house playlist", "tech house music", "club tech house"]),
-      style("techno", "grid", "Techno", t("Driving electronic", "טכנו"), ["techno playlist", "techno music", "melodic techno"]),
-      style("trance", "grid", "Trance", t("Uplifting trance", "טראנס"), ["trance playlist", "uplifting trance", "psytrance"]),
-      style("drum-bass", "grid", "Drum & Bass", t("Fast breaks", "דראם אנד בייס"), ["drum and bass playlist", "dnb playlist", "liquid drum and bass"]),
-      style("dubstep", "grid", "Dubstep", t("Bass drops", "דאבסטפ"), ["dubstep playlist", "bass music", "dubstep hits"]),
-      style("dance", "radio", "Dance", t("Dance hits", "דאנס"), ["dance playlist", "dance hits", "dance pop"]),
-      style("disco", "radio", "Disco", t("Disco classics", "דיסקו"), ["disco playlist", "disco classics", "nu disco"]),
-      style("party", "radio", this._i18n("ui.party"), t("Party hits", "להיטי מסיבה"), ["party hits playlist", "party music", "dance party"]),
-      style("workout", "stats", "Workout", t("Training energy", "אימון"), ["workout playlist", "gym music", "running playlist"]),
-      style("jazz", "music_note", "Jazz", t("Jazz essentials", "ג'אז"), ["jazz playlist", "smooth jazz", "vocal jazz"]),
-      style("blues", "music_note", "Blues", t("Blues classics", "בלוז"), ["blues playlist", "blues classics", "modern blues"]),
-      style("classical", "album", "Classical", t("Classical music", "קלאסי"), ["classical music playlist", "classical essentials", "orchestra classical"]),
-      style("piano", "album", "Piano", t("Piano focus", "פסנתר"), ["piano playlist", "classical piano", "peaceful piano"]),
-      style("ambient", "moon", "Ambient", t("Soundscapes", "אמביינט"), ["ambient playlist", "ambient music", "soundscape"]),
-      style("chill", "moon", "Chill", t("Relaxed listening", "צ'יל"), ["chill playlist", "chillout music", "relaxing chill"]),
-      style("lofi", "moon", "Lo-Fi", t("Lo-fi beats", "לו-פיי"), ["lo-fi playlist", "lofi beats", "lo-fi hip hop"]),
-      style("acoustic", "album", "Acoustic", t("Unplugged sound", "אקוסטי"), ["acoustic playlist", "unplugged music", "acoustic chill"]),
-      style("folk", "album", "Folk", t("Folk songs", "פולק"), ["folk playlist", "singer songwriter", "indie folk"]),
-      style("country", "album", "Country", t("Country music", "קאנטרי"), ["country playlist", "country hits", "americana"]),
-      style("reggae", "radio", "Reggae", t("Island groove", "רגאיי"), ["reggae playlist", "reggae classics", "dancehall reggae"]),
-      style("latin", "radio", "Latin", t("Latin music", "לטיני"), ["latin playlist", "latin hits", "latin pop"]),
-      style("reggaeton", "radio", "Reggaeton", t("Latin urban", "רגאטון"), ["reggaeton playlist", "reggaeton hits", "latin urban"]),
-      style("salsa", "radio", "Salsa", t("Salsa dance", "סלסה"), ["salsa playlist", "salsa classics", "latin salsa"]),
-      style("bachata", "radio", "Bachata", t("Bachata rhythm", "בצ'אטה"), ["bachata playlist", "bachata hits", "latin bachata"]),
-      style("afrobeats", "radio", "Afrobeats", t("Afro rhythm", "אפרוביטס"), ["afrobeats playlist", "afrobeats hits", "afropop"]),
-      style("amapiano", "radio", "Amapiano", t("South African groove", "אמאפיאנו"), ["amapiano playlist", "amapiano hits", "afro house amapiano"]),
-      style("world", "radio", "World", t("Global sounds", "מוזיקת עולם"), ["world music playlist", "global music", "international playlist"]),
-      style("soundtrack", "album", "Soundtracks", t("Movies and series", "פסקולים"), ["soundtrack playlist", "movie soundtracks", "film music"]),
-      style("meditation", "moon", "Meditation", t("Calm focus", "מדיטציה"), ["meditation music", "calm meditation", "relaxing instrumental"]),
-      style("sleep", "moon", "Sleep", t("Quiet night", "שינה"), ["sleep music", "sleep playlist", "deep sleep music"]),
-      style("kids", "heart_filled", this._i18n("ui.kids"), t("Family music", "ילדים ומשפחה"), ["kids music playlist", "children songs", "family music kids"]),
-      style("israeli", "music_note", this._i18n("ui.israeli"), t("Israeli music", "מוזיקה ישראלית"), ["ישראלי עברית פלייליסט", "israeli music", "israeli hits"]),
-      style("hebrew-hits", "music_note", t("Hebrew Hits", "להיטים בעברית"), t("Hebrew songs", "שירים בעברית"), ["להיטים בעברית", "מוזיקה עברית", "hebrew hits playlist"]),
-      style("mizrahi", "radio", t("Mizrahi", "מזרחית"), t("Mediterranean pop", "ים תיכוני"), ["מזרחית פלייליסט", "מוזיקה מזרחית", "mizrahit music"]),
-      style("mediterranean", "radio", t("Mediterranean", "ים תיכוני"), t("Warm regional sound", "צליל ים תיכוני"), ["mediterranean music playlist", "ים תיכוני", "greek turkish mediterranean music"]),
-      style("arabic", "radio", t("Arabic", "ערבית"), t("Arabic music", "מוזיקה ערבית"), ["arabic music playlist", "arabic hits", "middle eastern music"]),
-      style("turkish", "radio", t("Turkish", "טורקית"), t("Turkish music", "מוזיקה טורקית"), ["turkish music playlist", "turkish pop", "turkish hits"]),
-      style("greek", "radio", t("Greek", "יוונית"), t("Greek music", "מוזיקה יוונית"), ["greek music playlist", "greek hits", "greek pop"]),
-      style("french", "radio", t("French", "צרפתית"), t("French music", "מוזיקה צרפתית"), ["french music playlist", "french pop", "chanson francaise"]),
-      style("spanish", "radio", t("Spanish", "ספרדית"), t("Spanish music", "מוזיקה ספרדית"), ["spanish music playlist", "spanish pop", "musica espanola"]),
-      style("singer-songwriter", "album", "Singer-Songwriter", t("Personal songs", "זמרים-יוצרים"), ["singer songwriter playlist", "singer-songwriter", "acoustic singer songwriter"]),
-      style("soft-pop", "music_note", "Soft Pop", t("Soft pop songs", "פופ רך"), ["soft pop playlist", "soft pop hits", "easy pop"]),
-      style("pop-rock", "album", "Pop Rock", t("Pop guitars", "פופ רוק"), ["pop rock playlist", "pop rock hits", "guitar pop"]),
-      style("electropop", "grid", "Electropop", t("Electronic pop", "אלקטרו-פופ"), ["electropop playlist", "electro pop", "synth pop"]),
-      style("synth-pop", "grid", "Synth Pop", t("Synth classics", "סינת' פופ"), ["synth pop playlist", "synthpop classics", "80s synth pop"]),
-      style("dream-pop", "moon", "Dream Pop", t("Dreamy pop", "דרים פופ"), ["dream pop playlist", "dreamy indie pop", "shoegaze dream pop"]),
-      style("bedroom-pop", "music_note", "Bedroom Pop", t("Lo-fi pop", "בד-רום פופ"), ["bedroom pop playlist", "lofi bedroom pop", "indie bedroom pop"]),
-      style("hyperpop", "grid", "Hyperpop", t("Maximal pop", "הייפרפופ"), ["hyperpop playlist", "hyper pop", "glitch pop"]),
-      style("emo", "heart_filled", "Emo", t("Emotional rock", "אימו"), ["emo playlist", "emo rock", "emo pop punk"]),
-      style("post-punk", "album", "Post-Punk", t("Angular guitars", "פוסט-פאנק"), ["post-punk playlist", "post punk classics", "dark post punk"]),
-      style("new-wave", "grid", "New Wave", t("80s alternative", "ניו ווייב"), ["new wave playlist", "80s new wave", "new wave classics"]),
-      style("goth", "moon", "Goth", t("Dark wave sound", "גותי"), ["goth playlist", "gothic rock", "darkwave"]),
-      style("darkwave", "moon", "Darkwave", t("Dark synth sound", "דארקווייב"), ["darkwave playlist", "dark wave", "coldwave"]),
-      style("industrial", "grid", "Industrial", t("Heavy electronic", "אינדסטריאל"), ["industrial playlist", "industrial rock", "industrial electronic"]),
-      style("grunge", "album", "Grunge", t("90s guitars", "גראנג'"), ["grunge playlist", "90s grunge", "grunge classics"]),
-      style("hard-rock", "album", "Hard Rock", t("Hard guitars", "הארד רוק"), ["hard rock playlist", "hard rock hits", "arena rock"]),
-      style("soft-rock", "album", "Soft Rock", t("Soft rock classics", "רוק רך"), ["soft rock playlist", "soft rock classics", "easy rock"]),
-      style("prog-rock", "album", "Progressive Rock", t("Progressive rock", "רוק מתקדם"), ["progressive rock playlist", "prog rock", "classic prog rock"]),
-      style("psychedelic-rock", "album", "Psychedelic Rock", t("Psych rock", "רוק פסיכדלי"), ["psychedelic rock playlist", "psych rock", "psychedelic music"]),
-      style("shoegaze", "moon", "Shoegaze", t("Wall of sound", "שוגייז"), ["shoegaze playlist", "dream pop shoegaze", "shoegaze classics"]),
-      style("garage-rock", "album", "Garage Rock", t("Raw rock", "גראז' רוק"), ["garage rock playlist", "garage rock revival", "raw rock"]),
-      style("surf-rock", "radio", "Surf Rock", t("Surf guitars", "סרף רוק"), ["surf rock playlist", "surf guitar", "surf rock classics"]),
-      style("metalcore", "album", "Metalcore", t("Modern heavy", "מטאלקור"), ["metalcore playlist", "modern metalcore", "metalcore hits"]),
-      style("death-metal", "album", "Death Metal", t("Extreme metal", "דת' מטאל"), ["death metal playlist", "death metal classics", "melodic death metal"]),
-      style("black-metal", "album", "Black Metal", t("Extreme dark metal", "בלאק מטאל"), ["black metal playlist", "atmospheric black metal", "black metal classics"]),
-      style("progressive-metal", "album", "Progressive Metal", t("Technical metal", "מטאל מתקדם"), ["progressive metal playlist", "prog metal", "technical metal"]),
-      style("nu-metal", "album", "Nu Metal", t("90s heavy crossover", "נו מטאל"), ["nu metal playlist", "nu metal hits", "rap metal"]),
-      style("folk-metal", "album", "Folk Metal", t("Folk heavy sound", "פולק מטאל"), ["folk metal playlist", "celtic metal", "viking metal"]),
-      style("old-school-hip-hop", "tracks", "Old School Hip-Hop", t("Classic hip-hop", "היפ-הופ קלאסי"), ["old school hip hop playlist", "classic hip hop", "90s hip hop"]),
-      style("boom-bap", "tracks", "Boom Bap", t("Classic beats", "בום באפ"), ["boom bap playlist", "boom bap hip hop", "90s rap boom bap"]),
-      style("conscious-rap", "tracks", "Conscious Rap", t("Lyrical rap", "ראפ מודע"), ["conscious rap playlist", "lyrical hip hop", "conscious hip hop"]),
-      style("drill", "tracks", "Drill", t("Drill rap", "דריל"), ["drill playlist", "drill rap", "uk drill"]),
-      style("grime", "tracks", "Grime", t("UK rap energy", "גריים"), ["grime playlist", "uk grime", "grime hits"]),
-      style("phonk", "grid", "Phonk", t("Dark drift beats", "פונק"), ["phonk playlist", "drift phonk", "dark phonk"]),
-      style("afro-trap", "tracks", "Afro Trap", t("Afro rap", "אפרו טראפ"), ["afro trap playlist", "afrotrap", "afro rap"]),
-      style("neo-soul", "heart_filled", "Neo Soul", t("Modern soul", "נאו סול"), ["neo soul playlist", "modern soul", "neo soul r&b"]),
-      style("motown", "heart_filled", "Motown", t("Motown classics", "מוטאון"), ["motown playlist", "motown classics", "classic soul motown"]),
-      style("gospel", "heart_filled", "Gospel", t("Gospel vocals", "גוספל"), ["gospel playlist", "gospel music", "soul gospel"]),
-      style("vocal-jazz", "music_note", "Vocal Jazz", t("Jazz vocals", "ג'אז ווקאלי"), ["vocal jazz playlist", "jazz singers", "vocal jazz classics"]),
-      style("smooth-jazz", "music_note", "Smooth Jazz", t("Smooth jazz", "ג'אז חלק"), ["smooth jazz playlist", "smooth jazz hits", "jazz lounge"]),
-      style("bebop", "music_note", "Bebop", t("Bebop jazz", "ביבופ"), ["bebop playlist", "bebop jazz", "charlie parker style jazz"]),
-      style("swing", "music_note", "Swing", t("Swing jazz", "סווינג"), ["swing playlist", "swing jazz", "big band swing"]),
-      style("big-band", "music_note", "Big Band", t("Big band jazz", "ביג בנד"), ["big band playlist", "big band jazz", "swing orchestra"]),
-      style("latin-jazz", "radio", "Latin Jazz", t("Latin jazz", "ג'אז לטיני"), ["latin jazz playlist", "latin jazz classics", "bossa jazz"]),
-      style("jazz-fusion", "grid", "Jazz Fusion", t("Fusion jazz", "פיוז'ן ג'אז"), ["jazz fusion playlist", "fusion jazz", "jazz rock fusion"]),
-      style("opera", "album", "Opera", t("Opera voices", "אופרה"), ["opera playlist", "opera classics", "classical opera"]),
-      style("orchestral", "album", "Orchestral", t("Orchestra music", "תזמורת"), ["orchestral playlist", "orchestra music", "symphony playlist"]),
-      style("chamber", "album", "Chamber Music", t("Small ensemble", "מוזיקה קאמרית"), ["chamber music playlist", "classical chamber", "string quartet"]),
-      style("baroque", "album", "Baroque", t("Baroque classical", "בארוק"), ["baroque playlist", "baroque classical", "bach baroque"]),
-      style("romantic-classical", "album", "Romantic Classical", t("Romantic era", "קלאסי רומנטי"), ["romantic classical playlist", "romantic era classical", "chopin liszt classical"]),
-      style("film-score", "album", "Film Score", t("Cinematic score", "מוזיקה לקולנוע"), ["film score playlist", "cinematic score", "movie score"]),
-      style("synthwave", "grid", "Synthwave", t("Retro synths", "סינת'ווייב"), ["synthwave playlist", "retrowave", "80s synthwave"]),
-      style("retrowave", "grid", "Retrowave", t("Retro electronic", "רטרו-ווייב"), ["retrowave playlist", "retro wave", "outrun synthwave"]),
-      style("downtempo", "moon", "Downtempo", t("Slow electronic", "דאונטמפו"), ["downtempo playlist", "downtempo electronic", "chill downtempo"]),
-      style("trip-hop", "moon", "Trip-Hop", t("Moody beats", "טריפ-הופ"), ["trip hop playlist", "trip-hop classics", "downtempo trip hop"]),
-      style("chillhop", "moon", "Chillhop", t("Chill beats", "צ'ילהופ"), ["chillhop playlist", "chill hop beats", "lofi chillhop"]),
-      style("future-bass", "grid", "Future Bass", t("Bright bass", "פיוצ'ר בס"), ["future bass playlist", "future bass hits", "melodic bass"]),
-      style("uk-garage", "grid", "UK Garage", t("UK club sound", "UK גאראז'"), ["uk garage playlist", "ukg playlist", "2-step garage"]),
-      style("breakbeat", "grid", "Breakbeat", t("Broken beats", "ברייקביט"), ["breakbeat playlist", "breaks playlist", "electro breaks"]),
-      style("hardstyle", "grid", "Hardstyle", t("Hard dance", "הארדסטייל"), ["hardstyle playlist", "hard dance", "hardstyle hits"]),
-      style("minimal-techno", "grid", "Minimal Techno", t("Minimal club", "טכנו מינימלי"), ["minimal techno playlist", "minimal techno", "minimal electronic"]),
-      style("progressive-house", "grid", "Progressive House", t("Melodic house", "פרוגרסיב האוס"), ["progressive house playlist", "melodic progressive house", "progressive house hits"]),
-      style("electro", "grid", "Electro", t("Electro beats", "אלקטרו"), ["electro playlist", "electro music", "electro dance"]),
+      style("house", "grid", "House", t("House music", "????"), ["house music playlist", "house hits", "club house"]),
+      style("deep-house", "grid", "Deep House", t("Deep club sound", "??? ????"), ["deep house playlist", "deep house music", "melodic house"]),
+      style("tech-house", "grid", "Tech House", t("Club groove", "?? ????"), ["tech house playlist", "tech house music", "club tech house"]),
+      style("techno", "grid", "Techno", t("Driving electronic", "????"), ["techno playlist", "techno music", "melodic techno"]),
+      style("trance", "grid", "Trance", t("Uplifting trance", "?????"), ["trance playlist", "uplifting trance", "psytrance"]),
+      style("drum-bass", "grid", "Drum & Bass", t("Fast breaks", "???? ??? ????"), ["drum and bass playlist", "dnb playlist", "liquid drum and bass"]),
+      style("dubstep", "grid", "Dubstep", t("Bass drops", "??????"), ["dubstep playlist", "bass music", "dubstep hits"]),
+      style("dance", "radio", "Dance", t("Dance hits", "????"), ["dance playlist", "dance hits", "dance pop"]),
+      style("disco", "radio", "Disco", t("Disco classics", "?????"), ["disco playlist", "disco classics", "nu disco"]),
+      style("party", "radio", this._i18n("ui.party"), t("Party hits", "????? ?????"), ["party hits playlist", "party music", "dance party"]),
+      style("workout", "stats", "Workout", t("Training energy", "?????"), ["workout playlist", "gym music", "running playlist"]),
+      style("jazz", "music_note", "Jazz", t("Jazz essentials", "?'??"), ["jazz playlist", "smooth jazz", "vocal jazz"]),
+      style("blues", "music_note", "Blues", t("Blues classics", "????"), ["blues playlist", "blues classics", "modern blues"]),
+      style("classical", "album", "Classical", t("Classical music", "?????"), ["classical music playlist", "classical essentials", "orchestra classical"]),
+      style("piano", "album", "Piano", t("Piano focus", "?????"), ["piano playlist", "classical piano", "peaceful piano"]),
+      style("ambient", "moon", "Ambient", t("Soundscapes", "???????"), ["ambient playlist", "ambient music", "soundscape"]),
+      style("chill", "moon", "Chill", t("Relaxed listening", "?'??"), ["chill playlist", "chillout music", "relaxing chill"]),
+      style("lofi", "moon", "Lo-Fi", t("Lo-fi beats", "??-???"), ["lo-fi playlist", "lofi beats", "lo-fi hip hop"]),
+      style("acoustic", "album", "Acoustic", t("Unplugged sound", "??????"), ["acoustic playlist", "unplugged music", "acoustic chill"]),
+      style("folk", "album", "Folk", t("Folk songs", "????"), ["folk playlist", "singer songwriter", "indie folk"]),
+      style("country", "album", "Country", t("Country music", "??????"), ["country playlist", "country hits", "americana"]),
+      style("reggae", "radio", "Reggae", t("Island groove", "?????"), ["reggae playlist", "reggae classics", "dancehall reggae"]),
+      style("latin", "radio", "Latin", t("Latin music", "?????"), ["latin playlist", "latin hits", "latin pop"]),
+      style("reggaeton", "radio", "Reggaeton", t("Latin urban", "??????"), ["reggaeton playlist", "reggaeton hits", "latin urban"]),
+      style("salsa", "radio", "Salsa", t("Salsa dance", "????"), ["salsa playlist", "salsa classics", "latin salsa"]),
+      style("bachata", "radio", "Bachata", t("Bachata rhythm", "??'???"), ["bachata playlist", "bachata hits", "latin bachata"]),
+      style("afrobeats", "radio", "Afrobeats", t("Afro rhythm", "????????"), ["afrobeats playlist", "afrobeats hits", "afropop"]),
+      style("amapiano", "radio", "Amapiano", t("South African groove", "????????"), ["amapiano playlist", "amapiano hits", "afro house amapiano"]),
+      style("world", "radio", "World", t("Global sounds", "?????? ????"), ["world music playlist", "global music", "international playlist"]),
+      style("soundtrack", "album", "Soundtracks", t("Movies and series", "???????"), ["soundtrack playlist", "movie soundtracks", "film music"]),
+      style("meditation", "moon", "Meditation", t("Calm focus", "???????"), ["meditation music", "calm meditation", "relaxing instrumental"]),
+      style("sleep", "moon", "Sleep", t("Quiet night", "????"), ["sleep music", "sleep playlist", "deep sleep music"]),
+      style("kids", "heart_filled", this._i18n("ui.kids"), t("Family music", "????? ??????"), ["kids music playlist", "children songs", "family music kids"]),
+      style("israeli", "music_note", this._i18n("ui.israeli"), t("Israeli music", "?????? ???????"), ["?????? ????? ????????", "israeli music", "israeli hits"]),
+      style("hebrew-hits", "music_note", t("Hebrew Hits", "?????? ??????"), t("Hebrew songs", "????? ??????"), ["?????? ??????", "?????? ?????", "hebrew hits playlist"]),
+      style("mizrahi", "radio", t("Mizrahi", "??????"), t("Mediterranean pop", "?? ??????"), ["?????? ????????", "?????? ??????", "mizrahit music"]),
+      style("mediterranean", "radio", t("Mediterranean", "?? ??????"), t("Warm regional sound", "???? ?? ??????"), ["mediterranean music playlist", "?? ??????", "greek turkish mediterranean music"]),
+      style("arabic", "radio", t("Arabic", "?????"), t("Arabic music", "?????? ?????"), ["arabic music playlist", "arabic hits", "middle eastern music"]),
+      style("turkish", "radio", t("Turkish", "??????"), t("Turkish music", "?????? ??????"), ["turkish music playlist", "turkish pop", "turkish hits"]),
+      style("greek", "radio", t("Greek", "??????"), t("Greek music", "?????? ??????"), ["greek music playlist", "greek hits", "greek pop"]),
+      style("french", "radio", t("French", "??????"), t("French music", "?????? ??????"), ["french music playlist", "french pop", "chanson francaise"]),
+      style("spanish", "radio", t("Spanish", "??????"), t("Spanish music", "?????? ??????"), ["spanish music playlist", "spanish pop", "musica espanola"]),
+      style("singer-songwriter", "album", "Singer-Songwriter", t("Personal songs", "?????-??????"), ["singer songwriter playlist", "singer-songwriter", "acoustic singer songwriter"]),
+      style("soft-pop", "music_note", "Soft Pop", t("Soft pop songs", "??? ??"), ["soft pop playlist", "soft pop hits", "easy pop"]),
+      style("pop-rock", "album", "Pop Rock", t("Pop guitars", "??? ???"), ["pop rock playlist", "pop rock hits", "guitar pop"]),
+      style("electropop", "grid", "Electropop", t("Electronic pop", "??????-???"), ["electropop playlist", "electro pop", "synth pop"]),
+      style("synth-pop", "grid", "Synth Pop", t("Synth classics", "????' ???"), ["synth pop playlist", "synthpop classics", "80s synth pop"]),
+      style("dream-pop", "moon", "Dream Pop", t("Dreamy pop", "???? ???"), ["dream pop playlist", "dreamy indie pop", "shoegaze dream pop"]),
+      style("bedroom-pop", "music_note", "Bedroom Pop", t("Lo-fi pop", "??-??? ???"), ["bedroom pop playlist", "lofi bedroom pop", "indie bedroom pop"]),
+      style("hyperpop", "grid", "Hyperpop", t("Maximal pop", "????????"), ["hyperpop playlist", "hyper pop", "glitch pop"]),
+      style("emo", "heart_filled", "Emo", t("Emotional rock", "????"), ["emo playlist", "emo rock", "emo pop punk"]),
+      style("post-punk", "album", "Post-Punk", t("Angular guitars", "????-????"), ["post-punk playlist", "post punk classics", "dark post punk"]),
+      style("new-wave", "grid", "New Wave", t("80s alternative", "??? ?????"), ["new wave playlist", "80s new wave", "new wave classics"]),
+      style("goth", "moon", "Goth", t("Dark wave sound", "????"), ["goth playlist", "gothic rock", "darkwave"]),
+      style("darkwave", "moon", "Darkwave", t("Dark synth sound", "?????????"), ["darkwave playlist", "dark wave", "coldwave"]),
+      style("industrial", "grid", "Industrial", t("Heavy electronic", "??????????"), ["industrial playlist", "industrial rock", "industrial electronic"]),
+      style("grunge", "album", "Grunge", t("90s guitars", "?????'"), ["grunge playlist", "90s grunge", "grunge classics"]),
+      style("hard-rock", "album", "Hard Rock", t("Hard guitars", "???? ???"), ["hard rock playlist", "hard rock hits", "arena rock"]),
+      style("soft-rock", "album", "Soft Rock", t("Soft rock classics", "??? ??"), ["soft rock playlist", "soft rock classics", "easy rock"]),
+      style("prog-rock", "album", "Progressive Rock", t("Progressive rock", "??? ?????"), ["progressive rock playlist", "prog rock", "classic prog rock"]),
+      style("psychedelic-rock", "album", "Psychedelic Rock", t("Psych rock", "??? ???????"), ["psychedelic rock playlist", "psych rock", "psychedelic music"]),
+      style("shoegaze", "moon", "Shoegaze", t("Wall of sound", "??????"), ["shoegaze playlist", "dream pop shoegaze", "shoegaze classics"]),
+      style("garage-rock", "album", "Garage Rock", t("Raw rock", "????' ???"), ["garage rock playlist", "garage rock revival", "raw rock"]),
+      style("surf-rock", "radio", "Surf Rock", t("Surf guitars", "??? ???"), ["surf rock playlist", "surf guitar", "surf rock classics"]),
+      style("metalcore", "album", "Metalcore", t("Modern heavy", "???????"), ["metalcore playlist", "modern metalcore", "metalcore hits"]),
+      style("death-metal", "album", "Death Metal", t("Extreme metal", "??' ????"), ["death metal playlist", "death metal classics", "melodic death metal"]),
+      style("black-metal", "album", "Black Metal", t("Extreme dark metal", "???? ????"), ["black metal playlist", "atmospheric black metal", "black metal classics"]),
+      style("progressive-metal", "album", "Progressive Metal", t("Technical metal", "???? ?????"), ["progressive metal playlist", "prog metal", "technical metal"]),
+      style("nu-metal", "album", "Nu Metal", t("90s heavy crossover", "?? ????"), ["nu metal playlist", "nu metal hits", "rap metal"]),
+      style("folk-metal", "album", "Folk Metal", t("Folk heavy sound", "???? ????"), ["folk metal playlist", "celtic metal", "viking metal"]),
+      style("old-school-hip-hop", "tracks", "Old School Hip-Hop", t("Classic hip-hop", "???-??? ?????"), ["old school hip hop playlist", "classic hip hop", "90s hip hop"]),
+      style("boom-bap", "tracks", "Boom Bap", t("Classic beats", "??? ???"), ["boom bap playlist", "boom bap hip hop", "90s rap boom bap"]),
+      style("conscious-rap", "tracks", "Conscious Rap", t("Lyrical rap", "??? ????"), ["conscious rap playlist", "lyrical hip hop", "conscious hip hop"]),
+      style("drill", "tracks", "Drill", t("Drill rap", "????"), ["drill playlist", "drill rap", "uk drill"]),
+      style("grime", "tracks", "Grime", t("UK rap energy", "?????"), ["grime playlist", "uk grime", "grime hits"]),
+      style("phonk", "grid", "Phonk", t("Dark drift beats", "????"), ["phonk playlist", "drift phonk", "dark phonk"]),
+      style("afro-trap", "tracks", "Afro Trap", t("Afro rap", "???? ????"), ["afro trap playlist", "afrotrap", "afro rap"]),
+      style("neo-soul", "heart_filled", "Neo Soul", t("Modern soul", "??? ???"), ["neo soul playlist", "modern soul", "neo soul r&b"]),
+      style("motown", "heart_filled", "Motown", t("Motown classics", "??????"), ["motown playlist", "motown classics", "classic soul motown"]),
+      style("gospel", "heart_filled", "Gospel", t("Gospel vocals", "?????"), ["gospel playlist", "gospel music", "soul gospel"]),
+      style("vocal-jazz", "music_note", "Vocal Jazz", t("Jazz vocals", "?'?? ??????"), ["vocal jazz playlist", "jazz singers", "vocal jazz classics"]),
+      style("smooth-jazz", "music_note", "Smooth Jazz", t("Smooth jazz", "?'?? ???"), ["smooth jazz playlist", "smooth jazz hits", "jazz lounge"]),
+      style("bebop", "music_note", "Bebop", t("Bebop jazz", "?????"), ["bebop playlist", "bebop jazz", "charlie parker style jazz"]),
+      style("swing", "music_note", "Swing", t("Swing jazz", "??????"), ["swing playlist", "swing jazz", "big band swing"]),
+      style("big-band", "music_note", "Big Band", t("Big band jazz", "??? ???"), ["big band playlist", "big band jazz", "swing orchestra"]),
+      style("latin-jazz", "radio", "Latin Jazz", t("Latin jazz", "?'?? ?????"), ["latin jazz playlist", "latin jazz classics", "bossa jazz"]),
+      style("jazz-fusion", "grid", "Jazz Fusion", t("Fusion jazz", "????'? ?'??"), ["jazz fusion playlist", "fusion jazz", "jazz rock fusion"]),
+      style("opera", "album", "Opera", t("Opera voices", "?????"), ["opera playlist", "opera classics", "classical opera"]),
+      style("orchestral", "album", "Orchestral", t("Orchestra music", "??????"), ["orchestral playlist", "orchestra music", "symphony playlist"]),
+      style("chamber", "album", "Chamber Music", t("Small ensemble", "?????? ??????"), ["chamber music playlist", "classical chamber", "string quartet"]),
+      style("baroque", "album", "Baroque", t("Baroque classical", "?????"), ["baroque playlist", "baroque classical", "bach baroque"]),
+      style("romantic-classical", "album", "Romantic Classical", t("Romantic era", "????? ??????"), ["romantic classical playlist", "romantic era classical", "chopin liszt classical"]),
+      style("film-score", "album", "Film Score", t("Cinematic score", "?????? ???????"), ["film score playlist", "cinematic score", "movie score"]),
+      style("synthwave", "grid", "Synthwave", t("Retro synths", "????'?????"), ["synthwave playlist", "retrowave", "80s synthwave"]),
+      style("retrowave", "grid", "Retrowave", t("Retro electronic", "????-?????"), ["retrowave playlist", "retro wave", "outrun synthwave"]),
+      style("downtempo", "moon", "Downtempo", t("Slow electronic", "????????"), ["downtempo playlist", "downtempo electronic", "chill downtempo"]),
+      style("trip-hop", "moon", "Trip-Hop", t("Moody beats", "????-???"), ["trip hop playlist", "trip-hop classics", "downtempo trip hop"]),
+      style("chillhop", "moon", "Chillhop", t("Chill beats", "?'?????"), ["chillhop playlist", "chill hop beats", "lofi chillhop"]),
+      style("future-bass", "grid", "Future Bass", t("Bright bass", "????'? ??"), ["future bass playlist", "future bass hits", "melodic bass"]),
+      style("uk-garage", "grid", "UK Garage", t("UK club sound", "UK ?????'"), ["uk garage playlist", "ukg playlist", "2-step garage"]),
+      style("breakbeat", "grid", "Breakbeat", t("Broken beats", "????????"), ["breakbeat playlist", "breaks playlist", "electro breaks"]),
+      style("hardstyle", "grid", "Hardstyle", t("Hard dance", "?????????"), ["hardstyle playlist", "hard dance", "hardstyle hits"]),
+      style("minimal-techno", "grid", "Minimal Techno", t("Minimal club", "???? ???????"), ["minimal techno playlist", "minimal techno", "minimal electronic"]),
+      style("progressive-house", "grid", "Progressive House", t("Melodic house", "???????? ????"), ["progressive house playlist", "melodic progressive house", "progressive house hits"]),
+      style("electro", "grid", "Electro", t("Electro beats", "??????"), ["electro playlist", "electro music", "electro dance"]),
       style("idm", "grid", "IDM", t("Experimental electronic", "IDM"), ["idm playlist", "intelligent dance music", "experimental electronic"]),
-      style("ska", "radio", "Ska", t("Ska rhythm", "סקא"), ["ska playlist", "ska classics", "ska punk"]),
-      style("dancehall", "radio", "Dancehall", t("Dancehall reggae", "דאנסהול"), ["dancehall playlist", "dancehall reggae", "dancehall hits"]),
-      style("dub", "radio", "Dub", t("Dub reggae", "דאב"), ["dub playlist", "dub reggae", "roots dub"]),
-      style("roots-reggae", "radio", "Roots Reggae", t("Roots reggae", "רגאיי שורשי"), ["roots reggae playlist", "roots reggae classics", "reggae roots"]),
-      style("afro-house", "grid", "Afro House", t("Afro club sound", "אפרו האוס"), ["afro house playlist", "afro house music", "afro tech house"]),
-      style("afropop", "radio", "Afropop", t("African pop", "אפרו פופ"), ["afropop playlist", "african pop", "afropop hits"]),
-      style("highlife", "radio", "Highlife", t("West African sound", "היילייף"), ["highlife playlist", "ghana highlife", "west african highlife"]),
-      style("soukous", "radio", "Soukous", t("Congo guitar sound", "סוקוס"), ["soukous playlist", "congolese music", "african soukous"]),
-      style("cumbia", "radio", "Cumbia", t("Cumbia rhythm", "קומביה"), ["cumbia playlist", "cumbia classics", "latin cumbia"]),
-      style("tango", "radio", "Tango", t("Tango classics", "טנגו"), ["tango playlist", "argentine tango", "tango classics"]),
-      style("bossa-nova", "music_note", "Bossa Nova", t("Brazilian jazz", "בוסה נובה"), ["bossa nova playlist", "bossa nova classics", "brazilian bossa"]),
-      style("samba", "radio", "Samba", t("Brazilian samba", "סמבה"), ["samba playlist", "brazilian samba", "samba classics"]),
+      style("ska", "radio", "Ska", t("Ska rhythm", "???"), ["ska playlist", "ska classics", "ska punk"]),
+      style("dancehall", "radio", "Dancehall", t("Dancehall reggae", "???????"), ["dancehall playlist", "dancehall reggae", "dancehall hits"]),
+      style("dub", "radio", "Dub", t("Dub reggae", "???"), ["dub playlist", "dub reggae", "roots dub"]),
+      style("roots-reggae", "radio", "Roots Reggae", t("Roots reggae", "????? ?????"), ["roots reggae playlist", "roots reggae classics", "reggae roots"]),
+      style("afro-house", "grid", "Afro House", t("Afro club sound", "???? ????"), ["afro house playlist", "afro house music", "afro tech house"]),
+      style("afropop", "radio", "Afropop", t("African pop", "???? ???"), ["afropop playlist", "african pop", "afropop hits"]),
+      style("highlife", "radio", "Highlife", t("West African sound", "???????"), ["highlife playlist", "ghana highlife", "west african highlife"]),
+      style("soukous", "radio", "Soukous", t("Congo guitar sound", "?????"), ["soukous playlist", "congolese music", "african soukous"]),
+      style("cumbia", "radio", "Cumbia", t("Cumbia rhythm", "??????"), ["cumbia playlist", "cumbia classics", "latin cumbia"]),
+      style("tango", "radio", "Tango", t("Tango classics", "????"), ["tango playlist", "argentine tango", "tango classics"]),
+      style("bossa-nova", "music_note", "Bossa Nova", t("Brazilian jazz", "???? ????"), ["bossa nova playlist", "bossa nova classics", "brazilian bossa"]),
+      style("samba", "radio", "Samba", t("Brazilian samba", "????"), ["samba playlist", "brazilian samba", "samba classics"]),
       style("mpb", "radio", "MPB", t("Brazilian popular music", "MPB"), ["mpb playlist", "brazilian mpb", "musica popular brasileira"]),
-      style("flamenco", "radio", "Flamenco", t("Spanish guitar", "פלמנקו"), ["flamenco playlist", "flamenco guitar", "spanish flamenco"]),
-      style("bollywood", "radio", "Bollywood", t("Indian cinema", "בוליווד"), ["bollywood playlist", "bollywood hits", "hindi film songs"]),
-      style("indian-classical", "album", "Indian Classical", t("Indian classical", "קלאסי הודי"), ["indian classical music", "hindustani classical", "carnatic classical"]),
-      style("punjabi", "radio", "Punjabi", t("Punjabi hits", "פונג'אבי"), ["punjabi playlist", "punjabi hits", "bhangra punjabi"]),
-      style("bhangra", "radio", "Bhangra", t("Bhangra dance", "באנגרה"), ["bhangra playlist", "bhangra hits", "punjabi bhangra"]),
-      style("city-pop", "grid", "City Pop", t("Japanese city pop", "סיטי פופ"), ["city pop playlist", "japanese city pop", "80s city pop"]),
-      style("mandopop", "music_note", "Mandopop", t("Mandarin pop", "מנדו-פופ"), ["mandopop playlist", "mandarin pop", "chinese pop"]),
-      style("cantopop", "music_note", "Cantopop", t("Cantonese pop", "קנטו-פופ"), ["cantopop playlist", "cantonese pop", "hong kong pop"]),
-      style("korean-indie", "music_note", "Korean Indie", t("Korean indie", "אינדי קוריאני"), ["korean indie playlist", "k-indie", "korean indie pop"]),
-      style("persian", "radio", "Persian", t("Persian music", "פרסית"), ["persian music playlist", "persian pop", "iranian music"]),
-      style("focus", "moon", "Focus", t("Music for focus", "ריכוז"), ["focus playlist", "deep focus music", "instrumental focus"]),
-      style("study", "moon", "Study", t("Study music", "לימודים"), ["study playlist", "study music", "concentration music"]),
-      style("coffeehouse", "album", "Coffeehouse", t("Coffeehouse mood", "קפה"), ["coffeehouse playlist", "coffee shop music", "acoustic coffeehouse"]),
-      style("dinner", "heart_filled", "Dinner", t("Dinner music", "ארוחת ערב"), ["dinner playlist", "dinner music", "restaurant lounge"]),
-      style("romance", "heart_filled", "Romance", t("Love songs", "רומנטי"), ["romantic playlist", "love songs", "romance music"]),
-      style("sad", "moon", "Sad", t("Sad songs", "עצוב"), ["sad songs playlist", "melancholy music", "heartbreak playlist"]),
-      style("happy", "radio", "Happy", t("Feel-good songs", "שמח"), ["happy playlist", "feel good music", "happy songs"]),
-      style("summer", "radio", "Summer", t("Summer songs", "קיץ"), ["summer playlist", "summer hits", "beach music"]),
-      style("beach", "radio", "Beach", t("Beach music", "חוף"), ["beach playlist", "beach music", "tropical playlist"]),
-      style("road-trip", "radio", "Road Trip", t("Driving music", "נסיעה"), ["road trip playlist", "driving music", "car playlist"]),
-      style("gaming", "grid", "Gaming", t("Gaming music", "גיימינג"), ["gaming playlist", "gaming music", "electronic gaming"]),
-      style("anime", "music_note", "Anime", t("Anime songs", "אנימה"), ["anime playlist", "anime songs", "anime openings"]),
-      style("50s", "radio", "50s", t("1950s music", "שנות ה-50"), ["50s playlist", "1950s music", "50s rock and roll"]),
-      style("60s", "radio", "60s", t("1960s music", "שנות ה-60"), ["60s playlist", "1960s music", "60s hits"]),
-      style("70s", "radio", "70s", t("1970s music", "שנות ה-70"), ["70s playlist", "1970s hits", "70s rock disco"]),
-      style("80s", "grid", "80s", t("1980s music", "שנות ה-80"), ["80s playlist", "1980s hits", "80s pop rock"]),
-      style("90s", "album", "90s", t("1990s music", "שנות ה-90"), ["90s playlist", "1990s hits", "90s pop rock"]),
-      style("2000s", "music_note", "2000s", t("2000s music", "שנות ה-2000"), ["2000s playlist", "2000s hits", "00s music"]),
-      style("2010s", "music_note", "2010s", t("2010s music", "שנות ה-2010"), ["2010s playlist", "2010s hits", "10s music"]),
-      style("2020s", "music_note", "2020s", t("2020s music", "שנות ה-2020"), ["2020s playlist", "2020s hits", "new music hits"]),
-      style("israeli-rock", "album", t("Israeli Rock", "רוק ישראלי"), t("Israeli bands", "להקות ישראליות"), ["רוק ישראלי", "israeli rock", "להקות רוק ישראלי"]),
-      style("israeli-pop", "music_note", t("Israeli Pop", "פופ ישראלי"), t("Israeli pop hits", "פופ ישראלי"), ["פופ ישראלי", "israeli pop", "להיטי פופ ישראלי"]),
-      style("israeli-rap", "tracks", t("Israeli Rap", "ראפ ישראלי"), t("Hebrew rap", "ראפ בעברית"), ["ראפ ישראלי", "היפ הופ ישראלי", "israeli rap"]),
-      style("israeli-indie", "album", t("Israeli Indie", "אינדי ישראלי"), t("Local indie", "אינדי מקומי"), ["אינדי ישראלי", "israeli indie", "אינדי עברי"]),
-      style("sephardic", "radio", t("Sephardic", "ספרדי"), t("Sephardic music", "מוזיקה ספרדית-יהודית"), ["sephardic music", "מוזיקה ספרדית יהודית", "ladino music"]),
-      style("klezmer", "radio", "Klezmer", t("Jewish folk", "כליזמר"), ["klezmer playlist", "klezmer music", "jewish folk music"]),
-      style("jewish", "radio", t("Jewish", "יהודית"), t("Jewish music", "מוזיקה יהודית"), ["jewish music playlist", "מוזיקה יהודית", "jewish songs"]),
-      style("hasidic", "radio", t("Hasidic", "חסידית"), t("Hasidic music", "מוזיקה חסידית"), ["hasidic music", "מוזיקה חסידית", "chassidic music"]),
-      style("piyyut", "music_note", t("Piyyut", "פיוט"), t("Traditional liturgy", "פיוטים"), ["פיוטים", "piyyut", "traditional jewish liturgy"])
+      style("flamenco", "radio", "Flamenco", t("Spanish guitar", "??????"), ["flamenco playlist", "flamenco guitar", "spanish flamenco"]),
+      style("bollywood", "radio", "Bollywood", t("Indian cinema", "???????"), ["bollywood playlist", "bollywood hits", "hindi film songs"]),
+      style("indian-classical", "album", "Indian Classical", t("Indian classical", "????? ????"), ["indian classical music", "hindustani classical", "carnatic classical"]),
+      style("punjabi", "radio", "Punjabi", t("Punjabi hits", "????'???"), ["punjabi playlist", "punjabi hits", "bhangra punjabi"]),
+      style("bhangra", "radio", "Bhangra", t("Bhangra dance", "??????"), ["bhangra playlist", "bhangra hits", "punjabi bhangra"]),
+      style("city-pop", "grid", "City Pop", t("Japanese city pop", "???? ???"), ["city pop playlist", "japanese city pop", "80s city pop"]),
+      style("mandopop", "music_note", "Mandopop", t("Mandarin pop", "????-???"), ["mandopop playlist", "mandarin pop", "chinese pop"]),
+      style("cantopop", "music_note", "Cantopop", t("Cantonese pop", "????-???"), ["cantopop playlist", "cantonese pop", "hong kong pop"]),
+      style("korean-indie", "music_note", "Korean Indie", t("Korean indie", "????? ???????"), ["korean indie playlist", "k-indie", "korean indie pop"]),
+      style("persian", "radio", "Persian", t("Persian music", "?????"), ["persian music playlist", "persian pop", "iranian music"]),
+      style("focus", "moon", "Focus", t("Music for focus", "?????"), ["focus playlist", "deep focus music", "instrumental focus"]),
+      style("study", "moon", "Study", t("Study music", "???????"), ["study playlist", "study music", "concentration music"]),
+      style("coffeehouse", "album", "Coffeehouse", t("Coffeehouse mood", "???"), ["coffeehouse playlist", "coffee shop music", "acoustic coffeehouse"]),
+      style("dinner", "heart_filled", "Dinner", t("Dinner music", "????? ???"), ["dinner playlist", "dinner music", "restaurant lounge"]),
+      style("romance", "heart_filled", "Romance", t("Love songs", "??????"), ["romantic playlist", "love songs", "romance music"]),
+      style("sad", "moon", "Sad", t("Sad songs", "????"), ["sad songs playlist", "melancholy music", "heartbreak playlist"]),
+      style("happy", "radio", "Happy", t("Feel-good songs", "???"), ["happy playlist", "feel good music", "happy songs"]),
+      style("summer", "radio", "Summer", t("Summer songs", "???"), ["summer playlist", "summer hits", "beach music"]),
+      style("beach", "radio", "Beach", t("Beach music", "???"), ["beach playlist", "beach music", "tropical playlist"]),
+      style("road-trip", "radio", "Road Trip", t("Driving music", "?????"), ["road trip playlist", "driving music", "car playlist"]),
+      style("gaming", "grid", "Gaming", t("Gaming music", "???????"), ["gaming playlist", "gaming music", "electronic gaming"]),
+      style("anime", "music_note", "Anime", t("Anime songs", "?????"), ["anime playlist", "anime songs", "anime openings"]),
+      style("50s", "radio", "50s", t("1950s music", "???? ?-50"), ["50s playlist", "1950s music", "50s rock and roll"]),
+      style("60s", "radio", "60s", t("1960s music", "???? ?-60"), ["60s playlist", "1960s music", "60s hits"]),
+      style("70s", "radio", "70s", t("1970s music", "???? ?-70"), ["70s playlist", "1970s hits", "70s rock disco"]),
+      style("80s", "grid", "80s", t("1980s music", "???? ?-80"), ["80s playlist", "1980s hits", "80s pop rock"]),
+      style("90s", "album", "90s", t("1990s music", "???? ?-90"), ["90s playlist", "1990s hits", "90s pop rock"]),
+      style("2000s", "music_note", "2000s", t("2000s music", "???? ?-2000"), ["2000s playlist", "2000s hits", "00s music"]),
+      style("2010s", "music_note", "2010s", t("2010s music", "???? ?-2010"), ["2010s playlist", "2010s hits", "10s music"]),
+      style("2020s", "music_note", "2020s", t("2020s music", "???? ?-2020"), ["2020s playlist", "2020s hits", "new music hits"]),
+      style("israeli-rock", "album", t("Israeli Rock", "??? ??????"), t("Israeli bands", "????? ????????"), ["??? ??????", "israeli rock", "????? ??? ??????"]),
+      style("israeli-pop", "music_note", t("Israeli Pop", "??? ??????"), t("Israeli pop hits", "??? ??????"), ["??? ??????", "israeli pop", "????? ??? ??????"]),
+      style("israeli-rap", "tracks", t("Israeli Rap", "??? ??????"), t("Hebrew rap", "??? ??????"), ["??? ??????", "??? ??? ??????", "israeli rap"]),
+      style("israeli-indie", "album", t("Israeli Indie", "????? ??????"), t("Local indie", "????? ?????"), ["????? ??????", "israeli indie", "????? ????"]),
+      style("sephardic", "radio", t("Sephardic", "?????"), t("Sephardic music", "?????? ??????-??????"), ["sephardic music", "?????? ?????? ??????", "ladino music"]),
+      style("klezmer", "radio", "Klezmer", t("Jewish folk", "??????"), ["klezmer playlist", "klezmer music", "jewish folk music"]),
+      style("jewish", "radio", t("Jewish", "??????"), t("Jewish music", "?????? ??????"), ["jewish music playlist", "?????? ??????", "jewish songs"]),
+      style("hasidic", "radio", t("Hasidic", "??????"), t("Hasidic music", "?????? ??????"), ["hasidic music", "?????? ??????", "chassidic music"]),
+      style("piyyut", "music_note", t("Piyyut", "????"), t("Traditional liturgy", "??????"), ["??????", "piyyut", "traditional jewish liturgy"])
     ];
     return options.includeCustom ? [...styles, style("custom", "search", this._i18n("ui.free_style"), this._i18n("ui.type_anything"), [])] : styles;
   }
@@ -53702,7 +55356,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
   _simpleWizardSelectedPlayerNames(entityIds = []) {
     const ids = Array.isArray(entityIds) ? entityIds : [];
-    if (ids.length > 1) return this._m(`${ids.length} players`, `${ids.length} נגנים`);
+    if (ids.length > 1) return this._m(`${ids.length} players`, `${ids.length} ?????`);
     const player = this._playerByEntityId(ids[0]);
     return player?.attributes?.friendly_name || ids[0] || this._i18n("ui.selected_player_3");
   }
@@ -53766,7 +55420,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         <div class="simple-wizard-source-grid">
           <button class="simple-wizard-source ${source === "genre" ? "active" : ""}" data-simple-source="genre">
             <span>${this._iconSvg("wand")}</span>
-            <strong>${this._esc(this._m("Style", "סגנון"))}</strong>
+            <strong>${this._esc(this._m("Style", "?????"))}</strong>
           </button>
           <button class="simple-wizard-source ${source === "content" ? "active" : ""}" data-simple-source="content">
             <span>${this._iconSvg("library_music")}</span>
@@ -53775,8 +55429,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         </div>
         ${source === "genre" ? `
           <label class="simple-wizard-search simple-wizard-category-picker">
-            <span>${this._esc(this._m("Style", "סגנון"))}</span>
-            <select id="simpleWizardGenreSelect" class="media-sort-select settings-select simple-wizard-select" aria-label="${this._esc(this._m("Style", "סגנון"))}">
+            <span>${this._esc(this._m("Style", "?????"))}</span>
+            <select id="simpleWizardGenreSelect" class="media-sort-select settings-select simple-wizard-select" aria-label="${this._esc(this._m("Style", "?????"))}">
               ${genreOptions.map((genre) => `<option value="${this._esc(genre.id)}" ${selectedGenre === genre.id ? "selected" : ""}>${this._esc(genre.label)}</option>`).join("")}
             </select>
           </label>
@@ -54251,7 +55905,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._loadPlayers();
     const remaining = this._sleepTimerRemainingLabel();
     const active = this._sleepTimerRemainingMs() > 0;
-    const status = active ? this._m(`Active for ${remaining}`, `פעיל לעוד ${remaining}`) : this._i18n("ui.no_sleep_timer_is_active");
+    const status = active ? this._m(`Active for ${remaining}`, `???? ???? ${remaining}`) : this._i18n("ui.no_sleep_timer_is_active");
     const schedules = this._scheduledStartSchedules();
     const editSchedule = schedules.find((schedule) => schedule.id === this._state.mobileStartScheduleEditId) || null;
     const showWakeEditor = !!editSchedule || this._state.mobileStartScheduleEditId === "__new__";
@@ -54274,7 +55928,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const nightWindow = this._nightModeWindow();
     const nightDays = new Set(this._nightModeDays());
     const activeTab = ["timers", "wake", "night"].includes(this._state.mobileSchedulesTab) ? this._state.mobileSchedulesTab : "timers";
-    const playerOptions = (this._state.players || []).map((player) => {
+    const schedulePlayers = this._strictSchedulePlayers();
+    const playerOptions = schedulePlayers.map((player) => {
       const name = player.attributes?.friendly_name || player.entity_id;
       return `<option value="${this._esc(player.entity_id)}" ${player.entity_id === scheduledPlayer ? "selected" : ""}>${this._esc(name)}</option>`;
     }).join("");
@@ -54423,15 +56078,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (this._isHotelMode()) {
       return `
         <div class="action-grid hotel-action-grid">
-          ${this._navMenuItem("players", this._iconSvg("speaker"), this._i18n("ui.players"), this._m("Choose the room", "בחירת נגן"), "players")}
-          ${this._navMenuItem("quick_search", this._iconSvg("search"), this._i18n("ui.search"), this._m("Find music", "חיפוש מוזיקה"), "simple")}
+          ${this._navMenuItem("players", this._iconSvg("speaker"), this._i18n("ui.players"), this._m("Choose the room", "????? ???"), "players")}
+          ${this._navMenuItem("quick_search", this._iconSvg("search"), this._i18n("ui.search"), this._m("Find music", "????? ??????"), "simple")}
         </div>
       `;
     }
     return `
       <div class="action-grid">
         ${this._navMenuItem("simple_wizard", this._iconSvg("wand"), "FLOW", this._i18n("ui.a_guided_music_wizard"), "simple")}
-        ${this._discoveryModeEnabled() ? this._navMenuItem("discovery", this._iconSvg("grid"), this._i18n("ui.discover_music", {}, this._m("Discover", "גלה מוזיקה")), this._i18n("ui.style_and_genres", {}, this._m("Style and genres", "סגנונות וז'אנרים")), "discovery") : ""}
+        ${this._discoveryModeEnabled() ? this._navMenuItem("discovery", this._iconSvg("grid"), this._i18n("ui.discover_music", {}, this._m("Discover", "??? ??????")), this._i18n("ui.style_and_genres", {}, this._m("Style and genres", "??????? ??'?????")), "discovery") : ""}
         ${this._navMenuItem("players", this._iconSvg("speaker"), this._i18n("ui.players"), this._i18n("ui.players_queue_and_groups"), "players")}
         ${this._navMenuItem("library_liked", this._iconSvg("heart_filled"), this._i18n("ui.liked"), this._i18n("ui.open_saved_songs"), "liked")}
         ${this._navMenuItem("sleep_timer", this._iconSvg("timer"), this._i18n("ui.schedules"), this._i18n("ui.sleep_timer_and_morning_playback"), "announcement")}
@@ -54494,7 +56149,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
   _discoveryGenreFallbackOptions() {
     return [
-      { key: "all", label: this._i18n("ui.all", {}, this._discoveryGenreLabel("All", "הכל", "Alle")), query: "" }
+      { key: "all", label: this._i18n("ui.all", {}, this._discoveryGenreLabel("All", "???", "Alle")), query: "" }
     ];
   }
   _discoveryCategory() {
@@ -54546,93 +56201,93 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
   _discoveryPopularGenreProfiles() {
     return [
-      { key: "pop", label: this._discoveryGenreLabel("Pop", "פופ", "Pop"), query: "pop", aliases: ["pop", "pop music", "afropop", "synthpop", "synth pop", "k-pop", "kpop", "j-pop", "jpop", "israeli pop"], children: [
-        { key: "dance-pop", label: this._discoveryGenreLabel("Dance Pop", "דאנס פופ", "Dance-Pop"), query: "dance pop" },
-        { key: "k-pop", label: this._discoveryGenreLabel("K-Pop", "קיי־פופ", "K-Pop"), query: "k-pop" },
-        { key: "indie-pop", label: this._discoveryGenreLabel("Indie Pop", "אינדי פופ", "Indie-Pop"), query: "indie pop" },
-        { key: "israeli-pop", label: this._discoveryGenreLabel("Israeli Pop", "פופ ישראלי", "Israelischer Pop"), query: "israeli pop" }
+      { key: "pop", label: this._discoveryGenreLabel("Pop", "???", "Pop"), query: "pop", aliases: ["pop", "pop music", "afropop", "synthpop", "synth pop", "k-pop", "kpop", "j-pop", "jpop", "israeli pop"], children: [
+        { key: "dance-pop", label: this._discoveryGenreLabel("Dance Pop", "???? ???", "Dance-Pop"), query: "dance pop" },
+        { key: "k-pop", label: this._discoveryGenreLabel("K-Pop", "???????", "K-Pop"), query: "k-pop" },
+        { key: "indie-pop", label: this._discoveryGenreLabel("Indie Pop", "????? ???", "Indie-Pop"), query: "indie pop" },
+        { key: "israeli-pop", label: this._discoveryGenreLabel("Israeli Pop", "??? ??????", "Israelischer Pop"), query: "israeli pop" }
       ] },
-      { key: "hip-hop", label: this._discoveryGenreLabel("Hip-Hop", "היפ־הופ", "Hip-Hop"), query: "hip hop", aliases: ["hip hop", "hip-hop", "hiphop", "rap", "trap"], children: [
-        { key: "rap", label: this._discoveryGenreLabel("Rap", "ראפ", "Rap"), query: "rap" },
-        { key: "trap", label: this._discoveryGenreLabel("Trap", "טראפ", "Trap"), query: "trap" },
-        { key: "old-school", label: this._discoveryGenreLabel("Old School", "אולד סקול", "Old School"), query: "old school hip hop" },
-        { key: "israeli-rap", label: this._discoveryGenreLabel("Israeli Rap", "ראפ ישראלי", "Israelischer Rap"), query: "israeli rap" }
+      { key: "hip-hop", label: this._discoveryGenreLabel("Hip-Hop", "???????", "Hip-Hop"), query: "hip hop", aliases: ["hip hop", "hip-hop", "hiphop", "rap", "trap"], children: [
+        { key: "rap", label: this._discoveryGenreLabel("Rap", "???", "Rap"), query: "rap" },
+        { key: "trap", label: this._discoveryGenreLabel("Trap", "????", "Trap"), query: "trap" },
+        { key: "old-school", label: this._discoveryGenreLabel("Old School", "???? ????", "Old School"), query: "old school hip hop" },
+        { key: "israeli-rap", label: this._discoveryGenreLabel("Israeli Rap", "??? ??????", "Israelischer Rap"), query: "israeli rap" }
       ] },
-      { key: "rock", label: this._discoveryGenreLabel("Rock", "רוק", "Rock"), query: "rock", aliases: ["rock", "classic rock", "alt rock", "alternative rock", "hard rock", "soft rock", "punk"], children: [
-        { key: "classic-rock", label: this._discoveryGenreLabel("Classic Rock", "רוק קלאסי", "Classic Rock"), query: "classic rock" },
-        { key: "alternative-rock", label: this._discoveryGenreLabel("Alternative Rock", "רוק אלטרנטיבי", "Alternative Rock"), query: "alternative rock" },
-        { key: "indie-rock", label: this._discoveryGenreLabel("Indie Rock", "אינדי רוק", "Indie-Rock"), query: "indie rock" },
-        { key: "punk", label: this._discoveryGenreLabel("Punk", "פאנק רוק", "Punk"), query: "punk rock" }
+      { key: "rock", label: this._discoveryGenreLabel("Rock", "???", "Rock"), query: "rock", aliases: ["rock", "classic rock", "alt rock", "alternative rock", "hard rock", "soft rock", "punk"], children: [
+        { key: "classic-rock", label: this._discoveryGenreLabel("Classic Rock", "??? ?????", "Classic Rock"), query: "classic rock" },
+        { key: "alternative-rock", label: this._discoveryGenreLabel("Alternative Rock", "??? ?????????", "Alternative Rock"), query: "alternative rock" },
+        { key: "indie-rock", label: this._discoveryGenreLabel("Indie Rock", "????? ???", "Indie-Rock"), query: "indie rock" },
+        { key: "punk", label: this._discoveryGenreLabel("Punk", "???? ???", "Punk"), query: "punk rock" }
       ] },
-      { key: "electronic", label: this._discoveryGenreLabel("Electronic", "אלקטרוני", "Elektronisch"), query: "electronic", aliases: ["electronic", "electronica", "edm", "house", "deep house", "tech house", "afro house", "afro tech", "techno", "trance", "dubstep", "drum and bass", "dnb"], children: [
-        { key: "house", label: this._discoveryGenreLabel("House", "האוס", "House"), query: "house music" },
-        { key: "techno", label: this._discoveryGenreLabel("Techno", "טכנו", "Techno"), query: "techno" },
-        { key: "trance", label: this._discoveryGenreLabel("Trance", "טראנס", "Trance"), query: "trance" },
+      { key: "electronic", label: this._discoveryGenreLabel("Electronic", "????????", "Elektronisch"), query: "electronic", aliases: ["electronic", "electronica", "edm", "house", "deep house", "tech house", "afro house", "afro tech", "techno", "trance", "dubstep", "drum and bass", "dnb"], children: [
+        { key: "house", label: this._discoveryGenreLabel("House", "????", "House"), query: "house music" },
+        { key: "techno", label: this._discoveryGenreLabel("Techno", "????", "Techno"), query: "techno" },
+        { key: "trance", label: this._discoveryGenreLabel("Trance", "?????", "Trance"), query: "trance" },
         { key: "edm", label: this._discoveryGenreLabel("EDM", "EDM", "EDM"), query: "edm" }
       ] },
-      { key: "dance", label: this._discoveryGenreLabel("Dance", "דאנס", "Dance"), query: "dance", aliases: ["dance", "club", "disco", "dance pop", "party"], children: [
-        { key: "party", label: this._discoveryGenreLabel("Party", "מסיבה", "Party"), query: "party hits" },
-        { key: "club", label: this._discoveryGenreLabel("Club", "קלאב", "Club"), query: "club dance" },
-        { key: "disco", label: this._discoveryGenreLabel("Disco", "דיסקו", "Disco"), query: "disco" },
-        { key: "workout", label: this._discoveryGenreLabel("Workout", "אימון", "Training"), query: "workout dance" }
+      { key: "dance", label: this._discoveryGenreLabel("Dance", "????", "Dance"), query: "dance", aliases: ["dance", "club", "disco", "dance pop", "party"], children: [
+        { key: "party", label: this._discoveryGenreLabel("Party", "?????", "Party"), query: "party hits" },
+        { key: "club", label: this._discoveryGenreLabel("Club", "????", "Club"), query: "club dance" },
+        { key: "disco", label: this._discoveryGenreLabel("Disco", "?????", "Disco"), query: "disco" },
+        { key: "workout", label: this._discoveryGenreLabel("Workout", "?????", "Training"), query: "workout dance" }
       ] },
       { key: "rnb", label: this._discoveryGenreLabel("R&B", "R&B", "R&B"), query: "r&b", aliases: ["r&b", "rnb", "rhythm and blues", "afro r&b"], children: [
-        { key: "contemporary", label: this._discoveryGenreLabel("Contemporary", "עכשווי", "Zeitgenoessisch"), query: "contemporary r&b" },
-        { key: "slow-jams", label: this._discoveryGenreLabel("Slow Jams", "סלואו ג׳אם", "Slow Jams"), query: "slow jams" },
-        { key: "rnb-hits", label: this._discoveryGenreLabel("R&B Hits", "להיטי R&B", "R&B-Hits"), query: "r&b hits" }
+        { key: "contemporary", label: this._discoveryGenreLabel("Contemporary", "??????", "Zeitgenoessisch"), query: "contemporary r&b" },
+        { key: "slow-jams", label: this._discoveryGenreLabel("Slow Jams", "????? ????", "Slow Jams"), query: "slow jams" },
+        { key: "rnb-hits", label: this._discoveryGenreLabel("R&B Hits", "????? R&B", "R&B-Hits"), query: "r&b hits" }
       ] },
-      { key: "soul", label: this._discoveryGenreLabel("Soul", "סול", "Soul"), query: "soul", aliases: ["soul", "neo soul", "afro soul"], children: [
-        { key: "neo-soul", label: this._discoveryGenreLabel("Neo Soul", "נאו סול", "Neo Soul"), query: "neo soul" },
-        { key: "funk", label: this._discoveryGenreLabel("Funk", "פאנק", "Funk"), query: "funk soul" },
-        { key: "motown", label: this._discoveryGenreLabel("Motown", "מוטאון", "Motown"), query: "motown soul" }
+      { key: "soul", label: this._discoveryGenreLabel("Soul", "???", "Soul"), query: "soul", aliases: ["soul", "neo soul", "afro soul"], children: [
+        { key: "neo-soul", label: this._discoveryGenreLabel("Neo Soul", "??? ???", "Neo Soul"), query: "neo soul" },
+        { key: "funk", label: this._discoveryGenreLabel("Funk", "????", "Funk"), query: "funk soul" },
+        { key: "motown", label: this._discoveryGenreLabel("Motown", "??????", "Motown"), query: "motown soul" }
       ] },
-      { key: "jazz", label: this._discoveryGenreLabel("Jazz", "ג׳אז", "Jazz"), query: "jazz", aliases: ["jazz", "smooth jazz", "vocal jazz", "bebop"], children: [
-        { key: "smooth", label: this._discoveryGenreLabel("Smooth Jazz", "ג׳אז חלק", "Smooth Jazz"), query: "smooth jazz" },
-        { key: "vocal", label: this._discoveryGenreLabel("Vocal Jazz", "ג׳אז ווקאלי", "Vocal Jazz"), query: "vocal jazz" },
-        { key: "fusion", label: this._discoveryGenreLabel("Fusion", "פיוז׳ן", "Fusion"), query: "jazz fusion" }
+      { key: "jazz", label: this._discoveryGenreLabel("Jazz", "????", "Jazz"), query: "jazz", aliases: ["jazz", "smooth jazz", "vocal jazz", "bebop"], children: [
+        { key: "smooth", label: this._discoveryGenreLabel("Smooth Jazz", "???? ???", "Smooth Jazz"), query: "smooth jazz" },
+        { key: "vocal", label: this._discoveryGenreLabel("Vocal Jazz", "???? ??????", "Vocal Jazz"), query: "vocal jazz" },
+        { key: "fusion", label: this._discoveryGenreLabel("Fusion", "??????", "Fusion"), query: "jazz fusion" }
       ] },
-      { key: "israeli", label: this._i18n("ui.israeli"), query: "israeli hebrew", aliases: ["israeli", "israel", "hebrew", "עברית", "ישראלי", "מזרחית"], children: [
-        { key: "mizrahi", label: this._discoveryGenreLabel("Mizrahi", "מזרחית", "Mizrahi"), query: "מוזיקה מזרחית" },
-        { key: "hebrew-hits", label: this._discoveryGenreLabel("Hebrew Hits", "להיטים בעברית", "Hebraeische Hits"), query: "להיטים בעברית" },
-        { key: "israeli-rock", label: this._discoveryGenreLabel("Israeli Rock", "רוק ישראלי", "Israelischer Rock"), query: "רוק ישראלי" }
+      { key: "israeli", label: this._i18n("ui.israeli"), query: "israeli hebrew", aliases: ["israeli", "israel", "hebrew", "?????", "??????", "??????"], children: [
+        { key: "mizrahi", label: this._discoveryGenreLabel("Mizrahi", "??????", "Mizrahi"), query: "?????? ??????" },
+        { key: "hebrew-hits", label: this._discoveryGenreLabel("Hebrew Hits", "?????? ??????", "Hebraeische Hits"), query: "?????? ??????" },
+        { key: "israeli-rock", label: this._discoveryGenreLabel("Israeli Rock", "??? ??????", "Israelischer Rock"), query: "??? ??????" }
       ] },
-      { key: "chill", label: this._discoveryGenreLabel("Chill", "צ׳יל", "Chill"), query: "chill", aliases: ["chill", "chillout", "chill out", "lofi", "lo-fi", "lounge", "relax", "relaxing"], children: [
-        { key: "lofi", label: this._discoveryGenreLabel("Lo-Fi", "לו־פיי", "Lo-Fi"), query: "lo-fi chill" },
-        { key: "lounge", label: this._discoveryGenreLabel("Lounge", "לאונג׳", "Lounge"), query: "lounge chill" },
-        { key: "acoustic", label: this._discoveryGenreLabel("Acoustic", "אקוסטי", "Akustisch"), query: "acoustic chill" },
-        { key: "sleep", label: this._discoveryGenreLabel("Sleep", "שינה", "Schlaf"), query: "sleep music" }
+      { key: "chill", label: this._discoveryGenreLabel("Chill", "????", "Chill"), query: "chill", aliases: ["chill", "chillout", "chill out", "lofi", "lo-fi", "lounge", "relax", "relaxing"], children: [
+        { key: "lofi", label: this._discoveryGenreLabel("Lo-Fi", "??????", "Lo-Fi"), query: "lo-fi chill" },
+        { key: "lounge", label: this._discoveryGenreLabel("Lounge", "??????", "Lounge"), query: "lounge chill" },
+        { key: "acoustic", label: this._discoveryGenreLabel("Acoustic", "??????", "Akustisch"), query: "acoustic chill" },
+        { key: "sleep", label: this._discoveryGenreLabel("Sleep", "????", "Schlaf"), query: "sleep music" }
       ] },
-      { key: "classical", label: this._discoveryGenreLabel("Classical", "קלאסי", "Klassik"), query: "classical", aliases: ["classical", "classical music", "orchestra", "orchestral", "piano", "opera"], children: [
-        { key: "piano", label: this._discoveryGenreLabel("Piano", "פסנתר", "Klavier"), query: "classical piano" },
-        { key: "orchestra", label: this._discoveryGenreLabel("Orchestra", "תזמורת", "Orchester"), query: "orchestra classical" },
-        { key: "opera", label: this._discoveryGenreLabel("Opera", "אופרה", "Oper"), query: "opera" }
+      { key: "classical", label: this._discoveryGenreLabel("Classical", "?????", "Klassik"), query: "classical", aliases: ["classical", "classical music", "orchestra", "orchestral", "piano", "opera"], children: [
+        { key: "piano", label: this._discoveryGenreLabel("Piano", "?????", "Klavier"), query: "classical piano" },
+        { key: "orchestra", label: this._discoveryGenreLabel("Orchestra", "??????", "Orchester"), query: "orchestra classical" },
+        { key: "opera", label: this._discoveryGenreLabel("Opera", "?????", "Oper"), query: "opera" }
       ] },
-      { key: "latin", label: this._discoveryGenreLabel("Latin", "לטיני", "Latin"), query: "latin", aliases: ["latin", "reggaeton", "salsa", "bachata", "bossa nova", "latino"], children: [
-        { key: "reggaeton", label: this._discoveryGenreLabel("Reggaeton", "רגאטון", "Reggaeton"), query: "reggaeton" },
-        { key: "salsa", label: this._discoveryGenreLabel("Salsa", "סלסה", "Salsa"), query: "salsa" },
-        { key: "bachata", label: this._discoveryGenreLabel("Bachata", "בצ׳אטה", "Bachata"), query: "bachata" },
-        { key: "latin-pop", label: this._discoveryGenreLabel("Latin Pop", "פופ לטיני", "Latin Pop"), query: "latin pop" }
+      { key: "latin", label: this._discoveryGenreLabel("Latin", "?????", "Latin"), query: "latin", aliases: ["latin", "reggaeton", "salsa", "bachata", "bossa nova", "latino"], children: [
+        { key: "reggaeton", label: this._discoveryGenreLabel("Reggaeton", "??????", "Reggaeton"), query: "reggaeton" },
+        { key: "salsa", label: this._discoveryGenreLabel("Salsa", "????", "Salsa"), query: "salsa" },
+        { key: "bachata", label: this._discoveryGenreLabel("Bachata", "??????", "Bachata"), query: "bachata" },
+        { key: "latin-pop", label: this._discoveryGenreLabel("Latin Pop", "??? ?????", "Latin Pop"), query: "latin pop" }
       ] },
-      { key: "afro", label: this._discoveryGenreLabel("Afro", "אפרו", "Afro"), query: "afro", aliases: ["afro", "afrobeats", "afrobeat", "afropop", "afropiano", "amapiano", "afro house", "afro tech", "afro soul", "afro r&b", "afroswing"], children: [
-        { key: "afrobeats", label: this._discoveryGenreLabel("Afrobeats", "אפרוביטס", "Afrobeats"), query: "afrobeats" },
-        { key: "amapiano", label: this._discoveryGenreLabel("Amapiano", "אמאפיאנו", "Amapiano"), query: "amapiano" },
-        { key: "afro-house", label: this._discoveryGenreLabel("Afro House", "אפרו האוס", "Afro House"), query: "afro house" },
-        { key: "afropop", label: this._discoveryGenreLabel("Afropop", "אפרו פופ", "Afropop"), query: "afropop" }
+      { key: "afro", label: this._discoveryGenreLabel("Afro", "????", "Afro"), query: "afro", aliases: ["afro", "afrobeats", "afrobeat", "afropop", "afropiano", "amapiano", "afro house", "afro tech", "afro soul", "afro r&b", "afroswing"], children: [
+        { key: "afrobeats", label: this._discoveryGenreLabel("Afrobeats", "????????", "Afrobeats"), query: "afrobeats" },
+        { key: "amapiano", label: this._discoveryGenreLabel("Amapiano", "????????", "Amapiano"), query: "amapiano" },
+        { key: "afro-house", label: this._discoveryGenreLabel("Afro House", "???? ????", "Afro House"), query: "afro house" },
+        { key: "afropop", label: this._discoveryGenreLabel("Afropop", "???? ???", "Afropop"), query: "afropop" }
       ] },
-      { key: "indie", label: this._discoveryGenreLabel("Indie", "אינדי", "Indie"), query: "indie", aliases: ["indie", "indie pop", "indie rock"], children: [
-        { key: "indie-pop", label: this._discoveryGenreLabel("Indie Pop", "אינדי פופ", "Indie-Pop"), query: "indie pop" },
-        { key: "indie-rock", label: this._discoveryGenreLabel("Indie Rock", "אינדי רוק", "Indie-Rock"), query: "indie rock" },
-        { key: "alternative", label: this._discoveryGenreLabel("Alternative", "אלטרנטיבי", "Alternative"), query: "alternative music" }
+      { key: "indie", label: this._discoveryGenreLabel("Indie", "?????", "Indie"), query: "indie", aliases: ["indie", "indie pop", "indie rock"], children: [
+        { key: "indie-pop", label: this._discoveryGenreLabel("Indie Pop", "????? ???", "Indie-Pop"), query: "indie pop" },
+        { key: "indie-rock", label: this._discoveryGenreLabel("Indie Rock", "????? ???", "Indie-Rock"), query: "indie rock" },
+        { key: "alternative", label: this._discoveryGenreLabel("Alternative", "?????????", "Alternative"), query: "alternative music" }
       ] },
-      { key: "metal", label: this._discoveryGenreLabel("Metal", "מטאל", "Metal"), query: "metal", aliases: ["metal", "heavy metal", "death metal", "black metal"], children: [
-        { key: "heavy", label: this._discoveryGenreLabel("Heavy Metal", "הבי מטאל", "Heavy Metal"), query: "heavy metal" },
-        { key: "alternative", label: this._discoveryGenreLabel("Alternative Metal", "מטאל אלטרנטיבי", "Alternative Metal"), query: "alternative metal" }
+      { key: "metal", label: this._discoveryGenreLabel("Metal", "????", "Metal"), query: "metal", aliases: ["metal", "heavy metal", "death metal", "black metal"], children: [
+        { key: "heavy", label: this._discoveryGenreLabel("Heavy Metal", "??? ????", "Heavy Metal"), query: "heavy metal" },
+        { key: "alternative", label: this._discoveryGenreLabel("Alternative Metal", "???? ?????????", "Alternative Metal"), query: "alternative metal" }
       ] },
-      { key: "country", label: this._discoveryGenreLabel("Country", "קאנטרי", "Country"), query: "country", aliases: ["country", "americana", "bluegrass"] },
-      { key: "reggae", label: this._discoveryGenreLabel("Reggae", "רגאיי", "Reggae"), query: "reggae", aliases: ["reggae", "dancehall", "dub"] },
-      { key: "folk", label: this._discoveryGenreLabel("Folk", "פולק", "Folk"), query: "folk", aliases: ["folk", "singer songwriter", "singer-songwriter", "acoustic"] },
-      { key: "ambient", label: this._discoveryGenreLabel("Ambient", "אמביינט", "Ambient"), query: "ambient", aliases: ["ambient", "new age", "soundscape"] },
-      { key: "kids", label: this._i18n("ui.kids"), query: "kids", aliases: ["kids", "children", "childrens", "family", "ילדים"] }
+      { key: "country", label: this._discoveryGenreLabel("Country", "??????", "Country"), query: "country", aliases: ["country", "americana", "bluegrass"] },
+      { key: "reggae", label: this._discoveryGenreLabel("Reggae", "?????", "Reggae"), query: "reggae", aliases: ["reggae", "dancehall", "dub"] },
+      { key: "folk", label: this._discoveryGenreLabel("Folk", "????", "Folk"), query: "folk", aliases: ["folk", "singer songwriter", "singer-songwriter", "acoustic"] },
+      { key: "ambient", label: this._discoveryGenreLabel("Ambient", "???????", "Ambient"), query: "ambient", aliases: ["ambient", "new age", "soundscape"] },
+      { key: "kids", label: this._i18n("ui.kids"), query: "kids", aliases: ["kids", "children", "childrens", "family", "?????"] }
     ];
   }
   _discoveryGenreMatchText(value = "") {
@@ -54922,7 +56577,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const endlessItems = this._discoveryEndlessItems({ categoryPlaylists, recent, albums, radios });
     const cloud = this._discoveryOrbCloudHtml(endlessItems, activeCategory, activeGenre);
     const selectedTitle = activeCategory?.label || this._i18n("ui.discover");
-    const selectedSub = activeCategory?.subtitle || this._i18n("ui.discover_subtitle", {}, this._discoveryGenreLabel("Recommended playlists, albums and radio.", "המלצות, אלבומים ורדיו לפי הסגנון שבחרת.", "Empfehlungen, Alben und Radio nach deinem Stil."));
+    const selectedSub = activeCategory?.subtitle || this._i18n("ui.discover_subtitle", {}, this._discoveryGenreLabel("Recommended playlists, albums and radio.", "??????, ??????? ????? ??? ?????? ?????.", "Empfehlungen, Alben und Radio nach deinem Stil."));
     return `
       <div class="discovery-shell">
         <div class="discovery-hero">
@@ -54933,8 +56588,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           <div class="discovery-filter-panel">
             ${this._discoveryPlayerFocusHtml()}
             <label class="discovery-category-select">
-              <span>${this._esc(this._m("Style", "סגנון"))}</span>
-              <select class="media-sort-select settings-select" id="discoveryCategorySelect" aria-label="${this._esc(this._m("Style", "סגנון"))}">
+              <span>${this._esc(this._m("Style", "?????"))}</span>
+              <select class="media-sort-select settings-select" id="discoveryCategorySelect" aria-label="${this._esc(this._m("Style", "?????"))}">
                 ${(Array.isArray(categories) ? categories : []).map((category) => `<option value="${this._esc(category.key)}" ${category.key === activeCategory?.key ? "selected" : ""}>${this._esc(category.label)}</option>`).join("")}
               </select>
             </label>
@@ -54974,10 +56629,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const showFrontPin = options.pin !== false;
     const frontPinned = this._frontPinnedPlayerEntity() === p?.entity_id;
     const vol = Math.round((p.attributes?.volume_level || 0) * 100);
-    const friendlyName = p.attributes?.friendly_name || p.entity_id;
+    const friendlyName = this._playerDisplayName(p);
     const track = p.attributes?.media_title || p.attributes?.media_artist || "";
     const activityIcon = `<span class="player-premium-bars eq-icon ${activePlayback ? "is-active" : "is-static"}" aria-label="${this._esc(activePlayback ? this._i18n("ui.playing") : this._i18n("ui.idle"))}"><span></span><span></span><span></span></span>`;
-    const pinHtml = showFrontPin ? `<button type="button" class="player-premium-side player-front-pin ${frontPinned ? "active" : ""}" data-front-pin-player="${this._esc(p.entity_id)}" title="${this._esc(frontPinned ? this._m("Clear front pin", "בטל נעץ חזית") : this._m("Pin player to front", "נעץ נגן לחזית"))}" aria-pressed="${frontPinned ? "true" : "false"}">${this._iconSvg("pin")}</button>` : ``;
+    const pinHtml = showFrontPin ? `<button type="button" class="player-premium-side player-front-pin ${frontPinned ? "active" : ""}" data-front-pin-player="${this._esc(p.entity_id)}" title="${this._esc(frontPinned ? this._m("Clear front pin", "??? ??? ????") : this._m("Pin player to front", "??? ??? ?????"))}" aria-pressed="${frontPinned ? "true" : "false"}">${this._iconSvg("pin")}</button>` : ``;
     const body = `
       <button class="player-premium-head ${active ? "active" : ""} ${activePlayback ? "is-playing" : ""}" ${attrs}>
         <span class="player-premium-art">
@@ -55266,7 +56921,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const excludedPlayers = new Set(this._excludedPlayerPreferences());
     const playerSortMode = this._playerSortMode();
     const playerOrder = this._playerOrderPreferences();
-    const playerOptions = this._pinnedPlayerOptionPlayers([], { includeExcluded: true }).map((player) => [player.entity_id, player.attributes?.friendly_name || player.entity_id]);
+    const optionPlayers = this._pinnedPlayerOptionPlayers([], { includeExcluded: true });
+    const playerOptions = optionPlayers.map((player) => [player.entity_id, this._playerDisplayName(player, optionPlayers)]);
     const tabOptions = [
       ["library_playlists", this._i18n("ui.playlists")],
       ["library_artists", this._i18n("ui.artists")],
@@ -55279,6 +56935,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     ];
     const selectedTabs = new Set(this._mobileLibraryTabs());
     const libraryDefaultLayout = this._defaultMobileMediaLayout();
+    const radioSourceMode = this._mobileRadioSourceMode();
     const radioCountry = this._mobileRadioBrowserCountry();
     const radioCountryOptions = this._radioBrowserCountryOptions();
     return `
@@ -55329,7 +56986,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             ${this._settingsPill(this._i18n("ui.grid"), "grid", libraryDefaultLayout, "data-setting-library-default-layout")}
             ${this._settingsPill(this._i18n("ui.list"), "list", libraryDefaultLayout, "data-setting-library-default-layout")}
           </div>
-          <div class="settings-hint">${this._i18n("ui.choose_how_library_pages_open_grid_or_list_can_still_be_changed_manually", {}, this._m("Choose how library pages open. You can still switch Grid/List inside the library.", "בחר איך דפי הספריה ייפתחו. עדיין אפשר להחליף ידנית בתוך הספריה."))}</div>
+          <div class="settings-hint">${this._i18n("ui.choose_how_library_pages_open_grid_or_list_can_still_be_changed_manually", {}, this._m("Choose how library pages open. You can still switch Grid/List inside the library.", "בחר איך דפי הספרייה נפתחים. עדיין אפשר להחליף Grid/List בתוך הספרייה."))}</div>
           <div class="settings-check-grid">
             ${tabOptions.map(([value, label]) => `
               <label class="settings-check-pill">
@@ -55337,6 +56994,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
                 <span>${this._esc(label)}</span>
               </label>`).join("")}
           </div>
+          <div class="settings-label">${this._esc(this._i18n("ui.radio_source", {}, "Radio source"))}</div>
+          <select class="media-sort-select settings-select" id="mobileRadioSourceModeSelect" aria-label="${this._esc(this._i18n("ui.radio_source", {}, "Radio source"))}">
+            <option value="combined" ${radioSourceMode === "combined" ? "selected" : ""}>${this._esc(this._m("Combined", "משולב"))}</option>
+            <option value="ma_first" ${radioSourceMode === "ma_first" ? "selected" : ""}>${this._esc(this._m("Music Assistant first", "Music Assistant ראשון"))}</option>
+            <option value="ma_only" ${radioSourceMode === "ma_only" ? "selected" : ""}>${this._esc(this._m("Music Assistant only", "Music Assistant בלבד"))}</option>
+            <option value="radiobrowser_only" ${radioSourceMode === "radiobrowser_only" ? "selected" : ""}>${this._esc(this._m("RadioBrowser only", "RadioBrowser בלבד"))}</option>
+          </select>
+          <div class="settings-hint">${this._esc(this._m("Controls whether the Radio library page uses Music Assistant stations, RadioBrowser stations, or both.", "קובע אם דף הרדיו משתמש בתחנות Music Assistant, בתחנות RadioBrowser, או בשניהם."))}</div>
           <div class="settings-label">Radio Browser</div>
           <select class="media-sort-select settings-select" id="mobileRadioCountrySelect" aria-label="${this._esc(this._i18n("ui.radio_browser_country"))}">
             ${radioCountryOptions.map(([value, label]) => `<option value="${this._esc(value)}" ${value === radioCountry ? "selected" : ""}>${this._esc(label)}</option>`).join("")}
@@ -55466,10 +57131,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _settingsSectionSmartHome() {
     const ambientEntitiesText = this._ambientLightEntities().join(", ");
     const ambientPlayerMapText = this._ambientLightPlayerMap().join("\n");
-    const screensaverClockMode = this._screensaverClockMode();
-    const screensaverControlButtons = this._screensaverControlButtons({ includeDisabled: true });
-    const selectedScreensaverControlButtons = new Set(screensaverControlButtons);
-    const screensaverControlOptions = this._screensaverControlButtonOptions();
+    const screensaverAutoLyrics = this._screensaverAutoLyricsWhenPlaying();
     const powerButtonAction = this._powerButtonAction();
     const auxiliaryButtonConfigs = this._auxiliaryButtonConfigs();
     const auxiliaryIconOptions = [
@@ -55494,6 +57156,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     return `
         <div class="settings-group smart-home-settings-card">
           <div class="settings-label">${this._i18n("ui.smart_home")}</div>
+          <div class="settings-label">${this._i18n("ui.screensaver", {}, "Screensaver")}</div>
+          <div class="settings-pills">
+            ${this._settingsPill(this._i18n("ui.enabled"), "on", this._state.screensaverEnabled ? "on" : "off", "data-setting-screensaver")}
+            ${this._settingsPill(this._i18n("ui.disabled"), "off", this._state.screensaverEnabled ? "on" : "off", "data-setting-screensaver")}
+          </div>
+          <div class="settings-label">${this._esc(this._i18n("ui.lyrics_while_playing", {}, "Lyrics while playing"))}</div>
+          <div class="settings-pills">
+            ${this._settingsPill(this._i18n("ui.enabled"), "on", screensaverAutoLyrics ? "on" : "off", "data-setting-screensaver-auto-lyrics")}
+            ${this._settingsPill(this._i18n("ui.disabled"), "off", screensaverAutoLyrics ? "on" : "off", "data-setting-screensaver-auto-lyrics")}
+          </div>
+          <div class="settings-hint">${this._esc(this._i18n("ui.screensaver_lyrics_while_playing_helper", {}, "When enabled, the screensaver opens directly in lyrics mode while music is playing, and stays in clock mode when idle."))}</div>
           <div class="settings-label">${this._i18n("ui.ambient_light")}</div>
           <div class="settings-pills">
             ${this._settingsPill(this._i18n("ui.enabled"), "on", this._ambientLightEnabled() ? "on" : "off", "data-setting-ambient-light")}
@@ -55518,36 +57191,6 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
               <span class="settings-label">${this._i18n("ui.ambient_light_cooldown")}</span>
               <input class="media-sort-select settings-select" id="ambientLightCooldownInput" type="number" min="0" max="120" step="1" value="${this._esc(String(this._ambientLightCooldown()))}">
             </label>
-          </div>
-          <div class="settings-label">${this._i18n("ui.screensaver")}</div>
-          <div class="settings-pills">
-            ${this._settingsPill(this._i18n("ui.enabled"), "on", this._screensaverEnabled() ? "on" : "off", "data-setting-screensaver")}
-            ${this._settingsPill(this._i18n("ui.disabled"), "off", this._screensaverEnabled() ? "on" : "off", "data-setting-screensaver")}
-          </div>
-          <div class="settings-label">${this._i18n("ui.screensaver_controls")}</div>
-          <div class="settings-pills">
-            ${this._settingsPill(this._i18n("ui.enabled"), "on", this._screensaverControlsEnabled() ? "on" : "off", "data-setting-screensaver-controls")}
-            ${this._settingsPill(this._i18n("ui.disabled"), "off", this._screensaverControlsEnabled() ? "on" : "off", "data-setting-screensaver-controls")}
-          </div>
-          <div class="settings-check-grid screensaver-controls-grid">
-            ${screensaverControlOptions.map(({ value, label, icon }) => `
-              <label class="settings-check-pill">
-                <input type="checkbox" data-setting-screensaver-control="${this._esc(value)}" ${selectedScreensaverControlButtons.has(value) ? "checked" : ""}>
-                <span class="quick-action-setting-icon">${this._iconSvg(icon)}</span>
-                <span>${this._esc(label)}</span>
-              </label>
-            `).join("")}
-          </div>
-          <div class="settings-hint">${this._i18n("ui.choose_which_buttons_appear_on_the_screensaver")}</div>
-          <select class="media-sort-select settings-select" id="screensaverClockModeSelect" aria-label="${this._esc(this._i18n("ui.screensaver_clock_mode"))}">
-            <option value="digital" ${screensaverClockMode === "digital" ? "selected" : ""}>${this._esc(this._i18n("ui.digital"))}</option>
-            <option value="analog" ${screensaverClockMode === "analog" ? "selected" : ""}>${this._esc(this._i18n("ui.analog"))}</option>
-          </select>
-          <input class="settings-text-input" id="screensaverMessageInput" type="text" value="${this._esc(this._screensaverMessage())}" placeholder="${this._esc(this._i18n("ui.screensaver_message"))}">
-          <div class="settings-range">
-            <div class="settings-label">${this._i18n("ui.screensaver_timeout")}</div>
-            <input id="screensaverTimeoutInput" type="range" min="15" max="600" step="5" value="${this._esc(String(this._screensaverTimeoutSeconds()))}">
-            <div class="settings-value">${this._esc(String(Math.round(this._screensaverTimeoutSeconds())))}s</div>
           </div>
           <div class="settings-label">${this._i18n("ui.auxiliary_buttons")}</div>
           <div class="settings-pills">
@@ -55599,23 +57242,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           </div>
         </div>`;
   }
-  _settingsSectionAnnouncements() {
-    const announcementLanguage = this._announcementLanguageSetting();
-    const announcementLanguageOptions = this._announcementLanguageOptions();
+  _settingsRangeHtml(id, label, value, min, max, step = 1, suffix = "") {
+    const number = Number(value);
+    const safeValue = Number.isFinite(number) ? number : Number(min || 0);
     return `
-        <div class="settings-group">
-          <div class="settings-label">${this._i18n("ui.announcement_presets")}</div>
-          ${(this._state.mobileAnnouncementPresets || []).slice(0, 3).map((preset, index) => `
-            <input class="settings-text-input" data-announcement-preset-index="${this._esc(index)}" type="text" value="${this._esc(preset || "")}" placeholder="${this._esc(this._i18n("ui.preset_message"))}">
-          `).join("")}
-          <div class="settings-label">${this._i18n("ui.tts_entity")}</div>
-          <input class="settings-text-input" id="mobileAnnouncementTtsEntity" type="text" value="${this._esc(this._state.mobileAnnouncementTtsEntity || "")}" placeholder="tts.home_assistant_cloud">
-          <div class="settings-label">${this._i18n("ui.tts_language")}</div>
-          <select class="media-sort-select settings-select" id="mobileAnnouncementTtsLanguageSelect" aria-label="${this._esc(this._i18n("ui.tts_language"))}">
-            ${announcementLanguageOptions.map(([value, label]) => `<option value="${this._esc(value)}" ${value === announcementLanguage ? "selected" : ""}>${this._esc(label)}</option>`).join("")}
-          </select>
-          <div class="settings-hint">${this._i18n("ui.text_announcements_use_home_assistant_tts_into_the_selected_music_assist")}</div>
-        </div>`;
+          <div class="settings-range">
+            <div class="settings-label">${this._esc(label)}</div>
+            <input id="${this._esc(id)}" type="range" min="${this._esc(String(min))}" max="${this._esc(String(max))}" step="${this._esc(String(step))}" value="${this._esc(String(safeValue))}">
+            <div class="settings-value">${this._esc(`${safeValue.toFixed(step < 1 ? 2 : 0)}${suffix}`)}</div>
+          </div>`;
   }
   _settingsSectionMusicAssistant() {
     return `
@@ -55642,6 +57277,104 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       value: String(value || "").trim()
     };
   }
+  async _diagnosticProbeArtworkLoad(url = "") {
+    const normalized = String(url || "").trim();
+    if (!normalized) return { ok: false, skipped: true, reason: "No artwork URL was available." };
+    const ImageCtor = typeof Image !== "undefined" ? Image : typeof window !== "undefined" ? window.Image : null;
+    if (typeof ImageCtor !== "function") {
+      return { ok: false, skipped: true, reason: "The browser Image API is not available in this context." };
+    }
+    const probeImage = (src) => new Promise((resolve) => {
+      let settled = false;
+      let timeout = null;
+      const finish = (ok, reason = "", img = null) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        if (img) {
+          img.onload = null;
+          img.onerror = null;
+        }
+        resolve({
+          ok,
+          skipped: false,
+          reason,
+          width: Number(img?.naturalWidth || 0) || 0,
+          height: Number(img?.naturalHeight || 0) || 0
+        });
+      };
+      try {
+        const img = new ImageCtor();
+        img.decoding = "async";
+        img.loading = "eager";
+        img.onload = () => finish(true, "", img);
+        img.onerror = () => finish(false, "Browser image load failed.", img);
+        timeout = setTimeout(() => finish(false, "Timed out while loading artwork.", img), 4500);
+        img.src = src;
+        if (img.complete && img.naturalWidth > 0) finish(true, "", img);
+      } catch (error) {
+        finish(false, error?.message || "Browser image load failed.");
+      }
+    });
+    const direct = await probeImage(normalized);
+    if (direct.ok || direct.skipped) return direct;
+    const isCrossOrigin = (() => {
+      try {
+        const currentOrigin = typeof window !== "undefined" ? window.location?.origin : "";
+        const parsed = new URL(normalized, typeof window !== "undefined" ? window.location?.href : "http://homeii.local");
+        return !!(currentOrigin && parsed.origin && parsed.origin !== currentOrigin);
+      } catch (_) {
+        return false;
+      }
+    })();
+    if (!this._shouldFetchArtworkUrl?.(normalized, { crossOrigin: isCrossOrigin })) return direct;
+    try {
+      const objectUrl = await this._fetchArtworkBlobUrl(normalized, { crossOrigin: isCrossOrigin, cache: "no-store", timeoutMs: 6500 });
+      if (!objectUrl || objectUrl === normalized) return direct;
+      const fetched = await probeImage(objectUrl);
+      if (fetched.ok) {
+        return {
+          ...fetched,
+          reason: `Direct image load failed (${direct.reason || "unknown"}), but authenticated artwork fetch succeeded.`
+        };
+      }
+      return {
+        ...direct,
+        reason: `${direct.reason || "Browser image load failed."} Authenticated artwork fetch also failed to render (${fetched.reason || "unknown"}).`
+      };
+    } catch (error) {
+      return {
+        ...direct,
+        reason: `${direct.reason || "Browser image load failed."} Authenticated artwork fetch also failed (${error?.message || "unknown"}).`
+      };
+    }
+  }
+  _diagnosticRenderedArtworkRows(add) {
+    const root = this.shadowRoot;
+    if (!root?.querySelectorAll) {
+      add("info", "Rendered artwork DOM", "Skipped because the card shadow DOM is not available.");
+      return;
+    }
+    const isArtworkImg = (img) => {
+      const src = String(img?.currentSrc || img?.getAttribute?.("src") || "").trim();
+      const data = img?.dataset || {};
+      if (src.includes("/imageproxy") || src.includes("/api/media_player_proxy/")) return true;
+      if (data.homeiiArtSrc || data.homeiiAppliedArtSrc || data.img) return true;
+      return !!img?.closest?.(".media-items-list,.queue-list,.queue-panel,.now-art,.np-art,.menu-thumb,.queue-thumb,.art-stack-card,.compact-cover-image");
+    };
+    const images = Array.from(root.querySelectorAll("img")).filter(isArtworkImg);
+    const broken = images.filter((img) => {
+      const complete = img.complete === true;
+      const naturalWidth = Number(img.naturalWidth || 0);
+      const pendingDecoded = img.dataset?.homeiiArtReady === "0";
+      return complete && naturalWidth <= 0 || pendingDecoded;
+    });
+    const lazyPlaceholders = Array.from(root.querySelectorAll("[data-img]"));
+    const fallbackPlaceholders = Array.from(root.querySelectorAll(".media-placeholder,.homeii-art-fallback,.art-stack-fallback,.static-fallback"));
+    const menuState = this._state?.menuOpen ? `menu=${this._state.menuPage || "unknown"}` : "menu=closed";
+    const detail = `Rendered ${images.length} artwork image(s), ${broken.length} broken/pending image(s), ${lazyPlaceholders.length} lazy placeholder(s), ${fallbackPlaceholders.length} fallback placeholder(s). Run diagnostics while the affected Library/Queue screen is open for the strongest signal.`;
+    add(broken.length ? "warn" : "ok", "Rendered artwork DOM", detail, menuState);
+  }
   _sanitizeDiagnosticUrl(value = "") {
     const raw = String(value || "").trim();
     if (!raw) return "";
@@ -55649,7 +57382,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       return raw.replace(/(token|access_token|auth)=([^&\s]+)/gi, "$1=<redacted>");
     }
     try {
-      const parsed = new URL(raw, typeof window !== "undefined" ? window.location.href : "http://homeii.local");
+      const baseHref = typeof window !== "undefined" && window.location?.href ? window.location.href : "http://homeii.local";
+      const parsed = new URL(raw, baseHref);
       const port = parsed.port ? `:${parsed.port}` : "";
       return `${parsed.protocol}//${this._diagnosticHostPrivacyLabel(parsed.hostname)}${port}${this._diagnosticPathPrivacyLabel(parsed.pathname)}`;
     } catch (_) {
@@ -55805,6 +57539,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const queueId = this._queueIdForPlayer?.(selectedPlayer) || this._directMaQueueId?.(selectedPlayer) || "";
     add(queueId ? "ok" : "warn", "Queue identity", queueId ? "Selected player exposes an active queue id." : "Selected player does not expose active_queue/queue_id. Some queue APIs may still infer it from the entity.", queueId || "(none)");
     add("info", "Queue providers", `HA get_queue ${this._hasService?.("music_assistant", "get_queue") ? "yes" : "no"}, mass_queue get_queue_items ${this._hasMassQueueService?.("get_queue_items") ? "yes" : "no"}, direct queue ${this._hasDirectMAConnection?.() ? "yes" : "no"}`);
+    const uiQueueCount = Array.isArray(this._state.queueItems) ? this._state.queueItems.length : 0;
+    const uiQueueStateCount = Number(this._state.maQueueState?.items);
+    add("info", "Queue UI state", `Rendered queue items ${uiQueueCount}; queue state reports ${Number.isFinite(uiQueueStateCount) ? uiQueueStateCount : "unknown"} item(s).`, this._state.maQueueState ? "state present" : "state missing");
     const attempts = [];
     const snapshots = [];
     const runAttempt = async (label, fn) => {
@@ -55827,7 +57564,20 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const best = snapshots.sort((left, right) => right.count - left.count)[0];
     const detail = attempts.join("; ") || "No queue providers were available.";
     if (best?.count > 0) {
-      add("ok", "Queue snapshot", detail, `${best.label}: ${best.count}`);
+      const snapshotState = best.snapshot?.state || null;
+      const snapshotItems = Array.isArray(best.snapshot?.items) ? best.snapshot.items : [];
+      if (snapshotState && snapshotItems.length && typeof this._applyQueueSnapshot === "function") {
+        this._applyQueueSnapshot(snapshotState, snapshotItems, true);
+      }
+      const repairedUiQueueCount = Array.isArray(this._state.queueItems) ? this._state.queueItems.length : 0;
+      const mismatch = uiQueueCount === 0 && best.count > 0;
+      const repaired = mismatch && repairedUiQueueCount > 0;
+      add(
+        repaired ? "ok" : mismatch ? "warn" : "ok",
+        "Queue snapshot",
+        repaired ? `${detail}. Diagnostics applied the queue snapshot to the card UI state. Reopen the Queue screen if it was already open.` : mismatch ? `${detail}. API returned queue items while the UI currently has no rendered queue items; refresh/reopen the queue panel and send this report if it remains empty.` : detail,
+        `${best.label}: ${best.count}`
+      );
     } else if (best) {
       add("warn", "Queue snapshot", `${detail}. Queue API is reachable but returned no items; this can be normal for an idle/empty queue.`);
     } else {
@@ -55852,6 +57602,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const title = media?.name || artEntry.item?.name || artEntry.item?.media_title || "queue item";
     const mixed = this._diagnosticUrlHasMixedContentRisk(artEntry.art);
     add(mixed ? "warn" : "ok", "Queue artwork sample", mixed ? "Queue artwork resolves to HTTP while the dashboard is HTTPS, so the browser may block it." : "Queue artwork URL was inferred from a selected-player queue item.", `${title} -> ${this._sanitizeDiagnosticUrl(artEntry.art)}`);
+    const load = await this._diagnosticProbeArtworkLoad(artEntry.art);
+    if (load.skipped) {
+      add("info", "Queue artwork browser load", load.reason, `${title} -> ${this._sanitizeDiagnosticUrl(artEntry.art)}`);
+    } else {
+      add(
+        load.ok ? "ok" : "warn",
+        "Queue artwork browser load",
+        load.ok ? "This browser loaded the queue artwork sample as an image." : `${load.reason} The artwork URL was inferred, but this browser could not display it from the current access path.`,
+        `${title} -> ${this._sanitizeDiagnosticUrl(artEntry.art)}${load.ok && load.width && load.height ? ` (${load.width}x${load.height})` : ""}`
+      );
+    }
   }
   async _diagnosticLibraryRows(add, musicAssistantServices = []) {
     if (!musicAssistantServices.length && !this._hasDirectMAConnection?.()) {
@@ -55889,6 +57650,17 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }
     const mixed = this._diagnosticUrlHasMixedContentRisk(art);
     add(mixed ? "warn" : "ok", "Library artwork sample", mixed ? "Artwork resolves to HTTP while the dashboard is HTTPS, so the browser may block it." : "Artwork URL was inferred for a sample library item.", `${sampleResult.type}: ${sampleName} -> ${this._sanitizeDiagnosticUrl(art)}`);
+    const load = await this._diagnosticProbeArtworkLoad(art);
+    if (load.skipped) {
+      add("info", "Library artwork browser load", load.reason, `${sampleResult.type}: ${sampleName} -> ${this._sanitizeDiagnosticUrl(art)}`);
+    } else {
+      add(
+        load.ok ? "ok" : "warn",
+        "Library artwork browser load",
+        load.ok ? "This browser loaded the library artwork sample as an image." : `${load.reason} The artwork URL was inferred, but this browser could not display it from the current access path.`,
+        `${sampleResult.type}: ${sampleName} -> ${this._sanitizeDiagnosticUrl(art)}${load.ok && load.width && load.height ? ` (${load.width}x${load.height})` : ""}`
+      );
+    }
   }
   _diagnosticSendspinRows(add, maUrl = "", directIssue = "", hasIntegrationServices = false) {
     const win = typeof window !== "undefined" ? window : {};
@@ -55923,10 +57695,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const list = Array.isArray(items) ? items : [];
     const failures = list.filter((item) => item.status === "fail").length;
     const warnings = list.filter((item) => item.status === "warn").length;
-    if (!list.length) return this._m("Run a quick Music Assistant health check.", "הרץ בדיקת תקינות קצרה ל-Music Assistant.");
+    if (!list.length) return this._m("Run a quick Music Assistant health check.", "הרץ בדיקת תקינות מהירה ל-Music Assistant.");
     if (failures) return this._m(`${failures} check${failures === 1 ? "" : "s"} need attention.`, `${failures} בדיקות דורשות טיפול.`);
     if (warnings) return this._m(`${warnings} check${warnings === 1 ? "" : "s"} need review.`, `${warnings} בדיקות דורשות בדיקה.`);
-    return this._m("All core checks passed.", "כל בדיקות הליבה עברו בהצלחה.");
+    return this._m("All core checks passed.", "כל הבדיקות המרכזיות עברו.");
   }
   _diagnosticRowHtml(item = {}) {
     const status = String(item.status || "info").toLowerCase();
@@ -55950,17 +57722,141 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       <div class="settings-shell diagnostics-shell">
         <div class="settings-group diagnostics-card">
           <div class="settings-label">${this._esc(this._m("HOMEii Diagnostics", "אבחון HOMEii"))}</div>
-          <div class="settings-hint">${this._esc(this._m("Diagnostic v3 checks Home Assistant integration mode, browser context, player markers, fallback mode, queue, library artwork, Direct MA, and Sendspin readiness.", "Diagnostic v3 בודק מצב אינטגרציה, דפדפן, סימוני נגנים, fallback, תור, תמונות ספרייה, Direct MA ו-Sendspin."))}</div>
+          <div class="settings-hint">${this._esc(this._m("Diagnostic v6 checks Home Assistant integration mode, browser context, player selection, group state, queue UI/API alignment, browser/authenticated artwork loading, rendered artwork DOM, Direct MA, and Sendspin readiness.", "Diagnostic v6 בודק מצב אינטגרציה, דפדפן, בחירת נגן, מצב קבוצה, התאמת תור UI/API, טעינת עטיפות בדפדפן/באימות, מצב תמונות ב-DOM, Direct MA ו-Sendspin."))}</div>
           <div class="settings-actions diagnostics-actions">
-            <button class="settings-pill active" data-menu-action="run_diagnostics" ${running ? "disabled" : ""}>${this._esc(running ? this._m("Running...", "מריץ...") : this._m("Run diagnostics", "הרץ בדיקה"))}</button>
+            <button class="settings-pill active" data-menu-action="run_diagnostics" ${running ? "disabled" : ""}>${this._esc(running ? this._m("Running...", "מריץ...") : this._m("Run diagnostics", "הרץ אבחון"))}</button>
             <button class="settings-pill" data-menu-action="copy_diagnostics" ${items.length ? "" : "disabled"}>${this._esc(this._m("Copy report", "העתק דוח"))}</button>
           </div>
           <div class="diagnostic-summary">${this._esc(this._diagnosticsSummary(items))}</div>
           ${ranAtText ? `<div class="settings-hint">${this._esc(this._m("Last run", "הרצה אחרונה"))}: ${this._esc(ranAtText)}</div>` : ""}
         </div>
         ${running ? `<div class="notice open">${this._esc(this._m("Running checks...", "מריץ בדיקות..."))}</div>` : ""}
-        ${items.length ? `<div class="diagnostics-list">${items.map((item) => this._diagnosticRowHtml(item)).join("")}</div>` : `<div class="notice open">${this._esc(this._m("No diagnostics have been run yet.", "עדיין לא הורצה בדיקה."))}</div>`}
+        ${items.length ? `<div class="diagnostics-list">${items.map((item) => this._diagnosticRowHtml(item)).join("")}</div>` : `<div class="notice open">${this._esc(this._m("No diagnostics have been run yet.", "עדיין לא הורץ אבחון."))}</div>`}
       </div>`;
+  }
+  async _diagnosticEngineRows(add) {
+    const mode = this._homeiiEngineMode();
+    if (!this._homeiiEngineEnabled()) {
+      add("info", "HOMEii Flow Engine", "Engine calls are disabled in this card config. The card is using the normal frontend-only compatibility path.", mode);
+      return;
+    }
+    const context = await this._refreshHomeiiEngineContext({ force: true });
+    if (context?.available) {
+      const capabilitySummary = HomeiiEngineFoundation.summarizeHomeiiEngineCapabilities(context.capabilities);
+      const version = context.version || "unknown version";
+      add("ok", "HOMEii Flow Engine", `Connected to HOMEii Flow Engine ${version}. Capabilities: ${capabilitySummary}.`, mode);
+      add("info", "Engine routing", "Card writes will use the resolved Engine instance/profile unless explicitly overridden in the card config.", `instance=${context.instanceId || "default"}; profile=${context.profileId || "default"}`);
+      if (context.capabilities?.schedule_calendar) {
+        add("ok", "Engine schedule calendar", "HOMEii Flow Engine reports a Home Assistant calendar entity for stored schedules.");
+      }
+      const [playersResult, statsResult, schedulesResult, timersResult, volumeRulesResult, announcementsResult, activityResult, orchestrationResult, playbackStatsResult, screensaverResult] = await Promise.allSettled([
+        this._homeiiEngineGetPlayers(),
+        this._homeiiEngineGetStats(),
+        this._homeiiEngineGetSchedules(),
+        this._homeiiEngineGetTimers(),
+        this._homeiiEngineCommand("volume_rules/get"),
+        this._homeiiEngineGetAnnouncements(),
+        this._homeiiEngineGetActivity(),
+        this._homeiiEngineCommand("orchestration/status"),
+        this._homeiiEngineGetPlaybackStats(),
+        this._homeiiEngineGetScreensaver()
+      ]);
+      const playerCount = Number(playersResult.value?.music_assistant_count ?? statsResult.value?.music_assistant_players ?? 0);
+      if (playersResult.status === "fulfilled" || statsResult.status === "fulfilled") {
+        const playingCount = Number(statsResult.value?.players_playing ?? 0);
+        const groupedCount = Number(statsResult.value?.players_grouped ?? 0);
+        const activePlayer = statsResult.value?.active_player_entity || statsResult.value?.active_player?.entity_id || "";
+        add(playerCount ? "ok" : "warn", "Engine player state", `${playerCount} Music Assistant player(s), ${playingCount} playing, ${groupedCount} grouped.`, activePlayer ? `active=${activePlayer}` : "");
+      }
+      if (orchestrationResult.status === "fulfilled") {
+        const orchestration = orchestrationResult.value || {};
+        const scheduleCheck = orchestration.last_schedule_check || {};
+        const lastAction = orchestration.last_schedule_action || {};
+        const lastTimerAction = orchestration.last_timer_action || {};
+        const lastVolumeAction = orchestration.last_volume_action || {};
+        const lastButtonAction = orchestration.last_button_action || {};
+        const schedulerDetail = scheduleCheck.local_time ? `Last schedule check at ${scheduleCheck.local_time}; ${scheduleCheck.schedule_count ?? 0} schedule(s), ${scheduleCheck.attempted_count ?? 0} attempted, ${scheduleCheck.executed_count ?? 0} executed, ${scheduleCheck.failed_count ?? 0} failed.` : "No schedule check has been recorded yet. Restart Home Assistant or run orchestration once if this stays empty.";
+        const actionDetail = lastAction.error ? ` Last schedule action failed: ${lastAction.error}` : lastAction.provider ? ` Last schedule action used ${lastAction.provider}.` : "";
+        const timerDetail = lastTimerAction.error ? ` Last timer action failed: ${lastTimerAction.error}` : lastTimerAction.provider ? ` Last timer action used ${lastTimerAction.provider}.` : "";
+        const volumeDetail = lastVolumeAction.player ? ` Last volume rule adjusted ${lastVolumeAction.player}.` : "";
+        const buttonDetail = lastButtonAction.action ? ` Last Engine button action: ${lastButtonAction.action}${lastButtonAction.ok === false && lastButtonAction.error ? ` (${lastButtonAction.error})` : ""}.` : "";
+        add(orchestration.running ? "ok" : "warn", "Engine scheduler", `${schedulerDetail}${actionDetail}`, `running=${orchestration.running ? "yes" : "no"}; last_tick=${orchestration.last_tick_at || "(none)"}`);
+        if (timerDetail || volumeDetail || buttonDetail) {
+          add("info", "Engine background actions", `${timerDetail}${volumeDetail}${buttonDetail}`.trim());
+        }
+      }
+      if (playbackStatsResult.status === "fulfilled") {
+        const playbackStats = playbackStatsResult.value || {};
+        const topPlayer = playbackStats.top_player_today || {};
+        const topPlayerDetail = topPlayer.friendly_name ? `Top today: ${topPlayer.friendly_name}, ${topPlayer.minutes || 0} minute(s).` : "No top player yet.";
+        add("info", "Engine playback statistics", `${playbackStats.today_minutes || 0} minute(s), ${playbackStats.today_sessions || 0} session(s) today.`, topPlayerDetail);
+      }
+      if (screensaverResult.status === "fulfilled") {
+        const screen = screensaverResult.value || {};
+        const config = screen.config || {};
+        const resource = config.frontend_url || context.raw?.frontend?.system_screensaver_url || "/homeii_flow/homeii-flow-system-screensaver.js";
+        add(screen.enabled ? "ok" : "info", "Engine system screensaver", `System-wide screensaver is ${screen.enabled ? "enabled" : "disabled"}; effective mode ${screen.effective_mode || "clock"} after ${screen.timeout_seconds || config.timeout_seconds || 90}s.`, `Resource: ${resource}`);
+      }
+      const schedules = Array.isArray(schedulesResult.value?.schedules) ? schedulesResult.value.schedules : [];
+      const timers = Array.isArray(timersResult.value?.timers) ? timersResult.value.timers : [];
+      const volumeRules = Array.isArray(volumeRulesResult.value?.volume_rules) ? volumeRulesResult.value.volume_rules : [];
+      const activeVolumeRules = Array.isArray(volumeRulesResult.value?.active) ? volumeRulesResult.value.active : [];
+      const announcements = Array.isArray(announcementsResult.value?.announcements) ? announcementsResult.value.announcements : [];
+      const activity = Array.isArray(activityResult.value?.activity) ? activityResult.value.activity : [];
+      if (schedulesResult.status === "fulfilled" || timersResult.status === "fulfilled" || volumeRulesResult.status === "fulfilled" || announcementsResult.status === "fulfilled" || activityResult.status === "fulfilled") {
+        const localSchedules = this._scheduledStartSchedules();
+        const localSleepTimerActive = this._sleepTimerRemainingMs() > 0;
+        add("info", "Engine orchestration store", `${schedules.length} schedule(s), ${timers.length} timer(s), ${volumeRules.length} volume rule(s), ${announcements.length} announcement record(s), ${activity.length} activity event(s) stored in HOMEii Flow Engine. Card state has ${localSchedules.length} schedule(s) and ${localSleepTimerActive ? 1 : 0} active sleep timer(s).`);
+        if (schedules.length) {
+          add("info", "Engine schedule controls", `${schedules.length} per-schedule Run now button(s) should be available on the HOMEii Flow Engine device page after HA reloads the integration.`);
+        }
+        const lastActivity = activityResult.value?.last_activity || activity[0] || {};
+        if (lastActivity?.message) {
+          add("info", "Engine last activity", `${lastActivity.message}`, `${lastActivity.kind || "event"} · ${lastActivity.created_at || ""}`);
+        }
+        if (volumeRulesResult.status === "fulfilled") {
+          const activeDetail = activeVolumeRules.slice(0, 4).map((rule) => `${rule.player || "(no player)"} <= ${rule.max_volume ?? "?"}%`).join("; ");
+          add(volumeRules.length ? "ok" : "info", "Engine volume policies", `${activeVolumeRules.length}/${volumeRules.length} volume rule(s) active now.`, activeDetail);
+        }
+        const nextSchedule = schedulesResult.value?.next_schedule || {};
+        if (nextSchedule?.next_run) {
+          const label = [nextSchedule.name, nextSchedule.player, nextSchedule.media_name || nextSchedule.playlist_name].filter(Boolean).join(" · ");
+          add("info", "Engine next schedule", `${nextSchedule.next_run}${label ? ` · ${label}` : ""}`);
+        }
+        const nextTimer = timersResult.value?.next_timer || {};
+        if (nextTimer?.ends_at) {
+          const remaining = Number(nextTimer.remaining_seconds ?? 0);
+          const remainingText = Number.isFinite(remaining) ? ` · ${Math.max(0, Math.ceil(remaining / 60))} minute(s) remaining` : "";
+          add("info", "Engine next timer", `${nextTimer.ends_at} · ${nextTimer.player || "(no player)"} · ${nextTimer.action || "stop"}${remainingText}`);
+        }
+        if (localSchedules.length) {
+          const engineScheduleIds = new Set(schedules.map((schedule) => String(schedule?.id || schedule?.schedule_id || "").trim()).filter(Boolean));
+          const missingSchedules = localSchedules.filter((schedule) => !engineScheduleIds.has(String(schedule?.id || "").trim()));
+          if (missingSchedules.length) {
+            add("warn", "Engine schedule sync", `${missingSchedules.length} card schedule(s) were not found in the Engine read-back result. Save one schedule again, then rerun diagnostics.`);
+          } else {
+            add("ok", "Engine schedule sync", "Card schedules were found in the Engine read-back result.");
+          }
+        }
+        if (localSleepTimerActive) {
+          const timerPlayer = String(this._state.mobileSleepTimerPlayer || this._state.selectedPlayer || this._getSelectedPlayer()?.entity_id || "").trim();
+          const timerId = this._homeiiSleepTimerId(timerPlayer);
+          const now = Date.now();
+          const timerFound = timers.some((timer) => {
+            const type = String(timer?.type || timer?.timer_type || "sleep");
+            const targetMs = Date.parse(timer?.ends_at || timer?.target_at || "");
+            const matchesId = String(timer?.id || timer?.timer_id || "").trim() === timerId;
+            const matchesPlayer = timerPlayer && String(timer?.player || timer?.entity_id || "").trim() === timerPlayer;
+            return type === "sleep" && (matchesId || matchesPlayer) && Number.isFinite(targetMs) && targetMs > now;
+          });
+          add(timerFound ? "ok" : "warn", "Engine sleep timer sync", timerFound ? "The active card sleep timer was found in the Engine read-back result." : "The card has an active sleep timer, but Engine did not return a matching active timer.");
+        }
+      }
+      return;
+    }
+    const detail = this._homeiiEngineRequired() ? "Engine mode is Required, but the Home Assistant integration did not answer. Future Engine-backed features will not be available until the integration is installed and loaded." : "Engine was not detected. This is OK: the card will continue using the current Home Assistant/Music Assistant frontend path.";
+    const lastError = this._state.engineLastError ? ` Last error: ${this._state.engineLastError}` : "";
+    add(this._homeiiEngineRequired() ? "fail" : "info", "HOMEii Flow Engine", `${detail}${lastError}`, mode);
   }
   async _runDiagnostics() {
     if (this._state.diagnosticsStatus === "running") return;
@@ -55983,7 +57879,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     let configEntryState = "";
     let configEntryFound = false;
     add("ok", "Card version", "HOMEii Flow runtime is loaded.", HOMEII_CARD_VERSION);
-    add("ok", "Diagnostics version", "Diagnostic v3 is active.", "v3");
+    add("ok", "Diagnostics version", "Diagnostic v6 is active.", "v6");
     add("info", "Browser", this._diagnosticBrowserSummary());
     add("info", "Viewport", this._diagnosticViewportSummary());
     add("info", "Diagnostic privacy", "External/private hostnames are redacted in visible and copied diagnostic output.");
@@ -55991,6 +57887,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     add(hassReady ? "ok" : "fail", "Home Assistant frontend", hassReady ? "The card can read Home Assistant state and services." : "The card does not have a usable Home Assistant frontend object.");
     add(musicAssistantServices.length ? "ok" : "fail", "Music Assistant services", musicAssistantServices.length ? `${musicAssistantServices.length} service(s) are exposed by Home Assistant.` : "No music_assistant services are exposed by Home Assistant.");
     add(hasIntegrationServices ? "ok" : "warn", "Integration mode", hasIntegrationServices ? "Core card features can run through the Home Assistant Music Assistant integration. HTTP/HTTPS mixed-content rules only affect optional Direct/Sendspin browser access." : "Home Assistant does not expose music_assistant services, so the card must rely on direct Music Assistant access where possible.");
+    await this._diagnosticEngineRows(add);
     if (this._hass?.connection?.sendMessagePromise) {
       try {
         const entries = await this._withTimeout(this._hass.connection.sendMessagePromise({
@@ -56032,6 +57929,18 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const selectedFallback = !selectedStrictMa && this._isGenericMusicAssistantFallbackPlayer?.(selectedPlayer);
       const excluded = this._isPlayerExcluded?.(selectedPlayer);
       add((selectedStrictMa || selectedFallback) && !excluded ? "ok" : "warn", "Selected player", excluded ? "The selected player is currently excluded in HOMEii settings." : selectedStrictMa ? "Selected player has strict Music Assistant markers." : selectedFallback ? "Selected player has no strict MA markers; HOMEii is using the generic Home Assistant fallback." : "Selected player does not look usable for Music Assistant.", `${selectedName} | ${this._diagnosticPlayerMarkerSummary(selectedPlayer, hassEntities)}`);
+      const urlOverride = this._playerOverrideParamValue?.() || "";
+      const configuredEntity = String(this._config?.entity || this.config?.entity || "").trim();
+      const selectionSource = urlOverride ? `query string (${urlOverride})` : configuredEntity ? `card entity (${configuredEntity})` : "automatic / remembered";
+      add("info", "Player selection source", "Query-string player overrides win first, then card entity, then automatic/remembered selection.", selectionSource);
+      const groupIds = this._currentSpeakerGroupMemberIds?.(selectedPlayer.entity_id) || [];
+      const groupNames = groupIds.map((entityId) => this._playerByEntityId?.(entityId)?.attributes?.friendly_name || entityId).filter(Boolean);
+      add(groupIds.length > 1 ? "ok" : "info", "Group state", groupIds.length > 1 ? `${groupIds.length} player(s) are currently grouped.` : "Selected player is not currently in a dynamic group.", groupNames.join(" · ") || "(none)");
+      const groupOwnerId = this._currentSpeakerGroupOwnerId?.(selectedPlayer.entity_id) || selectedPlayer.entity_id || "";
+      const groupOwnerName = this._playerByEntityId?.(groupOwnerId)?.attributes?.friendly_name || groupOwnerId || "(none)";
+      const joinAvailable = !!this._hass?.services?.media_player?.join;
+      const unjoinAvailable = !!this._hass?.services?.media_player?.unjoin;
+      add(joinAvailable && unjoinAvailable ? "ok" : "warn", "Group service path", `media_player.join ${joinAvailable ? "yes" : "no"}, media_player.unjoin ${unjoinAvailable ? "yes" : "no"}`, `owner=${groupOwnerName}; selected_is_owner=${groupOwnerId === selectedPlayer.entity_id ? "yes" : "no"}; members=${groupIds.join(", ") || "(none)"}`);
     }
     if (!maUrl) {
       add(hasIntegrationServices ? "ok" : "info", "ma_url", "Empty is OK for the normal Home Assistant integration path. Direct API and Sendspin need a separate direct Music Assistant URL.", "(empty)");
@@ -56072,6 +57981,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._diagnosticSendspinRows(add, maUrl, directIssue, hasIntegrationServices);
     await this._diagnosticQueueRows(add, selectedPlayer);
     await this._diagnosticLibraryRows(add, musicAssistantServices);
+    this._diagnosticRenderedArtworkRows(add);
     this._state.diagnosticsItems = items;
     this._state.diagnosticsStatus = "done";
     this._state.diagnosticsRunAt = Date.now();
@@ -56081,7 +57991,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const items = Array.isArray(this._state.diagnosticsItems) ? this._state.diagnosticsItems : [];
     const lines = [
       "HOMEii Music Flow Diagnostics",
-      "Diagnostics: v3",
+      "Diagnostics: v6",
       `Version: ${HOMEII_CARD_VERSION}`,
       `Generated: ${new Date(this._state.diagnosticsRunAt || Date.now()).toISOString()}`,
       `Browser: ${this._diagnosticBrowserSummary()}`,
@@ -56093,6 +58003,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       `ma_url detail: ${this._diagnosticUrlDescription(this._maBrowserUrl())}`,
       `access_path: ${this._diagnosticAccessDetail(this._maBrowserUrl())}`,
       `ma_token configured: ${this._maToken ? "yes" : "no"}`,
+      `homeii_engine_mode: ${this._homeiiEngineMode()}`,
+      `homeii_engine_status: ${this._state.engineStatus || "unknown"}`,
+      `homeii_engine_available: ${this._state.engineAvailable ? "yes" : "no"}`,
+      `homeii_engine_version: ${this._state.engineVersion || "(none)"}`,
+      `homeii_engine_instance_id configured: ${this._config?.homeii_engine_instance_id ? "yes" : "no"}`,
+      `homeii_engine_profile_id configured: ${this._config?.homeii_engine_profile_id ? "yes" : "no"}`,
+      `homeii_engine_instance_id resolved: ${this._state.engineInstanceId || "(none)"}`,
+      `homeii_engine_profile_id resolved: ${this._state.engineProfileId || "(none)"}`,
       `selected_player: ${this._state.selectedPlayer || "(none)"}`,
       "",
       "Checks:",
@@ -56118,7 +58036,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       }
       this._toastSuccess(this._m("Diagnostics report copied", "דוח האבחון הועתק"));
     } catch (error) {
-      this._toastError(error?.message || this._m("Could not copy diagnostics report", "לא הצלחתי להעתיק את דוח האבחון"));
+      this._toastError(error?.message || this._m("Could not copy diagnostics report", "לא ניתן להעתיק את דוח האבחון"));
     }
   }
   _libraryTabMeta(tab) {
@@ -56190,11 +58108,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       name: String(item?.name || item?.title || mediaItem?.name || mediaItem?.title || "").trim(),
       artist,
       album: albumName,
-      image
+      image,
+      favorite_scope: item?.favorite_scope || parentDetail?.favorite_scope || "library"
     };
   }
   _mediaDetailDataAttrs(entry = {}) {
-    return `data-media-uri="${this._esc(entry.uri || "")}" data-media-type="${this._esc(entry.media_type || "track")}" data-media-name="${this._esc(entry.name || "")}" data-media-artist="${this._esc(entry.artist || "")}" data-media-album="${this._esc(entry.album || "")}" data-media-image="${this._esc(entry.image || "")}"`;
+    return `data-media-uri="${this._esc(entry.uri || "")}" data-media-type="${this._esc(entry.media_type || "track")}" data-media-name="${this._esc(entry.name || "")}" data-media-artist="${this._esc(entry.artist || "")}" data-media-album="${this._esc(entry.album || "")}" data-media-image="${this._esc(entry.image || "")}" data-media-favorite-scope="${this._esc(entry.favorite_scope || "library")}"`;
   }
   _mediaDetailTrackRowsHtml(tracks = [], parentDetail = {}) {
     if (!tracks.length) return "";
@@ -56248,7 +58167,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const tracks = Array.isArray(detail.tracks) ? detail.tracks : [];
     const loading = !!detail.loading;
     const trackCount = tracks.length ? `${tracks.length} ${this._i18n("ui.tracks").toLowerCase()}` : "";
-    const emptyCopy = detail.error || this._m("No tracks were returned. You can still play it.", "לא נטענו שירים. עדיין אפשר לנגן.");
+    const emptyCopy = detail.error || this._m("No tracks were returned. You can still play it.", "לא חזרו רצועות. עדיין אפשר להפעיל.");
     const detailEntry = this._mediaDetailEntryData({ ...detail, image: art, image_url: art }, mediaType, detail);
     const detailDataAttrs = this._mediaDetailDataAttrs(detailEntry);
     const detailLiked = this._isEntryLiked(detailEntry);
@@ -56322,7 +58241,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const albums = Array.isArray(detail.albums) ? detail.albums : [];
     const playlists = Array.isArray(detail.playlists) ? detail.playlists : [];
     const loading = !!detail.loading;
-    const emptyCopy = detail.error || this._m("No albums were returned for this artist.", "לא נטענו אלבומים לאמן הזה.");
+    const emptyCopy = detail.error || this._m("No albums were returned for this artist.", "לא חזרו אלבומים עבור האמן הזה.");
     const searchQuery = detail.artistSearchQuery || "";
     const searchOpen = !!detail.artistSearchOpen;
     const albumGroups = this._artistAlbumYearGroups(albums);
@@ -56338,7 +58257,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           <span class="artist-detail-actions">
             <button class="artist-hero-icon-btn" data-artist-radio="1" data-media-uri="${this._esc(detail.uri || artistInfo.uri || "")}" data-media-type="artist" data-media-name="${this._esc(title)}" title="${this._esc(artistRadioTitle)}" aria-label="${this._esc(artistRadioTitle)}">${this._iconSvg("radio")}</button>
             <button class="artist-hero-icon-btn" data-artist-search-toggle="1" title="${this._esc(this._i18n("ui.search"))}" aria-label="${this._esc(this._i18n("ui.search"))}" aria-expanded="${searchOpen ? "true" : "false"}">${this._iconSvg("search")}</button>
-            <button class="artist-info-btn" data-artist-info-open="1" title="${this._esc(this._m("Artist info", "מידע על האמן"))}" aria-label="${this._esc(this._m("Artist info", "מידע על האמן"))}">${this._iconSvg("info")}</button>
+            <button class="artist-info-btn" data-artist-info-open="1" title="${this._esc(this._m("Artist info", "מידע על אמן"))}" aria-label="${this._esc(this._m("Artist info", "מידע על אמן"))}">${this._iconSvg("info")}</button>
           </span>
         </div>
         ${detail.artistInfoOpen ? this._artistInfoPopupHtml(title, description) : ``}
@@ -56346,7 +58265,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           <div class="artist-detail-search">
             <div class="media-search-shell artist-search-shell">
               <span>${this._iconSvg("search")}</span>
-              <input id="artistDetailSearchInput" type="text" value="${this._esc(searchQuery)}" placeholder="${this._esc(this._m("Search another artist", "חפש אמן אחר"))}">
+              <input id="artistDetailSearchInput" type="text" value="${this._esc(searchQuery)}" placeholder="${this._esc(this._m("Search another artist", "??? ??? ???"))}">
               <button class="chip-btn artist-search-btn" data-artist-detail-search title="${this._esc(this._i18n("ui.search"))}"><span>${this._esc(this._i18n("ui.search"))}</span></button>
             </div>
           </div>
@@ -56363,13 +58282,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
               ${albumGroups.length ? albumGroups.map(([year, yearAlbums]) => `
                     <div class="artist-year-group">
                       <div class="artist-year-title">${this._esc(year)}</div>
-                      ${this._mediaItemsListHtml(yearAlbums, "album", { layout: "grid", albumBadges: true })}
+                      ${this._mediaItemsListHtml(yearAlbums, "album", { albumBadges: true })}
                     </div>
                   `).join("") : `<div class="notice open media-detail-empty">${this._esc(emptyCopy)}</div>`}
             </div>
             <div class="artist-detail-section">
-              <div class="media-section-title">${this._esc(this._m("Artist playlist recommendations", "המלצות לפלייליסטים של האמן"))}</div>
-              ${playlists.length ? this._mediaItemsListHtml(playlists, "playlist", { layout: "list" }) : `<div class="notice open media-detail-empty">${this._esc(this._m("No playlist recommendations were returned yet.", "עדיין לא נמצאו המלצות לפלייליסטים."))}</div>`}
+              <div class="media-section-title">${this._esc(this._m("Artist playlist recommendations", "המלצות פלייליסטים לאמן"))}</div>
+              ${playlists.length ? this._mediaItemsListHtml(playlists, "playlist", { layout: "list" }) : `<div class="notice open media-detail-empty">${this._esc(this._m("No playlist recommendations were returned yet.", "עדיין לא חזרו המלצות פלייליסטים."))}</div>`}
             </div>
           `}
       </div>
@@ -56702,8 +58621,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _voiceAssistantQueueIntent(transcript = "") {
     const normalized = this._normalizeVoiceCommandText(transcript);
     if (!normalized) return null;
-    const hasQueueWord = this._voiceCommandHasAny(normalized, ["queue", "current queue", "play queue", "music queue", "תור", "טור", "התור", "הטור", "תור ניגון", "רשימת השמעה"]);
-    const hasTransferWord = this._voiceCommandHasAny(normalized, ["transfer", "move", "send", "move queue", "transfer queue", "העבר", "להעביר", "תעביר", "תעבירי", "הזז", "העברת"]);
+    const hasQueueWord = this._voiceCommandHasAny(normalized, ["queue", "current queue", "play queue", "music queue", "???", "???", "????", "????", "??? ?????", "????? ?????"]);
+    const hasTransferWord = this._voiceCommandHasAny(normalized, ["transfer", "move", "send", "move queue", "transfer queue", "????", "??????", "?????", "??????", "???", "?????"]);
     const mentioned = this._voiceAssistantMentionedPlayers(transcript);
     if (!hasTransferWord || !hasQueueWord && mentioned.length < 2) return null;
     let sourcePlayer = null;
@@ -56725,12 +58644,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const normalized = this._normalizeVoiceCommandText(transcript);
     if (!normalized) return null;
     const mentioned = this._voiceAssistantMentionedPlayers(transcript);
-    const hasSpeakerWord = this._voiceCommandHasAny(normalized, ["speaker", "speakers", "player", "players", "room", "rooms", "רמקול", "רמקולים", "נגן", "נגנים", "חדר", "חדרים"]);
-    const hasGroupWord = this._voiceCommandHasAny(normalized, ["group", "group speakers", "join", "connect speakers", "link speakers", "ungroup", "disconnect group", "speaker group", "קבוצה", "קבוצת נגנים", "חיבור רמקולים", "חבר רמקולים", "ניתוק רמקולים", "צימוד רמקולים"]);
-    const hasDisconnectWord = this._voiceCommandHasAny(normalized, ["ungroup", "disconnect group", "disconnect speakers", "unjoin", "clear group", "נתק", "תנתק", "תנתקי", "פרק", "תפרק", "הפרד", "נתק קבוצה", "נתק רמקולים"]);
-    const hasConnectWord = this._voiceCommandHasAny(normalized, ["group", "join", "connect", "link", "pair", "activate speakers", "start speakers", "חבר", "תחבר", "תחברי", "צרף", "תצרף", "תצרפי", "צמד", "אחד", "סנכרן", "הפעל", "תפעיל", "תפעילי"]);
-    const allGroups = this._voiceCommandHasAny(normalized, ["all groups", "all speakers", "all players", "כל הקבוצות", "כל הרמקולים", "כל הנגנים", "כולם"]);
-    const speakerCountHint = this._voiceCommandHasAny(normalized, ["two speakers", "2 speakers", "שני רמקולים", "2 רמקולים", "שתי רמקולים", "שני נגנים", "2 נגנים"]);
+    const hasSpeakerWord = this._voiceCommandHasAny(normalized, ["speaker", "speakers", "player", "players", "room", "rooms", "?????", "???????", "???", "?????", "???", "?????"]);
+    const hasGroupWord = this._voiceCommandHasAny(normalized, ["group", "group speakers", "join", "connect speakers", "link speakers", "ungroup", "disconnect group", "speaker group", "?????", "????? ?????", "????? ???????", "??? ???????", "????? ???????", "????? ???????"]);
+    const hasDisconnectWord = this._voiceCommandHasAny(normalized, ["ungroup", "disconnect group", "disconnect speakers", "unjoin", "clear group", "???", "????", "?????", "???", "????", "????", "??? ?????", "??? ???????"]);
+    const hasConnectWord = this._voiceCommandHasAny(normalized, ["group", "join", "connect", "link", "pair", "activate speakers", "start speakers", "???", "????", "?????", "???", "????", "?????", "???", "???", "?????", "????", "?????", "??????"]);
+    const allGroups = this._voiceCommandHasAny(normalized, ["all groups", "all speakers", "all players", "?? ???????", "?? ????????", "?? ??????", "????"]);
+    const speakerCountHint = this._voiceCommandHasAny(normalized, ["two speakers", "2 speakers", "??? ???????", "2 ???????", "??? ???????", "??? ?????", "2 ?????"]);
     if (hasDisconnectWord && (hasGroupWord || hasSpeakerWord || allGroups || mentioned.length)) {
       if (allGroups) return { type: "group_disconnect_all" };
       const player = mentioned[0] || this._voiceAssistantDefaultPlayer();
@@ -56764,28 +58683,28 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     if (speakerGroupIntent) return speakerGroupIntent;
     const volumeIntent = this._voiceAssistantVolumeIntent(normalized);
     if (volumeIntent) return volumeIntent;
-    if (this._voiceCommandHasAny(normalized, ["next", "skip", "הבא", "הבאה", "דלג", "תעביר", "תעבירי"])) return { type: "next" };
-    if (this._voiceCommandHasAny(normalized, ["previous", "back", "last song", "הקודם", "הקודמת", "חזור", "תחזור"])) return { type: "previous" };
-    if (this._voiceCommandHasAny(normalized, ["pause", "hold", "השהה", "להשהות"])) return { type: "pause" };
-    if (this._voiceCommandHasAny(normalized, ["stop", "turn off music", "עצור", "תעצור", "תפסיק", "כבה מוזיקה"])) return { type: "stop" };
-    if (this._voiceCommandHasAny(normalized, ["resume", "continue", "play music", "המשך", "תמשיך", "להמשיך"])) return { type: "resume" };
+    if (this._voiceCommandHasAny(normalized, ["next", "skip", "???", "????", "???", "?????", "??????"])) return { type: "next" };
+    if (this._voiceCommandHasAny(normalized, ["previous", "back", "last song", "?????", "??????", "????", "?????"])) return { type: "previous" };
+    if (this._voiceCommandHasAny(normalized, ["pause", "hold", "????", "??????"])) return { type: "pause" };
+    if (this._voiceCommandHasAny(normalized, ["stop", "turn off music", "????", "?????", "?????", "??? ??????"])) return { type: "stop" };
+    if (this._voiceCommandHasAny(normalized, ["resume", "continue", "play music", "????", "?????", "??????"])) return { type: "resume" };
     const hasMusicVerb = this._voiceCommandHasAny(normalized, [
       "play",
       "put on",
       "listen to",
       "start music",
-      "נגן",
-      "נגני",
-      "תנגן",
-      "תנגני",
-      "שים",
-      "שימי",
-      "השמע",
-      "תשמיע",
-      "תשמיעי",
-      "הפעל",
-      "תפעיל",
-      "תפעילי"
+      "???",
+      "????",
+      "????",
+      "?????",
+      "???",
+      "????",
+      "????",
+      "?????",
+      "??????",
+      "????",
+      "?????",
+      "??????"
     ]);
     if (hasMusicVerb || forceMusic) {
       const query = this._extractVoiceAssistantMusicQuery(transcript, player);
@@ -57030,15 +58949,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         return { handled: false, ok: false, message: "" };
       }
       const actionLabel = {
-        next: this._m("next track", "השיר הבא"),
-        previous: this._m("previous track", "השיר הקודם"),
-        pause: this._m("pause", "השהיה"),
-        resume: this._m("play", "ניגון"),
-        stop: this._m("stop", "עצירה"),
-        mute: this._m("mute", "השתקה"),
-        unmute: this._m("unmute", "ביטול השתקה"),
-        volume_set: this._m("volume", "עוצמת קול"),
-        volume_delta: this._m("volume", "עוצמת קול")
+        next: this._m("next track", "???? ???"),
+        previous: this._m("previous track", "???? ?????"),
+        pause: this._m("pause", "?????"),
+        resume: this._m("play", "?????"),
+        stop: this._m("stop", "?????"),
+        mute: this._m("mute", "?????"),
+        unmute: this._m("unmute", "????? ?????"),
+        volume_set: this._m("volume", "????? ???"),
+        volume_delta: this._m("volume", "????? ???")
       }[intent.type] || this._i18n("ui.voice_command_executed");
       const message = this._i18n("ui.voice_command_completed_action", { action: actionLabel });
       this._toastSuccess(message);
@@ -57511,8 +59430,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
   _mobileSortOptions() {
     return [
-      { value: "name_asc", label: `${this._i18n("ui.ascending")} ↑` },
-      { value: "name_desc", label: `${this._i18n("ui.descending")} ↓` },
+      { value: "name_asc", label: this._i18n("ui.ascending") },
+      { value: "name_desc", label: this._i18n("ui.descending") },
       { value: "date_desc", label: this._i18n("ui.newest") },
       { value: "date_asc", label: this._i18n("ui.oldest") }
     ];
@@ -57665,6 +59584,38 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     this._setLibraryTabSearchQuery(value, key);
     return this._libraryTabSearchQuery(key);
   }
+  _libraryFavoritesPageKey(page = this._state.menuPage) {
+    const key = this._libraryTabSearchPageKey(page);
+    if (!key || key === "library_search" || key === "library_liked") return "";
+    return key;
+  }
+  _libraryFavoritesOnlyTabs() {
+    const valid = new Set([
+      ...this._defaultMobileLibraryTabs(),
+      ...typeof this._mobileLibraryTabs === "function" ? this._mobileLibraryTabs() : [],
+      "library_liked",
+      "library_search"
+    ].map((id) => this._libraryFavoritesPageKey(id)).filter(Boolean));
+    return [...new Set((Array.isArray(this._state.mobileLibraryFavoritesOnlyTabs) ? this._state.mobileLibraryFavoritesOnlyTabs : []).map((page) => this._libraryFavoritesPageKey(page)).filter((page) => page && valid.has(page)))];
+  }
+  _libraryFavoritesOnlyEnabled(page = this._state.menuPage) {
+    const key = this._libraryFavoritesPageKey(page);
+    return !!key && this._libraryFavoritesOnlyTabs().includes(key);
+  }
+  _setLibraryFavoritesOnly(page = this._state.menuPage, enabled = false) {
+    const key = this._libraryFavoritesPageKey(page);
+    if (!key) return false;
+    const next = new Set(this._libraryFavoritesOnlyTabs());
+    if (enabled) next.add(key);
+    else next.delete(key);
+    this._state.mobileLibraryFavoritesOnlyTabs = Array.from(next);
+    try {
+      localStorage.setItem(this._lsKey("homeii_music_flow_mobile_library_favorites_tabs"), JSON.stringify(this._state.mobileLibraryFavoritesOnlyTabs));
+    } catch (_) {
+    }
+    this._cache.library.clear();
+    return true;
+  }
   _restoreLibraryTabSearchFocus() {
     const focusId = String(this._state.libraryTabSearchFocusId || "").trim();
     if (!focusId) return;
@@ -57738,30 +59689,31 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       return true;
     });
   }
-  async _getLibraryTabItems(meta = {}, orderBy = "sort_name", limit = 250, query = "") {
+  async _getLibraryTabItems(meta = {}, orderBy = "sort_name", limit = 250, query = "", favoritesOnly = false) {
     const mediaType = String(meta?.type || "").trim();
     if (!mediaType || mediaType === "liked" || mediaType === "search") return [];
     const search = String(query || "").trim();
-    if (!search) return this._getLibrary(mediaType, orderBy, limit);
-    const cacheKey = `tab-search:${mediaType}:${orderBy}:${limit}:${search.toLowerCase()}`;
+    const onlyFavorites = favoritesOnly === true;
+    if (!search) return this._getLibrary(mediaType, orderBy, limit, onlyFavorites);
+    const cacheKey = `tab-search:${mediaType}:${orderBy}:${limit}:${onlyFavorites}:${search.toLowerCase()}`;
     const ttl = Number(this._config.cache_ttl || 3e5);
     const cached = this._cache.library.get(cacheKey);
     if (cached && Date.now() - cached.ts < ttl) return cached.items;
     let items = [];
     try {
-      items = await this._fetchLibrary(mediaType, orderBy, limit, false, search);
+      items = await this._fetchLibrary(mediaType, orderBy, limit, onlyFavorites, search);
     } catch (error) {
       if (this._isMusicAssistantAvailabilityError(error)) {
         this._handleMusicAssistantIssue(error);
       } else if (orderBy !== "sort_name") {
-        items = await this._fetchLibrary(mediaType, "sort_name", limit, false, search);
+        items = await this._fetchLibrary(mediaType, "sort_name", limit, onlyFavorites, search);
       } else {
         throw error;
       }
     }
     if (!items.length) {
       try {
-        const fallbackItems = await this._getLibrary(mediaType, orderBy, limit);
+        const fallbackItems = await this._getLibrary(mediaType, orderBy, limit, onlyFavorites);
         items = this._filterLibraryItemsByQuery(fallbackItems, search);
       } catch (_) {
       }
@@ -57838,13 +59790,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     return `
       <div class="media-results library-tab-search-results">
         <div>
-          <div class="media-section-title">${this._esc(this._m("In library", "בספריה"))}</div>
-          ${hasLibrary ? this._mediaItemsListHtml(libraryItems, mediaType, { layout: "grid", librarySkin: true }) : `<div class="notice open">${this._esc(this._m("No local library matches yet.", "אין עדיין תוצאות מהספריה המקומית."))}</div>`}
+          <div class="media-section-title">${this._esc(this._m("In library", "??????"))}</div>
+          ${hasLibrary ? this._mediaItemsListHtml(libraryItems, mediaType, { librarySkin: true }) : `<div class="notice open">${this._esc(this._m("No local library matches yet.", "??? ????? ?????? ??????? ???????."))}</div>`}
         </div>
         ${providerLoading || providerError || hasProvider ? `
           <div>
-            <div class="media-section-title">${this._esc(this._m("Content providers", "ספקי תוכן"))}</div>
-            ${providerLoading ? this._loadingStateHtml(this._i18n("ui.searching"), { notice: true }) : providerError ? `<div class="notice open">${this._esc(providerError)}</div>` : this._mediaItemsListHtml(providerItems, mediaType, { layout: "grid", librarySkin: true })}
+            <div class="media-section-title">${this._esc(this._m("Content providers", "???? ????"))}</div>
+            ${providerLoading ? this._loadingStateHtml(this._i18n("ui.searching"), { notice: true }) : providerError ? `<div class="notice open">${this._esc(providerError)}</div>` : this._mediaItemsListHtml(providerItems, mediaType, { librarySkin: true })}
           </div>
         ` : ""}
       </div>
@@ -57857,6 +59809,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const isSearch = this._state.menuPage === "library_search";
     const tabSearchOpen = this._state.libraryTabSearchOpen === true || !!this._libraryTabSearchQuery(page);
     const libraryFlowActive = this._libraryFlowPageActive(page);
+    const favoritesPage = this._libraryFavoritesPageKey(page);
+    const favoritesOnly = this._libraryFavoritesOnlyEnabled(favoritesPage);
+    const favoritesLabel = this._m("Music Assistant favorites only", "מועדפי Music Assistant בלבד");
     return `
       <div class="media-toolbar library-toolbar library-toolbar-minimal">
         <div class="library-toolbar-player">
@@ -57866,9 +59821,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         <div class="library-toolbar-actions library-toolbar-icons">
           <button class="media-layout-btn library-toolbar-search-toggle ${tabSearchOpen ? "active" : ""}" data-library-tab-search-toggle="${this._esc(page)}" title="${this._esc(this._i18n("ui.search"))}" aria-label="${this._esc(this._i18n("ui.search"))}" aria-expanded="${tabSearchOpen ? "true" : "false"}">${this._iconSvg("search")}</button>
           <div class="media-layout-toggle" role="tablist" aria-label="${this._esc(this._i18n("ui.media_layout"))}">
-            ${!isSearch ? `<button class="media-layout-btn subtle-heart ${this._state.menuPage === "library_liked" ? "active" : ""}" data-menu-nav="library_liked" title="${this._esc(this._i18n("ui.liked"))}">${this._iconSvg("heart_filled")}</button>` : ``}
+            ${favoritesPage ? `<button class="media-layout-btn library-favorites-toggle ${favoritesOnly ? "active" : ""}" data-library-favorites-toggle="${this._esc(favoritesPage)}" title="${this._esc(favoritesLabel)}" aria-label="${this._esc(favoritesLabel)}" aria-pressed="${favoritesOnly ? "true" : "false"}">${this._iconSvg(favoritesOnly ? "heart_filled" : "heart_outline")}</button>` : ``}
             ${!isSearch ? `<button class="media-layout-btn" data-media-surprise="1" title="${this._esc(this._i18n("ui.surprise_me"))}">${this._iconSvg("wand")}</button>` : ``}
-            ${!isSearch ? `<button class="media-layout-btn library-flow-toggle ${libraryFlowActive ? "active" : ""}" data-library-flow-toggle="${this._esc(page)}" title="${this._esc(this._libraryFlowLabel())}" aria-label="${this._esc(this._libraryFlowLabel())}" aria-pressed="${libraryFlowActive ? "true" : "false"}">${this._iconSvg("queue_flow")}<span>${this._esc(this._libraryFlowLabel(true))}</span></button>` : ``}
+            ${!isSearch ? `<button class="media-layout-btn library-flow-toggle ${libraryFlowActive ? "active" : ""}" data-library-flow-toggle="${this._esc(page)}" title="${this._esc(this._libraryFlowLabel())}" aria-label="${this._esc(this._libraryFlowLabel())}" aria-pressed="${libraryFlowActive ? "true" : "false"}">${this._iconSvg("queue_flow")}</button>` : ``}
             <button class="media-layout-btn ${layout === "grid" ? "active" : ""}" data-media-layout="grid" title="${this._esc(this._i18n("ui.grid"))}">${this._iconSvg("grid")}</button>
             <button class="media-layout-btn ${layout === "list" ? "active" : ""}" data-media-layout="list" title="${this._esc(this._i18n("ui.list"))}">${this._iconSvg("list")}</button>
           </div>
@@ -57930,7 +59885,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const thumbHtml = art ? `<span class="menu-thumb" data-img="${this._esc(art)}" data-placeholder="${this._esc(fallbackIcon)}">${this._iconSvg(fallbackIcon)}</span>` : `<span class="menu-thumb">${this._iconSvg(fallbackIcon)}</span>`;
       const artistName2 = this._artistName(item) || "";
       const sub = entryMediaType === "artist" ? this._i18n("ui.artist") : entryMediaType === "radio" ? item.metadata?.description || "" : artistName2 || item.album?.name || item.publisher || "";
-      const dataAttrs = `data-media-type="${this._esc(entryMediaType)}" data-media-name="${this._esc(item.name || "")}" data-media-artist="${this._esc(artistName2)}" data-media-album="${this._esc(item.album?.name || "")}" data-media-image="${this._esc(art || "")}"`;
+      const dataAttrs = `data-media-type="${this._esc(entryMediaType)}" data-media-name="${this._esc(item.name || "")}" data-media-artist="${this._esc(artistName2)}" data-media-album="${this._esc(item.album?.name || "")}" data-media-image="${this._esc(art || "")}" data-media-favorite-scope="library"`;
       return `
         <div class="menu-list-item media-entry ${this._esc(layout)} media-type-${this._esc(entryMediaType)}">
           <button class="media-entry-main" ${canOpenDetails ? `data-media-open="${this._esc(item.uri || "")}"` : `data-media-uri="${this._esc(item.uri || "")}"`} ${dataAttrs}>
@@ -57977,7 +59932,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   }
   _likedMediaEntriesHtml(entries = []) {
     if (!entries.length) return `<div class="notice open">${this._i18n("ui.no_liked_media_yet")}</div>`;
-    const layout = "grid";
+    const layout = this._state.mobileMediaLayout || this._defaultMobileMediaLayout();
     const selectedSet = new Set(Array.isArray(this._state.likedSelectedUris) ? this._state.likedSelectedUris : []);
     const playableCount = this._likedPlayableEntries(entries, true).length;
     return `
@@ -57988,8 +59943,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           ${this._state.likedSelectionMode ? `<button class="chip-btn accent" data-liked-play-selected>${this._esc(this._i18n("ui.play_selected"))}${playableCount ? ` (${this._esc(String(playableCount))})` : ``}</button>` : ``}
         </div>
         <div class="media-layout-toggle liked-layout-toggle" role="tablist" aria-label="${this._esc(this._i18n("ui.media_layout"))}">
-          <button class="media-layout-btn ${"active"}" data-media-layout="grid" title="${this._esc(this._i18n("ui.grid"))}" aria-pressed="${"true"}">${this._iconSvg("grid")}</button>
-          <button class="media-layout-btn ${""}" data-media-layout="list" title="${this._esc(this._i18n("ui.list"))}" aria-pressed="${"false"}">${this._iconSvg("list")}</button>
+          <button class="media-layout-btn ${layout === "grid" ? "active" : ""}" data-media-layout="grid" title="${this._esc(this._i18n("ui.grid"))}" aria-pressed="${layout === "grid" ? "true" : "false"}">${this._iconSvg("grid")}</button>
+          <button class="media-layout-btn ${layout === "list" ? "active" : ""}" data-media-layout="list" title="${this._esc(this._i18n("ui.list"))}" aria-pressed="${layout === "list" ? "true" : "false"}">${this._iconSvg("list")}</button>
         </div>
       </div>
       <div class="media-items-list layout-${this._esc(layout)} liked-items-list">${entries.map((entry) => {
@@ -57998,7 +59953,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const entryMediaType = String(entry.media_type || entry.type || "track").toLowerCase();
       const canOpenDetails = this._mediaTypeCanOpenDetails(entryMediaType);
       const entryArt = entry.image || entry.image_url || "";
-      const dataAttrs = `data-media-type="${this._esc(entryMediaType)}" data-media-name="${this._esc(entry.name || "")}" data-media-artist="${this._esc(entry.artist || "")}" data-media-album="${this._esc(entry.album || "")}" data-media-image="${this._esc(entryArt)}"`;
+      const dataAttrs = `data-media-type="${this._esc(entryMediaType)}" data-media-name="${this._esc(entry.name || "")}" data-media-artist="${this._esc(entry.artist || "")}" data-media-album="${this._esc(entry.album || "")}" data-media-image="${this._esc(entryArt)}" data-media-favorite-scope="${this._esc(entry.favorite_scope || "library")}"`;
       return `
           <div class="menu-list-item media-entry ${this._esc(layout)} liked-entry media-type-${this._esc(entryMediaType)}" ${canOpenDetails ? "" : `data-media-uri="${this._esc(uri)}"`} ${dataAttrs}>
             ${this._state.likedSelectionMode ? `<label class="liked-select-box ${checked ? "checked" : ""}"><input type="checkbox" data-liked-select-uri="${this._esc(uri)}" ${checked ? "checked" : ""}><span></span></label>` : ``}
@@ -58278,6 +60233,29 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._announcementVolumeRestoreTimers.set(snapshot.entityId, timers);
     });
   }
+  async _recordAnnouncementInHomeiiEngine(message = "", targets = [], options = {}) {
+    if (!this._homeiiEngineEnabled()) return false;
+    const cleanMessage = String(message || "").trim();
+    if (!cleanMessage) return false;
+    const players = (Array.isArray(targets) ? targets : []).map((player) => String(player?.entity_id || player || "").trim()).filter(Boolean);
+    try {
+      const ready = await this._homeiiEngineReadyForPersistence();
+      if (!ready) return false;
+      await this._homeiiEngineAnnounce({
+        message: cleanMessage,
+        player: players.length === 1 ? players[0] : "",
+        players,
+        volume: this._announcementVolumePct(),
+        language: String(options.language || "").trim(),
+        target: String(options.target || this._announcementTargetValue() || "").trim(),
+        sent: options.sent !== false
+      });
+      return true;
+    } catch (error) {
+      this._debugLog("Engine announcement record skipped", error?.message || error);
+      return false;
+    }
+  }
   async _sendMobileAnnouncement() {
     const message = String(this._state.mobileAnnouncementText || "").trim();
     const targetValue = this._announcementTargetValue();
@@ -58383,6 +60361,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           throw new Error(this._i18n("ui.no_tts_service_or_entity_is_configured"));
         }
       }
+      await this._recordAnnouncementInHomeiiEngine(message, targets, { language, target: targetValue, sent: true });
       this._toastSuccess(this._i18n("ui.announcement_sent_to_player", { player: playerName }));
     } catch (error) {
       this._toastError(this._i18n("ui.announcement_failed_with_error", {
@@ -58440,16 +60419,78 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._toastError(this._i18n("ui.voice_input_failed"));
     }
   }
+  _groupPlayerStatusText(checked = false, connected = false, isOwner = false) {
+    if (isOwner && connected && !checked) return this._m("Disconnects all", "מנתק הכל");
+    if (isOwner && connected) return this._m("Master", "מוביל");
+    if (checked && !connected) return this._m("Will join", "יצטרף");
+    if (!checked && connected) return this._m("Will remove", "יוסר");
+    if (checked || connected) return this._i18n("ui.connected");
+    return this._m("Tap to join", "לחץ לצירוף");
+  }
+  _groupChangeSummaryText(groupDelta = null) {
+    const delta = groupDelta || this._groupSelectionDelta(this._state.selectedPlayer, this._state.pendingGroupSelections || []);
+    const parts = [];
+    const ownerRemoved = !!(delta.ownerRemoved || delta.owner && delta.removed?.includes?.(delta.owner));
+    if (ownerRemoved) {
+      parts.push(this._m("Master removal disconnects all", "הסרת המוביל תנתק את כל הקבוצה"));
+      return parts.join(" · ");
+    }
+    if (delta.added?.length) {
+      parts.push(this._m(`${delta.added.length} to join`, delta.added.length === 1 ? "1 יצטרף" : `${delta.added.length} יצטרפו`));
+    }
+    if (delta.removed?.length) {
+      parts.push(this._m(`${delta.removed.length} to remove`, delta.removed.length === 1 ? "1 יוסר" : `${delta.removed.length} יוסרו`));
+    }
+    return parts.filter(Boolean).join(" · ");
+  }
+  _syncMobileGroupActionState() {
+    const selected = this._getSelectedPlayer();
+    const groupDelta = this._groupSelectionDelta(selected?.entity_id, this._state.pendingGroupSelections || []);
+    const hasChanges = !!(groupDelta.ownerRemoved || groupDelta.added.length || groupDelta.removed.length);
+    const summary = this._groupChangeSummaryText(groupDelta);
+    const summaryEl = this.shadowRoot?.querySelector("[data-group-change-summary]");
+    if (summaryEl) {
+      summaryEl.textContent = summary;
+      summaryEl.hidden = !summary;
+    }
+    const applyButton = this.shadowRoot?.querySelector('[data-menu-action="apply_group"]');
+    if (applyButton) {
+      applyButton.textContent = this._m("Update group", "עדכן קבוצה");
+      applyButton.toggleAttribute("disabled", !hasChanges);
+    }
+  }
+  _groupPlayerStatusClass(checked = false, connected = false, isOwner = false) {
+    if (isOwner && connected && !checked) return "will-clear";
+    if (isOwner && connected) return "master";
+    if (checked && !connected) return "will-add";
+    if (!checked && connected) return "will-remove";
+    if (checked || connected) return "connected";
+    return "idle";
+  }
+  _groupPlayerStatusIcon(checked = false, connected = false, isOwner = false) {
+    if (isOwner && connected && !checked) return "close";
+    if (isOwner && connected) return "speaker";
+    if (!checked && connected) return "close";
+    return checked ? "check" : "plus";
+  }
   _groupMenuHtml() {
+    this._refreshGroupingState();
     const players = this._getAvailableGroupPlayers();
     if (!players.length) return `<div class="notice open">${this._i18n("ui.no_extra_ma_players_2")}</div>`;
     const selected = this._getSelectedPlayer();
+    const groupDelta = this._groupSelectionDelta(selected?.entity_id, this._state.pendingGroupSelections || []);
+    const currentSet = new Set(groupDelta.currentAll || groupDelta.current);
+    const desiredSet = new Set(groupDelta.desiredAll || groupDelta.desired);
+    const ownerId = groupDelta.owner || "";
     const connectedNames = this._playerGroupMemberNames(selected);
-    const groupCount = this._playerGroupCount(selected);
+    const groupCount = Math.max(this._playerGroupCount(selected), groupDelta.current.length ? groupDelta.current.length + 1 : 0);
     const groupVol = this._groupAverageVolume(selected);
+    const changeSummary = this._groupChangeSummaryText(groupDelta);
+    const hasChanges = !!(groupDelta.ownerRemoved || groupDelta.added.length || groupDelta.removed.length);
     const connectedRow = connectedNames.length > 1 ? `<div class="group-connected-row"><span>${this._esc(this._i18n("ui.connected_2"))}</span><strong>${this._esc(connectedNames.join(" · "))}</strong></div>` : "";
     return `
       ${connectedRow}
+      <div class="group-change-row" data-group-change-summary ${changeSummary ? "" : "hidden"}>${this._esc(changeSummary)}</div>
       ${groupCount ? `
         <div class="group-volume-card">
           <div class="group-volume-title">${this._esc(this._i18n("ui.group_volume"))}<span>${this._esc(String(groupCount))}</span></div>
@@ -58461,28 +60502,33 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       ` : ``}
       <div class="players-premium-grid">
       ${players.map((p) => {
-      const checked = (this._state.pendingGroupSelections || []).includes(p.entity_id);
+      const checked = desiredSet.has(p.entity_id);
+      const connected = currentSet.has(p.entity_id);
+      const isOwner = p.entity_id === ownerId;
+      const statusClass = this._groupPlayerStatusClass(checked, connected, isOwner);
+      const statusText = this._groupPlayerStatusText(checked, connected, isOwner);
       const playerGroupCount2 = this._playerGroupCount(p);
       const vol = Math.round((p.attributes?.volume_level || 0) * 100);
       const art = this._playerArtworkUrl(p, 180);
       const activePlayback = p?.state === "playing";
       const track = p.attributes?.media_title || p.attributes?.media_artist || "";
       return `
-          <div class="group-player-card ${checked ? "checked" : ""}">
+          <div class="group-player-card ${checked ? "checked" : ""} ${statusClass}" data-group-connected="${connected ? "true" : "false"}" data-group-owner="${isOwner ? "true" : "false"}">
             <label class="group-player-row player-premium-head ${checked ? "checked" : ""}">
-              <span class="group-player-toggle ${checked ? "checked" : ""}" aria-hidden="true">${this._iconSvg(checked ? "check" : "plus")}</span>
+              <span class="group-player-toggle ${checked ? "checked" : ""}" aria-hidden="true">${this._iconSvg(this._groupPlayerStatusIcon(checked, connected, isOwner))}</span>
               <span class="player-premium-art">
                 ${art ? this._imgHtml(art, "", { loading: "lazy", fetchpriority: "low" }) : this._iconSvg("speaker")}
                 ${playerGroupCount2 ? `<span class="player-group-badge">${this._esc(playerGroupCount2)}</span>` : ``}
               </span>
               <span class="player-premium-copy">
                 <span class="player-premium-title-row group-player-title-row">
-                  <span class="player-premium-name">${this._esc(p.attributes?.friendly_name || p.entity_id)}</span>
+                  <span class="player-premium-name">${this._esc(this._playerDisplayName(p, players))}</span>
                   <span class="player-premium-bars eq-icon ${activePlayback ? "is-active" : "is-static"}" aria-label="${this._esc(activePlayback ? this._i18n("ui.playing") : this._i18n("ui.idle"))}"><span></span><span></span><span></span></span>
                 </span>
+                <span class="group-player-status ${statusClass}">${this._esc(statusText)}</span>
                 ${track ? `<span class="player-premium-track">${this._esc(track)}</span>` : ``}
               </span>
-              <input class="group-player-check" type="checkbox" data-menu-group-player="${this._esc(p.entity_id)}" ${checked ? "checked" : ""}>
+              <input class="group-player-check" type="checkbox" data-menu-group-player="${this._esc(p.entity_id)}" data-group-owner="${isOwner ? "true" : "false"}" ${checked ? "checked" : ""}>
             </label>
             <div class="player-volume-row group-inline-volume">
               <button class="player-mini-mute ${this._isMuted(p) ? "active" : ""}" data-player-mute="${this._esc(p.entity_id)}" title="${this._esc(this._i18n("ui.mute"))}">${this._iconSvg(this._volumeIconName(p))}</button>
@@ -58493,8 +60539,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     }).join("")}
       </div>
       <div class="group-actions">
-        <button class="action-btn" data-menu-action="apply_group">${this._i18n("ui.apply_group")}</button>
-        <button class="action-btn warn" data-menu-action="clear_group">${this._i18n("ui.ungroup")}</button>
+        <button class="action-btn" data-menu-action="apply_group" ${hasChanges ? "" : "disabled"}>${this._esc(this._m("Update group", "עדכן קבוצה"))}</button>
+        <button class="group-disconnect-all-btn" data-menu-action="clear_group">${this._esc(this._m("Disconnect all", "??? ???"))}</button>
       </div>
     `;
   }
@@ -58578,7 +60624,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const itemCaption = this._libraryFlowCaptionForItem(item, mediaType, options);
       const actionAttr = uri ? canOpenDetails ? `data-media-open="${this._esc(uri)}"` : `data-media-uri="${this._esc(uri)}"` : "";
       return `
-                  <button class="queue-flow-item library-flow-item ${index === activeIndex ? "active centered" : ""}" data-library-flow-item="1" ${actionAttr} data-flow-caption-title="${this._esc(itemCaption.title)}" data-flow-caption-artist="${this._esc(itemCaption.artist)}" data-media-type="${this._esc(entryMediaType)}" data-media-name="${this._esc(item?.name || item?.title || "")}" data-media-artist="${this._esc(artistName2)}" data-media-album="${this._esc(albumName)}" data-media-image="${this._esc(art || "")}" ${uri ? "" : "disabled"}>
+                  <button class="queue-flow-item library-flow-item ${index === activeIndex ? "active centered" : ""}" data-library-flow-item="1" ${actionAttr} data-flow-caption-title="${this._esc(itemCaption.title)}" data-flow-caption-artist="${this._esc(itemCaption.artist)}" data-media-type="${this._esc(entryMediaType)}" data-media-name="${this._esc(item?.name || item?.title || "")}" data-media-artist="${this._esc(artistName2)}" data-media-album="${this._esc(albumName)}" data-media-image="${this._esc(art || "")}" data-media-favorite-scope="library" ${uri ? "" : "disabled"}>
                     <span class="queue-flow-art">
                       ${art ? this._imgHtml(art, "", { loading: nearby ? "eager" : "lazy", fetchpriority: nearby ? "high" : "low" }) : this._iconSvg(fallbackIcon)}
                     </span>
@@ -58923,7 +60969,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       return;
     }
     if (page === "discovery") {
-      this._setMobileMenuHeader(this._i18n("ui.discover_music", {}, this._m("Discover", "גלה מוזיקה")), this._menuPageIcon(page));
+      this._setMobileMenuHeader(this._i18n("ui.discover_music", {}, this._m("Discover", "??? ??????")), this._menuPageIcon(page));
       body.innerHTML = this._loadingStateHtml(this._i18n("ui.loading"), { notice: true });
       const discovery = await this._loadDiscoverySections();
       if (!isCurrentRender()) return;
@@ -58998,16 +61044,21 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const orderBy = this._mobileLibraryOrderBy();
       const limit = limitMap[meta.type] || 250;
       const tabSearchQuery = this._libraryTabSearchQuery(page);
-      const cacheKey = tabSearchQuery ? `tab-search:${meta.type}:${orderBy}:${limit}:${tabSearchQuery.toLowerCase()}` : `${meta.type}:${orderBy}:${limit}:false`;
+      const favoritesOnly = this._libraryFavoritesOnlyEnabled(page);
+      const cacheKey = tabSearchQuery ? `tab-search:${meta.type}:${orderBy}:${limit}:${favoritesOnly}:${tabSearchQuery.toLowerCase()}` : `${meta.type}:${orderBy}:${limit}:${favoritesOnly}`;
       const ttl = Number(this._config.cache_ttl || 3e5);
       const cachedLibrary = this._cache.library.get(cacheKey);
       if (!cachedLibrary || Date.now() - cachedLibrary.ts >= ttl) {
         body.innerHTML = this._loadingStateHtml(this._i18n("ui.loading"), { notice: true });
       }
+      const radioSourceMode = page === "library_radio" ? this._mobileRadioSourceMode() : "combined";
+      const radioAllowsMa = favoritesOnly || radioSourceMode !== "radiobrowser_only";
+      const radioAllowsBrowser = !favoritesOnly && radioSourceMode !== "ma_only";
+      const radioPrefersMa = favoritesOnly || radioSourceMode === "ma_first" || radioSourceMode === "ma_only";
       let items = [];
       let libraryError = "";
       try {
-        items = await this._getLibraryTabItems(meta, orderBy, limit, tabSearchQuery);
+        items = page === "library_radio" && !radioAllowsMa ? [] : await this._getLibraryTabItems(meta, orderBy, limit, tabSearchQuery, favoritesOnly);
       } catch (error) {
         if (page !== "library_radio") throw error;
         libraryError = error?.message || this._m("Could not load Music Assistant radio.", "לא ניתן לטעון רדיו מ-Music Assistant.");
@@ -59025,6 +61076,13 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         this._applyMenuLibraryThemeFromItems(menu, sortedItems, meta.type);
         finishMenuRender();
         this._restoreLibraryTabSearchFocus();
+        if (favoritesOnly) {
+          body.innerHTML = this._libraryShellHtml(searchContent([], {}), page);
+          this._applyMenuLibraryThemeFromItems(menu, sortedItems, meta.type);
+          finishMenuRender();
+          this._restoreLibraryTabSearchFocus();
+          return;
+        }
         let providerItems = [];
         let providerError = "";
         try {
@@ -59044,18 +61102,20 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       }
       const libraryFlowActive = this._libraryFlowPageActive(page);
       if (page === "library_radio" && libraryFlowActive) {
-        let radioFlowItems = sortedItems;
-        let radioFlowError = libraryError;
-        try {
-          const configuredCountry = this._mobileRadioBrowserCountry();
-          const browseCountry = this._state.mobileRadioBrowseCountry || (configuredCountry === "all" ? "" : configuredCountry);
-          const browserStations = await this._fetchRadioBrowserStations(tabSearchQuery || "", 80, { countryCode: browseCountry || configuredCountry || "all" });
-          if (browserStations.length) {
-            radioFlowItems = browserStations;
-            radioFlowError = "";
+        let radioFlowItems = radioAllowsMa ? sortedItems : [];
+        let radioFlowError = radioAllowsMa ? libraryError : "";
+        if (radioAllowsBrowser && !(radioPrefersMa && radioFlowItems.length)) {
+          try {
+            const configuredCountry = this._mobileRadioBrowserCountry();
+            const browseCountry = this._state.mobileRadioBrowseCountry || (configuredCountry === "all" ? "" : configuredCountry);
+            const browserStations = await this._fetchRadioBrowserStations(tabSearchQuery || "", 80, { countryCode: browseCountry || configuredCountry || "all" });
+            if (browserStations.length) {
+              radioFlowItems = browserStations;
+              radioFlowError = "";
+            }
+          } catch (error) {
+            if (!radioFlowItems.length) radioFlowError = error?.message || this._i18n("ui.no_radio_stations_found");
           }
-        } catch (error) {
-          if (!radioFlowItems.length) radioFlowError = error?.message || this._i18n("ui.no_radio_stations_found");
         }
         if (!isCurrentRender()) return;
         libraryThemeItems = radioFlowItems.length ? radioFlowItems : sortedItems;
@@ -59066,117 +61126,114 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         this._restoreLibraryTabSearchFocus();
         return;
       }
-      let content = `${this._mediaLayoutToolbarHtml()}${libraryFlowActive ? this._libraryFlowPickerHtml(sortedItems, meta.type, { className: "library-tab-flow" }) : this._mediaItemsListHtml(sortedItems, meta.type, { layout: "grid", librarySkin: true })}`;
+      let content = `${this._mediaLayoutToolbarHtml()}${libraryFlowActive ? this._libraryFlowPickerHtml(sortedItems, meta.type, { className: "library-tab-flow" }) : this._mediaItemsListHtml(sortedItems, meta.type, { librarySkin: true })}`;
       if (page === "library_radio") {
-        const maRadioHtml = libraryError ? `<div class="notice open">${this._esc(libraryError)}</div>` : libraryFlowActive ? this._libraryFlowPickerHtml(sortedItems, meta.type, { className: "library-radio-flow" }) : this._mediaItemsListHtml(sortedItems, meta.type, { layout: "grid", librarySkin: true });
+        const maRadioHtml = !radioAllowsMa ? "" : libraryError ? `<div class="notice open">${this._esc(libraryError)}</div>` : libraryFlowActive ? this._libraryFlowPickerHtml(sortedItems, meta.type, { className: "library-radio-flow" }) : this._mediaItemsListHtml(sortedItems, meta.type, { librarySkin: true });
+        const maRadioSectionHtml = maRadioHtml ? `<div>
+              <div class="media-section-title">Music Assistant</div>
+              ${maRadioHtml}
+            </div>` : "";
         if (tabSearchQuery) {
-          try {
-            const configuredCountry = this._mobileRadioBrowserCountry();
-            const browserStations = await this._fetchRadioBrowserStations(tabSearchQuery, 80, { countryCode: configuredCountry || "all" });
-            if (!libraryThemeItems.length && browserStations.length) libraryThemeItems = browserStations;
-            if (isCurrentRender()) {
-              content = `
-                ${this._mediaLayoutToolbarHtml()}
-                <div class="media-results">
+          if (!radioAllowsBrowser) {
+            content = `${this._mediaLayoutToolbarHtml()}${maRadioHtml}`;
+          } else {
+            try {
+              const configuredCountry = this._mobileRadioBrowserCountry();
+              const browserStations = await this._fetchRadioBrowserStations(tabSearchQuery, 80, { countryCode: configuredCountry || "all" });
+              if (!libraryThemeItems.length && browserStations.length) libraryThemeItems = browserStations;
+              if (isCurrentRender()) {
+                const browserSectionHtml = `
                   <div>
                     <div class="media-section-title">Radio Browser</div>
-                    ${libraryFlowActive ? this._libraryFlowPickerHtml(browserStations, meta.type, { className: "library-radio-browser-flow" }) : this._mediaItemsListHtml(browserStations, meta.type, { layout: "grid", librarySkin: true })}
+                    ${libraryFlowActive ? this._libraryFlowPickerHtml(browserStations, meta.type, { className: "library-radio-browser-flow" }) : this._mediaItemsListHtml(browserStations, meta.type, { librarySkin: true })}
+                  </div>`;
+                content = `
+                  ${this._mediaLayoutToolbarHtml()}
+                  <div class="media-results">
+                    ${radioPrefersMa ? `${maRadioSectionHtml}${browserSectionHtml}` : `${browserSectionHtml}${maRadioSectionHtml}`}
                   </div>
-                  <div>
-                    <div class="media-section-title">Music Assistant</div>
-                    ${maRadioHtml}
-                  </div>
-                </div>
-              `;
-            }
-          } catch (error) {
-            content = `
-              ${this._mediaLayoutToolbarHtml()}
-              <div class="media-results">
+                `;
+              }
+            } catch (error) {
+              const browserErrorSectionHtml = `
                 <div>
                   <div class="media-section-title">Radio Browser</div>
                   <div class="notice open">${this._esc(error?.message || this._i18n("ui.no_radio_stations_found"))}</div>
+                </div>`;
+              content = `
+                ${this._mediaLayoutToolbarHtml()}
+                <div class="media-results">
+                  ${radioPrefersMa ? `${maRadioSectionHtml}${browserErrorSectionHtml}` : `${browserErrorSectionHtml}${maRadioSectionHtml}`}
                 </div>
-                <div>
-                  <div class="media-section-title">Music Assistant</div>
-                  ${maRadioHtml}
-                </div>
-              </div>
-            `;
+              `;
+            }
           }
         } else {
-          try {
-            const configuredCountry = this._mobileRadioBrowserCountry();
-            const browseCountry = this._state.mobileRadioBrowseCountry || (configuredCountry === "all" ? "" : configuredCountry);
-            const browseLabel = this._radioBrowserCountryLabel(browseCountry);
-            if (browseCountry) {
-              let browserStations = [];
-              let browserError = "";
-              try {
-                browserStations = await this._fetchRadioBrowserStations("", 80, { countryCode: browseCountry });
-              } catch (error) {
-                browserError = error?.message || this._i18n("ui.no_radio_stations_found");
-              }
-              if (!libraryThemeItems.length && browserStations.length) libraryThemeItems = browserStations;
-              if (isCurrentRender()) {
-                content = `
+          if (!radioAllowsBrowser) {
+            content = `${this._mediaLayoutToolbarHtml()}${maRadioHtml}`;
+          } else {
+            try {
+              const configuredCountry = this._mobileRadioBrowserCountry();
+              const browseCountry = this._state.mobileRadioBrowseCountry || (configuredCountry === "all" ? "" : configuredCountry);
+              const browseLabel = this._radioBrowserCountryLabel(browseCountry);
+              if (browseCountry) {
+                let browserStations = [];
+                let browserError = "";
+                try {
+                  browserStations = await this._fetchRadioBrowserStations("", 80, { countryCode: browseCountry });
+                } catch (error) {
+                  browserError = error?.message || this._i18n("ui.no_radio_stations_found");
+                }
+                if (!libraryThemeItems.length && browserStations.length) libraryThemeItems = browserStations;
+                if (isCurrentRender()) {
+                  const browserSectionHtml = `
+                <div>
+                  ${configuredCountry === "all" ? this._radioBrowserCountryBackHtml(browseLabel) : `<div class="media-section-title">Radio Browser · ${this._esc(browseLabel)}</div>`}
+                  ${browserError ? `<div class="notice open">${this._esc(browserError)}</div>` : libraryFlowActive ? this._libraryFlowPickerHtml(browserStations, meta.type, { className: "library-radio-browser-flow" }) : this._mediaItemsListHtml(browserStations, meta.type, { librarySkin: true })}
+                </div>`;
+                  content = `
                 ${this._mediaLayoutToolbarHtml()}
                 <div class="media-results">
-                  <div>
-                    ${configuredCountry === "all" ? this._radioBrowserCountryBackHtml(browseLabel) : `<div class="media-section-title">Radio Browser · ${this._esc(browseLabel)}</div>`}
-                    ${browserError ? `<div class="notice open">${this._esc(browserError)}</div>` : libraryFlowActive ? this._libraryFlowPickerHtml(browserStations, meta.type, { className: "library-radio-browser-flow" }) : this._mediaItemsListHtml(browserStations, meta.type, { layout: "grid", librarySkin: true })}
-                  </div>
-                  <div>
-                    <div class="media-section-title">Music Assistant</div>
-                    ${maRadioHtml}
-                  </div>
+                  ${radioPrefersMa ? `${maRadioSectionHtml}${browserSectionHtml}` : `${browserSectionHtml}${maRadioSectionHtml}`}
                 </div>
               `;
-              }
-            } else {
-              const [countriesResult, browserStationsResult] = await Promise.allSettled([
-                this._fetchRadioBrowserCountries(260),
-                this._fetchRadioBrowserStations("", 40, { countryCode: "all" })
-              ]);
-              const countries = countriesResult.status === "fulfilled" ? countriesResult.value : [];
-              const browserStations = browserStationsResult.status === "fulfilled" ? browserStationsResult.value : [];
-              const browserError = browserStationsResult.status === "rejected" ? browserStationsResult.reason?.message || this._i18n("ui.no_radio_stations_found") : "";
-              const countriesError = countriesResult.status === "rejected" ? countriesResult.reason?.message || this._i18n("ui.no_radio_browser_countries_found") : "";
-              if (!libraryThemeItems.length && browserStations.length) libraryThemeItems = browserStations;
-              if (isCurrentRender()) {
-                content = `
+                }
+              } else {
+                const [countriesResult, browserStationsResult] = await Promise.allSettled([
+                  this._fetchRadioBrowserCountries(260),
+                  this._fetchRadioBrowserStations("", 40, { countryCode: "all" })
+                ]);
+                const countries = countriesResult.status === "fulfilled" ? countriesResult.value : [];
+                const browserStations = browserStationsResult.status === "fulfilled" ? browserStationsResult.value : [];
+                const browserError = browserStationsResult.status === "rejected" ? browserStationsResult.reason?.message || this._i18n("ui.no_radio_stations_found") : "";
+                const countriesError = countriesResult.status === "rejected" ? countriesResult.reason?.message || this._i18n("ui.no_radio_browser_countries_found") : "";
+                if (!libraryThemeItems.length && browserStations.length) libraryThemeItems = browserStations;
+                if (isCurrentRender()) {
+                  const browserSectionsHtml = `
+                <div>
+                  <div class="media-section-title">${this._esc(this._i18n("ui.worldwide_popular"))}</div>
+                  ${browserError ? `<div class="notice open">${this._esc(browserError)}</div>` : libraryFlowActive ? this._libraryFlowPickerHtml(browserStations, meta.type, { className: "library-radio-browser-flow" }) : this._mediaItemsListHtml(browserStations, meta.type, { librarySkin: true })}
+                </div>
+                <div>
+                  <div class="media-section-title">${this._esc(this._i18n("ui.radio_browser_countries"))}</div>
+                  ${countriesError ? `<div class="notice open">${this._esc(countriesError)}</div>` : this._radioBrowserCountriesHtml(countries)}
+                </div>`;
+                  content = `
                 ${this._mediaLayoutToolbarHtml()}
                 <div class="media-results">
-                  <div>
-                    <div class="media-section-title">${this._esc(this._i18n("ui.worldwide_popular"))}</div>
-                    ${browserError ? `<div class="notice open">${this._esc(browserError)}</div>` : libraryFlowActive ? this._libraryFlowPickerHtml(browserStations, meta.type, { className: "library-radio-browser-flow" }) : this._mediaItemsListHtml(browserStations, meta.type, { layout: "grid", librarySkin: true })}
-                  </div>
-                  <div>
-                    <div class="media-section-title">${this._esc(this._i18n("ui.radio_browser_countries"))}</div>
-                    ${countriesError ? `<div class="notice open">${this._esc(countriesError)}</div>` : this._radioBrowserCountriesHtml(countries)}
-                  </div>
-                  <div>
-                    <div class="media-section-title">Music Assistant</div>
-                    ${maRadioHtml}
-                  </div>
+                  ${radioPrefersMa ? `${maRadioSectionHtml}${browserSectionsHtml}` : `${browserSectionsHtml}${maRadioSectionHtml}`}
                 </div>
               `;
+                }
               }
-            }
-          } catch (error) {
-            content = `
+            } catch (error) {
+              content = `
             ${this._mediaLayoutToolbarHtml()}
             <div class="media-results">
-              <div>
-                <div class="media-section-title">Radio Browser</div>
-                <div class="notice open">${this._esc(error?.message || this._i18n("ui.no_radio_stations_found"))}</div>
-              </div>
-              <div>
-                <div class="media-section-title">Music Assistant</div>
-                ${maRadioHtml}
-              </div>
+              ${radioPrefersMa ? `${maRadioSectionHtml}<div><div class="media-section-title">Radio Browser</div><div class="notice open">${this._esc(error?.message || this._i18n("ui.no_radio_stations_found"))}</div></div>` : `<div><div class="media-section-title">Radio Browser</div><div class="notice open">${this._esc(error?.message || this._i18n("ui.no_radio_stations_found"))}</div></div>${maRadioSectionHtml}`}
             </div>
           `;
+            }
           }
         }
       }
@@ -59207,6 +61264,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     );
     if (page === "queue") {
       if (queueFlowActive) {
+        body.innerHTML = this._loadingStateHtml(this._i18n("ui.loading"), { notice: true });
+        await this._ensureQueueSnapshot(true);
+        if (!isCurrentRender()) return;
         body.innerHTML = this._queueMenuHtml();
         finishMenuRender();
         this._bindQueueFlowPicker(body);
@@ -59244,6 +61304,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     else if (page === "players_active") body.innerHTML = this._playersMenuHtml({ activeOnly: true });
     else if (page === "sleep_timer") {
       body.innerHTML = this._loadingStateHtml(this._i18n("ui.loading_schedules"), { notice: true });
+      await Promise.allSettled([
+        this._hydrateSchedulesFromHomeiiEngine(),
+        this._hydrateSleepTimerFromHomeiiEngine()
+      ]);
       await this._loadScheduledStartPlaylists();
       if (!isCurrentRender()) return;
       body.innerHTML = this._sleepTimerMenuHtml();
@@ -59594,7 +61658,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       e.stopPropagation();
       this._state.mobileScheduleControlActiveUntil = 0;
       this._flashInteraction(startScheduleToggleBtn);
-      this._toggleScheduledStart(startScheduleToggleBtn.dataset.startScheduleToggle);
+      await this._toggleScheduledStart(startScheduleToggleBtn.dataset.startScheduleToggle);
       await this._renderMobileMenu();
       return;
     }
@@ -59604,7 +61668,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       e.stopPropagation();
       this._state.mobileScheduleControlActiveUntil = 0;
       this._flashInteraction(startScheduleDeleteBtn);
-      this._deleteScheduledStart(startScheduleDeleteBtn.dataset.startScheduleDelete);
+      await this._deleteScheduledStart(startScheduleDeleteBtn.dataset.startScheduleDelete);
       await this._renderMobileMenu();
       return;
     }
@@ -59613,7 +61677,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       e.preventDefault();
       e.stopPropagation();
       this._flashInteraction(sleepTimerStartBtn);
-      this._setSleepTimerMinutes(Number(sleepTimerStartBtn.dataset.sleepTimerStart || 15), "general");
+      await this._setSleepTimerMinutes(Number(sleepTimerStartBtn.dataset.sleepTimerStart || 15), "general");
       await this._renderMobileMenu();
       return;
     }
@@ -59622,7 +61686,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       e.preventDefault();
       e.stopPropagation();
       this._flashInteraction(sleepTimerCancelBtn);
-      this._clearSleepTimer(true);
+      await this._clearSleepTimer(true);
       await this._renderMobileMenu();
       return;
     }
@@ -59632,7 +61696,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       e.stopPropagation();
       this._state.mobileScheduleControlActiveUntil = 0;
       this._flashInteraction(startTimerSaveBtn);
-      this._setScheduledStartFromMenu();
+      await this._setScheduledStartFromMenu();
       await this._renderMobileMenu();
       return;
     }
@@ -59642,7 +61706,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       e.stopPropagation();
       this._state.mobileScheduleControlActiveUntil = 0;
       this._flashInteraction(startTimerClearBtn);
-      this._clearScheduledStart(true);
+      await this._clearScheduledStart(true);
       await this._renderMobileMenu();
       return;
     }
@@ -59674,12 +61738,12 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         return;
       }
       if (action.dataset.menuAction === "apply_group") {
-        const ok = await this._runMenuButtonLoading(action, this._i18n("ui.connecting_2"), () => this._applySpeakerGroup(), { kind: "connect" });
+        const ok = await this._runMenuButtonLoading(action, this._m("Updating group", "מעדכן קבוצה"), () => this._applySpeakerGroup(), { kind: "connect" });
         if (ok) return this._closeMobileMenu();
         return;
       }
       if (action.dataset.menuAction === "clear_group") {
-        const ok = await this._runMenuButtonLoading(action, this._i18n("ui.disconnecting"), () => this._clearSpeakerGroup(), { kind: "disconnect" });
+        const ok = await this._runMenuButtonLoading(action, this._m("Disconnecting all", "מנתק הכל"), () => this._clearSpeakerGroup(), { kind: "disconnect" });
         if (ok) return this._closeMobileMenu();
         return;
       }
@@ -59815,6 +61879,21 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._reopenSettingsMenuPreservingScroll();
       return;
     }
+    const screensaverAutoLyricsBtn = e.target.closest("[data-setting-screensaver-auto-lyrics]");
+    if (screensaverAutoLyricsBtn?.dataset.settingScreensaverAutoLyrics) {
+      this._flashInteraction(screensaverAutoLyricsBtn);
+      this._state.screensaverAutoLyricsWhenPlaying = screensaverAutoLyricsBtn.dataset.settingScreensaverAutoLyrics === "on";
+      if (!this._state.screensaverAutoLyricsWhenPlaying && !this._state.lyricsOpen) {
+        this._state.screensaverLyricsOpen = false;
+        this._clearLyricsState?.();
+      } else if (this._state.screensaverOpen) {
+        this._maybeOpenScreensaverLyricsForPlayback();
+      }
+      this._persistMobileAppearance();
+      this._syncScreensaverUi();
+      this._reopenSettingsMenuPreservingScroll();
+      return;
+    }
     const screensaverControlsBtn = e.target.closest("[data-setting-screensaver-controls]");
     if (screensaverControlsBtn?.dataset.settingScreensaverControls) {
       this._flashInteraction(screensaverControlsBtn);
@@ -59869,14 +61948,14 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const sleepTimerBtn = e.target.closest("[data-setting-sleep-timer]");
     if (sleepTimerBtn) {
       this._flashInteraction(sleepTimerBtn);
-      this._cycleSleepTimer();
+      await this._cycleSleepTimer();
       this._reopenSettingsMenuPreservingScroll();
       return;
     }
     const sleepClearBtn = e.target.closest("[data-setting-sleep-clear]");
     if (sleepClearBtn) {
       this._flashInteraction(sleepClearBtn);
-      this._clearSleepTimer(true);
+      await this._clearSleepTimer(true);
       this._reopenSettingsMenuPreservingScroll();
       return;
     }
@@ -60041,6 +62120,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._state.libraryTabSearchOpen = this._state.libraryTabSearchOpen !== true;
       if (this._state.libraryTabSearchOpen) this._state.libraryTabSearchFocusId = "mobileLibraryTabSearchRowInput";
       await this._renderMobileMenu();
+      return;
+    }
+    const libraryFavoritesToggleBtn = e.target.closest("[data-library-favorites-toggle]");
+    if (libraryFavoritesToggleBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      this._showLibraryInteractionFeedback(libraryFavoritesToggleBtn, { loading: true, loadingMs: 500 });
+      const page = libraryFavoritesToggleBtn.dataset.libraryFavoritesToggle || this._state.menuPage;
+      const nextEnabled = !this._libraryFavoritesOnlyEnabled(page);
+      if (this._setLibraryFavoritesOnly(page, nextEnabled)) await this._renderMobileMenu();
       return;
     }
     const libraryTabSearchSubmitBtn = e.target.closest("[data-library-tab-search-submit]");
@@ -60223,14 +62312,16 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       e.stopPropagation();
       this._showLibraryInteractionFeedback(mediaLikeBtn);
       const scrollSnapshot = this._captureMobileMenuScroll(this._state.menuPage || "main");
-      await this._toggleLikeEntry({
+      const ok = await this._toggleLikeEntry({
         uri: mediaLikeBtn.dataset.mediaLike,
         media_type: mediaLikeBtn.dataset.mediaType || "album",
         name: mediaLikeBtn.dataset.mediaName || "",
         artist: mediaLikeBtn.dataset.mediaArtist || "",
         album: mediaLikeBtn.dataset.mediaAlbum || "",
-        image: mediaLikeBtn.dataset.mediaImage || ""
+        image: mediaLikeBtn.dataset.mediaImage || "",
+        favorite_scope: mediaLikeBtn.dataset.mediaFavoriteScope || "library"
       }, mediaLikeBtn);
+      if (!ok) return;
       await this._renderMobileMenu();
       if (scrollSnapshot) this._restoreMobileMenuScrollSnapshot(scrollSnapshot, scrollSnapshot.page);
       return;
@@ -60247,7 +62338,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         name: mediaMoreBtn.dataset.mediaName || "",
         artist: mediaMoreBtn.dataset.mediaArtist || "",
         album: mediaMoreBtn.dataset.mediaAlbum || "",
-        image: mediaMoreBtn.dataset.mediaImage || ""
+        image: mediaMoreBtn.dataset.mediaImage || "",
+        favorite_scope: mediaMoreBtn.dataset.mediaFavoriteScope || "library"
       });
       return;
     }
@@ -60283,7 +62375,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         name: mediaOpenBtn.dataset.mediaName || sourceEl.querySelector?.(".menu-item-title")?.textContent?.trim() || "",
         artist: mediaOpenBtn.dataset.mediaArtist || "",
         album: mediaOpenBtn.dataset.mediaAlbum || "",
-        image: mediaOpenBtn.dataset.mediaImage || ""
+        image: mediaOpenBtn.dataset.mediaImage || "",
+        favorite_scope: mediaOpenBtn.dataset.mediaFavoriteScope || "library"
       }, sourceEl);
       if (!opened) this._clearLibraryInteractionFeedback(feedbackEl);
       if (opened) return;
@@ -60542,20 +62635,6 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._syncScreensaverUi();
       return;
     }
-    if (e.target?.id === "screensaverMessageInput") {
-      this._state.screensaverMessage = e.target.value || "";
-      this._persistMobileAppearance();
-      return;
-    }
-    if (e.target?.id === "screensaverTimeoutInput") {
-      const seconds = HomeiiMobileSettingsFoundation.clampSeconds(e.target.value || 90, 90, { min: 15, max: 3600 });
-      this._state.screensaverTimeoutSeconds = seconds;
-      const valueEl = e.target.closest(".settings-range")?.querySelector(".settings-value");
-      if (valueEl) valueEl.textContent = `${Math.round(seconds)}s`;
-      this._persistMobileAppearance();
-      this._resetScreensaverTimer({ hide: true });
-      return;
-    }
     if (e.target?.id === "powerButtonActionSelect") {
       this._state.powerButtonAction = HomeiiMobileSettingsFoundation.normalizePowerButtonAction(e.target.value || "stop_player");
       this._persistMobileAppearance();
@@ -60636,14 +62715,26 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       if (checkbox.checked) next.add(entityId);
       else next.delete(entityId);
       this._state.pendingGroupSelections = Array.from(next);
+      this._state.pendingGroupSelectionsDirty = true;
       const playerCard = checkbox.closest(".group-player-card");
+      const connected = playerCard?.dataset?.groupConnected === "true";
+      const isOwner = checkbox.dataset.groupOwner === "true" || playerCard?.dataset?.groupOwner === "true";
+      if (isOwner) this._state.pendingGroupOwnerRemoval = !checkbox.checked;
+      const statusClass = this._groupPlayerStatusClass(checkbox.checked, connected, isOwner);
       playerCard?.classList.toggle("checked", checkbox.checked);
+      ["idle", "connected", "will-add", "will-remove", "master", "will-clear"].forEach((className) => playerCard?.classList.toggle(className, className === statusClass));
       playerCard?.querySelector(".group-player-row")?.classList.toggle("checked", checkbox.checked);
       const toggle = playerCard?.querySelector(".group-player-toggle");
       if (toggle) {
         toggle.classList.toggle("checked", checkbox.checked);
-        toggle.innerHTML = this._iconSvg(checkbox.checked ? "check" : "plus");
+        toggle.innerHTML = this._iconSvg(this._groupPlayerStatusIcon(checkbox.checked, connected, isOwner));
       }
+      const status = playerCard?.querySelector(".group-player-status");
+      if (status) {
+        ["idle", "connected", "will-add", "will-remove", "master", "will-clear"].forEach((className) => status.classList.toggle(className, className === statusClass));
+        status.textContent = this._groupPlayerStatusText(checkbox.checked, connected, isOwner);
+      }
+      this._syncMobileGroupActionState();
       return;
     }
     if (e.target?.id === "mobileCustomColorPicker") {
@@ -60734,6 +62825,15 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       this._state.mobileRadioBrowseCountryName = "";
       this._persistMobileAppearance();
       this._cache.library.delete("radio-browser:countries");
+      this._reopenSettingsMenuPreservingScroll();
+      return;
+    }
+    if (e.target?.id === "mobileRadioSourceModeSelect") {
+      this._state.mobileRadioSourceMode = HomeiiMobileSettingsFoundation.normalizeMobileRadioSourceMode(e.target.value || "combined");
+      this._state.mobileRadioBrowseCountry = "";
+      this._state.mobileRadioBrowseCountryName = "";
+      this._persistMobileAppearance();
+      this._cache.library.clear();
       this._reopenSettingsMenuPreservingScroll();
       return;
     }

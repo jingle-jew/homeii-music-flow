@@ -14,6 +14,8 @@ import {
   isStaticGroupPlayer,
   mobileNavigableActivePlayers,
   playerByEntityId,
+  playerDisplayName,
+  playerEntityDisplayName,
   playerGroupCount,
   playerGroupMemberIds,
   playerGroupMemberNames,
@@ -97,6 +99,30 @@ describe("players foundation", () => {
   it("resolves this-device and pinned players safely", () => {
     expect(getThisDevicePlayer([livingRoom, kitchen], "media_player.kitchen")).toEqual(kitchen);
     expect(resolvePinnedPlayerEntities(["media_player.kitchen", "media_player.missing"], [livingRoom, kitchen])).toEqual(["media_player.kitchen"]);
+  });
+
+  it("keeps player labels useful when friendly names are generic or duplicated", () => {
+    const genericKitchen = {
+      entity_id: "media_player.kitchen_speaker",
+      attributes: { friendly_name: "Media Player" },
+    };
+    const genericBedroom = {
+      entity_id: "media_player.bedroom_speaker",
+      attributes: { friendly_name: "Media Player" },
+    };
+    const duplicateKitchen = {
+      entity_id: "media_player.kitchen_amp",
+      attributes: { friendly_name: "Kitchen" },
+    };
+    const duplicateKitchenTwo = {
+      entity_id: "media_player.kitchen_sonos",
+      attributes: { friendly_name: "Kitchen" },
+    };
+
+    expect(playerEntityDisplayName("media_player.kitchen_speaker")).toBe("Kitchen Speaker");
+    expect(playerDisplayName(livingRoom, { players: [livingRoom, kitchen] })).toBe("Living Room");
+    expect(playerDisplayName(genericKitchen, { players: [genericKitchen, genericBedroom] })).toBe("Media Player (Kitchen Speaker)");
+    expect(playerDisplayName(duplicateKitchen, { players: [duplicateKitchen, duplicateKitchenTwo] })).toBe("Kitchen (Kitchen Amp)");
   });
 
   it("resolves the front player with pin, playing, configured, and fallback hierarchy", () => {

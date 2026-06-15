@@ -10,9 +10,10 @@ const MOBILE_LIBRARY_LAYOUT_MODES = ["grid", "list"];
 const MOBILE_MIC_MODES = ["on", "off", "smart"];
 const MOBILE_LIKED_MODES = ["ma", "local"];
 const MOBILE_SWIPE_MODES = ["play", "browse"];
+const MOBILE_RADIO_SOURCE_MODES = ["combined", "ma_first", "ma_only", "radiobrowser_only"];
 const VOICE_ASSISTANT_MODES = ["hybrid", "music", "assist"];
 const SCREENSAVER_CLOCK_MODES = ["digital", "analog"];
-const SCREENSAVER_CONTROL_BUTTONS = ["previous", "play_pause", "next", "mute", "power", "like", "lyrics", "voice"];
+const SCREENSAVER_CONTROL_BUTTONS = ["previous", "play_pause", "next", "mute", "power", "like", "lyrics", "lyrics_sync", "lyrics_font_minus", "lyrics_font_plus", "voice"];
 const POWER_BUTTON_ACTIONS = ["stop_player", "toggle", "turn_on", "turn_off", "scene", "script"];
 const AUXILIARY_BUTTON_ICONS = ["power", "home", "speaker", "music_note", "wand", "grid", "settings", "heart_outline", "play", "stop", "radio", "timer", "info"];
 const PLAYER_SORT_MODES = ["default", "alphabetical", "custom"];
@@ -218,6 +219,10 @@ export function normalizeMobileLibraryDefaultLayout(value, fallback = "list") {
   return normalizeEnum(value, MOBILE_LIBRARY_LAYOUT_MODES, normalizeEnum(fallback, MOBILE_LIBRARY_LAYOUT_MODES, "list"));
 }
 
+export function normalizeMobileRadioSourceMode(value) {
+  return normalizeEnum(value, MOBILE_RADIO_SOURCE_MODES, "combined");
+}
+
 export function normalizePinnedPlayerEntityList(value) {
   const next = [];
   normalizeStringArray(value).forEach((entityId) => {
@@ -346,6 +351,7 @@ export function normalizeVisualMobileState(config = {}, {
     voiceAssistantSpeakFeedback: config.voice_assistant_speak_feedback === true,
     mobileLikedMode: normalizeEnum(config.mobile_liked_mode, MOBILE_LIKED_MODES, "ma"),
     mobileSwipeMode: normalizeEnum(config.mobile_swipe_mode, MOBILE_SWIPE_MODES, "browse"),
+    mobileRadioSourceMode: normalizeMobileRadioSourceMode(config.mobile_radio_source_mode),
     mobileRadioBrowserCountry: String(config.mobile_radio_browser_country || "all"),
     mobileLibraryTabs: Array.isArray(config.mobile_library_tabs) && config.mobile_library_tabs.length
       ? config.mobile_library_tabs.slice()
@@ -373,6 +379,7 @@ export function normalizeVisualMobileState(config = {}, {
     ambientLightTransition: clampSeconds(config.ambient_light_transition, 3, { min: 0, max: 120 }),
     ambientLightCooldown: clampSeconds(config.ambient_light_cooldown, 8, { min: 0, max: 120 }),
     screensaverEnabled: config.screensaver_enabled === true,
+    screensaverAutoLyricsWhenPlaying: config.screensaver_auto_lyrics_when_playing === true || config.screensaver_auto_lyrics === true,
     screensaverControlsEnabled: config.screensaver_controls_enabled === true,
     screensaverControlButtons: normalizeScreensaverControlButtons(config.screensaver_control_buttons, screensaverControlFallback),
     screensaverClockMode: normalizeScreensaverClockMode(config.screensaver_clock_mode),

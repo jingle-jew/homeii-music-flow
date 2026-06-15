@@ -1,3 +1,5 @@
+import * as HomeiiEngineFoundation from "../core/engine-client.js";
+
 export function createHomeiiBaseMusicEditor(deps = {}) {
   const {
     HomeiiBaseMusicCard,
@@ -348,6 +350,74 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     });
   }
 
+  _editorHomeiiEngineMode() {
+    return HomeiiEngineFoundation.normalizeHomeiiEngineMode(this._config?.homeii_engine_mode);
+  }
+
+  _editorHomeiiEngineTimeoutMs() {
+    return HomeiiEngineFoundation.clampHomeiiEngineTimeoutMs(this._config?.homeii_engine_timeout_ms, 3500);
+  }
+
+  _editorHomeiiEngineMessage(command = "get_context", payload = {}) {
+    const message = {
+      ...(payload && typeof payload === "object" && !Array.isArray(payload) ? payload : { payload }),
+      type: HomeiiEngineFoundation.homeiiEngineCommandType(command),
+      card_id: String(this._config?.card_id || "").trim(),
+      instance_id: HomeiiEngineFoundation.normalizeHomeiiEngineId(this._config?.homeii_engine_instance_id),
+      profile_id: HomeiiEngineFoundation.normalizeHomeiiEngineId(this._config?.homeii_engine_profile_id),
+    };
+    ["card_id", "instance_id", "profile_id"].forEach((key) => {
+      if (message[key] === "") delete message[key];
+    });
+    return message;
+  }
+
+  async _editorCallHomeiiEngine(command = "get_context", payload = {}) {
+    if (!HomeiiEngineFoundation.homeiiEngineModeAllowsCalls(this._editorHomeiiEngineMode())) return null;
+    const message = this._editorHomeiiEngineMessage(command, payload);
+    if (typeof this._hass?.callWS === "function") {
+      return this._editorWithTimeout(this._hass.callWS(message), this._editorHomeiiEngineTimeoutMs(), "HOMEii Flow Engine timed out.");
+    }
+    if (typeof this._hass?.connection?.sendMessagePromise === "function") {
+      return this._editorWithTimeout(this._hass.connection.sendMessagePromise(message), this._editorHomeiiEngineTimeoutMs(), "HOMEii Flow Engine timed out.");
+    }
+    throw new Error("Home Assistant WebSocket API is unavailable in the visual editor.");
+  }
+
+  async _editorDiagnosticEngineRow(add) {
+    const mode = this._editorHomeiiEngineMode();
+    if (!HomeiiEngineFoundation.homeiiEngineModeAllowsCalls(mode)) {
+      add("info", "HOMEii Flow Engine", "Engine calls are disabled in this card config. The card is using the normal frontend-only compatibility path.", mode);
+      return;
+    }
+    try {
+      const result = await this._editorCallHomeiiEngine("get_context", {
+        card_version: HOMEII_CARD_VERSION,
+        source: "visual_editor",
+      });
+      if (!result) throw new Error("HOMEii Flow Engine returned an empty response.");
+      const context = HomeiiEngineFoundation.normalizeHomeiiEngineContext(result);
+      add("ok", "HOMEii Flow Engine", `Connected to HOMEii Flow Engine ${context.version || "unknown version"}. Capabilities: ${HomeiiEngineFoundation.summarizeHomeiiEngineCapabilities(context.capabilities)}.`, mode);
+      const [playersResult, statsResult] = await Promise.allSettled([
+        this._editorCallHomeiiEngine("players/get", { source: "visual_editor" }),
+        this._editorCallHomeiiEngine("stats/get", { source: "visual_editor" }),
+      ]);
+      const playerCount = Number(playersResult.value?.music_assistant_count ?? statsResult.value?.music_assistant_players ?? 0);
+      if (playersResult.status === "fulfilled" || statsResult.status === "fulfilled") {
+        const playingCount = Number(statsResult.value?.players_playing ?? 0);
+        const groupedCount = Number(statsResult.value?.players_grouped ?? 0);
+        add(playerCount ? "ok" : "warn", "Engine player state", `${playerCount} Music Assistant player(s), ${playingCount} playing, ${groupedCount} grouped.`);
+      }
+    } catch (error) {
+      const required = HomeiiEngineFoundation.homeiiEngineModeRequiresEngine(mode);
+      const detail = required
+        ? "Engine mode is Required, but the Home Assistant integration did not answer. Future Engine-backed features will not be available until the integration is installed and loaded."
+        : "Engine was not detected. This is OK: the card will continue using the current Home Assistant/Music Assistant frontend path.";
+      const suffix = error?.message ? ` Last error: ${error.message}` : "";
+      add(required ? "fail" : "info", "HOMEii Flow Engine", `${detail}${suffix}`, mode);
+    }
+  }
+
   async _editorCallDirectMaCommand(command, args = {}) {
     const maUrl = this._editorMaBrowserUrl();
     if (!maUrl) throw new Error("Direct Music Assistant API is not configured.");
@@ -404,7 +474,7 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     const maUrl = this._editorMaBrowserUrl();
     const lines = [
       "HOMEii Music Flow Editor Diagnostics",
-      "Diagnostics: v3",
+      "Diagnostics: v6",
       `Version: ${HOMEII_CARD_VERSION}`,
       `Generated: ${new Date().toISOString()}`,
       "Source: visual editor",
@@ -418,6 +488,9 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
       `access_path: ${this._editorAccessDetail(maUrl)}`,
       `ma_token configured: ${this._config?.ma_token ? "yes" : "no"}`,
       `config_entry_id configured: ${String(this._config?.config_entry_id || "").trim() ? "yes" : "no"}`,
+      `homeii_engine_mode: ${this._editorHomeiiEngineMode()}`,
+      `homeii_engine_instance_id configured: ${this._config?.homeii_engine_instance_id ? "yes" : "no"}`,
+      `homeii_engine_profile_id configured: ${this._config?.homeii_engine_profile_id ? "yes" : "no"}`,
       "",
       "Checks:",
       ...items.map((item) => `- [${String(item.status || "info").toUpperCase()}] ${item.title}${item.value ? `: ${item.value}` : ""}${item.detail ? ` - ${item.detail}` : ""}`),
@@ -482,13 +555,14 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     const excluded = HomeiiMobileSettingsFoundation.normalizePinnedPlayerEntityList(this._config?.excluded_player_entities);
 
     add("ok", "Editor version", "Visual editor runtime is loaded.", HOMEII_CARD_VERSION);
-    add("ok", "Diagnostics version", "Diagnostic v3 is active.", "v3");
+    add("ok", "Diagnostics version", "Diagnostic v6 is active.", "v6");
     add("info", "Browser", this._editorBrowserSummary());
     add("info", "Viewport", this._editorViewportSummary());
     add("info", "Diagnostic privacy", "External/private hostnames are redacted in visible and copied diagnostic output.");
     add(this._hass ? "ok" : "fail", "Home Assistant frontend", this._hass ? "Editor has a Home Assistant frontend object." : "Editor does not have a Home Assistant frontend object.");
     add(services.length ? "ok" : "fail", "Music Assistant services", services.length ? `${services.length} service(s) are exposed by Home Assistant.` : "No music_assistant services are exposed by Home Assistant.");
     add(services.length ? "ok" : "warn", "Integration mode", services.length ? "Core card features can run through Home Assistant. HTTP/HTTPS only affects optional Direct/Sendspin browser access." : "Home Assistant does not expose music_assistant services.");
+    await this._editorDiagnosticEngineRow(add);
     add(services.length || maUrl ? "ok" : "fail", "Integration signal", `services ${services.length ? "yes" : "no"}, direct ${maUrl ? "configured" : "empty"}`);
     add(players.length ? "ok" : (services.length && genericPlayers.length ? "warn" : "fail"), "Music Assistant players", players.length ? `${players.length} strict MA player(s), ${genericPlayers.length} generic HA media_player(s).` : `${genericPlayers.length} generic HA media_player(s), but no strict Music Assistant player markers were detected.`);
     add("info", "Player filters", `${pinned.length} pinned, ${excluded.length} excluded.`);
@@ -633,7 +707,8 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
           border-radius:20px;
           border:1px solid rgba(146,161,183,.18);
           background:rgba(18,24,34,.04);
-          contain:layout style paint;
+          contain:style;
+          position:relative;
         }
         .editor-header {
           display:flex;
@@ -969,6 +1044,13 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     }
   }
 
+  _editorPlayerOptionLabel(entity = null, players = []) {
+    const entityId = String(entity?.entity_id || "").trim();
+    const name = HomeiiPlayersFoundation.playerDisplayName(entity, { players }) || entityId;
+    if (!name || !entityId || name === entityId || String(name).includes(entityId)) return name || entityId;
+    return `${name} (${entityId})`;
+  }
+
   _editorPinnedPlayerOptions() {
     const states = this._hass?.states || {};
     const entities = this._hass?.entities || {};
@@ -999,7 +1081,7 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
       .filter((entity) => !HomeiiPlayersFoundation.isLikelyBrowserPlayer(entity))
       .map((entity) => ({
         value: entity.entity_id,
-        label: entity.attributes?.friendly_name || entity.entity_id,
+        label: this._editorPlayerOptionLabel(entity, sourcePlayers),
       }))
       .sort((left, right) => String(left.label).localeCompare(String(right.label), undefined, { sensitivity: "base" }));
     return options;
@@ -1314,7 +1396,7 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
       if (item.name === "player_order_grid") return this._playerOrderSchema();
       const next = { ...item };
       if (Array.isArray(item.schema)) next.schema = item.schema.map(cloneItem).filter(Boolean);
-      if (item.name === "pinned_player_entities") {
+      if (item.name === "pinned_player_entities" || item.name === "excluded_player_entities") {
         next.selector = {
           select: {
             multiple: true,

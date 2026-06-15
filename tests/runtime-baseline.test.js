@@ -23,12 +23,37 @@ const originalGlobals = {
   document: globalThis.document,
   fetch: globalThis.fetch,
   HTMLElement: globalThis.HTMLElement,
+  Image: globalThis.Image,
+  localStorage: globalThis.localStorage,
   navigator: globalThis.navigator,
+  URLCreateObjectURL: globalThis.URL?.createObjectURL,
+  URLRevokeObjectURL: globalThis.URL?.revokeObjectURL,
   window: globalThis.window,
 };
 
 function installBrowserStubs() {
-  globalThis.window = { customCards: [] };
+  const storage = new Map();
+  globalThis.localStorage = {
+    getItem(key) {
+      const cleanKey = String(key);
+      return storage.has(cleanKey) ? storage.get(cleanKey) : null;
+    },
+    setItem(key, value) {
+      storage.set(String(key), String(value));
+    },
+    removeItem(key) {
+      storage.delete(String(key));
+    },
+    clear() {
+      storage.clear();
+    },
+  };
+  globalThis.window = {
+    customCards: [],
+    innerWidth: 1024,
+    addEventListener() {},
+    removeEventListener() {},
+  };
   globalThis.CustomEvent = class CustomEvent extends Event {
     constructor(type, options = {}) {
       super(type, options);
@@ -200,6 +225,12 @@ describe("runtime baseline", () => {
     globalThis.document = originalGlobals.document;
     globalThis.fetch = originalGlobals.fetch;
     globalThis.HTMLElement = originalGlobals.HTMLElement;
+    globalThis.Image = originalGlobals.Image;
+    globalThis.localStorage = originalGlobals.localStorage;
+    if (globalThis.URL) {
+      globalThis.URL.createObjectURL = originalGlobals.URLCreateObjectURL;
+      globalThis.URL.revokeObjectURL = originalGlobals.URLRevokeObjectURL;
+    }
     Object.defineProperty(globalThis, "navigator", {
       value: originalGlobals.navigator,
       configurable: true,
@@ -319,6 +350,132 @@ describe("runtime baseline", () => {
     expect(card._isPhoneActionFullscreenMenuPage("players")).toBe(true);
   });
 
+  it("routes Engine persistence through the resolved context profile", async () => {
+    await import("../src/homeii-music-flow.js?runtime-engine-routing-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card.setConfig({ type: "custom:homeii-music-flow", homeii_engine_mode: "auto" });
+    card._state.engineContext = { instanceId: "main", profileId: "kitchen" };
+    card._state.engineInstanceId = "main";
+    card._state.engineProfileId = "kitchen";
+    card._state.players = [{
+      entity_id: "media_player.kitchen",
+      attributes: { app_id: "music_assistant", mass_player_type: "player" },
+    }];
+
+    expect(card._homeiiEngineMessage("timers/set", { player: "media_player.kitchen" })).toEqual(expect.objectContaining({
+      type: "homeii_flow/timers/set",
+      instance_id: "main",
+      profile_id: "kitchen",
+      player: "media_player.kitchen",
+    }));
+    expect(card._scheduledStartEnginePayload({ id: 488, player: "media_player.kitchen", playlist: "library://playlist/1" })).toEqual(expect.objectContaining({
+      kind: "wake_playback",
+      schedule_id: "488",
+      player: "media_player.kitchen",
+      media_id: "library://playlist/1",
+      playlist: "library://playlist/1",
+      media_mode: "selected",
+      fallback_action: "media_play",
+    }));
+    expect(card._scheduledStartEnginePayload({ id: 488, player: "media_player.kitchen", playlist: "library://playlist/1" })).not.toHaveProperty("id");
+    expect(card._scheduledStartEnginePayload({ id: "wake_random", player: "media_player.kitchen", playlist: "" })).toEqual(expect.objectContaining({
+      schedule_id: "wake_random",
+      player: "media_player.kitchen",
+      media_id: "",
+      media_mode: "random_playlist",
+      selection_mode: "random_playlist",
+      media_type: "playlist",
+    }));
+    expect(card._homeiiEngineMessage("timers/set", {
+      timer_id: "sleep_media_player_kitchen",
+      player: "media_player.kitchen",
+    })).not.toHaveProperty("id");
+    expect(card._homeiiEngineMessage("get_context")).not.toHaveProperty("profile_id");
+  });
+
+  it("records successful announcements in Engine without taking over playback", async () => {
+    await import("../src/homeii-music-flow.js?runtime-engine-announcement-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card.setConfig({ type: "custom:homeii-music-flow", homeii_engine_mode: "auto" });
+    card._homeiiEngineEnabled = vi.fn(() => true);
+    card._homeiiEngineReadyForPersistence = vi.fn(async () => true);
+    card._homeiiEngineAnnounce = vi.fn(async () => ({ accepted: true }));
+
+    await expect(card._recordAnnouncementInHomeiiEngine("Dinner is ready", [
+      { entity_id: "media_player.kitchen" },
+      "media_player.living_room",
+    ], { language: "en-US", target: "all" })).resolves.toBe(true);
+
+    expect(card._homeiiEngineAnnounce).toHaveBeenCalledWith(expect.objectContaining({
+      message: "Dinner is ready",
+      player: "",
+      players: ["media_player.kitchen", "media_player.living_room"],
+      language: "en-US",
+      target: "all",
+      sent: true,
+    }));
+  });
+
+  it("keeps operational timers and schedules persisted while visual settings own appearance", async () => {
+    await import("../src/homeii-music-flow.js?runtime-operational-persistence-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card.setConfig({
+      type: "custom:homeii-music-flow",
+      card_id: "engine-persistence",
+      settings_source: "visual",
+    });
+
+    const sleepTimerEndsAt = Date.now() + 30 * 60 * 1000;
+    const schedule = card._normalizeScheduledStartSchedule({
+      id: "wake_kitchen",
+      enabled: true,
+      time: "07:30",
+      player: "media_player.kitchen",
+      playlist: "library://playlist/1",
+      playlistName: "Morning",
+      volume: 35,
+      days: [0, 1, 2, 3, 4],
+    });
+    card._state.mobileSleepTimerEndsAt = sleepTimerEndsAt;
+    card._state.mobileSleepTimerPlayer = "media_player.kitchen";
+    card._state.mobileSleepTimerOrigin = "general";
+    card._state.mobileStartSchedules = [schedule];
+    card._state.mobileStartTimerEnabled = true;
+
+    card._persistMobileAppearance();
+
+    expect(globalThis.localStorage.getItem(card._lsKey("homeii_music_flow_mobile_sleep_timer_at"))).toBe(String(sleepTimerEndsAt));
+    expect(globalThis.localStorage.getItem(card._lsKey("homeii_music_flow_mobile_sleep_timer_player"))).toBe("media_player.kitchen");
+    const storedSchedules = JSON.parse(globalThis.localStorage.getItem(card._lsKey("homeii_music_flow_mobile_start_schedules")));
+    expect(storedSchedules).toEqual([expect.objectContaining({ id: "wake_kitchen", player: "media_player.kitchen" })]);
+
+    const payload = card._systemMobileStatePayload();
+    expect(payload.sleepTimerEndsAt).toBe(sleepTimerEndsAt);
+    expect(payload.sleepTimerPlayer).toBe("media_player.kitchen");
+    expect(payload.startSchedules).toEqual([expect.objectContaining({ id: "wake_kitchen" })]);
+  });
+
+  it("keeps the clean-all confirmation as a compact dedicated dialog", async () => {
+    const source = await readProjectFile("src", "homeii-music-flow.js");
+
+    expect(source).toContain("clean-all-confirm-btn danger-confirm-action");
+    expect(source).toContain("queue-action-backdrop.clean-all-confirm-backdrop.open .clean-all-confirm-sheet");
+    expect(source).toContain("compact-expanded .queue-action-backdrop.clean-all-confirm-backdrop.open .clean-all-confirm-sheet");
+    expect(source).not.toContain('class="menu-item danger-confirm-action" id="cleanAllConfirmContinueBtn"');
+  });
+
   it("instantiates the visual editor shell and accepts config updates", async () => {
     await import("../src/homeii-music-flow.js?runtime-editor-baseline");
     await Promise.resolve();
@@ -392,14 +549,38 @@ describe("runtime baseline", () => {
       },
     };
 
-    const values = editor._editorPinnedPlayerOptions().map((option) => option.value);
+    const options = editor._editorPinnedPlayerOptions();
+    const values = options.map((option) => option.value);
 
     expect(values).toContain("media_player.office");
     expect(values).toContain("media_player.legacy_configured");
     expect(values).not.toContain("media_player.alexa");
+    expect(options.find((option) => option.value === "media_player.office")?.label)
+      .toBe("Office (media_player.office)");
+    expect(options.find((option) => option.value === "media_player.legacy_configured")?.label)
+      .toBe("Legacy configured (media_player.legacy_configured)");
+
+    const findSchemaItem = (items, name) => {
+      for (const item of items || []) {
+        if (item?.name === name) return item;
+        const found = findSchemaItem(item?.schema, name);
+        if (found) return found;
+      }
+      return null;
+    };
+    const schema = editor._withDynamicEditorSchema(editor._currentBaseEditorSchema());
+    const pinnedSelector = findSchemaItem(schema, "pinned_player_entities")?.selector;
+    const excludedSelector = findSchemaItem(schema, "excluded_player_entities")?.selector;
+
+    expect(pinnedSelector?.select?.options).toContainEqual(
+      expect.objectContaining({ value: "media_player.office", label: "Office (media_player.office)" }),
+    );
+    expect(excludedSelector?.select?.options).toContainEqual(
+      expect.objectContaining({ value: "media_player.office", label: "Office (media_player.office)" }),
+    );
   });
 
-  it("builds a visual editor diagnostics v3 report with visible status rows", async () => {
+  it("builds a visual editor diagnostics v6 report with visible status rows", async () => {
     await import("../src/homeii-music-flow.js?runtime-editor-diagnostics-baseline");
     await Promise.resolve();
     await vi.runAllTimersAsync();
@@ -440,7 +621,7 @@ describe("runtime baseline", () => {
     const report = await editor._runEditorDiagnostics();
 
     expect(report).toContain("HOMEii Music Flow Editor Diagnostics");
-    expect(report).toContain("Diagnostics: v3");
+    expect(report).toContain("Diagnostics: v6");
     expect(report).toContain("Integration mode");
     expect(report).toContain("Sendspin endpoint");
     expect(report).toContain("Integration signal");
@@ -572,6 +753,370 @@ describe("runtime baseline", () => {
     expect(queueArtwork?.status).toBe("ok");
     expect(queueArtwork?.value).toContain("https://<external-host>");
     expect(queueArtwork?.value).not.toContain("mass.546866031.xyz");
+  });
+
+  it("uses direct image loading for cross-origin hydrated artwork when no token is available", async () => {
+    await import("../src/homeii-music-flow.js?runtime-cross-origin-artwork-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    globalThis.window.location = {
+      href: "https://abc123.ui.nabu.casa/lovelace/music",
+      origin: "https://abc123.ui.nabu.casa",
+    };
+    globalThis.fetch = vi.fn(async () => {
+      throw new Error("CORS should not be used for cross-origin artwork");
+    });
+    const appended = [];
+    const doc = {
+      createElement(tagName) {
+        return {
+          tagName: String(tagName || "").toUpperCase(),
+          alt: "",
+          loading: "",
+          decoding: "",
+          onload: null,
+          onerror: null,
+          set src(value) { this._src = value; },
+          get src() { return this._src; },
+        };
+      },
+    };
+    const el = {
+      isConnected: true,
+      ownerDocument: doc,
+      innerHTML: "placeholder",
+      appendChild(node) {
+        appended.push(node);
+      },
+    };
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    await card._loadImgInto("https://mass.example.com/imageproxy?path=cover", el, "music_note");
+
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(appended).toHaveLength(1);
+    expect(appended[0].src).toBe("https://mass.example.com/imageproxy?path=cover");
+  });
+
+  it("uses authenticated fetch for cross-origin Music Assistant imageproxy artwork", async () => {
+    await import("../src/homeii-music-flow.js?runtime-authenticated-cross-origin-artwork-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    globalThis.window.location = {
+      href: "https://abc123.ui.nabu.casa/lovelace/music",
+      origin: "https://abc123.ui.nabu.casa",
+    };
+    globalThis.URL.createObjectURL = vi.fn(() => "blob:homeii-cover");
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      blob: async () => new Blob(["cover"], { type: "image/jpeg" }),
+    }));
+    const appended = [];
+    const doc = {
+      createElement(tagName) {
+        return {
+          tagName: String(tagName || "").toUpperCase(),
+          alt: "",
+          loading: "",
+          decoding: "",
+          onload: null,
+          onerror: null,
+          set src(value) { this._src = value; },
+          get src() { return this._src; },
+        };
+      },
+    };
+    const el = {
+      isConnected: true,
+      ownerDocument: doc,
+      innerHTML: "placeholder",
+      appendChild(node) {
+        appended.push(node);
+      },
+    };
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._maUrl = "https://mass.example.com";
+    card._maToken = "secret-token";
+    await card._loadImgInto("https://mass.example.com/imageproxy?path=cover", el, "music_note");
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "https://mass.example.com/imageproxy?path=cover",
+      expect.objectContaining({
+        credentials: "omit",
+        headers: expect.objectContaining({ Authorization: "Bearer secret-token" }),
+      }),
+    );
+    expect(appended).toHaveLength(1);
+    expect(appended[0].src).toBe("blob:homeii-cover");
+  });
+
+  it("uses authenticated artwork blobs for decoded mobile artwork", async () => {
+    await import("../src/homeii-music-flow.js?runtime-authenticated-decoded-artwork-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    globalThis.window.location = {
+      href: "https://abc123.ui.nabu.casa/lovelace/music",
+      origin: "https://abc123.ui.nabu.casa",
+    };
+    globalThis.URL.createObjectURL = vi.fn(() => "blob:decoded-cover");
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      blob: async () => new Blob(["cover"], { type: "image/jpeg" }),
+    }));
+    globalThis.Image = class FakeImage {
+      constructor() {
+        this.onload = null;
+        this.onerror = null;
+        this.complete = false;
+        this.naturalWidth = 0;
+      }
+
+      set src(value) {
+        this._src = value;
+        this.complete = true;
+        this.naturalWidth = 640;
+        Promise.resolve().then(() => this.onload?.());
+      }
+
+      get src() {
+        return this._src;
+      }
+    };
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._maUrl = "https://mass.example.com";
+    card._maToken = "secret-token";
+    const artworkUrl = "https://mass.example.com/imageproxy?path=cover";
+
+    await expect(card._decodeArtworkUrl(artworkUrl)).resolves.toBe(true);
+
+    expect(card._artworkDisplayUrl(artworkUrl)).toBe("blob:decoded-cover");
+    expect(card._decodedArtworkImgHtml(artworkUrl, "Cover", { current: true })).toContain('src="blob:decoded-cover"');
+    expect(card._decodedArtworkImgHtml(artworkUrl, "Cover", { current: true })).toContain(`data-homeii-applied-art-src="${artworkUrl}"`);
+  });
+
+  it("reports browser image loading for queue artwork diagnostics", async () => {
+    await import("../src/homeii-music-flow.js?runtime-diagnostics-artwork-load-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    globalThis.Image = class FakeImage {
+      constructor() {
+        this.onload = null;
+        this.onerror = null;
+        this.complete = false;
+        this.naturalWidth = 0;
+        this.naturalHeight = 0;
+      }
+
+      set src(value) {
+        this._src = value;
+        this.complete = true;
+        this.naturalWidth = 640;
+        this.naturalHeight = 640;
+        Promise.resolve().then(() => this.onload?.());
+      }
+
+      get src() {
+        return this._src;
+      }
+    };
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._maUrl = "https://mass.example.com";
+    card._hass = {
+      states: {},
+      services: {
+        music_assistant: {
+          get_queue: {},
+        },
+      },
+    };
+    card._hasMassQueueService = vi.fn(() => false);
+    card._hasDirectMAConnection = vi.fn(() => false);
+    card._fetchMusicAssistantQueueSnapshot = vi.fn(async () => ({
+      state: {
+        current_index: 0,
+        items: 1,
+      },
+      items: [
+        card._normalizeQueueItem({
+          queue_item_id: "queue-1",
+          media_item: {
+            name: "Browser Art",
+            metadata: {
+              images: [{ path: "spotify/browser-art.jpg", provider: "spotify" }],
+            },
+          },
+        }, 0),
+      ],
+    }));
+
+    const rows = [];
+    await card._diagnosticQueueRows((status, title, detail = "", value = "") => {
+      rows.push({ status, title, detail, value });
+    }, {
+      entity_id: "media_player.office",
+      attributes: {
+        active_queue: "ma_queue",
+      },
+    });
+
+    const browserLoad = rows.find((row) => row.title === "Queue artwork browser load");
+    expect(browserLoad?.status).toBe("ok");
+    expect(browserLoad?.detail).toContain("loaded");
+    expect(browserLoad?.value).toContain("(640x640)");
+  });
+
+  it("reports authenticated artwork fetch when direct browser image loading fails", async () => {
+    await import("../src/homeii-music-flow.js?runtime-diagnostics-auth-artwork-fetch-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    globalThis.window.location = {
+      href: "https://abc123.ui.nabu.casa/lovelace/music",
+      origin: "https://abc123.ui.nabu.casa",
+    };
+    globalThis.URL.createObjectURL = vi.fn(() => "blob:diagnostic-cover");
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      blob: async () => new Blob(["cover"], { type: "image/jpeg" }),
+    }));
+    globalThis.Image = class FakeImage {
+      constructor() {
+        this.onload = null;
+        this.onerror = null;
+        this.complete = false;
+        this.naturalWidth = 0;
+        this.naturalHeight = 0;
+      }
+
+      set src(value) {
+        this._src = value;
+        if (String(value).startsWith("blob:")) {
+          this.complete = true;
+          this.naturalWidth = 640;
+          this.naturalHeight = 640;
+          Promise.resolve().then(() => this.onload?.());
+          return;
+        }
+        Promise.resolve().then(() => this.onerror?.());
+      }
+
+      get src() {
+        return this._src;
+      }
+    };
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._maUrl = "https://mass.example.com";
+    card._maToken = "secret-token";
+
+    const result = await card._diagnosticProbeArtworkLoad("https://mass.example.com/imageproxy?path=cover");
+
+    expect(result.ok).toBe(true);
+    expect(result.reason).toContain("authenticated artwork fetch succeeded");
+    expect(result.width).toBe(640);
+  });
+
+  it("reports rendered artwork DOM health in diagnostics", async () => {
+    await import("../src/homeii-music-flow.js?runtime-rendered-artwork-diagnostics-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    const artworkImage = {
+      currentSrc: "https://mass.example.com/imageproxy?path=ok",
+      complete: true,
+      naturalWidth: 640,
+      dataset: {},
+      getAttribute: () => "",
+      closest: () => null,
+    };
+    const brokenImage = {
+      currentSrc: "https://mass.example.com/imageproxy?path=broken",
+      complete: true,
+      naturalWidth: 0,
+      dataset: {},
+      getAttribute: () => "",
+      closest: () => null,
+    };
+    card.shadowRoot = {
+      querySelectorAll(selector) {
+        if (selector === "img") return [artworkImage, brokenImage];
+        if (selector === "[data-img]") return [{}];
+        if (selector === ".media-placeholder,.homeii-art-fallback,.art-stack-fallback,.static-fallback") return [{}, {}];
+        return [];
+      },
+    };
+    card._state.menuOpen = true;
+    card._state.menuPage = "library_albums";
+
+    const rows = [];
+    card._diagnosticRenderedArtworkRows((status, title, detail = "", value = "") => {
+      rows.push({ status, title, detail, value });
+    });
+
+    const rendered = rows.find((row) => row.title === "Rendered artwork DOM");
+    expect(rendered?.status).toBe("warn");
+    expect(rendered?.detail).toContain("2 artwork image(s)");
+    expect(rendered?.detail).toContain("1 broken/pending image(s)");
+    expect(rendered?.detail).toContain("1 lazy placeholder(s)");
+    expect(rendered?.value).toBe("menu=library_albums");
+  });
+
+  it("applies a diagnostic queue snapshot when the UI state is empty", async () => {
+    await import("../src/homeii-music-flow.js?runtime-queue-diagnostics-repair-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._hass = {
+      states: {},
+      services: {
+        music_assistant: {
+          get_queue: {},
+        },
+      },
+    };
+    card._hasMassQueueService = vi.fn(() => false);
+    card._hasDirectMAConnection = vi.fn(() => false);
+    card._fetchMusicAssistantQueueSnapshot = vi.fn(async () => ({
+      state: {
+        current_index: 0,
+        items: 2,
+      },
+      items: [
+        card._normalizeQueueItem({ queue_item_id: "one", media_item: { name: "One", uri: "library://track/1" } }, 0),
+        card._normalizeQueueItem({ queue_item_id: "two", media_item: { name: "Two", uri: "library://track/2" } }, 1),
+      ],
+    }));
+
+    const rows = [];
+    await card._diagnosticQueueRows((status, title, detail = "", value = "") => {
+      rows.push({ status, title, detail, value });
+    }, {
+      entity_id: "media_player.office",
+      attributes: {
+        active_queue: "ma_queue",
+      },
+    });
+
+    const queueSnapshot = rows.find((row) => row.title === "Queue snapshot");
+    expect(queueSnapshot?.status).toBe("ok");
+    expect(queueSnapshot?.detail).toContain("Diagnostics applied the queue snapshot");
+    expect(card._state.queueItems).toHaveLength(2);
   });
 
   it("resolves Music Assistant 2.9 queue artwork payloads", async () => {
@@ -901,6 +1446,63 @@ describe("runtime baseline", () => {
     expect(card._diagnosticPlayerMarkerSummary(player, card._hass.entities)).toContain("registry_platform=alexa_media");
   });
 
+  it("disambiguates generic and duplicate player labels at runtime", async () => {
+    await import("../src/homeii-music-flow.js?runtime-player-label-disambiguation-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    const players = [
+      {
+        entity_id: "media_player.kitchen_speaker",
+        state: "idle",
+        attributes: { friendly_name: "Media Player", app_id: "music_assistant" },
+      },
+      {
+        entity_id: "media_player.bedroom_speaker",
+        state: "idle",
+        attributes: { friendly_name: "Media Player", app_id: "music_assistant" },
+      },
+      {
+        entity_id: "media_player.living_room",
+        state: "idle",
+        attributes: { friendly_name: "Living Room", app_id: "music_assistant" },
+      },
+    ];
+
+    card._state.players = players;
+
+    expect(card._playerDisplayName(players[0], players)).toBe("Media Player (Kitchen Speaker)");
+    expect(card._playerDisplayName(players[1], players)).toBe("Media Player (Bedroom Speaker)");
+    expect(card._playerDisplayName(players[2], players)).toBe("Living Room");
+  });
+
+  it("lets repeated card issue notices be acknowledged without hiding new issue text", async () => {
+    await import("../src/homeii-music-flow.js?runtime-card-issue-ack-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    const notices = [];
+    card._config = { card_id: "issue-ack-test" };
+    card._toastError = (message, options = {}) => notices.push({ message, options });
+
+    card._notifyCardIssue("music-assistant-not-ready", "Music Assistant is not ready", "error", 0);
+    expect(notices).toHaveLength(1);
+    expect(notices[0].options.issueAckKey).toBe("music-assistant-not-ready");
+    expect(notices[0].options.issueAckText).toBe("Music Assistant is not ready");
+
+    card._acknowledgeCardIssue(notices[0].options.issueAckKey, notices[0].options.issueAckText);
+    card._notifyCardIssue("music-assistant-not-ready", "Music Assistant is not ready", "error", 0);
+    expect(notices).toHaveLength(1);
+
+    card._notifyCardIssue("music-assistant-not-ready", "Music Assistant timed out", "error", 0);
+    expect(notices).toHaveLength(2);
+    expect(notices[1].message).toBe("Music Assistant timed out");
+  });
+
   it("selects a player from the dashboard query string", async () => {
     await import("../src/homeii-music-flow.js?runtime-query-string-player-baseline");
     await Promise.resolve();
@@ -943,6 +1545,83 @@ describe("runtime baseline", () => {
     } finally {
       globalThis.window.location = previousLocation;
     }
+  });
+
+  it("keeps an explicitly configured player visible even when pinned players are set", async () => {
+    await import("../src/homeii-music-flow.js?runtime-configured-player-pinned-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card.setConfig({
+      type: "custom:homeii-music-flow",
+      entity: "media_player.office",
+      pinned_player_entities: ["media_player.living_room"],
+    });
+    const office = {
+      entity_id: "media_player.office",
+      state: "idle",
+      attributes: { friendly_name: "Office", app_id: "music_assistant", mass_player_type: "player" },
+    };
+    const livingRoom = {
+      entity_id: "media_player.living_room",
+      state: "idle",
+      attributes: { friendly_name: "Living Room", app_id: "music_assistant", mass_player_type: "player" },
+    };
+    card._hass = {
+      services: { music_assistant: { play_media: {} } },
+      states: {
+        [office.entity_id]: office,
+        [livingRoom.entity_id]: livingRoom,
+      },
+      entities: {},
+    };
+
+    card._loadPlayers();
+
+    expect(card._state.players.map((entity) => entity.entity_id)).toContain(office.entity_id);
+    expect(card._state.players.map((entity) => entity.entity_id)).toContain(livingRoom.entity_id);
+    expect(card._state.selectedPlayer).toBe(office.entity_id);
+  });
+
+  it("does not let the configured player override a manual player selection", async () => {
+    await import("../src/homeii-music-flow.js?runtime-configured-player-manual-selection-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card.setConfig({
+      type: "custom:homeii-music-flow",
+      entity: "media_player.office",
+    });
+    const office = {
+      entity_id: "media_player.office",
+      state: "idle",
+      attributes: { friendly_name: "Office", app_id: "music_assistant", mass_player_type: "player" },
+    };
+    const kitchen = {
+      entity_id: "media_player.kitchen",
+      state: "idle",
+      attributes: { friendly_name: "Kitchen", app_id: "music_assistant", mass_player_type: "player" },
+    };
+    card._hass = {
+      services: { music_assistant: { play_media: {} } },
+      states: {
+        [office.entity_id]: office,
+        [kitchen.entity_id]: kitchen,
+      },
+      entities: {},
+    };
+
+    card._loadPlayers();
+    expect(card._state.selectedPlayer).toBe(office.entity_id);
+
+    card._selectPlayer(kitchen.entity_id, true);
+    card._loadPlayers();
+
+    expect(card._state.selectedPlayer).toBe(kitchen.entity_id);
   });
 
   it("reports browser-blocked Direct API as optional when the HA Music Assistant integration is available", async () => {
@@ -1089,6 +1768,7 @@ describe("runtime baseline", () => {
     card._callHaServiceRaw = vi.fn(async () => {
       throw new Error("Music Assistant entry not_loaded");
     });
+    card._callHaServiceTargeted = vi.fn(async () => ({}));
     card._callDirectMaCommand = vi.fn(async () => ({}));
     card._toastMediaQueued = vi.fn();
 
@@ -1097,6 +1777,7 @@ describe("runtime baseline", () => {
     });
 
     expect(ok).toBe(true);
+    expect(card._callHaServiceTargeted).not.toHaveBeenCalled();
     expect(card._callDirectMaCommand).toHaveBeenCalledWith("player_queues/play_media", {
       queue_id: "queue-ceiling",
       media: "library://playlist/1",
@@ -1104,6 +1785,81 @@ describe("runtime baseline", () => {
       radio_mode: false,
     });
     expect(card._toastMediaQueued).toHaveBeenCalledWith("Morning Flow", "Ceiling");
+  });
+
+  it("sends music_assistant.play_media with entity_id in service data first", async () => {
+    await import("../src/homeii-music-flow.js?runtime-play-media-target-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    const player = {
+      entity_id: "media_player.kitchen",
+      state: "idle",
+      attributes: { friendly_name: "Kitchen", app_id: "music_assistant" },
+    };
+    card._state.players = [player];
+    card._callHaServiceTargeted = vi.fn(async () => ({}));
+    card._callHaServiceRaw = vi.fn(async () => ({}));
+    card._toastMediaQueued = vi.fn();
+
+    const ok = await card._playMediaOnPlayer(player.entity_id, "library://playlist/1", "playlist", "play", {
+      label: "Kitchen Mix",
+    });
+
+    expect(ok).toBe(true);
+    expect(card._callHaServiceRaw).toHaveBeenCalledWith("music_assistant", "play_media", {
+      entity_id: player.entity_id,
+      media_id: "library://playlist/1",
+      media_type: "playlist",
+      enqueue: "play",
+    });
+    expect(card._callHaServiceTargeted).not.toHaveBeenCalled();
+    expect(card._toastMediaQueued).toHaveBeenCalledWith("Kitchen Mix", "Kitchen");
+  });
+
+  it("keeps music_assistant.play_media as the primary playback path when media_player.play_media exists", async () => {
+    await import("../src/homeii-music-flow.js?runtime-play-media-primary-path-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    const player = {
+      entity_id: "media_player.kitchen",
+      state: "idle",
+      attributes: { friendly_name: "Kitchen", app_id: "music_assistant", mass_player_type: "player" },
+    };
+    card._hass = {
+      services: {
+        media_player: { play_media: {} },
+        music_assistant: { play_media: {} },
+      },
+      states: { [player.entity_id]: player },
+    };
+    card._state.players = [player];
+    card._callHaServiceTargeted = vi.fn(async () => ({}));
+    card._callHaServiceRaw = vi.fn(async () => ({}));
+    card._toastMediaQueued = vi.fn();
+
+    const ok = await card._playMediaOnPlayer(player.entity_id, "library://playlist/1", "playlist", "play", {
+      label: "Kitchen Mix",
+    });
+
+    expect(ok).toBe(true);
+    expect(card._callHaServiceRaw).toHaveBeenNthCalledWith(1, "music_assistant", "play_media", {
+      entity_id: player.entity_id,
+      media_id: "library://playlist/1",
+      media_type: "playlist",
+      enqueue: "play",
+    });
+    expect(card._callHaServiceRaw).not.toHaveBeenCalledWith(
+      "media_player",
+      "play_media",
+      expect.anything(),
+    );
+    expect(card._callHaServiceTargeted).not.toHaveBeenCalled();
   });
 
   it("keeps pending queue artwork and title atomic while the player still reports the previous track", async () => {
@@ -1443,6 +2199,149 @@ describe("runtime baseline", () => {
     expect(radioFlowHtml).toContain('data-flow-caption-artist=""');
   });
 
+  it("adds a favorites-only filter to library tabs", async () => {
+    await import("../src/homeii-music-flow.js?runtime-library-favorites-filter-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._state.menuPage = "library_albums";
+
+    expect(card._mediaLayoutToolbarHtml()).toContain('data-library-favorites-toggle="library_albums"');
+    expect(card._mediaLayoutToolbarHtml()).not.toContain("subtle-heart");
+    expect(card._mediaLayoutToolbarHtml()).not.toContain("Favorites only</span>");
+
+    card._setLibraryFavoritesOnly("library_albums", true);
+    expect(card._libraryFavoritesOnlyEnabled("library_albums")).toBe(true);
+    expect(card._mediaLayoutToolbarHtml()).toContain("library-favorites-toggle active");
+    expect(card._mediaLayoutToolbarHtml()).not.toContain("Favorites only</span>");
+
+    card._getLibrary = vi.fn(async () => []);
+    await card._getLibraryTabItems({ type: "album" }, "sort_name", 25, "", true);
+
+    expect(card._getLibrary).toHaveBeenCalledWith("album", "sort_name", 25, true);
+  });
+
+  it("favorites library radio items by item identity instead of current media", async () => {
+    await import("../src/homeii-music-flow.js?runtime-library-radio-favorite-item-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    const calls = [];
+    const entry = {
+      uri: "radio://station/one",
+      media_type: "radio",
+      name: "Station One",
+      favorite_scope: "library",
+    };
+
+    card._useMaLikedMode = () => true;
+    card._hasDirectMAConnection = () => true;
+    card._getSelectedPlayer = () => ({
+      entity_id: "media_player.kitchen",
+      attributes: {
+        media_content_id: "radio://station/one",
+        media_title: "Station One",
+      },
+    });
+    card._currentMediaLikeMeta = () => ({
+      uri: "radio://station/one",
+      media_type: "radio",
+      name: "Station One",
+    });
+    card._callDirectMaCommand = vi.fn(async (command, args) => {
+      calls.push({ command, args });
+      return {};
+    });
+    card._waitForFavoriteState = vi.fn(async () => true);
+    card._toggleLikeViaMassQueue = vi.fn(async () => true);
+    card._pressFavoriteButtonEntity = vi.fn(async () => true);
+    card._toast = vi.fn();
+    card._toastError = vi.fn();
+
+    expect(card._entryTargetsCurrentMedia(entry)).toBe(false);
+    await expect(card._toggleLikeEntry(entry)).resolves.toBe(true);
+
+    expect(card._callDirectMaCommand).toHaveBeenCalledWith("music/favorites/add_item", { item: "radio://station/one" });
+    expect(calls[0]).toEqual({ command: "music/favorites/add_item", args: { item: "radio://station/one" } });
+    expect(card._toggleLikeViaMassQueue).not.toHaveBeenCalled();
+    expect(card._pressFavoriteButtonEntity).not.toHaveBeenCalled();
+    expect(card._toastError).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed media action favorite without treating it as success", async () => {
+    await import("../src/homeii-music-flow.js?runtime-library-radio-favorite-failure-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    const entry = {
+      uri: "radio://station/one",
+      media_type: "radio",
+      name: "Station One",
+      favorite_scope: "library",
+    };
+    card._toggleLikeEntry = vi.fn(async () => false);
+    card._toastSuccess = vi.fn();
+
+    await expect(card._handleMobileMediaAction("like", entry)).resolves.toBe(false);
+    expect(card._toggleLikeEntry).toHaveBeenCalledWith(entry);
+    expect(card._toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("keeps the library toolbar icon-only and removes decorative question marks", async () => {
+    await import("../src/homeii-music-flow.js?runtime-library-toolbar-icon-only-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._state.menuPage = "library_playlists";
+
+    const toolbarHtml = card._mediaLayoutToolbarHtml();
+
+    expect(toolbarHtml).toContain('data-library-flow-toggle="library_playlists"');
+    expect(toolbarHtml).toContain('data-library-favorites-toggle="library_playlists"');
+    expect(toolbarHtml).not.toContain("subtle-heart");
+    expect(toolbarHtml).not.toContain("Favorites only</span>");
+    expect(toolbarHtml).not.toContain("Wheel</span>");
+    expect(card._mobileSortOptions().map((opt) => opt.label).join(" ")).not.toContain("?");
+  });
+
+  it("keeps the configured library list layout instead of forcing grid", async () => {
+    await import("../src/homeii-music-flow.js?runtime-library-list-layout-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._state.mobileMediaLayout = "list";
+    const items = [
+      {
+        uri: "library://album/1",
+        media_type: "album",
+        name: "Album One",
+        artist: "Artist One",
+        image: "https://ha.local/album-one.jpg",
+      },
+    ];
+
+    const libraryHtml = card._mediaItemsListHtml(items, "album", { librarySkin: true });
+    const likedHtml = card._likedMediaEntriesHtml(items);
+    const searchHtml = card._libraryTabSearchResultsHtml(items, "album");
+    const artistHtml = card._libraryArtistDetailHtml({ name: "Artist One", albums: items, playlists: [] });
+
+    expect(libraryHtml).toContain("layout-list");
+    expect(likedHtml).toContain("layout-list");
+    expect(searchHtml).toContain("layout-list");
+    expect(searchHtml).not.toContain("layout-grid");
+    expect(artistHtml).toContain("layout-list");
+  });
+
   it("toggles library flow and opens artist album flow from mobile menu buttons", async () => {
     await import("../src/homeii-music-flow.js?runtime-library-flow-toggle");
     await Promise.resolve();
@@ -1673,7 +2572,7 @@ describe("runtime baseline", () => {
   });
 
   it("suppresses the screensaver while the card is open in the visual editor", async () => {
-    await import("../src/homeii-music-flow.js?runtime-editor-screensaver-block-baseline");
+    await import("../src/homeii-music-flow.js?runtime-screensaver-edit-mode-block-baseline");
     await Promise.resolve();
     await vi.runAllTimersAsync();
 
@@ -1743,6 +2642,51 @@ describe("runtime baseline", () => {
     expect(card._state.lyricsText).toBe("Current lyric");
     expect(lyricsBackdrop.classList.contains("open")).toBe(false);
     expect(lyricsBackdrop.innerHTML).toBe("");
+  });
+
+  it("auto-opens screensaver lyrics only while music is playing when enabled", async () => {
+    await import("../src/homeii-music-flow.js?runtime-screensaver-auto-lyrics-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    const overlay = {
+      classList: createClassList(),
+      dataset: {},
+      setAttribute(name, value) {
+        this[name] = value;
+      },
+    };
+    const cardEl = { classList: createClassList() };
+    card.classList = createClassList();
+    card.shadowRoot = {
+      querySelector: (selector) => (selector === ".card" ? cardEl : null),
+    };
+    card.$ = (id) => ({ screensaverBackdrop: overlay }[id] || null);
+    card._screensaverEnabled = () => true;
+    card._screensaverBlocked = () => false;
+    card._ensureQueueSnapshot = async () => {};
+    card._syncScreensaverUi = () => {};
+    card._syncLyricsForCurrentTrack = vi.fn();
+    card._state.screensaverAutoLyricsWhenPlaying = true;
+    card._getSelectedPlayer = () => ({ entity_id: "media_player.office", state: "playing", attributes: {} });
+
+    card._showScreensaver();
+
+    expect(card._state.screensaverOpen).toBe(true);
+    expect(card._state.screensaverLyricsOpen).toBe(true);
+    expect(card._syncLyricsForCurrentTrack).toHaveBeenCalled();
+
+    card._hideScreensaver();
+    card._syncLyricsForCurrentTrack.mockClear();
+    card._getSelectedPlayer = () => ({ entity_id: "media_player.office", state: "idle", attributes: {} });
+
+    card._showScreensaver();
+
+    expect(card._state.screensaverOpen).toBe(true);
+    expect(card._state.screensaverLyricsOpen).toBe(false);
+    expect(card._syncLyricsForCurrentTrack).not.toHaveBeenCalled();
   });
 
   it("opens tablet lyrics directly in screensaver mode without keeping the modal open", async () => {
@@ -1845,17 +2789,393 @@ describe("runtime baseline", () => {
     expect(host.innerHTML).toBe("");
   });
 
-  it("renders an optional screensaver lyrics control button", async () => {
+  it("renders optional screensaver lyrics sync and font control buttons", async () => {
     await import("../src/homeii-music-flow.js?runtime-screensaver-lyrics-button-baseline");
     await Promise.resolve();
     await vi.runAllTimersAsync();
 
     const CardCtor = globalThis.customElements.get("homeii-music-flow");
     const card = new CardCtor();
-    const html = card._screensaverControlButtonHtml("lyrics");
+    card._state.screensaverControlsEnabled = true;
+    card._state.screensaverControlButtons = ["lyrics", "lyrics_sync", "lyrics_font_minus", "lyrics_font_plus"];
+    const html = card._screensaverControlButtons()
+      .map((value) => card._screensaverControlButtonHtml(value))
+      .join("");
+    const source = await readProjectFile("src", "homeii-music-flow.js");
 
     expect(html).toContain('id="screensaverLyricsBtn"');
     expect(html).toContain('data-screensaver-control="lyrics"');
+    expect(html).toContain('id="screensaverLyricsSyncBtn"');
+    expect(html).toContain('data-screensaver-control="lyrics_sync"');
+    expect(html).toContain('id="screensaverLyricsFontMinusBtn"');
+    expect(html).toContain('data-screensaver-control="lyrics_font_minus"');
+    expect(html).toContain('id="screensaverLyricsFontPlusBtn"');
+    expect(html).toContain('data-screensaver-control="lyrics_font_plus"');
+    expect(source).toContain("screensaverLyricsFontMinusBtn");
+    expect(source).toContain("screensaverLyricsFontPlusBtn");
+    expect(source).toContain("--lyrics-font-scale");
+    expect(source).toContain("flex-wrap:nowrap;");
+    expect(source).toContain("max-width:min(92vw, 860px);");
+    expect(source).toContain(".screensaver-voice-btn.pressed,");
+    expect(source).not.toContain(".screensaver-voice-btn.active,\n.screensaver-voice-btn.listening");
+  });
+
+  it("keeps lyrics sync and font controls available in the normal lyrics modal", async () => {
+    const source = await readProjectFile("src", "core", "base-music-card.js");
+    const styleSource = await readProjectFile("src", "homeii-music-flow.js");
+
+    expect(source).toContain('id="lyricsFontMinusBtn"');
+    expect(source).toContain('id="lyricsFontResetBtn"');
+    expect(source).toContain('id="lyricsFontPlusBtn"');
+    expect(source).toContain('id="lyricsOffsetMinusBtn"');
+    expect(source).toContain('id="lyricsOffsetResetBtn"');
+    expect(source).toContain('id="lyricsOffsetPlusBtn"');
+    expect(source).toContain('id="lyricsSyncBtn"');
+    expect(styleSource).toContain(".lyrics-head-actions { display:flex;");
+    expect(styleSource).not.toContain(".card:not(.layout-tablet) .lyrics-head-actions { display:none");
+  });
+
+  it("removes one grouped speaker without rejoining or clearing the remaining group", async () => {
+    await import("../src/homeii-music-flow.js?runtime-group-remove-delta-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._state.selectedPlayer = "media_player.living_room";
+    card._state.players = [
+      {
+        entity_id: "media_player.living_room",
+        state: "playing",
+        attributes: {
+          friendly_name: "Living Room",
+          group_members: ["media_player.living_room", "media_player.kitchen", "media_player.terrace"],
+        },
+      },
+      {
+        entity_id: "media_player.kitchen",
+        state: "playing",
+        attributes: { friendly_name: "Kitchen" },
+      },
+      {
+        entity_id: "media_player.terrace",
+        state: "playing",
+        attributes: { friendly_name: "Terrace" },
+      },
+    ];
+    const serviceCalls = [];
+    card._callHaMediaPlayerService = vi.fn(async (entityId, service, serviceData = {}) => {
+      serviceCalls.push({ entityId, service, serviceData });
+      return {};
+    });
+    card._loadPlayers = vi.fn(async () => {});
+    card._renderMobileMenu = vi.fn(async () => {});
+    card._syncControlRoomUi = vi.fn();
+
+    const ok = await card._applySpeakerGroupFor("media_player.living_room", ["media_player.kitchen"]);
+
+    expect(ok).toBe(true);
+    expect(serviceCalls).toEqual([
+      { entityId: "media_player.terrace", service: "unjoin", serviceData: {} },
+    ]);
+  });
+
+  it("shows the group master in the group screen", async () => {
+    await import("../src/homeii-music-flow.js?runtime-group-master-visible-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._state.selectedPlayer = "media_player.kitchen";
+    card._state.players = [
+      {
+        entity_id: "media_player.living_room",
+        state: "playing",
+        attributes: {
+          friendly_name: "Living Room",
+          group_members: ["media_player.living_room", "media_player.kitchen", "media_player.terrace"],
+        },
+      },
+      {
+        entity_id: "media_player.kitchen",
+        state: "playing",
+        attributes: { friendly_name: "Kitchen" },
+      },
+      {
+        entity_id: "media_player.terrace",
+        state: "playing",
+        attributes: { friendly_name: "Terrace" },
+      },
+    ];
+
+    const html = card._groupMenuHtml();
+
+    expect(html).toContain("Living Room");
+    expect(html).toContain('data-group-owner="true"');
+    expect(html).toContain("group-player-status master");
+    expect(html).toContain("Master");
+    expect(html).toContain("Kitchen");
+  });
+
+  it("removes the selected member from a master-owned group without clearing the group", async () => {
+    await import("../src/homeii-music-flow.js?runtime-group-remove-leader-rebase-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._state.selectedPlayer = "media_player.kitchen";
+    card._state.players = [
+      {
+        entity_id: "media_player.living_room",
+        state: "playing",
+        attributes: {
+          friendly_name: "Living Room",
+          group_members: ["media_player.living_room", "media_player.kitchen", "media_player.terrace"],
+        },
+      },
+      {
+        entity_id: "media_player.kitchen",
+        state: "playing",
+        attributes: { friendly_name: "Kitchen" },
+      },
+      {
+        entity_id: "media_player.terrace",
+        state: "playing",
+        attributes: { friendly_name: "Terrace" },
+      },
+    ];
+    const serviceCalls = [];
+    card._callHaMediaPlayerService = vi.fn(async (entityId, service, serviceData = {}) => {
+      serviceCalls.push({ entityId, service, serviceData });
+      return {};
+    });
+    card._loadPlayers = vi.fn(async () => {});
+    card._renderMobileMenu = vi.fn(async () => {});
+    card._syncControlRoomUi = vi.fn();
+
+    const ok = await card._applySpeakerGroupFor("media_player.kitchen", ["media_player.living_room", "media_player.terrace"]);
+
+    expect(ok).toBe(true);
+    expect(serviceCalls).toEqual([
+      { entityId: "media_player.kitchen", service: "unjoin", serviceData: {} },
+    ]);
+  });
+
+  it("rebases member-view group additions onto the current master", async () => {
+    await import("../src/homeii-music-flow.js?runtime-group-member-add-rebase-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._state.selectedPlayer = "media_player.kitchen";
+    card._state.players = [
+      {
+        entity_id: "media_player.living_room",
+        state: "playing",
+        attributes: {
+          friendly_name: "Living Room",
+          group_members: ["media_player.living_room", "media_player.kitchen"],
+        },
+      },
+      {
+        entity_id: "media_player.kitchen",
+        state: "playing",
+        attributes: { friendly_name: "Kitchen" },
+      },
+      {
+        entity_id: "media_player.terrace",
+        state: "idle",
+        attributes: { friendly_name: "Terrace" },
+      },
+    ];
+    const serviceCalls = [];
+    card._callHaMediaPlayerService = vi.fn(async (entityId, service, serviceData = {}) => {
+      serviceCalls.push({ entityId, service, serviceData });
+      return {};
+    });
+    card._loadPlayers = vi.fn(async () => {});
+    card._renderMobileMenu = vi.fn(async () => {});
+    card._syncControlRoomUi = vi.fn();
+
+    const ok = await card._applySpeakerGroupFor("media_player.kitchen", [
+      "media_player.living_room",
+      "media_player.kitchen",
+      "media_player.terrace",
+    ]);
+
+    expect(ok).toBe(true);
+    expect(serviceCalls).toEqual([
+      {
+        entityId: "media_player.living_room",
+        service: "join",
+        serviceData: { group_members: ["media_player.kitchen", "media_player.terrace"] },
+      },
+    ]);
+  });
+
+  it("disconnects the group when the master is explicitly unchecked from a member view", async () => {
+    await import("../src/homeii-music-flow.js?runtime-group-member-unchecks-master-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._state.selectedPlayer = "media_player.kitchen";
+    card._state.players = [
+      {
+        entity_id: "media_player.living_room",
+        state: "playing",
+        attributes: {
+          friendly_name: "Living Room",
+          group_members: ["media_player.living_room", "media_player.kitchen", "media_player.terrace"],
+        },
+      },
+      {
+        entity_id: "media_player.kitchen",
+        state: "playing",
+        attributes: { friendly_name: "Kitchen" },
+      },
+      {
+        entity_id: "media_player.terrace",
+        state: "playing",
+        attributes: { friendly_name: "Terrace" },
+      },
+    ];
+    const serviceCalls = [];
+    card._callHaMediaPlayerService = vi.fn(async (entityId, service, serviceData = {}) => {
+      serviceCalls.push({ entityId, service, serviceData });
+      return {};
+    });
+    card._loadPlayers = vi.fn(async () => {});
+    card._renderMobileMenu = vi.fn(async () => {});
+    card._syncControlRoomUi = vi.fn();
+    card._state.pendingGroupSelections = ["media_player.kitchen", "media_player.terrace"];
+    card._state.pendingGroupOwnerRemoval = true;
+
+    const ok = await card._applySpeakerGroupFor("media_player.kitchen", card._state.pendingGroupSelections);
+
+    expect(ok).toBe(true);
+    expect(serviceCalls).toEqual([
+      { entityId: "media_player.living_room", service: "unjoin", serviceData: {} },
+      { entityId: "media_player.kitchen", service: "unjoin", serviceData: {} },
+      { entityId: "media_player.terrace", service: "unjoin", serviceData: {} },
+    ]);
+  });
+
+  it("disconnects the group when the selected master is unchecked", async () => {
+    await import("../src/homeii-music-flow.js?runtime-group-selected-master-removal-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    card._state.selectedPlayer = "media_player.living_room";
+    card._state.players = [
+      {
+        entity_id: "media_player.living_room",
+        state: "playing",
+        attributes: {
+          friendly_name: "Living Room",
+          group_members: ["media_player.living_room", "media_player.kitchen", "media_player.terrace"],
+        },
+      },
+      {
+        entity_id: "media_player.kitchen",
+        state: "playing",
+        attributes: { friendly_name: "Kitchen" },
+      },
+      {
+        entity_id: "media_player.terrace",
+        state: "playing",
+        attributes: { friendly_name: "Terrace" },
+      },
+    ];
+    const serviceCalls = [];
+    card._callHaMediaPlayerService = vi.fn(async (entityId, service, serviceData = {}) => {
+      serviceCalls.push({ entityId, service, serviceData });
+      return {};
+    });
+    card._loadPlayers = vi.fn(async () => {});
+    card._renderMobileMenu = vi.fn(async () => {});
+    card._syncControlRoomUi = vi.fn();
+    card._refreshGroupingState({ force: true });
+    card._state.pendingGroupSelections = ["media_player.kitchen", "media_player.terrace"];
+    card._state.pendingGroupOwnerRemoval = true;
+
+    const ok = await card._applySpeakerGroupFor("media_player.living_room", card._state.pendingGroupSelections);
+
+    expect(ok).toBe(true);
+    expect(serviceCalls).toEqual([
+      { entityId: "media_player.living_room", service: "unjoin", serviceData: {} },
+      { entityId: "media_player.kitchen", service: "unjoin", serviceData: {} },
+      { entityId: "media_player.terrace", service: "unjoin", serviceData: {} },
+    ]);
+  });
+
+  it("keeps group update and disconnect-all actions paired", async () => {
+    const source = await readProjectFile("src", "homeii-music-flow.js");
+
+    expect(source).toContain(".menu-body.sheet-group .group-actions { width:min(100%, 460px); margin:22px auto 0; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr));");
+    expect(source).toContain(".menu-body.sheet-group .group-disconnect-all-btn");
+    expect(source).toContain("min-height:58px;");
+    expect(source).toContain(".group-actions { grid-template-columns:repeat(2, minmax(0, 1fr)); }");
+  });
+
+  it("shows the group volume shortcut only for grouped players", async () => {
+    await import("../src/homeii-music-flow.js?runtime-group-volume-shortcut-baseline");
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    const CardCtor = globalThis.customElements.get("homeii-music-flow");
+    const card = new CardCtor();
+    const buttonClasses = new Set();
+    const button = {
+      hidden: true,
+      dataset: {},
+      title: "",
+      classList: {
+        toggle: (className, enabled) => {
+          if (enabled) buttonClasses.add(className);
+          else buttonClasses.delete(className);
+        },
+      },
+      setAttribute: vi.fn((name, value) => {
+        button[name] = value;
+      }),
+    };
+    Object.defineProperty(card, "shadowRoot", {
+      configurable: true,
+      value: { querySelectorAll: () => [button] },
+    });
+    card._state.selectedPlayer = "media_player.living_room";
+    card._state.players = [
+      {
+        entity_id: "media_player.living_room",
+        state: "playing",
+        attributes: {
+          friendly_name: "Living Room",
+          group_members: ["media_player.living_room", "media_player.kitchen"],
+        },
+      },
+      {
+        entity_id: "media_player.kitchen",
+        state: "playing",
+        attributes: { friendly_name: "Kitchen" },
+      },
+    ];
+
+    card._syncGroupVolumeShortcut();
+    expect(button.hidden).toBe(false);
+    expect(buttonClasses.has("active")).toBe(true);
+    expect(button.dataset.groupCount).toBe("2");
+
+    card._state.players[0].attributes.group_members = [];
+    card._syncGroupVolumeShortcut();
+    expect(button.hidden).toBe(true);
+    expect(buttonClasses.has("active")).toBe(false);
   });
 
   it("keeps the built dist runtime bundled and registerable", async () => {

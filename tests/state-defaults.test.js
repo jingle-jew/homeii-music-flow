@@ -22,6 +22,15 @@ describe("state defaults", () => {
     expect(state.quickMixRecommendationItems).toEqual([]);
     expect(state.controlRoomOpen).toBe(false);
     expect(state.controlRoomRenderSignature).toBe("");
+    expect(state.engineStatus).toBe("unknown");
+    expect(state.engineAvailable).toBe(false);
+    expect(state.engineVersion).toBe("");
+    expect(state.engineCapabilities).toEqual({});
+    expect(state.engineContext).toBeNull();
+    expect(state.engineInstanceId).toBe("");
+    expect(state.engineProfileId).toBe("");
+    expect(state.engineLastChecked).toBe(0);
+    expect(state.engineLastError).toBe("");
     expect(state.activePlayerHelperLastValue).toBeUndefined();
   });
 

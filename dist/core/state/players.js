@@ -13,6 +13,75 @@ const GENERIC_PLAYER_TOKENS = new Set([
 
 export const genericPlayerTokens = GENERIC_PLAYER_TOKENS;
 
+const GENERIC_PLAYER_NAME_KEYS = new Set([
+  "media player",
+  "media players",
+  "music player",
+  "player",
+  "speaker",
+  "speakers",
+  "renderer",
+  "media renderer",
+  "home assistant media player",
+  "esphome media player",
+  "\u05e0\u05d2\u05df",
+  "\u05e0\u05d2\u05df \u05de\u05d3\u05d9\u05d4",
+  "\u05e8\u05de\u05e7\u05d5\u05dc",
+  "\u05e8\u05de\u05e7\u05d5\u05dc\u05d9\u05dd",
+]);
+
+function normalizedPlayerDisplayKey(value = "") {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^media_player\./, "")
+    .replace(/[_\-.]+/g, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function playerEntityDisplayName(entityId = "") {
+  const raw = String(entityId || "")
+    .trim()
+    .replace(/^media_player\./, "")
+    .replace(/[_\-.]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!raw) return "";
+  return raw.replace(/\b([a-z])([a-z0-9]*)/gi, (match, first, rest) => `${first.toUpperCase()}${rest}`);
+}
+
+export function isGenericPlayerDisplayName(name = "") {
+  const key = normalizedPlayerDisplayKey(name);
+  if (!key) return true;
+  return GENERIC_PLAYER_NAME_KEYS.has(key)
+    || /^media player \d+$/.test(key)
+    || /^player \d+$/.test(key)
+    || /^speaker \d+$/.test(key);
+}
+
+export function playerDisplayName(player = null, { players = [], includeEntityId = true } = {}) {
+  const entityId = String(player?.entity_id || "").trim();
+  const friendly = String(player?.attributes?.friendly_name || "").trim();
+  const entityLabel = playerEntityDisplayName(entityId);
+  const base = friendly || entityLabel || entityId;
+  if (!base) return "";
+  if (!includeEntityId || !entityId) return base;
+  const sourcePlayers = Array.isArray(players) ? players : [];
+  const friendlyKey = normalizedPlayerDisplayKey(friendly);
+  const duplicateFriendly = !!friendlyKey && sourcePlayers
+    .filter((entry) => normalizedPlayerDisplayKey(entry?.attributes?.friendly_name || "") === friendlyKey)
+    .length > 1;
+  const genericFriendly = friendly ? isGenericPlayerDisplayName(friendly) : false;
+  const baseKey = normalizedPlayerDisplayKey(base);
+  const entityKey = normalizedPlayerDisplayKey(entityLabel || entityId);
+  const suffix = entityLabel && entityKey !== baseKey ? entityLabel : entityId;
+  return (genericFriendly || duplicateFriendly) && suffix && normalizedPlayerDisplayKey(suffix) !== baseKey
+    ? `${base} (${suffix})`
+    : base;
+}
+
 export function entityMatchTokens(value = "") {
   return String(value || "")
     .toLowerCase()

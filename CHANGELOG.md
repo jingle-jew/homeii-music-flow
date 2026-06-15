@@ -1,5 +1,55 @@
 # Changelog
 
+## 5.9.1 - 2026-06-15
+
+Focused stable update for playback stability, group usability, diagnostics depth, Music Assistant 2.9 recommendation hooks, screensaver lyrics controls, and small routing fixes.
+
+Added:
+
+- Clearer group management experience with per-player status labels: Connected, Master, Tap to join, Will join, Will remove, and Disconnects all.
+- The group screen now keeps every player visible, including the selected/current master player, so the group owner is always explicit.
+- Update Group and Disconnect All now use matching side-by-side actions in the mobile group screen.
+- Group change summary so users can see exactly what will be added or removed before pressing Apply Group.
+- Diff-based group apply logic: removing a speaker only unjoins the removed speaker and does not clear the whole group, so the remaining connected speakers should keep playing.
+- Safer group screen actions: the group page now uses one Update Group action, so removing a single speaker is done by marking that speaker for removal and applying the change instead of pressing a full ungroup button.
+- A distinct Disconnect All group action is available again for users who intentionally want to break the whole group.
+- Group volume shortcut on the main player volume row. It appears only when the selected player is part of a group and opens the group volume controls directly.
+- Favorites-only filtering for mobile library pages, including a Music Assistant-only favorites path for Radio so it does not mix external RadioBrowser results with saved MA favorites.
+- Radio source mode for the mobile Radio library: Combined, Music Assistant first, Music Assistant only, or RadioBrowser only.
+- Diagnostic v6 with selected-player source, group-state visibility, queue UI state, and warnings when queue APIs return data but the rendered queue is empty.
+- Diagnostic v6 probes browser artwork loading, authenticated artwork fetch fallback, and rendered artwork DOM health so external-access image failures are tied to the exact display path.
+- Diagnostics now reports the group service path, including `media_player.join`, `media_player.unjoin`, selected/group owner identity, and current members.
+- Optional HOMEii Flow Engine bridge infrastructure for the future Home Assistant integration, including card config, visual-editor fields, WebSocket command helpers, diagnostics, and fallback-safe defaults.
+- Native Music Assistant 2.9 recommendation support for HOMEii recommendations and Studio Mix flows when the direct MA API is available.
+- Screensaver can automatically open Lyrics mode while music is playing, while keeping the normal clock mode when idle.
+- Configurable screensaver Lyrics controls for Sync lyrics, Smaller lyrics, and Larger lyrics when Screensaver controls are explicitly enabled.
+- Screensaver can now be configured from a dedicated Screensaver section in the visual editor.
+
+Fixed:
+
+- Restores the 5.9.0 playback service path so `music_assistant.play_media` remains the primary playback call and does not get replaced by generic `media_player.play_media` fallback behavior.
+- Keeps query-string player override behavior from 5.9.0 while avoiding configured-player selection logic that could interfere with real playback.
+- Queue Flow now refreshes the selected queue before opening, reducing stale or empty queue screens after recent playback changes.
+- Diagnostics now applies a valid queue snapshot back into the card UI state when the queue API returns items but the rendered queue is empty.
+- Wide/desktop lyrics view keeps font-size, sync, and timing controls visible and horizontally scrollable when space is tight.
+- The mobile Radio tab can avoid RadioBrowser entirely when Music Assistant-only mode is selected, reducing extra calls and visual noise for users who only want MA stations.
+- Group selection no longer resyncs over unsaved user changes while the group modal is open.
+- Removal-only group changes no longer call `join` again for the remaining speakers.
+- Group changes now wait for Home Assistant to confirm the expected group state before showing success, avoiding false "done" feedback when the backend ignores or rejects the change.
+- Opening the group screen from a group member now rebases add/remove actions onto the actual group owner instead of accidentally treating the selected member as the leader.
+- Removing the current group master from a member-selected view is treated as an intentional full-group disconnect, matching Home Assistant/Music Assistant behavior instead of pretending it can be removed like a normal member.
+- Unchecking the selected master is also treated as an intentional full-group disconnect.
+- Clean All confirmation now stays a compact confirmation dialog in edge-to-edge and compact-popup contexts instead of inheriting full-screen queue-action sizing.
+- Cross-origin hydrated artwork now uses direct browser image loading instead of a `fetch()` blob path that can be blocked by CORS when Home Assistant is opened through an external URL.
+- Cross-origin Music Assistant `imageproxy` artwork can now use authenticated fetch-to-blob loading when `ma_token` is configured, fixing external HTTPS/Nabu Casa cases where raw `<img>` loading cannot pass Authorization.
+- Library List/Grid preference is honored across library pages, search results, liked entries, and artist album sections instead of forcing Grid in several render paths.
+- Screensaver Lyrics auto-open respects manual dismissal per track, so closing Lyrics does not immediately reopen it for the same song.
+
+Validation:
+
+- Full Vitest suite passed locally: 229 tests.
+- Production build and release artifact sync passed locally for `5.9.1`.
+
 ## 5.9.0 - 2026-06-03
 
 Major mobile, diagnostics, settings, and community release after the 5.8.x stabilization cycle.

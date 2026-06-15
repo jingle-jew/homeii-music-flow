@@ -52,7 +52,7 @@ If HACS does not add the resource automatically, add:
 3. Add this Dashboard resource:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.9.0
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.9.1
 ```
 
 4. Add the card:
@@ -111,9 +111,9 @@ For phones:
 - Use **Full** or **Edge to edge** for a full music app feeling.
 - Use **Compact** when the card sits among other dashboard cards.
 
-## Reusable Dashboards In 5.9.0
+## Reusable Dashboards
 
-HOMEii Music Flow 5.9.0 adds two tools that make shared dashboards easier:
+HOMEii Music Flow includes two tools that make shared dashboards easier:
 
 - `card_id` for separating local settings between card instances.
 - URL player overrides for opening the same dashboard directly to a specific player.

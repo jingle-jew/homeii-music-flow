@@ -40,14 +40,14 @@ https://github.com/user-attachments/assets/a0076e6e-0352-40f8-ac37-35737e717a80
   <a href="https://www.hacs.xyz/docs/use/download/download/">
     <img alt="Install HACS" src="https://img.shields.io/badge/Install-HACS-41BDF5?logo=homeassistant&logoColor=white">
   </a>
-  <a href="https://github.com/r11a/homeii-music-flow/archive/refs/tags/v5.9.0.zip">
-    <img alt="Download HOMEii Flow 5.9.0 stable tag archive" src="https://img.shields.io/badge/Download-v5.9.0%20stable-111111?logo=github">
+  <a href="https://github.com/r11a/homeii-music-flow/archive/refs/tags/v5.9.1.zip">
+    <img alt="Download HOMEii Flow 5.9.1 stable tag archive" src="https://img.shields.io/badge/Download-v5.9.1%20stable-111111?logo=github">
   </a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.9.0"><img alt="stable version" src="https://img.shields.io/badge/stable-5.9.0-gold"></a>
-  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.9.0"><img alt="release notes" src="https://img.shields.io/badge/release%20notes-5.9.0-8A63D2"></a>
+  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.9.1"><img alt="stable version" src="https://img.shields.io/badge/stable-5.9.1-gold"></a>
+  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.9.1"><img alt="release notes" src="https://img.shields.io/badge/release%20notes-5.9.1-8A63D2"></a>
   <a href="https://github.com/r11a/homeii-music-flow/blob/main/docs/README.md"><img alt="documentation" src="https://img.shields.io/badge/docs-user%20guide-2EA043"></a>
   <img alt="Home Assistant" src="https://img.shields.io/badge/Home%20Assistant-Dashboard-41BDF5">
   <img alt="Music Assistant" src="https://img.shields.io/badge/Music%20Assistant-required-7C5CFF">
@@ -74,23 +74,24 @@ HOMEii Flow is a custom Home Assistant Dashboard card for Music Assistant. It tu
 
 HOMEii Flow started from my own daily use of Home Assistant and Music Assistant. I wanted it to feel less like a technical dashboard widget and more like a real music app inside Home Assistant, so a lot of thought went into the flow, touch interactions, Hebrew/RTL comfort, wall-tablet behavior, mobile details, and the small moments that make choosing music feel natural at home.
 
-## 5.9.0 Release
+## 5.9.1 Release
 
-HOMEii Flow 5.9.0 is a major mobile and reliability release. It graduates the 5.8.2 beta fixes, adds the new Library Wheel experience, expands Diagnostics v3, improves phone edge-to-edge behavior, and brings community PR ideas into the stable package.
+HOMEii Flow 5.9.1 is a focused reliability update on top of the 5.9.0 stable release. It keeps the proven playback path intact while tightening groups, diagnostics, library behavior, artwork handling, pinned-player clarity, repeated-message acknowledgement, and screensaver lyrics controls.
 
-Release headlines:
+Release focus:
 
-- **Library Wheel and Queue Wheel:** a fast vertical wheel browser is now available for playlists, artists, albums, tracks, liked items, radio stations, and artist albums. Artist-album and radio wheel pages use a single Queue Flow-style scroll stage with clean captions.
-- **Diagnostics v3 is now a first-class support tool:** run it from the card settings or the visual editor to check Home Assistant, Music Assistant services, config entries, selected players, queue providers, library providers, Direct API, Sendspin readiness, browser context, and artwork paths.
-- **Phone edge-to-edge mode:** the normal mobile layout can now use a frontmost full-screen experience, with full-screen menus that avoid layered button overlap.
-- **Reusable dashboards:** `card_id` isolates per-card settings, and query-string player overrides such as `?player=kitchen_sonos` make shared dashboard includes easier.
-- **Settings and performance polish:** settings are organized into accordion sections, frequent toggles refresh surgically, and artwork cache behavior adapts better to performance profiles.
-- **Community localization:** Danish localization is included, with follow-up placeholder fixes so runtime variables render correctly.
+- **Playback stability:** the critical Music Assistant playback path is aligned back to the proven 5.9.0 behavior.
+- **Diagnostics v6:** diagnostics now checks player source, group state, queue UI/API alignment, artwork browser loading, authenticated artwork fallback, rendered artwork DOM health, Direct MA, and Sendspin readiness.
+- **Group usability:** the group screen keeps all players visible, marks the master/owner clearly, shows pending add/remove changes, and keeps Disconnect All as an explicit action.
+- **Library controls:** favorites-only filtering, Radio source mode, and Library/Grid preference behavior are now part of the stable package.
+- **Screensaver:** lyrics-while-playing plus optional screensaver Lyrics controls for sync and font size.
+- **Configuration clarity:** pinned and excluded player selectors now include entity ids next to friendly names, and repeated card-issue messages can be acknowledged so the same warning does not loop forever.
+- **6.0.0 foundation:** optional HOMEii Flow Engine bridge fields and diagnostics are included as a safe, off-by-default foundation for the upcoming integration release.
 
-Install or hard-refresh with:
+After updating, hard-refresh with:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.9.0
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.9.1
 ```
 
 
@@ -140,7 +141,7 @@ If HACS does not add the resource automatically, add:
 3. Add this Dashboard resource:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.9.0
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.9.1
 ```
 
 4. Add the card:
@@ -827,7 +828,7 @@ src/core/                             extracted foundation helpers
 src/config/                           config validators
 tests/                                regression coverage
 scripts/release.mjs                   release sync tooling
-RELEASE_NOTES_5.9.0.md                detailed GitHub release notes for the current stable release
+RELEASE_NOTES_5.9.1.md                detailed GitHub release notes for the current stable release
 docs/README.md                        complete user documentation hub
 docs/brand/                           logo and brand assets
 docs/media/                           GitHub/HACS README screenshots and GIF
@@ -845,7 +846,7 @@ npm run lint
 npm test
 ```
 
-Current packaged version: `5.9.0`
+Current packaged version: `5.9.1`
 
 ## Release Readiness
 
@@ -900,7 +901,7 @@ Credit and thanks:
 - [Complete user documentation](./docs/README.md)
 - [Local deployment guide](./LOCAL_DEPLOYMENT.md)
 - [Publishing checklist](./PUBLISHING.md)
-- [5.9.0 release notes](./RELEASE_NOTES_5.9.0.md)
+- [5.9.1 release notes](./RELEASE_NOTES_5.9.1.md)
 - [Older releases and tags](https://github.com/r11a/homeii-music-flow/releases)
 - [QA matrix](./docs/qa-matrix.md)
 - [Repo assets checklist](./docs/repo-assets-checklist.md)

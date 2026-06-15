@@ -21,6 +21,7 @@ import {
   normalizeMobileMicMode,
   normalizeMobileQuickActions,
   normalizeMobileQuickActionSlots,
+  normalizeMobileRadioSourceMode,
   normalizeMobileVolumeMode,
   normalizePinnedPlayerEntities,
   normalizePlayerOrderEntities,
@@ -71,6 +72,7 @@ describe("mobile settings foundation", () => {
       voice_assistant_speak_feedback: true,
       mobile_liked_mode: "local",
       mobile_swipe_mode: "browse",
+      mobile_radio_source_mode: "MA_FIRST",
       mobile_radio_browser_country: "il",
       mobile_library_tabs: ["library_albums"],
       mobile_main_bar_items: ["theme", "settings"],
@@ -95,8 +97,9 @@ describe("mobile settings foundation", () => {
       ambient_light_transition: -4,
       ambient_light_cooldown: "soon",
       screensaver_enabled: true,
+      screensaver_auto_lyrics_when_playing: true,
       screensaver_controls_enabled: true,
-      screensaver_control_buttons: ["next", "lyrics", "voice", "bogus", "next"],
+      screensaver_control_buttons: ["next", "lyrics", "lyrics_sync", "lyrics_font_minus", "lyrics_font_plus", "voice", "bogus", "next"],
       screensaver_clock_mode: "ANALOG",
       screensaver_timeout_seconds: 4,
       screensaver_message: "Enjoy the music",
@@ -161,6 +164,7 @@ describe("mobile settings foundation", () => {
     expect(state.voiceAssistantSpeakFeedback).toBe(true);
     expect(state.mobileLikedMode).toBe("local");
     expect(state.mobileSwipeMode).toBe("browse");
+    expect(state.mobileRadioSourceMode).toBe("ma_first");
     expect(state.mobileRadioBrowserCountry).toBe("il");
     expect(state.mobileLibraryTabs).toEqual(["library_albums"]);
     expect(state.mobileMainBarItems).toEqual(["theme", "settings"]);
@@ -177,8 +181,9 @@ describe("mobile settings foundation", () => {
     expect(state.ambientLightTransition).toBe(0);
     expect(state.ambientLightCooldown).toBe(8);
     expect(state.screensaverEnabled).toBe(true);
+    expect(state.screensaverAutoLyricsWhenPlaying).toBe(true);
     expect(state.screensaverControlsEnabled).toBe(true);
-    expect(state.screensaverControlButtons).toEqual(["next", "lyrics", "voice"]);
+    expect(state.screensaverControlButtons).toEqual(["next", "lyrics", "lyrics_sync", "lyrics_font_minus", "lyrics_font_plus", "voice"]);
     expect(state.screensaverClockMode).toBe("analog");
     expect(state.screensaverTimeoutSeconds).toBe(15);
     expect(state.screensaverMessage).toBe("Enjoy the music");
@@ -277,6 +282,12 @@ describe("mobile settings foundation", () => {
     expect(normalizePinnedPlayerEntities({
       pinned_player_entities: ["media_player.office", "", "media_player.office", "media_player.kitchen"],
     })).toEqual(["media_player.office", "media_player.kitchen"]);
+  });
+
+  it("normalizes radio source mode", () => {
+    expect(normalizeMobileRadioSourceMode("MA_ONLY")).toBe("ma_only");
+    expect(normalizeMobileRadioSourceMode("radiobrowser_only")).toBe("radiobrowser_only");
+    expect(normalizeMobileRadioSourceMode("unknown")).toBe("combined");
   });
 
   it("normalizes smart-home controls", () => {

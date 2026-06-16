@@ -48,8 +48,17 @@ function installBrowserStubs() {
   };
   globalThis.HTMLElement = class {
     constructor() {
-      this.style = {};
+      this.style = {
+        setProperty() {},
+        removeProperty() {},
+      };
       this.offsetWidth = 0;
+      this.classList = {
+        add() {},
+        remove() {},
+        toggle() {},
+        contains() { return false; },
+      };
     }
 
     attachShadow() {
@@ -184,5 +193,42 @@ describe("settings accordion open-set persistence (real methods on real card)", 
 
     const result = card._settingsAccordionOpenSet();
     expect(result.has("smart_home")).toBe(true);
+  });
+
+  it("renders the in-card settings menu with announcements and diagnostics", async () => {
+    await import("../src/homeii-music-flow.js?settings-menu-announcements-diagnostics");
+    await settleModule();
+    const card = newCard();
+    card._loadPlayers = vi.fn();
+    card._settingsSectionDisplay = vi.fn(() => "display");
+    card._settingsSectionPlayersLibrary = vi.fn(() => "players");
+    card._settingsSectionQuickActionsBar = vi.fn(() => "quick actions");
+    card._settingsSectionVoiceAssistant = vi.fn(() => "voice");
+    card._settingsSectionSmartHome = vi.fn(() => "smart home");
+
+    let html = "";
+    expect(() => { html = card._settingsMenuHtml(); }).not.toThrow();
+
+    expect(html).toContain('id="mobileAnnouncementVolumeInput"');
+    expect(html).toContain('id="mobileAnnouncementTtsEntity"');
+    expect(html).toContain('data-menu-nav="diagnostics"');
+  });
+
+  it("explains that direct Music Assistant access does not replace the HA integration", async () => {
+    await import("../src/homeii-music-flow.js?settings-direct-ma-without-ha-integration");
+    await settleModule();
+    const card = newCard();
+    card.setConfig({
+      type: "custom:homeii-music-flow",
+      ma_url: "http://192.168.1.50:8095",
+      ma_token: "token",
+    });
+    card.hass = { services: {}, states: {} };
+
+    const message = card._musicAssistantRequiredMessage();
+
+    expect(message).toContain("direct Music Assistant URL is configured");
+    expect(message).toContain("does not replace the Home Assistant Music Assistant integration");
+    expect(message).toContain("ma_url and ma_token are only needed for Direct/Sendspin features");
   });
 });

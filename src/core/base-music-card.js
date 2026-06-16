@@ -1162,7 +1162,7 @@ export function createHomeiiBaseMusicCard({
     _versionedAssetUrl(url) {
       const value = String(url || "").trim();
       if (!value || /^data:/i.test(value) || /[?&]v=/.test(value)) return value;
-      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.9.1";
+      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.9.2";
       return `${value}${value.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
     }
 
@@ -12478,6 +12478,19 @@ export function createHomeiiBaseMusicCard({
     }
 
     _musicAssistantRequiredMessage() {
+      const configuredDirectUrl = this._normalizeMaConfigUrl(
+        this._maUrl
+        || this._maExternalUrl
+        || this._config?.ma_url
+        || this._config?.music_assistant_external_url
+        || this._config?.ma_external_url,
+      );
+      if (configuredDirectUrl && !this._hasMusicAssistantServiceSignal()) {
+        return this._m(
+          "A direct Music Assistant URL is configured, but Direct/Sendspin access does not replace the Home Assistant Music Assistant integration. Connect Music Assistant to Home Assistant and expose at least one Music Assistant media_player for the full card. ma_url and ma_token are only needed for Direct/Sendspin features.",
+          "A direct Music Assistant URL is configured, but Direct/Sendspin access does not replace the Home Assistant Music Assistant integration. Connect Music Assistant to Home Assistant and expose at least one Music Assistant media_player for the full card. ma_url and ma_token are only needed for Direct/Sendspin features.",
+        );
+      }
       return this._i18n(
         "ui.no_music_assistant_players_were_found_check_music_assistant_and_media_pl",
         {},

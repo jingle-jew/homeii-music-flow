@@ -96,9 +96,9 @@ function ensureHaEditorComponents() {
   } catch (_) {}
 }
 
-const HOMEII_CARD_VERSION = "5.9.1";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v591";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v591";
+const HOMEII_CARD_VERSION = "5.9.2";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v592";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v592";
 const AMBIENT_LIGHT_PAIR_PLAYER_PREFIX = "__homeii_ambient_light_pair_player_";
 const AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX = "__homeii_ambient_light_pair_lights_";
 
@@ -30655,6 +30655,43 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             ${this._settingsPill(this._i18n("ui.enabled"), "on", this._discoveryModeEnabled() ? "on" : "off", "data-setting-discovery-mode")}
             ${this._settingsPill(this._i18n("ui.disabled"), "off", this._discoveryModeEnabled() ? "on" : "off", "data-setting-discovery-mode")}
           </div>
+        </div>`;
+  }
+
+  _settingsSectionAnnouncements() {
+    const presets = Array.isArray(this._state.mobileAnnouncementPresets)
+      ? this._state.mobileAnnouncementPresets.slice(0, 3)
+      : this._defaultAnnouncementPresets().slice(0, 3);
+    while (presets.length < 3) presets.push("");
+    const announcementVolume = this._announcementVolumePct();
+    const ttsEntity = this._announcementTtsEntity();
+    const announcementLanguage = this._announcementLanguageSetting();
+    const languageOptions = this._announcementLanguageOptions();
+    return `
+        <div class="settings-group announcement-settings-card">
+          <div class="settings-label">${this._esc(this._i18n("ui.announcement_presets"))}</div>
+          <div class="scheduled-start-grid two-col">
+            ${presets.map((preset, index) => `
+              <label class="scheduled-start-field">
+                <span class="settings-label">${this._esc(`${this._i18n("ui.announcement")} ${index + 1}`)}</span>
+                <input class="settings-text-input" data-announcement-preset-index="${this._esc(String(index))}" type="text" value="${this._esc(preset)}" placeholder="${this._esc(this._i18n("ui.type_an_announcement"))}">
+              </label>
+            `).join("")}
+          </div>
+          <div class="settings-hint">${this._esc(this._i18n("ui.configure_ready_made_announcement_phrases"))}</div>
+          <div class="settings-range announcement-volume-field">
+            <div class="settings-label">${this._esc(this._i18n("ui.announcement_volume_boost"))}</div>
+            <input id="mobileAnnouncementVolumeInput" type="range" min="20" max="50" step="1" value="${this._esc(String(announcementVolume))}">
+            <div class="settings-value">+${this._esc(String(announcementVolume))}%</div>
+          </div>
+          <div class="settings-label">${this._esc(this._i18n("ui.tts_entity"))}</div>
+          <input class="settings-text-input" id="mobileAnnouncementTtsEntity" type="text" value="${this._esc(ttsEntity)}" placeholder="tts.home_assistant_cloud">
+          <div class="settings-hint">${this._esc(this._i18n("ui.tts_entity_used_by_the_announcement_screen"))}</div>
+          <div class="settings-label">${this._esc(this._i18n("ui.announcement_language"))}</div>
+          <select class="media-sort-select settings-select" id="mobileAnnouncementTtsLanguageSelect" aria-label="${this._esc(this._i18n("ui.announcement_language"))}">
+            ${languageOptions.map(([value, label]) => `<option value="${this._esc(value)}" ${value === announcementLanguage ? "selected" : ""}>${this._esc(label)}</option>`).join("")}
+          </select>
+          <div class="settings-hint">${this._esc(this._i18n("ui.auto_leaves_home_assistant_cloud_voice_defaults_untouched_manual_choices"))}</div>
         </div>`;
   }
 

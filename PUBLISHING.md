@@ -26,9 +26,9 @@
 
 ## 2. Create the current release
 
-- Create a Git tag named `v5.9.1` for the current stable release or `vX.Y.Z` for a later stable release.
+- Create a Git tag named `v5.9.2` for the current stable release or `vX.Y.Z` for a later stable release.
 - Create a GitHub release from that tag.
-- Title the release `HOMEii Music Flow 5.9.1` for the current stable release.
+- Title the release `HOMEii Music Flow 5.9.2` for the current stable release.
 - Use the matching section from `CHANGELOG.md` or the matching `RELEASE_NOTES_*.md` file as the release notes.
 - Tags with a prerelease suffix, such as `v5.8.2-beta.1`, should publish as GitHub pre-releases and must not be marked as Latest.
 - Do not attach a custom release zip asset for HACS. Keep the complete installable runtime in `dist/` and let HACS use the normal repository release/tag contents.
@@ -82,7 +82,7 @@ to:
 
 Then load:
 
-`/local/community/homeii-music-flow/homeii-music-flow.js?v=5.9.1`
+`/local/community/homeii-music-flow/homeii-music-flow.js?v=5.9.2`
 
 ## 7. Final pre-release smoke test
 

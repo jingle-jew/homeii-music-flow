@@ -1,5 +1,28 @@
 # Changelog
 
+## 5.9.2 - 2026-06-16
+
+Focused hotfix for in-card Settings and Diagnostics access.
+
+Fixed:
+
+- Fixed the in-card Settings screen crash: `this._settingsSectionAnnouncements is not a function`.
+- Restored the Announcements section inside in-card Settings.
+- Restored access to Music Assistant Diagnostics from the in-card Settings screen.
+- Clarified the no-player/setup message when a direct Music Assistant URL is configured without the Home Assistant Music Assistant integration. Direct/Sendspin access does not replace the HA integration path.
+
+Notes:
+
+- This release does not change playback or queue resolution logic.
+- Users affected by empty Queue screens should update to 5.9.2, open Diagnostics from the card, and share the report while Music Assistant shows a queue but HOMEii shows an empty queue.
+
+Validation:
+
+- `node --check src/homeii-music-flow.js`
+- `node --check dist/homeii-music-flow.js`
+- `npm.cmd test -- tests/runtime-baseline.test.js tests/settings-accordion.test.js`
+- Production build and release artifact sync passed locally for `5.9.2`.
+
 ## 5.9.1 - 2026-06-15
 
 Focused stable update for playback stability, group usability, diagnostics depth, Music Assistant 2.9 recommendation hooks, screensaver lyrics controls, and small routing fixes.

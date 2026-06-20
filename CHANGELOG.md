@@ -1,5 +1,36 @@
 # Changelog
 
+## 5.9.3 - 2026-06-20
+
+Focused stability release for queue, search, configured-player selection, Radio favorites, progress timing, and Diagnostics.
+
+Fixed:
+
+- Detects partial Music Assistant queue snapshots instead of treating them as a clean OK state.
+- Keeps fuller rendered queue data when a new queue API response only contains a partial window.
+- Makes configured `entity` work as a stable default player while preserving query-string overrides and currently active playback priority.
+- Shows entity ids in player-selection surfaces to help users distinguish duplicate friendly names.
+- Continues provider/direct Music Assistant search after fast library results, then merges provider results back into the UI.
+- Uses Direct Music Assistant `music/search` for provider search when direct access is available.
+- Fixes RadioBrowser/external radio favorite handling so selected stations do not depend on the currently playing item.
+- Keeps LTR search input alignment scoped to non-RTL layouts.
+- Improves progress calculation by preferring trusted player timing when queue timing drifts.
+
+Diagnostics:
+
+- Adds Diagnostics v7.
+- Adds a Configured entity check that explains whether the configured entity exists, is visible, is excluded, is a Music Assistant player, or was overridden by another selection source.
+- Adds Search providers checks that report HA search, Direct `music/search`, active query, result counts, and timing for fast/library search versus provider search.
+- Improves Queue UI state and Queue snapshot wording when only a partial queue window is available.
+
+Validation:
+
+- `node --check src/homeii-music-flow.js`
+- `node --check src/core/base-music-card.js`
+- `npm.cmd run build`
+- `npm.cmd test`
+- Full Vitest suite passed locally: 231 tests.
+
 ## 5.9.2 - 2026-06-16
 
 Focused hotfix for in-card Settings and Diagnostics access.

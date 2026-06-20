@@ -13,7 +13,7 @@ For support issues, prefer running Diagnostics from the card itself after select
 
 ## What Diagnostics Shows
 
-Diagnostics v6 includes:
+Diagnostics v7 includes:
 
 - HOMEii Music Flow version
 - diagnostics version
@@ -30,11 +30,14 @@ Diagnostics v6 includes:
 - generic Home Assistant media player fallback count
 - selected player markers
 - selected player source
+- configured entity visibility and selection explanation
 - current group state and group service path
 - Direct Music Assistant API result
 - Direct Music Assistant WebSocket state
 - Sendspin browser support
 - Sendspin endpoint readiness
+- search provider availability
+- active search query sample timing and result counts
 - queue identity
 - queue provider availability
 - queue UI state

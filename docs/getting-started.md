@@ -52,7 +52,7 @@ If HACS does not add the resource automatically, add:
 3. Add this Dashboard resource:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.9.1
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.9.3
 ```
 
 4. Add the card:

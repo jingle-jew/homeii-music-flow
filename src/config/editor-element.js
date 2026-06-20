@@ -474,7 +474,7 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     const maUrl = this._editorMaBrowserUrl();
     const lines = [
       "HOMEii Music Flow Editor Diagnostics",
-      "Diagnostics: v6",
+      "Diagnostics: v7",
       `Version: ${HOMEII_CARD_VERSION}`,
       `Generated: ${new Date().toISOString()}`,
       "Source: visual editor",
@@ -555,7 +555,7 @@ return class HomeiiBaseMusicEditor extends HTMLElement {
     const excluded = HomeiiMobileSettingsFoundation.normalizePinnedPlayerEntityList(this._config?.excluded_player_entities);
 
     add("ok", "Editor version", "Visual editor runtime is loaded.", HOMEII_CARD_VERSION);
-    add("ok", "Diagnostics version", "Diagnostic v6 is active.", "v6");
+    add("ok", "Diagnostics version", "Diagnostic v7 is active.", "v7");
     add("info", "Browser", this._editorBrowserSummary());
     add("info", "Viewport", this._editorViewportSummary());
     add("info", "Diagnostic privacy", "External/private hostnames are redacted in visible and copied diagnostic output.");

@@ -40,14 +40,14 @@ https://github.com/user-attachments/assets/a0076e6e-0352-40f8-ac37-35737e717a80
   <a href="https://www.hacs.xyz/docs/use/download/download/">
     <img alt="Install HACS" src="https://img.shields.io/badge/Install-HACS-41BDF5?logo=homeassistant&logoColor=white">
   </a>
-  <a href="https://github.com/r11a/homeii-music-flow/archive/refs/tags/v5.9.2.zip">
-    <img alt="Download HOMEii Flow 5.9.2 stable tag archive" src="https://img.shields.io/badge/Download-v5.9.2%20stable-111111?logo=github">
+  <a href="https://github.com/r11a/homeii-music-flow/archive/refs/tags/v5.9.3.zip">
+    <img alt="Download HOMEii Flow 5.9.3 stable tag archive" src="https://img.shields.io/badge/Download-v5.9.3%20stable-111111?logo=github">
   </a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.9.2"><img alt="stable version" src="https://img.shields.io/badge/stable-5.9.2-gold"></a>
-  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.9.2"><img alt="release notes" src="https://img.shields.io/badge/release%20notes-5.9.2-8A63D2"></a>
+  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.9.3"><img alt="stable version" src="https://img.shields.io/badge/stable-5.9.3-gold"></a>
+  <a href="https://github.com/r11a/homeii-music-flow/releases/tag/v5.9.3"><img alt="release notes" src="https://img.shields.io/badge/release%20notes-5.9.3-8A63D2"></a>
   <a href="https://github.com/r11a/homeii-music-flow/blob/main/docs/README.md"><img alt="documentation" src="https://img.shields.io/badge/docs-user%20guide-2EA043"></a>
   <img alt="Home Assistant" src="https://img.shields.io/badge/Home%20Assistant-Dashboard-41BDF5">
   <img alt="Music Assistant" src="https://img.shields.io/badge/Music%20Assistant-required-7C5CFF">
@@ -74,22 +74,22 @@ HOMEii Flow is a custom Home Assistant Dashboard card for Music Assistant. It tu
 
 HOMEii Flow started from my own daily use of Home Assistant and Music Assistant. I wanted it to feel less like a technical dashboard widget and more like a real music app inside Home Assistant, so a lot of thought went into the flow, touch interactions, Hebrew/RTL comfort, wall-tablet behavior, mobile details, and the small moments that make choosing music feel natural at home.
 
-## 5.9.2 Hotfix
+## 5.9.3 Stability Release
 
-HOMEii Flow 5.9.2 is a focused hotfix on top of 5.9.1. It restores the in-card Settings screen and Diagnostics access after a missing Announcements settings method caused Settings to fail for some users.
+HOMEii Flow 5.9.3 is a focused stability release on top of 5.9.2. It improves queue handling, configured-player selection, provider search, Radio favorites, progress timing, and Diagnostics while keeping the release scoped to bug fixes and supportability.
 
 Release focus:
 
-- **Settings hotfix:** fixes `this._settingsSectionAnnouncements is not a function`.
-- **Diagnostics access:** restores the path to in-card Music Assistant Diagnostics.
-- **Announcements settings:** restores the Announcements settings section.
-- **Configuration clarity:** explains that `ma_url` / `ma_token` are for Direct/Sendspin access and do not replace the Home Assistant Music Assistant integration.
-- **No queue logic change:** empty Queue reports should now be diagnosed with the restored Diagnostics screen.
+- **Queue stability:** detects partial Music Assistant queue snapshots and avoids treating them as clean OK states.
+- **Player selection clarity:** configured `entity` works as a stable default, and player selection surfaces expose entity ids when friendly names are ambiguous.
+- **Search improvements:** fast library results can appear immediately while provider/direct Music Assistant search continues and merges in later.
+- **Radio favorites:** external/RadioBrowser station favorites no longer depend on the currently playing item.
+- **Diagnostics v7:** adds configured-entity and search-provider checks for cleaner support reports.
 
 After updating, hard-refresh with:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.9.2
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.9.3
 ```
 
 
@@ -139,7 +139,7 @@ If HACS does not add the resource automatically, add:
 3. Add this Dashboard resource:
 
 ```text
-/local/community/homeii-music-flow/homeii-music-flow.js?v=5.9.2
+/local/community/homeii-music-flow/homeii-music-flow.js?v=5.9.3
 ```
 
 4. Add the card:
@@ -826,7 +826,7 @@ src/core/                             extracted foundation helpers
 src/config/                           config validators
 tests/                                regression coverage
 scripts/release.mjs                   release sync tooling
-RELEASE_NOTES_5.9.2.md                detailed GitHub release notes for the current stable release
+RELEASE_NOTES_5.9.3.md                detailed GitHub release notes for the current stable release
 docs/README.md                        complete user documentation hub
 docs/brand/                           logo and brand assets
 docs/media/                           GitHub/HACS README screenshots and GIF
@@ -844,7 +844,7 @@ npm run lint
 npm test
 ```
 
-Current packaged version: `5.9.2`
+Current packaged version: `5.9.3`
 
 ## Release Readiness
 
@@ -899,7 +899,7 @@ Credit and thanks:
 - [Complete user documentation](./docs/README.md)
 - [Local deployment guide](./LOCAL_DEPLOYMENT.md)
 - [Publishing checklist](./PUBLISHING.md)
-- [5.9.2 release notes](./RELEASE_NOTES_5.9.2.md)
+- [5.9.3 release notes](./RELEASE_NOTES_5.9.3.md)
 - [Older releases and tags](https://github.com/r11a/homeii-music-flow/releases)
 - [QA matrix](./docs/qa-matrix.md)
 - [Repo assets checklist](./docs/repo-assets-checklist.md)

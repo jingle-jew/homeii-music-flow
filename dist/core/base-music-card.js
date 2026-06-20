@@ -1162,7 +1162,7 @@ export function createHomeiiBaseMusicCard({
     _versionedAssetUrl(url) {
       const value = String(url || "").trim();
       if (!value || /^data:/i.test(value) || /[?&]v=/.test(value)) return value;
-      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.9.2";
+      const version = typeof HOMEII_CARD_VERSION === "string" ? HOMEII_CARD_VERSION : "5.9.3";
       return `${value}${value.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
     }
 
@@ -8329,7 +8329,13 @@ export function createHomeiiBaseMusicCard({
     async _toggleLikeEntry(entry = {}, sourceEl = null) {
       const uri = String(entry?.uri || "").trim();
       if (!uri) return false;
-      if (this._useMaLikedMode()) {
+      const favoriteScope = String(entry?.favorite_scope || entry?.favoriteScope || entry?.favorite_target || entry?.favoriteTarget || "").trim().toLowerCase();
+      const shouldUseLocalFavorite = !!(
+        entry?.radio_browser
+        || entry?.radio_browser_id
+        || ["local", "browser", "radio_browser", "external_radio"].includes(favoriteScope)
+      );
+      if (this._useMaLikedMode() && !shouldUseLocalFavorite) {
         return this._toggleMaLikeEntry(entry, sourceEl);
       }
       const likedUris = this._loadLikedUris();
@@ -12031,72 +12037,96 @@ export function createHomeiiBaseMusicCard({
       };
     }
 
-    async _search(query) {
+    async _search(query, options = {}) {
       const q = String(query || "").trim();
       if (!q) return this._emptySearchResults();
+      const mode = options?.providerOnly ? "provider" : options?.fastOnly ? "fast" : "full";
+      const limit = Math.max(5, Math.min(80, Number(options?.limit || 25) || 25));
+      const mediaTypes = ["radio", "podcast", "album", "artist", "track", "playlist", "genre"];
       let globalResults = this._emptySearchResults();
-      try {
-        const raw = await this._callService("search", { query: q, limit: 25 });
-        globalResults = this._normalizeSearchResponse(raw);
-      } catch (_) {
-        try {
-          const raw2 = await this._callService("search", { name: q, limit: 25, media_type: ["radio", "podcast", "album", "artist", "track", "playlist", "genre"] });
-          globalResults = this._normalizeSearchResponse(raw2);
-        } catch (_) {}
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+      const runHaSearch = async (providerSearch = false) => {
+        let results = this._emptySearchResults();
+        const attempts = providerSearch
+          ? [
+              { search_query: q, limit, media_types: mediaTypes, library_only: false },
+              { query: q, limit },
+            ]
+          : [
+              { query: q, limit },
+              { name: q, limit, media_type: mediaTypes },
+              { name: q, limit },
+            ];
+        for (const data of attempts) {
+          try {
+            const raw = await this._callService("search", data);
+            results = this._normalizeSearchResponse(raw);
+            if (this._hasSearchResults(results)) return results;
+          } catch (_) {}
+        }
+        return results;
+      };
+      const loadLibraryFallback = async (fallbackLimit = 50) => {
+        const [radioRes, podcastRes, albumRes, artistRes, trackRes, playlistRes] = await Promise.allSettled([
+          this._fetchLibrary("radio", "sort_name", fallbackLimit, false, q),
+          this._fetchLibrary("podcast", "sort_name", fallbackLimit, false, q),
+          this._fetchLibrary("album", "sort_name", fallbackLimit, false, q),
+          this._fetchLibrary("artist", "sort_name", fallbackLimit, false, q),
+          this._fetchLibrary("track", "sort_name", fallbackLimit, false, q),
+          this._fetchLibrary("playlist", "sort_name", fallbackLimit, false, q),
+        ]);
+        return {
+          radio: radioRes.status === "fulfilled" ? radioRes.value : [],
+          podcasts: podcastRes.status === "fulfilled" ? podcastRes.value : [],
+          albums: albumRes.status === "fulfilled" ? albumRes.value : [],
+          artists: artistRes.status === "fulfilled" ? artistRes.value : [],
+          tracks: trackRes.status === "fulfilled" ? trackRes.value : [],
+          playlists: playlistRes.status === "fulfilled" ? playlistRes.value : [],
+        };
+      };
+      if (mode !== "provider") {
+        for (const delay of (mode === "fast" ? [0, 650] : [0, 650, 1400])) {
+          if (delay) await wait(delay);
+          globalResults = await runHaSearch(false);
+          if (this._hasSearchResults(globalResults)) break;
+        }
+        if (mode === "fast") {
+          return this._hasSearchResults(globalResults) ? globalResults : loadLibraryFallback(24);
+        }
       }
-      if (!this._hasSearchResults(globalResults)) {
+      if (mode === "provider") {
         try {
-          const raw3 = await this._callService("search", { name: q, limit: 25 });
-          globalResults = this._normalizeSearchResponse(raw3);
-        } catch (_) {}
+          const directResults = await this._searchDirectMusicAssistant(q, limit);
+          if (this._hasSearchResults(directResults)) return directResults;
+        } catch (error) {
+          this._debugLog("warn", "[HOMEii Flow] direct Music Assistant provider search failed", error);
+        }
+        const providerResults = await runHaSearch(true);
+        if (this._hasSearchResults(providerResults)) return providerResults;
+        return this._emptySearchResults();
       }
-      if (this._hasSearchResults(globalResults)) return globalResults;
+      let providerResults = this._emptySearchResults();
       try {
-        const directResults = await this._searchDirectMusicAssistant(q, 25);
-        if (this._hasSearchResults(directResults)) return directResults;
+        providerResults = await this._search(q, { providerOnly: true, limit });
       } catch (error) {
         this._debugLog("warn", "[HOMEii Flow] direct Music Assistant search fallback failed", error);
       }
-      const [radioRes, podcastRes, albumRes, artistRes, trackRes, playlistRes] = await Promise.allSettled([
-        this._fetchLibrary("radio", "sort_name", 50, false, q),
-        this._fetchLibrary("podcast", "sort_name", 50, false, q),
-        this._fetchLibrary("album", "sort_name", 50, false, q),
-        this._fetchLibrary("artist", "sort_name", 50, false, q),
-        this._fetchLibrary("track", "sort_name", 50, false, q),
-        this._fetchLibrary("playlist", "sort_name", 50, false, q),
-      ]);
-      return {
-        radio: radioRes.status === "fulfilled" ? radioRes.value : [],
-        podcasts: podcastRes.status === "fulfilled" ? podcastRes.value : [],
-        albums: albumRes.status === "fulfilled" ? albumRes.value : [],
-        artists: artistRes.status === "fulfilled" ? artistRes.value : [],
-        tracks: trackRes.status === "fulfilled" ? trackRes.value : [],
-        playlists: playlistRes.status === "fulfilled" ? playlistRes.value : [],
-      };
+      const merged = this._mergeSearchResults(globalResults, providerResults);
+      if (this._hasSearchResults(merged)) return merged;
+      return loadLibraryFallback(50);
     }
 
     async _searchDirectMusicAssistant(query = "", limit = 25) {
       const q = String(query || "").trim();
       if (!q || !this._hasDirectMAConnection()) return this._emptySearchResults();
       const mediaTypes = ["radio", "podcast", "album", "artist", "track", "playlist", "genre"];
-      const attempts = [
-        { search_query: q, media_types: mediaTypes, limit, library_only: false },
-        { search: q, media_types: mediaTypes, limit, library_only: false },
-        { query: q, media_types: mediaTypes, limit, library_only: false },
-        { name: q, media_type: mediaTypes, limit },
-      ];
-      let lastError = null;
-      for (const args of attempts) {
-        try {
-          const raw = await this._callDirectMaCommand("music/search", args);
-          const results = this._normalizeSearchResponse(raw);
-          if (this._hasSearchResults(results)) return results;
-        } catch (error) {
-          lastError = error;
-        }
-      }
-      if (lastError) throw lastError;
-      return this._emptySearchResults();
+      const raw = await this._callDirectMaCommand("music/search", {
+        search_query: q,
+        media_types: mediaTypes,
+        limit,
+        library_only: false,
+      });
+      return this._normalizeSearchResponse(raw);
     }
 
     _rejectWsPending(error = new Error("MA WS disconnected")) {
@@ -12675,12 +12705,21 @@ export function createHomeiiBaseMusicCard({
         this._state.selectedPlayer = null;
         this._state.hasAutoSelectedPlayer = false;
       }
+      const urlPlayerOverride = this._resolvePlayerOverrideEntity(entities);
+      const configuredDefaultEntityId = String(this._config?.entity || this.config?.entity || "").trim();
+      const configuredDefaultPlayer = configuredDefaultEntityId
+        ? entities.find((entity) => entity?.entity_id === configuredDefaultEntityId)
+        : null;
       const pendingPlayerLock = HomeiiNowPlayingFoundation.pendingPlayerLockState(this._state, entities, Date.now());
       if (pendingPlayerLock.lockedPlayerId && this._state.selectedPlayer !== pendingPlayerLock.lockedPlayerId) {
         this._state.selectedPlayer = pendingPlayerLock.lockedPlayerId;
       }
       const holdSelectedPlayerDuringTransition = pendingPlayerLock.shouldHoldSelectedPlayer;
-      const preferredFrontPlayerEntity = holdSelectedPlayerDuringTransition ? "" : HomeiiPlayersFoundation.resolvePreferredFrontPlayerEntity(entities, {
+      if (urlPlayerOverride?.entity_id && this._state.selectedPlayer !== urlPlayerOverride.entity_id) {
+        this._state.selectedPlayer = urlPlayerOverride.entity_id;
+        this._state.hasAutoSelectedPlayer = true;
+      }
+      const preferredFrontPlayerEntity = (holdSelectedPlayerDuringTransition || urlPlayerOverride?.entity_id) ? "" : HomeiiPlayersFoundation.resolvePreferredFrontPlayerEntity(entities, {
         currentEntityId: this._state.selectedPlayer,
         frontPinnedEntityId: this._frontPinnedPlayerEntity(entities),
         manualFrontEntityId: this._manualFrontPlayerEntity(entities),
@@ -12690,6 +12729,7 @@ export function createHomeiiBaseMusicCard({
         orderedEntityIds: typeof this._playerOrderPreferences === "function" && this._playerSortMode?.() === "custom"
           ? this._playerOrderPreferences()
           : [],
+        defaultEntityId: configuredDefaultPlayer?.entity_id || "",
         isPlayerActiveFn: (player) => this._isPlayerActive(player),
         isExternalBrowserPlayerFn: (player) => this._isExternalBrowserPlayer(player),
       });
@@ -12697,15 +12737,10 @@ export function createHomeiiBaseMusicCard({
         if (this._state.selectedPlayer !== preferredFrontPlayerEntity) this._state.selectedPlayer = preferredFrontPlayerEntity;
         this._state.hasAutoSelectedPlayer = true;
       }
-      const urlPlayerOverride = this._resolvePlayerOverrideEntity(entities);
-      if (urlPlayerOverride?.entity_id && this._state.selectedPlayer !== urlPlayerOverride.entity_id) {
-        this._state.selectedPlayer = urlPlayerOverride.entity_id;
-        this._state.hasAutoSelectedPlayer = true;
-      }
       const currentStillExists = this._state.selectedPlayer && entities.some((p) => p.entity_id === this._state.selectedPlayer);
       if (!currentStillExists) this._state.selectedPlayer = null;
       if (!this._state.selectedPlayer) {
-        const fallbackPlayer = rememberedThisDevice || entities.find((p) => !this._isExternalBrowserPlayer(p)) || entities[0];
+        const fallbackPlayer = configuredDefaultPlayer || rememberedThisDevice || entities.find((p) => !this._isExternalBrowserPlayer(p)) || entities[0];
         if (fallbackPlayer) this._state.selectedPlayer = fallbackPlayer.entity_id;
       }
       if (sel) {
@@ -13353,18 +13388,30 @@ export function createHomeiiBaseMusicCard({
 
     _getCurrentPosition() {
       const player = this._getSelectedPlayer();
+      const hasPlayerPosition = player?.attributes?.media_position !== undefined
+        && player?.attributes?.media_position !== null
+        && player?.attributes?.media_position !== "";
       const hasQueuePosition = this._state.maQueueState?.elapsed_time !== undefined
         && this._state.maQueueState?.elapsed_time !== null
         && this._state.maQueueState?.elapsed_time !== "";
-      let position = hasQueuePosition
-        ? HomeiiMediaPresentationFoundation.coercePlaybackSeconds(this._state.maQueueState?.elapsed_time)
-        : HomeiiMediaPresentationFoundation.coercePlaybackSeconds(player?.attributes?.media_position || 0);
-      if (this._state.maQueueState && player?.state === "playing" && this._state.maQueueState.elapsed_time_last_updated) {
-        const updatedAt = HomeiiMediaPresentationFoundation.parsePlaybackTimestampMs(this._state.maQueueState.elapsed_time_last_updated);
-        if (updatedAt) position += Math.max(0, (Date.now() - updatedAt) / 1000);
-      } else if (player?.state === "playing" && player?.attributes?.media_position_updated_at) {
-        const updatedAt = HomeiiMediaPresentationFoundation.parsePlaybackTimestampMs(player.attributes.media_position_updated_at);
-        if (updatedAt) position += Math.max(0, (Date.now() - updatedAt) / 1000);
+      const applyLiveDelta = (basePosition = 0, updatedAtValue = "") => {
+        let position = HomeiiMediaPresentationFoundation.coercePlaybackSeconds(basePosition || 0);
+        if (player?.state === "playing" && updatedAtValue) {
+          const updatedAt = HomeiiMediaPresentationFoundation.parsePlaybackTimestampMs(updatedAtValue);
+          if (updatedAt) position += Math.max(0, (Date.now() - updatedAt) / 1000);
+        }
+        return position;
+      };
+      const playerPosition = hasPlayerPosition
+        ? applyLiveDelta(player?.attributes?.media_position, player?.attributes?.media_position_updated_at)
+        : 0;
+      const queuePosition = hasQueuePosition
+        ? applyLiveDelta(this._state.maQueueState?.elapsed_time, this._state.maQueueState?.elapsed_time_last_updated)
+        : 0;
+      let position = hasPlayerPosition ? playerPosition : queuePosition;
+      if (hasPlayerPosition && hasQueuePosition) {
+        const delta = Math.abs(queuePosition - playerPosition);
+        position = delta <= 2 ? Math.max(playerPosition, queuePosition) : playerPosition;
       }
       const duration = this._getCurrentDuration();
       if (duration && position > duration + 2) return duration;

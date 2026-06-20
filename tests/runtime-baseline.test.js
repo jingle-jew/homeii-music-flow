@@ -580,7 +580,7 @@ describe("runtime baseline", () => {
     );
   });
 
-  it("builds a visual editor diagnostics v6 report with visible status rows", async () => {
+  it("builds a visual editor diagnostics v7 report with visible status rows", async () => {
     await import("../src/homeii-music-flow.js?runtime-editor-diagnostics-baseline");
     await Promise.resolve();
     await vi.runAllTimersAsync();
@@ -621,7 +621,7 @@ describe("runtime baseline", () => {
     const report = await editor._runEditorDiagnostics();
 
     expect(report).toContain("HOMEii Music Flow Editor Diagnostics");
-    expect(report).toContain("Diagnostics: v6");
+    expect(report).toContain("Diagnostics: v7");
     expect(report).toContain("Integration mode");
     expect(report).toContain("Sendspin endpoint");
     expect(report).toContain("Integration signal");

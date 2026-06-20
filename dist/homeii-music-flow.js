@@ -9177,7 +9177,7 @@ function createHomeiiBaseMusicEditor(deps = {}) {
       const maUrl = this._editorMaBrowserUrl();
       const lines = [
         "HOMEii Music Flow Editor Diagnostics",
-        "Diagnostics: v6",
+        "Diagnostics: v7",
         `Version: ${HOMEII_CARD_VERSION2}`,
         `Generated: ${(/* @__PURE__ */ new Date()).toISOString()}`,
         "Source: visual editor",
@@ -9248,7 +9248,7 @@ function createHomeiiBaseMusicEditor(deps = {}) {
       const pinned = HomeiiMobileSettingsFoundation2.normalizePinnedPlayerEntityList(this._config?.pinned_player_entities);
       const excluded = HomeiiMobileSettingsFoundation2.normalizePinnedPlayerEntityList(this._config?.excluded_player_entities);
       add("ok", "Editor version", "Visual editor runtime is loaded.", HOMEII_CARD_VERSION2);
-      add("ok", "Diagnostics version", "Diagnostic v6 is active.", "v6");
+      add("ok", "Diagnostics version", "Diagnostic v7 is active.", "v7");
       add("info", "Browser", this._editorBrowserSummary());
       add("info", "Viewport", this._editorViewportSummary());
       add("info", "Diagnostic privacy", "External/private hostnames are redacted in visible and copied diagnostic output.");
@@ -18024,7 +18024,9 @@ function createHomeiiBaseMusicCard({
     async _toggleLikeEntry(entry = {}, sourceEl = null) {
       const uri = String(entry?.uri || "").trim();
       if (!uri) return false;
-      if (this._useMaLikedMode()) {
+      const favoriteScope = String(entry?.favorite_scope || entry?.favoriteScope || entry?.favorite_target || entry?.favoriteTarget || "").trim().toLowerCase();
+      const shouldUseLocalFavorite = !!(entry?.radio_browser || entry?.radio_browser_id || ["local", "browser", "radio_browser", "external_radio"].includes(favoriteScope));
+      if (this._useMaLikedMode() && !shouldUseLocalFavorite) {
         return this._toggleMaLikeEntry(entry, sourceEl);
       }
       const likedUris = this._loadLikedUris();
@@ -21377,73 +21379,94 @@ function createHomeiiBaseMusicCard({
         playlists: playlistRes.status === "fulfilled" ? playlistRes.value : []
       };
     }
-    async _search(query) {
+    async _search(query, options = {}) {
       const q = String(query || "").trim();
       if (!q) return this._emptySearchResults();
+      const mode = options?.providerOnly ? "provider" : options?.fastOnly ? "fast" : "full";
+      const limit = Math.max(5, Math.min(80, Number(options?.limit || 25) || 25));
+      const mediaTypes = ["radio", "podcast", "album", "artist", "track", "playlist", "genre"];
       let globalResults = this._emptySearchResults();
-      try {
-        const raw = await this._callService("search", { query: q, limit: 25 });
-        globalResults = this._normalizeSearchResponse(raw);
-      } catch (_) {
-        try {
-          const raw2 = await this._callService("search", { name: q, limit: 25, media_type: ["radio", "podcast", "album", "artist", "track", "playlist", "genre"] });
-          globalResults = this._normalizeSearchResponse(raw2);
-        } catch (_2) {
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+      const runHaSearch = async (providerSearch = false) => {
+        let results = this._emptySearchResults();
+        const attempts = providerSearch ? [
+          { search_query: q, limit, media_types: mediaTypes, library_only: false },
+          { query: q, limit }
+        ] : [
+          { query: q, limit },
+          { name: q, limit, media_type: mediaTypes },
+          { name: q, limit }
+        ];
+        for (const data of attempts) {
+          try {
+            const raw = await this._callService("search", data);
+            results = this._normalizeSearchResponse(raw);
+            if (this._hasSearchResults(results)) return results;
+          } catch (_) {
+          }
+        }
+        return results;
+      };
+      const loadLibraryFallback = async (fallbackLimit = 50) => {
+        const [radioRes, podcastRes, albumRes, artistRes, trackRes, playlistRes] = await Promise.allSettled([
+          this._fetchLibrary("radio", "sort_name", fallbackLimit, false, q),
+          this._fetchLibrary("podcast", "sort_name", fallbackLimit, false, q),
+          this._fetchLibrary("album", "sort_name", fallbackLimit, false, q),
+          this._fetchLibrary("artist", "sort_name", fallbackLimit, false, q),
+          this._fetchLibrary("track", "sort_name", fallbackLimit, false, q),
+          this._fetchLibrary("playlist", "sort_name", fallbackLimit, false, q)
+        ]);
+        return {
+          radio: radioRes.status === "fulfilled" ? radioRes.value : [],
+          podcasts: podcastRes.status === "fulfilled" ? podcastRes.value : [],
+          albums: albumRes.status === "fulfilled" ? albumRes.value : [],
+          artists: artistRes.status === "fulfilled" ? artistRes.value : [],
+          tracks: trackRes.status === "fulfilled" ? trackRes.value : [],
+          playlists: playlistRes.status === "fulfilled" ? playlistRes.value : []
+        };
+      };
+      if (mode !== "provider") {
+        for (const delay of mode === "fast" ? [0, 650] : [0, 650, 1400]) {
+          if (delay) await wait(delay);
+          globalResults = await runHaSearch(false);
+          if (this._hasSearchResults(globalResults)) break;
+        }
+        if (mode === "fast") {
+          return this._hasSearchResults(globalResults) ? globalResults : loadLibraryFallback(24);
         }
       }
-      if (!this._hasSearchResults(globalResults)) {
+      if (mode === "provider") {
         try {
-          const raw3 = await this._callService("search", { name: q, limit: 25 });
-          globalResults = this._normalizeSearchResponse(raw3);
-        } catch (_) {
+          const directResults = await this._searchDirectMusicAssistant(q, limit);
+          if (this._hasSearchResults(directResults)) return directResults;
+        } catch (error) {
+          this._debugLog("warn", "[HOMEii Flow] direct Music Assistant provider search failed", error);
         }
+        const providerResults2 = await runHaSearch(true);
+        if (this._hasSearchResults(providerResults2)) return providerResults2;
+        return this._emptySearchResults();
       }
-      if (this._hasSearchResults(globalResults)) return globalResults;
+      let providerResults = this._emptySearchResults();
       try {
-        const directResults = await this._searchDirectMusicAssistant(q, 25);
-        if (this._hasSearchResults(directResults)) return directResults;
+        providerResults = await this._search(q, { providerOnly: true, limit });
       } catch (error) {
         this._debugLog("warn", "[HOMEii Flow] direct Music Assistant search fallback failed", error);
       }
-      const [radioRes, podcastRes, albumRes, artistRes, trackRes, playlistRes] = await Promise.allSettled([
-        this._fetchLibrary("radio", "sort_name", 50, false, q),
-        this._fetchLibrary("podcast", "sort_name", 50, false, q),
-        this._fetchLibrary("album", "sort_name", 50, false, q),
-        this._fetchLibrary("artist", "sort_name", 50, false, q),
-        this._fetchLibrary("track", "sort_name", 50, false, q),
-        this._fetchLibrary("playlist", "sort_name", 50, false, q)
-      ]);
-      return {
-        radio: radioRes.status === "fulfilled" ? radioRes.value : [],
-        podcasts: podcastRes.status === "fulfilled" ? podcastRes.value : [],
-        albums: albumRes.status === "fulfilled" ? albumRes.value : [],
-        artists: artistRes.status === "fulfilled" ? artistRes.value : [],
-        tracks: trackRes.status === "fulfilled" ? trackRes.value : [],
-        playlists: playlistRes.status === "fulfilled" ? playlistRes.value : []
-      };
+      const merged = this._mergeSearchResults(globalResults, providerResults);
+      if (this._hasSearchResults(merged)) return merged;
+      return loadLibraryFallback(50);
     }
     async _searchDirectMusicAssistant(query = "", limit = 25) {
       const q = String(query || "").trim();
       if (!q || !this._hasDirectMAConnection()) return this._emptySearchResults();
       const mediaTypes = ["radio", "podcast", "album", "artist", "track", "playlist", "genre"];
-      const attempts = [
-        { search_query: q, media_types: mediaTypes, limit, library_only: false },
-        { search: q, media_types: mediaTypes, limit, library_only: false },
-        { query: q, media_types: mediaTypes, limit, library_only: false },
-        { name: q, media_type: mediaTypes, limit }
-      ];
-      let lastError = null;
-      for (const args of attempts) {
-        try {
-          const raw = await this._callDirectMaCommand("music/search", args);
-          const results = this._normalizeSearchResponse(raw);
-          if (this._hasSearchResults(results)) return results;
-        } catch (error) {
-          lastError = error;
-        }
-      }
-      if (lastError) throw lastError;
-      return this._emptySearchResults();
+      const raw = await this._callDirectMaCommand("music/search", {
+        search_query: q,
+        media_types: mediaTypes,
+        limit,
+        library_only: false
+      });
+      return this._normalizeSearchResponse(raw);
     }
     _rejectWsPending(error = new Error("MA WS disconnected")) {
       this._wsPending.forEach((pending) => {
@@ -21981,12 +22004,19 @@ function createHomeiiBaseMusicCard({
         this._state.selectedPlayer = null;
         this._state.hasAutoSelectedPlayer = false;
       }
+      const urlPlayerOverride = this._resolvePlayerOverrideEntity(entities);
+      const configuredDefaultEntityId = String(this._config?.entity || this.config?.entity || "").trim();
+      const configuredDefaultPlayer = configuredDefaultEntityId ? entities.find((entity) => entity?.entity_id === configuredDefaultEntityId) : null;
       const pendingPlayerLock = HomeiiNowPlayingFoundation2.pendingPlayerLockState(this._state, entities, Date.now());
       if (pendingPlayerLock.lockedPlayerId && this._state.selectedPlayer !== pendingPlayerLock.lockedPlayerId) {
         this._state.selectedPlayer = pendingPlayerLock.lockedPlayerId;
       }
       const holdSelectedPlayerDuringTransition = pendingPlayerLock.shouldHoldSelectedPlayer;
-      const preferredFrontPlayerEntity = holdSelectedPlayerDuringTransition ? "" : HomeiiPlayersFoundation2.resolvePreferredFrontPlayerEntity(entities, {
+      if (urlPlayerOverride?.entity_id && this._state.selectedPlayer !== urlPlayerOverride.entity_id) {
+        this._state.selectedPlayer = urlPlayerOverride.entity_id;
+        this._state.hasAutoSelectedPlayer = true;
+      }
+      const preferredFrontPlayerEntity = holdSelectedPlayerDuringTransition || urlPlayerOverride?.entity_id ? "" : HomeiiPlayersFoundation2.resolvePreferredFrontPlayerEntity(entities, {
         currentEntityId: this._state.selectedPlayer,
         frontPinnedEntityId: this._frontPinnedPlayerEntity(entities),
         manualFrontEntityId: this._manualFrontPlayerEntity(entities),
@@ -21994,6 +22024,7 @@ function createHomeiiBaseMusicCard({
         now: Date.now(),
         pinnedEntityIds: pinnedEntities,
         orderedEntityIds: typeof this._playerOrderPreferences === "function" && this._playerSortMode?.() === "custom" ? this._playerOrderPreferences() : [],
+        defaultEntityId: configuredDefaultPlayer?.entity_id || "",
         isPlayerActiveFn: (player) => this._isPlayerActive(player),
         isExternalBrowserPlayerFn: (player) => this._isExternalBrowserPlayer(player)
       });
@@ -22001,15 +22032,10 @@ function createHomeiiBaseMusicCard({
         if (this._state.selectedPlayer !== preferredFrontPlayerEntity) this._state.selectedPlayer = preferredFrontPlayerEntity;
         this._state.hasAutoSelectedPlayer = true;
       }
-      const urlPlayerOverride = this._resolvePlayerOverrideEntity(entities);
-      if (urlPlayerOverride?.entity_id && this._state.selectedPlayer !== urlPlayerOverride.entity_id) {
-        this._state.selectedPlayer = urlPlayerOverride.entity_id;
-        this._state.hasAutoSelectedPlayer = true;
-      }
       const currentStillExists = this._state.selectedPlayer && entities.some((p) => p.entity_id === this._state.selectedPlayer);
       if (!currentStillExists) this._state.selectedPlayer = null;
       if (!this._state.selectedPlayer) {
-        const fallbackPlayer = rememberedThisDevice || entities.find((p) => !this._isExternalBrowserPlayer(p)) || entities[0];
+        const fallbackPlayer = configuredDefaultPlayer || rememberedThisDevice || entities.find((p) => !this._isExternalBrowserPlayer(p)) || entities[0];
         if (fallbackPlayer) this._state.selectedPlayer = fallbackPlayer.entity_id;
       }
       if (sel) {
@@ -22603,14 +22629,22 @@ function createHomeiiBaseMusicCard({
     }
     _getCurrentPosition() {
       const player = this._getSelectedPlayer();
+      const hasPlayerPosition = player?.attributes?.media_position !== void 0 && player?.attributes?.media_position !== null && player?.attributes?.media_position !== "";
       const hasQueuePosition = this._state.maQueueState?.elapsed_time !== void 0 && this._state.maQueueState?.elapsed_time !== null && this._state.maQueueState?.elapsed_time !== "";
-      let position = hasQueuePosition ? HomeiiMediaPresentationFoundation2.coercePlaybackSeconds(this._state.maQueueState?.elapsed_time) : HomeiiMediaPresentationFoundation2.coercePlaybackSeconds(player?.attributes?.media_position || 0);
-      if (this._state.maQueueState && player?.state === "playing" && this._state.maQueueState.elapsed_time_last_updated) {
-        const updatedAt = HomeiiMediaPresentationFoundation2.parsePlaybackTimestampMs(this._state.maQueueState.elapsed_time_last_updated);
-        if (updatedAt) position += Math.max(0, (Date.now() - updatedAt) / 1e3);
-      } else if (player?.state === "playing" && player?.attributes?.media_position_updated_at) {
-        const updatedAt = HomeiiMediaPresentationFoundation2.parsePlaybackTimestampMs(player.attributes.media_position_updated_at);
-        if (updatedAt) position += Math.max(0, (Date.now() - updatedAt) / 1e3);
+      const applyLiveDelta = (basePosition = 0, updatedAtValue = "") => {
+        let position2 = HomeiiMediaPresentationFoundation2.coercePlaybackSeconds(basePosition || 0);
+        if (player?.state === "playing" && updatedAtValue) {
+          const updatedAt = HomeiiMediaPresentationFoundation2.parsePlaybackTimestampMs(updatedAtValue);
+          if (updatedAt) position2 += Math.max(0, (Date.now() - updatedAt) / 1e3);
+        }
+        return position2;
+      };
+      const playerPosition = hasPlayerPosition ? applyLiveDelta(player?.attributes?.media_position, player?.attributes?.media_position_updated_at) : 0;
+      const queuePosition = hasQueuePosition ? applyLiveDelta(this._state.maQueueState?.elapsed_time, this._state.maQueueState?.elapsed_time_last_updated) : 0;
+      let position = hasPlayerPosition ? playerPosition : queuePosition;
+      if (hasPlayerPosition && hasQueuePosition) {
+        const delta = Math.abs(queuePosition - playerPosition);
+        position = delta <= 2 ? Math.max(playerPosition, queuePosition) : playerPosition;
       }
       const duration = this._getCurrentDuration();
       if (duration && position > duration + 2) return duration;
@@ -25254,6 +25288,7 @@ function resolvePreferredFrontPlayerEntity(players = [], {
   now = Date.now(),
   pinnedEntityIds = [],
   orderedEntityIds = [],
+  defaultEntityId = "",
   isPlayerActiveFn = (player) => player?.state === "playing",
   isExternalBrowserPlayerFn = isLikelyBrowserPlayer
 } = {}) {
@@ -25277,6 +25312,8 @@ function resolvePreferredFrontPlayerEntity(players = [], {
   if (playing) return playing.entity_id;
   const active = pickPreferred(sourcePlayers.filter((player) => isPlayerActiveFn(player)));
   if (active) return active.entity_id;
+  const defaultPlayer = usableById(defaultEntityId);
+  if (defaultPlayer) return defaultPlayer.entity_id;
   for (const entityId of Array.isArray(pinnedEntityIds) ? pinnedEntityIds : []) {
     const pinned = usableById(entityId);
     if (pinned) return pinned.entity_id;
@@ -27126,9 +27163,9 @@ function ensureHaEditorComponents() {
   } catch (_) {
   }
 }
-const HOMEII_CARD_VERSION = "5.9.2";
-const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v592";
-const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v592";
+const HOMEII_CARD_VERSION = "5.9.3";
+const HOMEII_BROWSER_EDITOR_TAG = "homeii-music-flow-browser-editor-v593";
+const HOMEII_MOBILE_EDITOR_TAG = "homeii-music-flow-editor-v593";
 const AMBIENT_LIGHT_PAIR_PLAYER_PREFIX = "__homeii_ambient_light_pair_player_";
 const AMBIENT_LIGHT_PAIR_LIGHTS_PREFIX = "__homeii_ambient_light_pair_lights_";
 const HomeiiEditorLocale = Object.freeze({
@@ -31705,7 +31742,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const favoriteScope = String(
       entry?.favorite_scope || entry?.favoriteScope || entry?.favorite_target || entry?.favoriteTarget || entry?.source_context || entry?.sourceContext || ""
     ).trim().toLowerCase();
-    if (entry?.targets_current_media === false || ["item", "library", "search", "radio", "media"].includes(favoriteScope)) {
+    if (entry?.targets_current_media === false || ["item", "library", "search", "radio", "media", "local", "browser", "radio_browser", "external_radio"].includes(favoriteScope)) {
       return false;
     }
     return HomeiiMediaQueueFoundation.entryTargetsCurrentMedia(
@@ -44641,6 +44678,19 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
           line-height:1.28;
           color:rgba(255,255,255,.62);
         }
+        .player-premium-entity {
+          min-width:0;
+          overflow:hidden;
+          text-overflow:ellipsis;
+          white-space:nowrap;
+          margin-top:2px;
+          font-size:11px;
+          font-weight:700;
+          line-height:1.25;
+          direction:ltr;
+          text-align:left;
+          color:rgba(255,255,255,.44);
+        }
         .card.layout-tablet .player-premium-track {
           font-size:12px;
         }
@@ -46191,6 +46241,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
         .rtl .media-search-shell input {
           text-align:right;
         }
+        .card:not(.rtl) .media-search-shell input {
+          direction:ltr;
+          text-align:left;
+        }
         @media (max-width:600px) {
           .card {
             border-radius:22px;
@@ -47082,6 +47136,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
 .theme-light .player-premium-name{color:#16202d!important;}
 .theme-light .player-premium-kicker{color:#6c7889!important;}
 .theme-light .player-premium-track{color:#556276!important;}
+.theme-light .player-premium-entity{color:#718096!important;}
 .theme-light .player-premium-meta{color:#5c687b!important;}
 .theme-light .player-mini-value{color:#435066!important;}
 .control-room-backdrop{position:absolute;inset:0;display:flex;align-items:stretch;justify-content:center;padding:0;opacity:0;pointer-events:none;transition:opacity .26s ease;z-index:28;background:rgba(6,10,18,.12);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
@@ -56639,6 +56694,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const frontPinned = this._frontPinnedPlayerEntity() === p?.entity_id;
     const vol = Math.round((p.attributes?.volume_level || 0) * 100);
     const friendlyName = this._playerDisplayName(p);
+    const entityLabel = String(p?.entity_id || "").trim();
+    const showEntityLabel = entityLabel && !String(friendlyName || "").includes(entityLabel);
     const track = p.attributes?.media_title || p.attributes?.media_artist || "";
     const activityIcon = `<span class="player-premium-bars eq-icon ${activePlayback ? "is-active" : "is-static"}" aria-label="${this._esc(activePlayback ? this._i18n("ui.playing") : this._i18n("ui.idle"))}"><span></span><span></span><span></span></span>`;
     const pinHtml = showFrontPin ? `<button type="button" class="player-premium-side player-front-pin ${frontPinned ? "active" : ""}" data-front-pin-player="${this._esc(p.entity_id)}" title="${this._esc(frontPinned ? this._m("Clear front pin", "??? ??? ????") : this._m("Pin player to front", "??? ??? ?????"))}" aria-pressed="${frontPinned ? "true" : "false"}">${this._iconSvg("pin")}</button>` : ``;
@@ -56653,6 +56710,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
             ${activityIcon}
           </span>
           ${track ? `<span class="player-premium-track">${this._esc(track)}</span>` : ``}
+          ${showEntityLabel ? `<span class="player-premium-entity">${this._esc(entityLabel)}</span>` : ``}
         </span>
       </button>
     `;
@@ -57574,6 +57632,119 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
   _diagnosticIsStrictMusicAssistantPlayer(player = null, hassEntities = this._hass?.entities || {}) {
     return !!(this._isDirectMaPlayer?.(player) || HomeiiPlayersFoundation.isMusicAssistantPlayer(player, hassEntities?.[player?.entity_id]));
   }
+  _diagnosticSearchQuery() {
+    const candidates = [
+      this._state?.mediaQuery,
+      this.$?.("mobileMediaSearchInput")?.value,
+      this.$?.("artistDetailSearchInput")?.value
+    ];
+    return candidates.map((value) => String(value || "").trim()).find(Boolean) || "";
+  }
+  _diagnosticSearchResultCount(results = {}) {
+    return ["radio", "podcasts", "albums", "artists", "tracks", "playlists"].reduce((total, group) => total + (Array.isArray(results?.[group]) ? results[group].length : 0), 0);
+  }
+  _diagnosticSearchResultBreakdown(results = {}) {
+    return ["radio", "podcasts", "albums", "artists", "tracks", "playlists"].map((group) => `${group}:${Array.isArray(results?.[group]) ? results[group].length : 0}`).join(", ");
+  }
+  _diagnosticConfiguredEntityRows(add, selectedPlayer = null, hassStates = this._hass?.states || {}, hassEntities = this._hass?.entities || {}) {
+    const configuredEntity = String(this._config?.entity || this.config?.entity || "").trim();
+    const urlOverride = this._playerOverrideParamValue?.() || "";
+    if (!configuredEntity) {
+      add("info", "Configured entity", "No card entity is configured. HOMEii will choose from query-string override, active players, pinned players, remembered player, and visible player order.", "(none)");
+      return;
+    }
+    const configuredPlayer = hassStates?.[configuredEntity] || null;
+    if (!configuredPlayer) {
+      add("fail", "Configured entity", "The configured entity was not found in Home Assistant states. Check the entity id in YAML or the visual editor.", configuredEntity);
+      return;
+    }
+    const visiblePlayers = Array.isArray(this._state?.players) ? this._state.players : [];
+    const visible = visiblePlayers.some((player) => player?.entity_id === configuredEntity);
+    const selectedMatches = selectedPlayer?.entity_id === configuredEntity;
+    const strictMa = this._diagnosticIsStrictMusicAssistantPlayer(configuredPlayer, hassEntities);
+    const fallbackMa = !strictMa && this._isGenericMusicAssistantFallbackPlayer?.(configuredPlayer);
+    const excluded = this._isPlayerExcluded?.(configuredPlayer);
+    const activeSelected = selectedPlayer && selectedPlayer.entity_id !== configuredEntity && this._isPlayerActive?.(selectedPlayer);
+    const configuredName = configuredPlayer.attributes?.friendly_name || configuredEntity;
+    const selectedName = selectedPlayer?.attributes?.friendly_name || selectedPlayer?.entity_id || "(none)";
+    let status = "ok";
+    let detail = "Configured entity exists and is available as the card default player.";
+    if (excluded) {
+      status = "warn";
+      detail = "Configured entity exists, but it is excluded in HOMEii settings.";
+    } else if (!strictMa && !fallbackMa) {
+      status = "warn";
+      detail = "Configured entity exists, but it does not look like a Music Assistant player.";
+    } else if (!visible) {
+      status = "warn";
+      detail = "Configured entity exists, but it is not in the current visible player list. Check pinned/excluded player filters.";
+    } else if (urlOverride) {
+      status = selectedMatches ? "ok" : "info";
+      detail = selectedMatches ? "Configured entity is selected even with a query-string override present." : "A query-string player override is active, so it can intentionally win over the configured entity.";
+    } else if (selectedMatches) {
+      detail = "Configured entity is the currently selected player.";
+    } else if (activeSelected) {
+      status = "info";
+      detail = "Another player is currently active, so HOMEii is showing the active player and keeping the configured entity as the fallback default.";
+    } else {
+      status = "warn";
+      detail = "Configured entity exists, but HOMEii selected a different player. This usually means manual/front selection, pinned order, or remembered state is taking priority.";
+    }
+    add(status, "Configured entity", `${detail} Selected now: ${selectedName}.`, `${configuredName} | ${configuredEntity} | ${this._diagnosticPlayerMarkerSummary(configuredPlayer, hassEntities)}`);
+  }
+  async _diagnosticSearchRows(add, musicAssistantServices = []) {
+    const query = this._diagnosticSearchQuery();
+    const hasHaSearch = this._hasService?.("music_assistant", "search") || Array.isArray(musicAssistantServices) && musicAssistantServices.includes("search");
+    const hasDirectSearch = !!this._hasDirectMAConnection?.();
+    const cacheSize = Number(this._cache?.library?.size || 0);
+    add(
+      hasHaSearch || hasDirectSearch ? "ok" : "warn",
+      "Search providers",
+      `HA search ${hasHaSearch ? "yes" : "no"}, Direct music/search ${hasDirectSearch ? "yes" : "no"}, library cache entries ${cacheSize}.`,
+      query ? `query="${query}"` : "(no active query)"
+    );
+    if (!query || query.length < 2) {
+      add("info", "Search provider sample", "Open the affected Search screen, run the exact search term, then run diagnostics. HOMEii will measure that active query without guessing.", "skipped");
+      return;
+    }
+    const timedSearch = async (label, searchOptions, timeoutMs) => {
+      const started = Date.now();
+      const results = await this._withTimeout(
+        this._search(query, searchOptions),
+        timeoutMs,
+        this._timeoutMessage(label)
+      );
+      return {
+        results,
+        count: this._diagnosticSearchResultCount(results),
+        breakdown: this._diagnosticSearchResultBreakdown(results),
+        elapsed: Date.now() - started
+      };
+    };
+    try {
+      const fast = await timedSearch("Music Assistant fast/library search", { fastOnly: true, limit: 12 }, 5200);
+      add(
+        fast.count ? "ok" : "warn",
+        "Search fast/library sample",
+        `${fast.count ? "Fast/library search returned results." : "Fast/library search returned no results."} ${fast.breakdown}`,
+        `${fast.count} result(s), ${fast.elapsed}ms`
+      );
+    } catch (error) {
+      add("warn", "Search fast/library sample", error?.message || "Fast/library search failed.", query);
+    }
+    try {
+      const providerTimeout = Math.max(9e3, Math.min(22e3, Number(this._musicAssistantTimeoutMs?.() || 12e3) + 5e3));
+      const provider = await timedSearch("Music Assistant provider search", { providerOnly: true, limit: 12 }, providerTimeout);
+      add(
+        provider.count ? "ok" : "warn",
+        "Search provider sample",
+        `${provider.count ? "Provider search returned results." : "Provider search returned no results for this query. HOMEii should still keep showing library results and should not stop provider search just because library results exist."} ${provider.breakdown}`,
+        `${provider.count} result(s), ${provider.elapsed}ms`
+      );
+    } catch (error) {
+      add("warn", "Search provider sample", `${error?.message || "Provider search failed."} This can be Music Assistant/provider latency, CORS/direct access, or a provider-side empty response.`, query);
+    }
+  }
   async _diagnosticQueueRows(add, selectedPlayer = null) {
     if (!selectedPlayer) {
       add("fail", "Queue snapshot", "No selected player is available, so queue checks cannot run.");
@@ -57584,15 +57755,24 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     add("info", "Queue providers", `HA get_queue ${this._hasService?.("music_assistant", "get_queue") ? "yes" : "no"}, mass_queue get_queue_items ${this._hasMassQueueService?.("get_queue_items") ? "yes" : "no"}, direct queue ${this._hasDirectMAConnection?.() ? "yes" : "no"}`);
     const uiQueueCount = Array.isArray(this._state.queueItems) ? this._state.queueItems.length : 0;
     const uiQueueStateCount = Number(this._state.maQueueState?.items);
-    add("info", "Queue UI state", `Rendered queue items ${uiQueueCount}; queue state reports ${Number.isFinite(uiQueueStateCount) ? uiQueueStateCount : "unknown"} item(s).`, this._state.maQueueState ? "state present" : "state missing");
+    const uiLooksPartial = Number.isFinite(uiQueueStateCount) && uiQueueStateCount > uiQueueCount && uiQueueCount > 0;
+    add(
+      uiLooksPartial ? "warn" : "info",
+      "Queue UI state",
+      `Rendered queue items ${uiQueueCount}; queue state reports ${Number.isFinite(uiQueueStateCount) ? uiQueueStateCount : "unknown"} item(s).${uiLooksPartial ? " The rendered queue appears to be a partial window." : ""}`,
+      this._state.maQueueState ? "state present" : "state missing"
+    );
     const attempts = [];
     const snapshots = [];
     const runAttempt = async (label, fn) => {
       try {
         const snapshot = await fn();
         const count = this._diagnosticSnapshotCount(snapshot);
-        attempts.push(`${label}: ${snapshot ? `${count} item(s)` : "no snapshot"}`);
-        if (snapshot) snapshots.push({ label, snapshot, count });
+        const expected = typeof this._queueSnapshotExpectedCount === "function" ? this._queueSnapshotExpectedCount(snapshot) : 0;
+        const partial = typeof this._queueSnapshotLooksPartial === "function" ? this._queueSnapshotLooksPartial(snapshot) : false;
+        const countLabel = partial && expected > count ? `${count}/${expected} item(s), partial window` : `${count} item(s)`;
+        attempts.push(`${label}: ${snapshot ? countLabel : "no snapshot"}`);
+        if (snapshot) snapshots.push({ label, snapshot, count, expected, partial });
       } catch (error) {
         attempts.push(`${label}: ${error?.message || "failed"}`);
       }
@@ -57616,10 +57796,10 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const mismatch = uiQueueCount === 0 && best.count > 0;
       const repaired = mismatch && repairedUiQueueCount > 0;
       add(
-        repaired ? "ok" : mismatch ? "warn" : "ok",
+        best.partial ? "warn" : repaired ? "ok" : mismatch ? "warn" : "ok",
         "Queue snapshot",
-        repaired ? `${detail}. Diagnostics applied the queue snapshot to the card UI state. Reopen the Queue screen if it was already open.` : mismatch ? `${detail}. API returned queue items while the UI currently has no rendered queue items; refresh/reopen the queue panel and send this report if it remains empty.` : detail,
-        `${best.label}: ${best.count}`
+        best.partial ? `${detail}. The best queue provider only returned a partial window; HOMEii will keep any fuller queue already rendered and will prefer Mass/Direct queue data when available.` : repaired ? `${detail}. Diagnostics applied the queue snapshot to the card UI state. Reopen the Queue screen if it was already open.` : mismatch ? `${detail}. API returned queue items while the UI currently has no rendered queue items; refresh/reopen the queue panel and send this report if it remains empty.` : detail,
+        `${best.label}: ${best.partial && best.expected > best.count ? `${best.count}/${best.expected}` : best.count}`
       );
     } else if (best) {
       add("warn", "Queue snapshot", `${detail}. Queue API is reachable but returned no items; this can be normal for an idle/empty queue.`);
@@ -57765,7 +57945,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       <div class="settings-shell diagnostics-shell">
         <div class="settings-group diagnostics-card">
           <div class="settings-label">${this._esc(this._m("HOMEii Diagnostics", "אבחון HOMEii"))}</div>
-          <div class="settings-hint">${this._esc(this._m("Diagnostic v6 checks Home Assistant integration mode, browser context, player selection, group state, queue UI/API alignment, browser/authenticated artwork loading, rendered artwork DOM, Direct MA, and Sendspin readiness.", "Diagnostic v6 בודק מצב אינטגרציה, דפדפן, בחירת נגן, מצב קבוצה, התאמת תור UI/API, טעינת עטיפות בדפדפן/באימות, מצב תמונות ב-DOM, Direct MA ו-Sendspin."))}</div>
+          <div class="settings-hint">${this._esc(this._m("Diagnostic v7 checks Home Assistant integration mode, browser context, configured entity, player selection, search providers, group state, queue UI/API alignment, browser/authenticated artwork loading, rendered artwork DOM, Direct MA, and Sendspin readiness.", "Diagnostic v7 בודק מצב אינטגרציה, דפדפן, ישות מוגדרת, בחירת נגן, ספקי חיפוש, מצב קבוצה, התאמת תור UI/API, טעינת עטיפות בדפדפן/באימות, מצב תמונות ב-DOM, Direct MA ו-Sendspin."))}</div>
           <div class="settings-actions diagnostics-actions">
             <button class="settings-pill active" data-menu-action="run_diagnostics" ${running ? "disabled" : ""}>${this._esc(running ? this._m("Running...", "מריץ...") : this._m("Run diagnostics", "הרץ אבחון"))}</button>
             <button class="settings-pill" data-menu-action="copy_diagnostics" ${items.length ? "" : "disabled"}>${this._esc(this._m("Copy report", "העתק דוח"))}</button>
@@ -57922,7 +58102,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     let configEntryState = "";
     let configEntryFound = false;
     add("ok", "Card version", "HOMEii Flow runtime is loaded.", HOMEII_CARD_VERSION);
-    add("ok", "Diagnostics version", "Diagnostic v6 is active.", "v6");
+    add("ok", "Diagnostics version", "Diagnostic v7 is active.", "v7");
     add("info", "Browser", this._diagnosticBrowserSummary());
     add("info", "Viewport", this._diagnosticViewportSummary());
     add("info", "Diagnostic privacy", "External/private hostnames are redacted in visible and copied diagnostic output.");
@@ -57976,6 +58156,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const configuredEntity = String(this._config?.entity || this.config?.entity || "").trim();
       const selectionSource = urlOverride ? `query string (${urlOverride})` : configuredEntity ? `card entity (${configuredEntity})` : "automatic / remembered";
       add("info", "Player selection source", "Query-string player overrides win first, then card entity, then automatic/remembered selection.", selectionSource);
+      this._diagnosticConfiguredEntityRows(add, selectedPlayer, hassStates, hassEntities);
       const groupIds = this._currentSpeakerGroupMemberIds?.(selectedPlayer.entity_id) || [];
       const groupNames = groupIds.map((entityId) => this._playerByEntityId?.(entityId)?.attributes?.friendly_name || entityId).filter(Boolean);
       add(groupIds.length > 1 ? "ok" : "info", "Group state", groupIds.length > 1 ? `${groupIds.length} player(s) are currently grouped.` : "Selected player is not currently in a dynamic group.", groupNames.join(" · ") || "(none)");
@@ -58022,6 +58203,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       add("info", "Direct Music Assistant WebSocket", "Skipped because ma_url is empty.");
     }
     this._diagnosticSendspinRows(add, maUrl, directIssue, hasIntegrationServices);
+    await this._diagnosticSearchRows(add, musicAssistantServices);
     await this._diagnosticQueueRows(add, selectedPlayer);
     await this._diagnosticLibraryRows(add, musicAssistantServices);
     this._diagnosticRenderedArtworkRows(add);
@@ -58034,7 +58216,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const items = Array.isArray(this._state.diagnosticsItems) ? this._state.diagnosticsItems : [];
     const lines = [
       "HOMEii Music Flow Diagnostics",
-      "Diagnostics: v6",
+      "Diagnostics: v7",
       `Version: ${HOMEII_CARD_VERSION}`,
       `Generated: ${new Date(this._state.diagnosticsRunAt || Date.now()).toISOString()}`,
       `Browser: ${this._diagnosticBrowserSummary()}`,
@@ -58152,7 +58334,7 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       artist,
       album: albumName,
       image,
-      favorite_scope: item?.favorite_scope || parentDetail?.favorite_scope || "library"
+      favorite_scope: item?.radio_browser || item?.radio_browser_id || parentDetail?.radio_browser || parentDetail?.radio_browser_id ? "radio_browser" : item?.favorite_scope || parentDetail?.favorite_scope || "library"
     };
   }
   _mediaDetailDataAttrs(entry = {}) {
@@ -59928,7 +60110,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const thumbHtml = art ? `<span class="menu-thumb" data-img="${this._esc(art)}" data-placeholder="${this._esc(fallbackIcon)}">${this._iconSvg(fallbackIcon)}</span>` : `<span class="menu-thumb">${this._iconSvg(fallbackIcon)}</span>`;
       const artistName2 = this._artistName(item) || "";
       const sub = entryMediaType === "artist" ? this._i18n("ui.artist") : entryMediaType === "radio" ? item.metadata?.description || "" : artistName2 || item.album?.name || item.publisher || "";
-      const dataAttrs = `data-media-type="${this._esc(entryMediaType)}" data-media-name="${this._esc(item.name || "")}" data-media-artist="${this._esc(artistName2)}" data-media-album="${this._esc(item.album?.name || "")}" data-media-image="${this._esc(art || "")}" data-media-favorite-scope="library"`;
+      const favoriteScope = item?.radio_browser || item?.radio_browser_id ? "radio_browser" : item?.favorite_scope || options.favorite_scope || "library";
+      const dataAttrs = `data-media-type="${this._esc(entryMediaType)}" data-media-name="${this._esc(item.name || "")}" data-media-artist="${this._esc(artistName2)}" data-media-album="${this._esc(item.album?.name || "")}" data-media-image="${this._esc(art || "")}" data-media-favorite-scope="${this._esc(favoriteScope)}"`;
       return `
         <div class="menu-list-item media-entry ${this._esc(layout)} media-type-${this._esc(entryMediaType)}">
           <button class="media-entry-main" ${canOpenDetails ? `data-media-open="${this._esc(item.uri || "")}"` : `data-media-uri="${this._esc(item.uri || "")}"`} ${dataAttrs}>
@@ -60071,8 +60254,8 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const clearBtn = this.$("mobileMediaSearchClear");
     if (!resultsHost) return;
     const query = (this._state.mediaQuery || "").trim();
-    const token = ++this._state.mediaSearchToken;
-    const isCurrentSearch = () => this._state.menuOpen && this._isMobileSearchPage() && token === this._state.mediaSearchToken && (this._state.mediaQuery || "").trim() === query;
+    this._state.mediaSearchToken = Number(this._state.mediaSearchToken || 0) + 1;
+    const isCurrentSearch = () => this._state.menuOpen && this._isMobileSearchPage() && (this._state.mediaQuery || "").trim() === query;
     if (clearBtn) clearBtn.style.display = query ? "" : "none";
     if (clearBtn) clearBtn.classList.toggle("visible", !!query);
     if (!query) {
@@ -60083,30 +60266,69 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
     const cachedResults = this._cachedLibrarySearchResults(query, 10);
     const searchRenderOptions = { openDetails: this._state.menuPage !== "quick_search" };
     let hasInterimResults = this._hasSearchResults(cachedResults);
+    let fastResults = cachedResults;
     resultsHost.innerHTML = hasInterimResults ? this._mediaSearchSectionsHtml(cachedResults, searchRenderOptions) : this._loadingStateHtml(this._i18n("ui.searching"), { notice: true });
     if (hasInterimResults) this._hydrateImages(body);
     if (!hasInterimResults) {
-      this._withTimeout(this._searchPreviewResults(query, 8), 1800, "Preview search timed out").then((previewResults) => {
-        if (!isCurrentSearch() || !this._hasSearchResults(previewResults)) return;
+      this._withTimeout(this._searchPreviewResults(query, 8), 3200, "Preview search timed out").then((previewResults) => {
+        if (!isCurrentSearch() || hasInterimResults || !this._hasSearchResults(previewResults)) return;
         hasInterimResults = true;
         resultsHost.innerHTML = this._mediaSearchSectionsHtml(previewResults, searchRenderOptions);
         this._hydrateImages(body);
       }).catch(() => {
       });
     }
-    let results;
+    let providerPromise = null;
     try {
-      results = await this._search(query);
-    } catch (_) {
+      providerPromise = (async () => {
+        await new Promise((resolve) => setTimeout(resolve, 650));
+        if (!isCurrentSearch()) return this._emptySearchResults();
+        return this._withTimeout(
+          this._search(query, { providerOnly: true, limit: 30 }),
+          Math.max(this._musicAssistantTimeoutMs(), 18e3),
+          this._timeoutMessage("Music Assistant provider search")
+        );
+      })().catch((error) => {
+        this._debugLog("warn", "[HOMEii Flow] provider search failed", error);
+        return this._emptySearchResults();
+      });
+      fastResults = await this._search(query, { fastOnly: true, limit: 25 });
+    } catch (error) {
       if (!isCurrentSearch()) return;
       if (hasInterimResults) return;
       resultsHost.innerHTML = `<div class="notice open">${this._i18n("ui.search_failed")}</div>`;
       return;
     }
     if (!isCurrentSearch()) return;
-    if (!this._hasSearchResults(results) && hasInterimResults) return;
-    resultsHost.innerHTML = this._mediaSearchSectionsHtml(results, searchRenderOptions);
-    this._hydrateImages(body);
+    if (this._hasSearchResults(fastResults)) {
+      hasInterimResults = true;
+      resultsHost.innerHTML = this._mediaSearchSectionsHtml(fastResults, searchRenderOptions);
+      this._hydrateImages(body);
+    } else if (!hasInterimResults) {
+      resultsHost.innerHTML = this._loadingStateHtml(this._i18n("ui.searching"), { notice: true });
+    }
+    const applyProviderResults = (providerResults) => {
+      if (!isCurrentSearch() || !this._hasSearchResults(providerResults)) return false;
+      const mergedResults = this._mergeSearchResults(fastResults, providerResults);
+      if (!this._hasSearchResults(mergedResults)) return false;
+      resultsHost.innerHTML = this._mediaSearchSectionsHtml(mergedResults, searchRenderOptions);
+      this._hydrateImages(body);
+      return true;
+    };
+    if (providerPromise) {
+      if (hasInterimResults) {
+        providerPromise.then(applyProviderResults).catch(() => {
+        });
+        return;
+      }
+      const providerResults = await providerPromise;
+      if (applyProviderResults(providerResults)) return;
+    }
+    if (!hasInterimResults) {
+      const mergedResults = this._mergeSearchResults(fastResults, this._emptySearchResults());
+      resultsHost.innerHTML = this._mediaSearchSectionsHtml(mergedResults, searchRenderOptions);
+      this._hydrateImages(body);
+    }
   }
   _announcementsMenuHtml() {
     const text = this._state.mobileAnnouncementText || "";
@@ -60666,8 +60888,9 @@ class HomeiiMusicFlowBaseCard extends HomeiiBaseMusicCard {
       const nearby = index < 8;
       const itemCaption = this._libraryFlowCaptionForItem(item, mediaType, options);
       const actionAttr = uri ? canOpenDetails ? `data-media-open="${this._esc(uri)}"` : `data-media-uri="${this._esc(uri)}"` : "";
+      const favoriteScope = item?.radio_browser || item?.radio_browser_id ? "radio_browser" : item?.favorite_scope || options.favorite_scope || "library";
       return `
-                  <button class="queue-flow-item library-flow-item ${index === activeIndex ? "active centered" : ""}" data-library-flow-item="1" ${actionAttr} data-flow-caption-title="${this._esc(itemCaption.title)}" data-flow-caption-artist="${this._esc(itemCaption.artist)}" data-media-type="${this._esc(entryMediaType)}" data-media-name="${this._esc(item?.name || item?.title || "")}" data-media-artist="${this._esc(artistName2)}" data-media-album="${this._esc(albumName)}" data-media-image="${this._esc(art || "")}" data-media-favorite-scope="library" ${uri ? "" : "disabled"}>
+                  <button class="queue-flow-item library-flow-item ${index === activeIndex ? "active centered" : ""}" data-library-flow-item="1" ${actionAttr} data-flow-caption-title="${this._esc(itemCaption.title)}" data-flow-caption-artist="${this._esc(itemCaption.artist)}" data-media-type="${this._esc(entryMediaType)}" data-media-name="${this._esc(item?.name || item?.title || "")}" data-media-artist="${this._esc(artistName2)}" data-media-album="${this._esc(albumName)}" data-media-image="${this._esc(art || "")}" data-media-favorite-scope="${this._esc(favoriteScope)}" ${uri ? "" : "disabled"}>
                     <span class="queue-flow-art">
                       ${art ? this._imgHtml(art, "", { loading: nearby ? "eager" : "lazy", fetchpriority: nearby ? "high" : "low" }) : this._iconSvg(fallbackIcon)}
                     </span>

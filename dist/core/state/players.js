@@ -158,6 +158,7 @@ export function resolvePreferredFrontPlayerEntity(players = [], {
   now = Date.now(),
   pinnedEntityIds = [],
   orderedEntityIds = [],
+  defaultEntityId = "",
   isPlayerActiveFn = (player) => player?.state === "playing",
   isExternalBrowserPlayerFn = isLikelyBrowserPlayer,
 } = {}) {
@@ -192,6 +193,8 @@ export function resolvePreferredFrontPlayerEntity(players = [], {
   if (playing) return playing.entity_id;
   const active = pickPreferred(sourcePlayers.filter((player) => isPlayerActiveFn(player)));
   if (active) return active.entity_id;
+  const defaultPlayer = usableById(defaultEntityId);
+  if (defaultPlayer) return defaultPlayer.entity_id;
   for (const entityId of Array.isArray(pinnedEntityIds) ? pinnedEntityIds : []) {
     const pinned = usableById(entityId);
     if (pinned) return pinned.entity_id;
